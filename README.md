@@ -223,3 +223,40 @@ Leaf 是一个轻量且快速的代理工具。
 
 - `mmdb` MaxMind 的 mmdb 格式
 - `site` V2Ray 的 `dat` 文件格式
+
+## 进阶功能
+
+### TUN Inbound
+
+在 macOS 和 Linux 上还支持 TUN Inbound
+
+```json
+"inbounds": [
+    {
+        "protocol": "tun",
+        "settings": {
+            "name": "utun8",
+            "address": "10.10.0.2",
+            "netmask": "255.255.255.0"
+            "gateway": "10.10.0.1",
+            "mtu": 1500,
+            "fakeDnsExclude": [
+                "tracker",
+                "time.asia.apple.com",
+                "mesu.apple.com"
+            ],
+        },
+        "tag": "tun_in"
+    }
+]
+```
+
+参数
+
+- `name` 在 macOS 上必须是 `utun` 开头后加一个数字，在 Linux 上必须是 `tun` 开头后加一个数字
+- `address` `netmask` `gateway` `mtu` TUN 接口的一些参数
+- `fakeDnsExclude` 使用 TUN Inbound 将默认使用 `FakeDNS` 功能，这个列表可以将某些域名排除在外，**目前**处理使用域名的 UDP 请求会有问题，所以需要排除
+
+在 macOS 上还不能自动配置地址需要手动：sudo ifconfig utun7 10.10.0.2 netmask 255.255.255.0 10.10.0.1
+
+还需要手动配置路由表，具体可以参考 Mellow ：[macOS](https://github.com/mellow-io/mellow/blob/f71f6e54768ded3cfcc46bebb706d46cb8baac08/src/main.js#L702) [Linux](https://github.com/mellow-io/mellow/blob/f71f6e54768ded3cfcc46bebb706d46cb8baac08/src/helper/linux/config_route#L1)
