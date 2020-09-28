@@ -237,7 +237,7 @@ Leaf 是一个轻量且快速的代理工具。
         "settings": {
             "name": "utun8",
             "address": "10.10.0.2",
-            "netmask": "255.255.255.0"
+            "netmask": "255.255.255.0",
             "gateway": "10.10.0.1",
             "mtu": 1500,
             "fakeDnsExclude": [
