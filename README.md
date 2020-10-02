@@ -2,7 +2,63 @@
 
 Leaf 是一个轻量且快速的代理工具。
 
-## 配置文件
+## conf 配置文件
+
+```ini
+[General]
+loglevel = info
+dns-server = 114.114.114.114, 223.5.5.5
+always-real-ip = tracker, apple.com
+interface = 127.0.0.1
+port = 1087
+socks-interface = 127.0.0.1
+socks-port = 1086
+
+[Proxy]
+Direct = direct
+Reject = reject
+SS = ss, 1.2.3.4, 8485, encrypt-method=chacha20-ietf-poly1305, password=123456
+
+# `ws` 和 `tls` 目前只支持 true 值
+VMessWSS = vmess, my.domain.com, 443, username=0eb5486e-e1b5-49c5-aa75-d15e54dfac9d, ws=true, tls=true, ws-path=/v2
+
+Trojan = trojan, 4.3.2.1, 443, password=123456, sni=www.domain.com
+
+[Proxy Group]
+# fallback 等效于 failover
+Fallback = fallback, Trojan, VMessWSS, SS, interval=600, timeout=5
+
+# url-test 等效于 failover=false 的 failover
+UrlTest = url-test, Trojan, VMessWSS, SS, interval=600, timeout=5
+
+Failover = failover, Trojan, VMessWSS, SS, health-check=true, check-interval=600, fail-timeout=5, failover=true
+Tryall = tryall, Trojan, VMessWSS, delay-base=0
+Random = random, Trojan, VMessWSS
+
+[Rule]
+# 执行文件目录当中必需有 `site.dat` 文件
+EXTERNAL, site:category-ads-all, Reject
+
+# 也可以指定 `dat` 文件所在绝对路径，不支持相对路径
+EXTERNAL, site:/tmp/geosite.dat:category-ads-all, Reject
+
+IP-CIDR, 8.8.8.8/32, Fallback
+DOMAIN, www.google.com, Fallback
+DOMAIN-SUFFIX, google.com, Fallback
+DOMAIN-KEYWORD, google, Fallback
+
+# 等效于 EXTERNAL, mmdb:us, Fallback
+GEOIP, us, Fallback
+
+EXTERNAL, site:geolocation-!cn, Fallback
+
+# 执行文件目录当中必需有 `geo.mmdb` 文件
+EXTERNAL, mmdb:us, Fallback
+
+FINAL, Direct
+```
+
+## json 配置文件
 
 ```json
 {
@@ -237,14 +293,14 @@ Leaf 是一个轻量且快速的代理工具。
         "settings": {
             "name": "utun8",
             "address": "10.10.0.2",
-            "netmask": "255.255.255.0"
+            "netmask": "255.255.255.0",
             "gateway": "10.10.0.1",
             "mtu": 1500,
             "fakeDnsExclude": [
                 "tracker",
                 "time.asia.apple.com",
                 "mesu.apple.com"
-            ],
+            ]
         },
         "tag": "tun_in"
     }
@@ -260,3 +316,25 @@ Leaf 是一个轻量且快速的代理工具。
 在 macOS 上还不能自动配置地址需要手动：sudo ifconfig utun7 10.10.0.2 netmask 255.255.255.0 10.10.0.1
 
 还需要手动配置路由表，具体可以参考 Mellow ：[macOS](https://github.com/mellow-io/mellow/blob/f71f6e54768ded3cfcc46bebb706d46cb8baac08/src/main.js#L702) [Linux](https://github.com/mellow-io/mellow/blob/f71f6e54768ded3cfcc46bebb706d46cb8baac08/src/helper/linux/config_route#L1)
+
+此外所有非组合类型的 Outbound 必须正确配置一个 `bind` 地址，这是连接原网关的网卡的地址，即未连接 VPN 前网卡的 IP 地址：
+```json
+"outbounds: [
+    {
+        "bind": "192.168.0.99",
+        "protocol": "shadowsocks",
+        "settings": {
+            "address": "x.x.x.x",
+            "method": "chacha20-ietf-poly1305",
+            "password": "123456",
+            "port": 8389
+        },
+        "tag": "shadowsocks_out"
+    },
+    {
+        "bind": "192.168.0.99",
+        "protocol": "direct",
+        "tag": "direct"
+    }
+]
+```
