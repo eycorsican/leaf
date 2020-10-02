@@ -2,6 +2,9 @@
 
 Leaf 是一个轻量且快速的代理工具。
 
+# iOS TF 测试
+iOS TF 测试公开链接：https://testflight.apple.com/join/std0FFCS
+
 ## conf 配置文件
 
 ```ini
