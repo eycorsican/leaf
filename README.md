@@ -2,7 +2,11 @@
 
 Leaf 是一个轻量且快速的代理工具。
 
-# iOS TF 测试
+## 下载
+
+https://github.com/eycorsican/leaf/releases
+
+## iOS TF 测试
 iOS TF 测试公开链接：https://testflight.apple.com/join/std0FFCS
 
 ## conf 配置文件
@@ -22,7 +26,8 @@ Direct = direct
 Reject = reject
 SS = ss, 1.2.3.4, 8485, encrypt-method=chacha20-ietf-poly1305, password=123456
 
-# `ws` 和 `tls` 目前只支持 true 值
+VMess = vmess, my.domain.com, 8001, username=0eb5486e-e1b5-49c5-aa75-d15e54dfac9d
+
 VMessWSS = vmess, my.domain.com, 443, username=0eb5486e-e1b5-49c5-aa75-d15e54dfac9d, ws=true, tls=true, ws-path=/v2
 
 Trojan = trojan, 4.3.2.1, 443, password=123456, sni=www.domain.com
@@ -63,15 +68,19 @@ FINAL, Direct
 
 ## json 配置文件
 
+JSON 配置文件目前不考虑兼容性，每个版本都可能会变。
+
 ```json
 {
     "log": {
         "level": "info"
     },
-    "dns": [
-        "1.1.1.1",
-        "8.8.8.8"
-    ],
+    "dns": {
+        "servers": [
+            "1.1.1.1",
+            "8.8.8.8"
+        ]
+    },
     "inbounds": [
         {
             "listen": "127.0.0.1",
@@ -94,51 +103,63 @@ FINAL, Direct
                 "actors": [
                     "vmess_out",
                     "trojan_out"
-                ],
-                "checkInterval": 300,
-                "failTimeout": 4,
-                "healthCheck": true
+                ]
             },
             "tag": "failover_out"
         },
         {
-            "protocol": "tryall",
+            "protocol": "chain",
             "settings": {
                 "actors": [
-                    "trojan_out",
-                    "vmess_out"
-                ],
-                "delayBase": 0
-            },
-            "tag": "tryall_out"
-        },
-        {
-            "protocol": "random",
-            "settings": {
-                "actors": [
-                    "trojan_out",
-                    "vmess_out"
+                    "vmess_tls",
+                    "vmess_ws",
+                    "vmess"
                 ]
-            },
-            "tag": "random"
-        },
-        {
-            "protocol": "vmess",
-            "settings": {
-                "url": "wss://my.domain.com/v2",
-                "uuid": "6541dbe7-6877-4ce0-80a5-291d3db87650"
             },
             "tag": "vmess_out"
         },
         {
+            "protocol": "tls",
+            "tag": "vmess_tls"
+        },
+        {
+            "protocol": "ws",
+            "settings": {
+                "path": "/v2"
+            },
+            "tag": "vmess_ws"
+        },
+        {
+            "protocol": "vmess",
+            "settings": {
+                "address": "server.com",
+                "port": 443,
+                "uuid": "89ee4e17-aaad-49f6-91c4-6ea5990206bd"
+            },
+            "tag": "vmess"
+        },
+        {
+            "protocol": "chain",
+            "settings": {
+                "actors": [
+                    "trojan_tls",
+                    "trojan"
+                ]
+            },
+            "tag": "trojan_out"
+        },
+        {
+            "protocol": "tls",
+            "tag": "trojan_tls"
+        },
+        {
             "protocol": "trojan",
             "settings": {
-                "address": "x.x.x.x",
-                "domain": "my.domain.com",
+                "address": "server.com",
                 "password": "112358",
                 "port": 443
             },
-            "tag": "trojan_out"
+            "tag": "trojan"
         },
         {
             "protocol": "shadowsocks",
@@ -160,11 +181,11 @@ FINAL, Direct
         },
         {
             "protocol": "direct",
-            "tag": "direct"
+            "tag": "direct_out"
         },
         {
             "protocol": "drop",
-            "tag": "drop"
+            "tag": "drop_out"
         }
     ],
     "rules": [
@@ -195,23 +216,305 @@ FINAL, Direct
         },
         {
             "external": [
-                "site:geosite.dat:cn"
+                "site:cn"
             ],
-            "target": "direct"
+            "target": "direct_out"
         },
         {
             "external": [
-                "mmdb:geo.mmdb:cn"
+                "mmdb:cn"
             ],
-            "target": "direct"
+            "target": "direct_out"
         }
     ]
 }
 ```
 
-## Outbound 类型
+## Log
 
-支持常见的代理协议比如 Shadowsocks、VMess+WSS、Trojan，另外有三个组合类型的 Outbound：
+```json
+"log": {
+    "level": "info"
+}
+```
+
+level 可以是 trace, debug, info, warn, error
+
+## DNS
+
+```json
+"dns": {
+    "servers": [
+        "114.114.114.114",
+        "1.1.1.1"
+    ]
+}
+```
+
+DNS 用于 `direct` Outbound 请求的域名解析，以及其它 Outbound 中代理服务器地址的解析（如果代理服务器地址是 IP，则不需要解析）。
+
+## Inbounds
+
+"inbounds": [
+    {
+        ...
+    },
+    {
+        ...
+    }
+]
+
+inbounds 是一个数组，每一项可以是以下：
+
+### http
+
+```json
+{
+    "protocol": "http",
+    "listen": "127.0.0.1",
+    "port": 1087
+}
+```
+
+支持 HTTP Connect。
+
+### socks
+
+```json
+{
+    "protocol": "socks",
+    "listen": "127.0.0.1",
+    "port": 1086,
+    "settings": {
+        "bind": "127.0.0.1"
+    }
+}
+```
+
+默认支持 UDP。
+
+## Outbounds
+
+支持常见的代理协议比如 Shadowsocks、VMess、Trojan，以及 TLS 和 WebSocket 传输，另外有四个组合类型的 Outbound，其中 `chain` 可以对各种代理和传输协议进行任意组合。
+
+```json
+"outbounds": [
+    {
+        ...
+    },
+    {
+        ...
+    }
+]
+```
+
+outbounds 是一个数组，每一项可以是以下：
+
+### direct
+
+直连出口，请求将从本机直接发往目标，不经任何代理。
+
+```json
+{
+    "protocol": "direct",
+    "tag": "direct_out"
+}
+```
+
+### drop
+
+拦截请求。
+
+```json
+{
+    "protocol": "drop",
+    "tag": "drop_out"
+}
+```
+
+### tls
+
+TLS 传输，一般用来叠加到其它代理或传输协议上。
+
+```json
+{
+    "protocol": "tls",
+    "settings": {
+        "serverName": "server.com"
+    },
+    "tag": "tls_out"
+}
+```
+
+如果 `serverName` 为空，会尝试从下层协议获取。
+
+### ws
+
+WebSocket 传输，一般用来叠加到其它代理或传输协议上。
+
+```json
+{
+    "protocol": "ws",
+    "settings": {
+        "path": "/v2"
+    },
+    "tag": "ws_out"
+}
+```
+
+还未支持自定义 Headers，Host 会尝试从下层协议获取。
+
+### shadowsocks
+
+```json
+{
+    "protocol": "shadowsocks",
+    "settings": {
+        "address": "x.x.x.x",
+        "method": "chacha20-ietf-poly1305",
+        "password": "123456",
+        "port": 8389
+    },
+    "tag": "shadowsocks_out"
+}
+```
+
+`method`：
+- chacha20-ietf-poly1305
+- aes-128-gcm
+- aes-256-gcm
+
+### vmess
+
+```json
+{
+    "protocol": "vmess",
+    "settings": {
+        "address": "server.com",
+        "port": 10086,
+        "uuid": "89ee4e17-aaad-49f6-91c4-6ea5990206bd",
+        "security": "chacha20-ietf-poly1305"
+    },
+    "tag": "vmess"
+}
+```
+
+`security`：
+- chacha20-ietf-poly1305
+- aes-128-gcm
+- aes-256-gcm
+
+### trojan
+
+`trojan` Outbound 只包含未经 TLS 加密的代理协议，通常还需要利用 `chain` 对其叠加一层 `tls` 才能和正常的 trojan 服务器通讯。
+
+```json
+{
+    "protocol": "trojan",
+    "settings": {
+        "address": "server.com",
+        "password": "112358",
+        "port": 443
+    },
+    "tag": "trojan_out"
+}
+```
+
+### socks
+
+```json
+{
+    "protocol": "socks",
+    "settings": {
+        "address": "1.2.3.4",
+        "port": 1080
+    },
+    "tag": "socks_out"
+}
+```
+
+`socks` 不支持用户密码认证。
+
+### chain
+
+`chain` Outbound 可以对任意协议进行叠加，主要用途是在某个代理协议上叠加 tls、ws 等传输，以及配置代理链。
+
+这是一个典型的 TLS + WebSocket + VMess 配置：
+
+```json
+"outbounds": [
+    {
+        "protocol": "chain",
+        "settings": {
+            "actors": [
+                "vmess_tls",
+                "vmess_ws",
+                "vmess"
+            ]
+        },
+        "tag": "vmess_out"
+    },
+    {
+        "protocol": "tls",
+        "tag": "vmess_tls"
+    },
+    {
+        "protocol": "ws",
+        "settings": {
+            "path": "/v2"
+        },
+        "tag": "vmess_ws"
+    },
+    {
+        "protocol": "vmess",
+        "settings": {
+            "address": "server.com",
+            "port": 443,
+            "uuid": "89ee4e17-aaad-49f6-91c4-6ea5990206bd"
+        },
+        "tag": "vmess"
+    }
+]
+```
+
+如果有多个服务器，可以配置一个代理链，请求将沿着代理链传输后到达目标：
+
+> 客户端 -> ss1 -> ss2 -> 目标
+
+```json
+"outbounds": [
+    {
+        "protocol": "chain",
+        "settings": {
+            "actors": [
+                "ss1",
+                "ss2"
+            ]
+        },
+        "tag": "ss_chain_out"
+    },
+    {
+        "protocol": "shadowsocks",
+        "settings": {
+            "address": "1.1.1.1",
+            "method": "chacha20-ietf-poly1305",
+            "password": "123456",
+            "port": 1111
+        },
+        "tag": "ss1"
+    },
+    {
+        "protocol": "shadowsocks",
+        "settings": {
+            "address": "2.2.2.2",
+            "method": "chacha20-ietf-poly1305",
+            "password": "123456",
+            "port": 2222
+        },
+        "tag": "ss2"
+    }
+]
+```
 
 ### failover
 
@@ -225,7 +528,8 @@ FINAL, Direct
         ],
         "failTimeout": 4,
         "healthCheck": true,
-        "checkInterval": 300
+        "checkInterval": 300,
+		"failover": true
     },
     "tag": "failover_out"
 }
@@ -236,6 +540,7 @@ FINAL, Direct
 - `failTimeout` 握手超时，包括 TCP 握手及相应代理协议握手的时间
 - `healthCheck` 如果为 `true`，则对列表中的 Outbound 定时做健康检查，并按延迟重新排序
 - `checkInterval` 健康检查间隔
+- `failover` 如果为 `false`，则只取一个 Outbound 发送请求，失败也不会尝试其它 Outbound
 
 ### tryall
 
@@ -280,8 +585,21 @@ FINAL, Direct
 
 `external` 规则可以从外部文件加载规则，支持两种格式
 
-- `mmdb` MaxMind 的 mmdb 格式
-- `site` V2Ray 的 `dat` 文件格式
+### mmdb
+
+MaxMind 的 mmdb 格式，可以有如下形式：
+
+- `mmdb:TAG` 假设 mmdb 文件存在于可执行文件目录，并且文件名为 `geo.mmdb`
+- `mmdb:FILENAME:TAG` 假设 mmdb 文件存在于可执行文件目录，文件名为 `FILENAME`
+- `mmdb:PATH:TAG` 指写 mmdb 文件的绝对路径为 `PATH`
+
+### site
+
+V2Ray 的 `dat` 文件格式，可以有如下形式：
+
+- `site:TAG` 同 mmdb，文件名为 `site.dat`
+- `site:FILENAME:TAG` 同 mmdb
+- `site:PATH:TAG` 同 mmdb
 
 ## 进阶功能
 
@@ -340,4 +658,11 @@ FINAL, Direct
         "tag": "direct"
     }
 ]
+```
+
+```json
+"dns" {
+	"bind": "192.168.0.99",
+	"servers": ["1.1.1.1"]
+}
 ```
