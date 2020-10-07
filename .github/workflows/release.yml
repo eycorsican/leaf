@@ -1,0 +1,306 @@
+name: releases
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  build-bin-cross:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-pc-windows-gnu
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: show last commit
+        run: |
+          git show --summary
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      - name: install docker
+        run: |
+          curl -fsSL https://get.docker.com | sudo bash
+
+      - name: install deps
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo apt update && sudo apt install make -y
+
+      - name: install cross
+        run: |
+          cargo install cross
+
+      - name: build
+        run: |
+          make ${{ matrix.target }}
+
+      - name: rename and compress artifacts
+        run: |
+          mv target/${{ matrix.target }}/release/leaf.exe leaf-${{ matrix.target }}.exe
+          #          upx --brute leaf-${{ matrix.target }}
+
+      - name: upload assets
+        uses: actions/upload-artifact@v2
+        with:
+          name: leaf-${{ matrix.target }}.exe
+          path: leaf-${{ matrix.target }}.exe
+
+  build-bin-local:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        include:
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+          #      - name: update submodule
+          #        run: |
+          #          git submodule init && git submodule update
+
+      - name: show last commit
+        run: |
+          git show --summary
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      - name: install llvm
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          brew update && brew install llvm protobuf upx
+
+      - name: install llvm
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo apt update && sudo apt install llvm-dev libclang-dev clang libssl-dev pkg-config protobuf-compiler upx -y
+
+      - name: build
+        run: |
+          cargo build --release --target ${{ matrix.target }} -p leaf-bin
+
+      - name: rename and compress artifacts
+        run: |
+          mv target/${{ matrix.target }}/release/leaf leaf-${{ matrix.target }}
+          #          upx --brute leaf-${{ matrix.target }}
+
+      - name: upload assets
+        uses: actions/upload-artifact@v2
+        with:
+          name: leaf-${{ matrix.target }}
+          path: leaf-${{ matrix.target }}
+
+  build-lib-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+          #      - name: update submodule
+          #        run: |
+          #          git submodule init && git submodule update
+
+      - name: show last commit
+        run: |
+          git show --summary
+
+      - name: show xcode
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+
+          #      - name: build openssl
+          #        run: |
+          #          ./misc/build_ios_openssl.sh
+
+      - name: install rust
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      - name: install toolchain
+        run: |
+          rustup target add aarch64-apple-ios
+          cargo install cargo-lipo
+          cargo install cbindgen
+          brew update && brew install llvm unzip protobuf
+
+      - name: build
+        run: |
+          # OPENSSL_DIR=/tmp/openssl-ios64 cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
+          cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
+
+      - name: generate header
+        run: |
+          cbindgen leaf-mobile/src/lib.rs -l c > leaf.h
+
+      - name: zip artifacts
+        run: |
+          mv target/universal/release/libleaf.a .
+          zip libleaf-ios.zip leaf.h libleaf.a
+
+      - name: verify zip artifacts
+        run: |
+          unzip -l libleaf-ios.zip
+
+      - name: upload assets
+        uses: actions/upload-artifact@v2
+        with:
+          name: libleaf-ios.zip
+          path: libleaf-ios.zip
+
+  create-release:
+    needs: [build-bin-cross, build-bin-local, build-lib-ios]
+    runs-on: macos-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: create upload url file
+        run: |
+          echo -n "${{ steps.create_release.outputs.upload_url }}" > upload_url.txt
+
+      - name: persist upload url
+        uses: actions/upload-artifact@v2
+        with:
+          name: upload_url.txt
+          path: ./upload_url.txt
+
+  release-bin:
+    needs: [create-release]
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-apple-darwin
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-gnu
+
+    steps:
+      - name: download upload url
+        uses: actions/download-artifact@v2
+        with:
+          name: upload_url.txt
+
+      - name: get upload url
+        run: |
+          upload_url=`cat upload_url.txt`
+          echo "::set-env name=uploadurl::$upload_url"
+
+      - name: download asset
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        uses: actions/download-artifact@v2
+        with:
+          name: leaf-${{ matrix.target }}
+
+      - name: download asset
+        if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
+        uses: actions/download-artifact@v2
+        with:
+          name: leaf-${{ matrix.target }}.exe
+
+      - name: zip artifacts
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        run: |
+          zip -9 leaf-${{ matrix.target }}.zip leaf-${{ matrix.target }}
+
+      - name: zip artifacts
+        if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
+        run: |
+          zip -9 leaf-${{ matrix.target }}.zip leaf-${{ matrix.target }}.exe
+
+      - name: show files
+        run: |
+          ls -R
+
+      - name: upload asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ env.uploadurl }}
+          asset_path: ./leaf-${{ matrix.target }}.zip
+          asset_name: leaf-${{ matrix.target }}.zip
+          asset_content_type: application/octet-stream
+
+  release-lib:
+    needs: [create-release]
+    runs-on: macos-latest
+
+    steps:
+      - name: download upload url
+        uses: actions/download-artifact@v2
+        with:
+          name: upload_url.txt
+
+      - name: get upload url
+        run: |
+          upload_url=`cat upload_url.txt`
+          echo "::set-env name=uploadurl::$upload_url"
+
+      - name: install deps
+        run: |
+          brew update && brew install unzip
+
+      - name: download asset
+        uses: actions/download-artifact@v2
+        with:
+          name: libleaf-ios.zip
+
+      - name: verify zip artifacts
+        run: |
+          unzip -l libleaf-ios.zip
+
+      - name: upload asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ env.uploadurl }}
+          asset_path: ./libleaf-ios.zip
+          asset_name: libleaf-ios.zip
+          asset_content_type: application/octet-stream

@@ -1,0 +1,23 @@
+[package]
+name = "tun2socks-bin"
+version = "0.1.0"
+authors = ["eycorsican <eric.y.corsican@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "tun2socks"
+path = "src/main.rs"
+
+[dependencies]
+mlo = { path = "../mlo" }
+clap = "3.0.0-beta.1"
+tokio = { version = "0.2", features = ["full"] }
+log = "0.4"
+env_logger = "0.7"
+tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "codecfix2", features = ["async"] }
+
+[dependencies.shadowsocks-rust]
+git = "https://github.com/eycorsican/shadowsocks-rust.git"
+branch = "add-split"
+default-features = false
+features = ["ring-aead-ciphers", "sodium", "rc4", "aes-cfb", "aes-ctr", "local-tunnel"]

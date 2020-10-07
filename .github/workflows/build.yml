@@ -1,0 +1,120 @@
+name: build
+
+# on: [push, pull_request]
+
+jobs:
+  build-bin-local:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        include:
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: update submodule
+        run: |
+          git submodule init && git submodule update
+
+      - name: show last commit
+        run: |
+          git show --summary
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      - name: install llvm
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          brew update && brew install llvm
+
+      - name: install llvm
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          sudo apt update && sudo apt install llvm-dev libclang-dev clang -y
+
+      - name: build
+        run: |
+          cargo build --release --target ${{ matrix.target }} -p tun2socks-bin
+
+      - name: rename artifacts
+        run: |
+          mv target/${{ matrix.target }}/release/tun2socks tun2socks-${{ matrix.target }}
+
+      - name: upload assets
+        uses: actions/upload-artifact@v2
+        with:
+          name: tun2socks-${{ matrix.target }}
+          path: tun2socks-${{ matrix.target }}
+
+  build-lib-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: update submodule
+        run: |
+          git submodule init && git submodule update
+
+      - name: show last commit
+        run: |
+          git show --summary
+
+      - name: show xcode
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+
+      - name: build openssl
+        run: |
+          ./misc/build_ios_openssl.sh
+
+      - name: install rust
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      - name: install toolchain
+        run: |
+          rustup target add aarch64-apple-ios
+          cargo install cargo-lipo
+          cargo install cbindgen
+          brew update && brew install llvm && brew install unzip
+
+      - name: build
+        run: |
+          OPENSSL_DIR=/tmp/openssl-ios64 cargo lipo --release -p tun2socks-mobile --targets aarch64-apple-ios
+
+      - name: generate header
+        run: |
+          cbindgen tun2socks-mobile/src/lib.rs -l c > tun2socks.h
+
+      - name: zip artifacts
+        run: |
+          mv target/universal/release/libtun2socks.a .
+          zip libtun2socks-ios.zip tun2socks.h libtun2socks.a
+
+      - name: verify zip artifacts
+        run: |
+          unzip -l libtun2socks-ios.zip
+
+      - name: upload assets
+        uses: actions/upload-artifact@v2
+        with:
+          name: libtun2socks-ios.zip
+          path: libtun2socks-ios.zip

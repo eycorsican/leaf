@@ -1,0 +1,20 @@
+[package]
+name = "leaf-bin"
+version = "0.1.0"
+authors = ["eycorsican <eric.y.corsican@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "leaf"
+path = "src/main.rs"
+
+[dependencies]
+leaf = { path = "../leaf" }
+clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }
+log = { version = "0.4", features = ["std"] }
+fern = { version = "0.5", features = ["colored"] }
+tokio = { version = "0.2", features = ["signal"] }
+futures = "0.3"
+
+# [target.'cfg(not(target_env = "msvc"))'.dependencies]
+# jemallocator = "0.3.2"

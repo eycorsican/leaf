@@ -1,0 +1,4 @@
+FROM rustembedded/cross:x86_64-pc-windows-gnu-0.2.1
+
+RUN apt update && \
+apt install llvm-dev libclang-dev clang libssl-dev pkg-config upx curl unzip -y

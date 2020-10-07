@@ -1,0 +1,21 @@
+cargo-features = ["strip"]
+
+[workspace]
+members = [
+    "leaf",
+    "leaf-bin",
+	"leaf-mobile",
+    # "tun2socks-bin",
+]
+default-members = ["leaf-bin"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+# codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug = true

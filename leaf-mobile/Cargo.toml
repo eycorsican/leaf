@@ -1,0 +1,23 @@
+[package]
+name = "leaf-mobile"
+version = "0.1.0"
+authors = ["eycorsican <eric.y.corsican@gmail.com>"]
+edition = "2018"
+build = "build.rs"
+
+[lib]
+name = "leaf"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+leaf = { path = "../leaf" }
+log = "0.4"
+fern = { version = "0.5", features = ["colored"] }
+memchr = "2.3"
+bytes = "0.5"
+tokio = { version = "0.2", features = ["macros"] }
+futures = "0.3"
+
+[build-dependencies]
+bindgen = "0.55"
