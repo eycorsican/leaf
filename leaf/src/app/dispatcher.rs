@@ -11,10 +11,13 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
 
+#[cfg(not(target_os = "ios"))]
+use colored::Colorize;
+
 use crate::{
     option,
     proxy::{ProxyDatagram, ProxyHandlerType},
-    session::Session,
+    session::{Session, SocksAddr},
 };
 
 use super::handler_manager::HandlerManager;
@@ -92,6 +95,54 @@ where
                 return Poll::Ready(Ok(self.amt));
             }
         }
+    }
+}
+
+fn log_tcp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
+    #[cfg(not(target_os = "ios"))]
+    {
+        info!(
+            "[{}] [{}] [{}ms] {}",
+            "tcp".color(colored::Color::TrueColor {
+                r: 107,
+                g: 208,
+                b: 255,
+            }),
+            tag.color(tag_color),
+            handshake_time,
+            addr,
+        );
+    }
+    #[cfg(target_os = "ios")]
+    {
+        info!(
+            "[{}] [{}] [{}ms] {}",
+            "tcp", tag, handler_name, handshake_time, addr
+        );
+    }
+}
+
+fn log_udp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
+    #[cfg(not(target_os = "ios"))]
+    {
+        info!(
+            "[{}] [{}] [{}ms] {}",
+            "udp".color(colored::Color::TrueColor {
+                r: 255,
+                g: 193,
+                b: 107,
+            }),
+            tag.color(tag_color),
+            handshake_time,
+            addr,
+        );
+    }
+    #[cfg(target_os = "ios")]
+    {
+        info!(
+            "[{}] [{}] [{}ms] {}",
+            "udp", tag, handler_name, handshake_time, addr
+        );
     }
 }
 
@@ -209,6 +260,7 @@ impl Dispatcher {
             }
         };
 
+        let handshake_start = tokio::time::Instant::now();
         if let Some(h) = self.handler_manager.get(outbound) {
             match h.handler_type() {
                 ProxyHandlerType::Direct => self.dispatch_direct_tcp_start().await,
@@ -219,6 +271,9 @@ impl Dispatcher {
 
             match h.handle(sess, None).await {
                 Ok(rhs) => {
+                    let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
+                    log_tcp(h.tag(), h.color(), elapsed.as_millis(), &sess.destination);
+
                     let (lr, lw) = tokio::io::split(lhs);
                     let (rr, rw) = tokio::io::split(rhs);
 
@@ -383,9 +438,16 @@ impl Dispatcher {
                 }
             }
         };
+
+        let handshake_start = tokio::time::Instant::now();
+
         if let Some(h) = self.handler_manager.get(outbound) {
             match h.connect(sess, None, None).await {
-                Ok(c) => Ok(c),
+                Ok(c) => {
+                    let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
+                    log_udp(h.tag(), h.color(), elapsed.as_millis(), &sess.destination);
+                    Ok(c)
+                }
                 Err(e) => {
                     debug!(
                         "dispatch udp {} -> {} to [{}] failed: {}",

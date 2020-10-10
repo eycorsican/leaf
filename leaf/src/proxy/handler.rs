@@ -3,11 +3,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-#[cfg(not(target_os = "ios"))]
-use colored::Colorize;
-use log::info;
 
-use crate::session::{Session, SocksAddr};
+use crate::session::Session;
 
 use super::{
     Color, HandlerTyped, ProxyDatagram, ProxyHandler, ProxyHandlerType, ProxyStream,
@@ -66,78 +63,6 @@ impl HandlerTyped for Handler {
     }
 }
 
-#[cfg(not(target_os = "ios"))]
-fn log_tcp(
-    tag: &String,
-    tag_color: colored::Color,
-    handler_name: &str,
-    handshake_time: u128,
-    addr: &SocksAddr,
-) {
-    info!(
-        "[{}] [{}][{}][{}ms] {}",
-        "tcp".color(colored::Color::TrueColor {
-            r: 107,
-            g: 208,
-            b: 255,
-        }),
-        handler_name,
-        tag.color(tag_color),
-        handshake_time,
-        addr,
-    );
-}
-
-#[cfg(target_os = "ios")]
-fn log_tcp(
-    tag: &String,
-    _tag_color: colored::Color,
-    handler_name: &str,
-    handshake_time: u128,
-    addr: &SocksAddr,
-) {
-    info!(
-        "[{}] [{}][{}][{}ms] {}",
-        "tcp", tag, handler_name, handshake_time, addr
-    );
-}
-
-#[cfg(not(target_os = "ios"))]
-fn log_udp(
-    tag: &String,
-    tag_color: colored::Color,
-    handler_name: &str,
-    handshake_time: u128,
-    addr: &SocksAddr,
-) {
-    info!(
-        "[{}] [{}][{}][{}ms] {}",
-        "udp".color(colored::Color::TrueColor {
-            r: 255,
-            g: 193,
-            b: 107,
-        }),
-        handler_name,
-        tag.color(tag_color),
-        handshake_time,
-        addr,
-    );
-}
-
-#[cfg(target_os = "ios")]
-fn log_udp(
-    tag: &String,
-    _tag_color: colored::Color,
-    handler_name: &str,
-    handshake_time: u128,
-    addr: &SocksAddr,
-) {
-    info!(
-        "[{}] [{}][{}][{}ms] {}",
-        "udp", tag, handler_name, handshake_time, addr
-    );
-}
-
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
@@ -153,26 +78,7 @@ impl ProxyTcpHandler for Handler {
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyStream>> {
-        let handshake_start = tokio::time::Instant::now();
-        match self.tcp_handler.handle(sess, stream).await {
-            Ok(s) => {
-                let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
-                match self.handler_type() {
-                    ProxyHandlerType::Direct | ProxyHandlerType::Endpoint => {
-                        log_tcp(
-                            self.tag(),
-                            self.color(),
-                            self.tcp_handler.name(),
-                            elapsed.as_millis(),
-                            &sess.destination,
-                        );
-                    }
-                    ProxyHandlerType::Ensemble => (),
-                }
-                Ok(s)
-            }
-            Err(e) => Err(e),
-        }
+        self.tcp_handler.handle(sess, stream).await
     }
 }
 
@@ -196,25 +102,6 @@ impl ProxyUdpHandler for Handler {
         datagram: Option<Box<dyn ProxyDatagram>>,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyDatagram>> {
-        let handshake_start = tokio::time::Instant::now();
-        match self.udp_handler.connect(sess, datagram, stream).await {
-            Ok(d) => {
-                let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
-                match self.handler_type() {
-                    ProxyHandlerType::Direct | ProxyHandlerType::Endpoint => {
-                        log_udp(
-                            self.tag(),
-                            self.color(),
-                            self.udp_handler.name(),
-                            elapsed.as_millis(),
-                            &sess.destination,
-                        );
-                    }
-                    ProxyHandlerType::Ensemble => (),
-                }
-                Ok(d)
-            }
-            Err(e) => Err(e),
-        }
+        self.udp_handler.connect(sess, datagram, stream).await
     }
 }
