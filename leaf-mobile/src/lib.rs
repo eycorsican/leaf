@@ -1,4 +1,4 @@
-use std::{ffi::CStr, os::raw::c_char, time};
+use std::{ffi::CStr, os::raw::c_char};
 
 use bytes::BytesMut;
 use log::*;
@@ -10,7 +10,8 @@ pub mod ios;
 mod logger;
 use logger::ConsoleWriter;
 
-use ios::os_proc_available_memory;
+// this function is available on iOS 13.0+
+// use ios::os_proc_available_memory;
 
 #[no_mangle]
 pub extern "C" fn run_leaf(path: *const c_char) {
@@ -59,18 +60,18 @@ pub extern "C" fn run_leaf(path: *const c_char) {
             }
         };
 
-        let monit_mem = Box::pin(async {
-            loop {
-                let n = unsafe { os_proc_available_memory() };
-                debug!("{} bytes memory available", n);
-                tokio::time::delay_for(time::Duration::from_secs(1)).await;
-            }
-        });
+        // let monit_mem = Box::pin(async {
+        //     loop {
+        //         let n = unsafe { os_proc_available_memory() };
+        //         debug!("{} bytes memory available", n);
+        //         tokio::time::delay_for(std::time::Duration::from_secs(1)).await;
+        //     }
+        // });
 
         rt.block_on(async move {
             tokio::select! {
                 _ = futures::future::join_all(runners) => (),
-                _ = monit_mem  => (),
+                // _ = monit_mem  => (),
             }
         });
     } else {
