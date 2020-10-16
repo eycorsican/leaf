@@ -2,12 +2,12 @@
 
 Leaf 是一个轻量且快速的代理工具。
 
-## 内容
+## 目录
 
-- [下载](#--)
-- [iOS TF 测试](#ios-tf---)
-- [conf 配置文件](#conf-----)
-- [json 配置文件](#json-----)
+- [Downloads](#downloads)
+- [iOS TestFlight](#ios-testflight)
+- [conf](#conf)
+- [json](#json)
 - [Log](#log)
 - [DNS](#dns)
 - [Inbounds](#inbounds)
@@ -18,6 +18,7 @@ Leaf 是一个轻量且快速的代理工具。
   * [drop](#drop)
   * [tls](#tls)
   * [ws](#ws)
+  * [h2](#h2)
   * [shadowsocks](#shadowsocks)
   * [vmess](#vmess)
   * [trojan](#trojan)
@@ -26,7 +27,7 @@ Leaf 是一个轻量且快速的代理工具。
   * [failover](#failover)
   * [tryall](#tryall)
   * [random](#random)
-- [规则](#--)
+- [Rules](#rules)
   * [domain](#domain)
   * [domainSuffix](#domainsuffix)
   * [domainKeyword](#domainkeyword)
@@ -35,17 +36,17 @@ Leaf 是一个轻量且快速的代理工具。
   * [external](#external)
     + [mmdb](#mmdb)
     + [site](#site)
-- [进阶功能](#----)
+- [Advanced Features](#advanced-features)
   * [TUN Inbound](#tun-inbound)
 
-## 下载
+## Downloads
 
 https://github.com/eycorsican/leaf/releases
 
-## iOS TF 测试
+## iOS TestFlight
 iOS TF 测试公开链接：https://testflight.apple.com/join/std0FFCS
 
-## conf 配置文件
+## conf
 
 ```ini
 [General]
@@ -102,7 +103,7 @@ EXTERNAL, mmdb:us, Fallback
 FINAL, Direct
 ```
 
-## json 配置文件
+## json
 
 JSON 配置文件目前不考虑兼容性，每个版本都可能会变。
 
@@ -378,7 +379,8 @@ TLS 传输，一般用来叠加到其它代理或传输协议上。
 {
     "protocol": "tls",
     "settings": {
-        "serverName": "server.com"
+        "serverName": "server.com",
+        "alpn": ["http/1.1"]
     },
     "tag": "tls_out"
 }
@@ -398,6 +400,51 @@ WebSocket 传输，一般用来叠加到其它代理或传输协议上。
     },
     "tag": "ws_out"
 }
+```
+
+### h2
+
+HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 alpn。
+
+```json
+"outbounds": [
+    {
+        "protocol": "chain",
+        "settings": {
+            "actors": [
+                "vmess_tls",
+                "vmess_h2",
+                "vmess"
+            ]
+        },
+        "tag": "vmess_out"
+    },
+    {
+        "protocol": "tls",
+        "settings": {
+            "serverName": "server.com",
+            "alpn": ["h2"]
+        },
+        "tag": "vmess_tls"
+    },
+    {
+        "protocol": "h2",
+        "settings": {
+            "host": "server.com",
+            "path": "/v2"
+        },
+        "tag": "vmess_h2"
+    },
+    {
+        "protocol": "vmess",
+        "settings": {
+            "address": "server.com",
+            "port": 443,
+            "uuid": "89ee4e17-aaad-49f6-91c4-6ea5990206bd"
+        },
+        "tag": "vmess"
+    }
+]
 ```
 
 还未支持自定义 Headers，Host 会尝试从下层协议获取。
@@ -617,7 +664,7 @@ WebSocket 传输，一般用来叠加到其它代理或传输协议上。
 
 从列表中随机选一个 Outbound 发送请求。
 
-## 规则
+## Rules
 
 规则方面跟 V2Ray 差不多，只是把域名规则展开成 `domain`, `domainSuffix`, `domainKeyword`。
 
@@ -739,7 +786,7 @@ V2Ray 的 `dat` 文件格式，可以有如下形式：
 - `site:FILENAME:TAG` 同 mmdb
 - `site:PATH:TAG` 同 mmdb
 
-## 进阶功能
+## Advanced Features
 
 ### TUN Inbound
 
