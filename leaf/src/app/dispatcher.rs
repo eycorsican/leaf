@@ -115,10 +115,7 @@ fn log_tcp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: 
     }
     #[cfg(target_os = "ios")]
     {
-        info!(
-            "[{}] [{}] [{}ms] {}",
-            "tcp", tag, handler_name, handshake_time, addr
-        );
+        info!("[{}] [{}] [{}ms] {}", "tcp", tag, handshake_time, addr);
     }
 }
 
@@ -139,10 +136,7 @@ fn log_udp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: 
     }
     #[cfg(target_os = "ios")]
     {
-        info!(
-            "[{}] [{}] [{}ms] {}",
-            "udp", tag, handler_name, handshake_time, addr
-        );
+        info!("[{}] [{}] [{}ms] {}", "udp", tag, handshake_time, addr);
     }
 }
 
