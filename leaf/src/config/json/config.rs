@@ -105,11 +105,18 @@ pub struct RandomOutboundSettings {
 pub struct TlsOutboundSettings {
     #[serde(rename = "serverName")]
     pub server_name: Option<String>,
+    pub alpn: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WebSocketOutboundSettings {
     pub path: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct HTTP2OutboundSettings {
+    pub path: Option<String>,
+    pub host: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -425,6 +432,15 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         if let Some(ext_server_name) = ext_settings.server_name {
                             settings.server_name = ext_server_name; // TODO checks
                         }
+                        let mut alpns = protobuf::RepeatedField::new();
+                        if let Some(ext_alpns) = ext_settings.alpn {
+                            for ext_alpn in ext_alpns {
+                                alpns.push(ext_alpn);
+                            }
+                        }
+                        if alpns.len() > 0 {
+                            settings.alpn = alpns;
+                        }
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
@@ -440,6 +456,24 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
                     if let Some(ext_path) = ext_settings.path {
                         settings.path = ext_path; // TODO checks
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
+                "h2" | "http2" => {
+                    outbound.protocol = "h2".to_string(); // use h2 anyway
+                    if ext_outbound.settings.is_none() {
+                        return Err(anyhow!("invalid h2 outbound settings"));
+                    }
+                    let mut settings = internal::HTTP2OutboundSettings::new();
+                    let ext_settings: HTTP2OutboundSettings =
+                        serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
+                    if let Some(ext_path) = ext_settings.path {
+                        settings.path = ext_path; // TODO checks
+                    }
+                    if let Some(ext_host) = ext_settings.host {
+                        settings.host = ext_host; // TODO checks
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

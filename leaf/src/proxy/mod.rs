@@ -13,6 +13,8 @@ pub mod stream;
 pub mod direct;
 #[cfg(feature = "drop")]
 pub mod drop;
+#[cfg(feature = "feature-h2")]
+pub mod h2;
 #[cfg(feature = "redirect")]
 pub mod redirect;
 #[cfg(feature = "shadowsocks")]

@@ -330,11 +330,17 @@ impl HandlerManager {
                             continue;
                         }
                     };
+                    let mut alpns = Vec::new();
+                    for alpn in settings.alpn.iter() {
+                        alpns.push(alpn.clone());
+                    }
                     let tcp = Box::new(tls::TcpHandler {
                         server_name: settings.server_name.clone(),
+                        alpns: alpns.clone(),
                     });
                     let udp = Box::new(tls::UdpHandler {
                         server_name: settings.server_name.clone(),
+                        alpns: alpns.clone(),
                     });
                     let handler = proxy::Handler::new(
                         tag.clone(),
@@ -366,6 +372,38 @@ impl HandlerManager {
                     });
                     let udp = Box::new(ws::UdpHandler {
                         path: settings.path.clone(),
+                    });
+                    let handler = proxy::Handler::new(
+                        tag.clone(),
+                        colored::Color::TrueColor {
+                            r: 252,
+                            g: 107,
+                            b: 3,
+                        },
+                        ProxyHandlerType::Endpoint,
+                        tcp,
+                        udp,
+                    );
+                    handlers.insert(tag.clone(), handler);
+                }
+                #[cfg(feature = "feature-h2")]
+                "h2" => {
+                    let settings = match protobuf::parse_from_bytes::<config::HTTP2OutboundSettings>(
+                        &outbound.settings,
+                    ) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("invalid [{}] outbound settings: {}", &tag, e);
+                            continue;
+                        }
+                    };
+                    let tcp = Box::new(crate::proxy::h2::TcpHandler {
+                        path: settings.path.clone(),
+                        host: settings.host.clone(),
+                    });
+                    let udp = Box::new(crate::proxy::h2::UdpHandler {
+                        path: settings.path.clone(),
+                        host: settings.host.clone(),
                     });
                     let handler = proxy::Handler::new(
                         tag.clone(),
@@ -567,7 +605,7 @@ impl HandlerManager {
                         handlers.insert(tag.clone(), handler);
                     }
                     "direct" | "drop" | "redirect" | "socks" | "shadowsocks" | "trojan"
-                    | "vmess" | "vless" | "tls" | "ws" => (),
+                    | "vmess" | "vless" | "tls" | "ws" | "h2" => (),
                     _ => {
                         warn!("unknown outbound protocol {:?}", outbound.protocol);
                     }

@@ -17,7 +17,7 @@ config = ["conf", "json"]
 conf = ["regex"]
 json = ["serde", "serde_derive", "serde_json"]
 
-endpoint = ["direct", "drop", "redirect", "shadowsocks", "socks", "trojan", "vmess", "tls", "ws", "vless"]
+endpoint = ["direct", "drop", "redirect", "shadowsocks", "socks", "trojan", "vmess", "tls", "ws", "vless", "feature-h2"]
 ensemble = ["failover", "random", "tryall", "chain"]
 
 # TODO make corresponding deps optional
@@ -30,6 +30,7 @@ trojan = []
 vmess = []
 tls = []
 ws = []
+feature-h2 = []
 vless = []
 
 failover = []
@@ -42,8 +43,9 @@ tokio = { version = "0.2", features = ["macros"] }
 tungstenite = { version = "0.11", default-features = false }
 tokio-tungstenite = { version = "0.11" }
 hyper = { version = "0.13", default-features = false, features = [] }
+h2 = { version = "0.2.6", features = ["stream"] }
 futures-util = "0.3"
-maxminddb = { git = "https://github.com/eycorsican/maxminddb-rust.git", branch = "fix", features = ["mmap"] }
+maxminddb = { version = "0.15.0", features = ["mmap"] }
 async-socks5 = "0.3"
 trust-dns-proto = "*"
 protobuf = "2.17"
@@ -78,6 +80,7 @@ sha2 = "0.9"
 hex = "0.4"
 chrono = "0.4"
 httparse = "1.3"
+http = "0.2"
 
 serde_json = { version = "1.0", features = ["raw_value"], optional = true }
 serde_derive = { version = "1.0", optional = true }
@@ -85,18 +88,8 @@ serde = { version = "1.0", optional = true }
 
 regex = { version = "1.3", default-features=false, features=["std", "perf"], optional = true }
 
-[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
-# [target.'cfg(any(target_os = "ios"))'.dependencies]
-tokio-rustls = "0.14"
+tokio-rustls = { version = "0.14", features = ["dangerous_configuration"] }
 webpki-roots = "0.20"
-
-[target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
-# [target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))'.dependencies]
-native-tls = "0.2.0"
-tokio-native-tls = "0.1"
-
-[target.'cfg(target_os = "linux")'.dependencies]
-openssl = { version = "0.10", features = ["vendored"] }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "trim", features = ["async"] }

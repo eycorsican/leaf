@@ -9,8 +9,8 @@ use crate::{
 };
 
 pub struct Handler {
-    pub server_name: String,
-    pub alpns: Vec<String>,
+    pub path: String,
+    pub host: String,
 }
 
 #[async_trait]
