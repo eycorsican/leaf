@@ -5,13 +5,21 @@ on: [push, pull_request]
 jobs:
   build-bin-cross:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        include:
-          - os: ubuntu-latest
-            target: x86_64-pc-windows-gnu
+        target:
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - arm-unknown-linux-gnueabi
+          - arm-unknown-linux-musleabi
+          - i686-unknown-linux-gnu
+          - i686-unknown-linux-musl
+          # - mips-unknown-linux-gnu
+          - x86_64-pc-windows-gnu
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: checkout
@@ -28,14 +36,9 @@ jobs:
         with:
           rust-version: nightly
 
-      - name: install docker
-        run: |
-          curl -fsSL https://get.docker.com | sudo bash
-
       - name: install deps
-        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
-          sudo apt update && sudo apt install make -y
+          sudo apt update && sudo apt install llvm-dev libclang-dev clang libssl-dev pkg-config protobuf-compiler make -y
 
       - name: install cross
         run: |
@@ -43,28 +46,40 @@ jobs:
 
       - name: build
         run: |
-          make ${{ matrix.target }}
+          make gen
+          cross build --target ${{ matrix.target }} -p leaf-bin --release
 
       - name: rename and compress artifacts
+        if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
         run: |
           mv target/${{ matrix.target }}/release/leaf.exe leaf-${{ matrix.target }}.exe
-          #          upx --brute leaf-${{ matrix.target }}
+
+      - name: rename and compress artifacts
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        run: |
+          mv target/${{ matrix.target }}/release/leaf leaf-${{ matrix.target }}
 
       - name: upload assets
+        if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
         uses: actions/upload-artifact@v2
         with:
           name: leaf-${{ matrix.target }}.exe
           path: leaf-${{ matrix.target }}.exe
 
+      - name: upload assets
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: leaf-${{ matrix.target }}
+          path: leaf-${{ matrix.target }}
+
   build-bin-local:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest]
         include:
           - os: macos-latest
             target: x86_64-apple-darwin
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
 
     runs-on: ${{ matrix.os }}
 
@@ -73,10 +88,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           submodules: true
-
-          #      - name: update submodule
-          #        run: |
-          #          git submodule init && git submodule update
 
       - name: show last commit
         run: |
@@ -92,19 +103,14 @@ jobs:
         run: |
           brew update && brew install llvm protobuf upx
 
-      - name: install llvm
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: |
-          sudo apt update && sudo apt install llvm-dev libclang-dev clang libssl-dev pkg-config protobuf-compiler upx -y
-
       - name: build
         run: |
+          make gen
           cargo build --release --target ${{ matrix.target }} -p leaf-bin
 
       - name: rename and compress artifacts
         run: |
           mv target/${{ matrix.target }}/release/leaf leaf-${{ matrix.target }}
-          #          upx --brute leaf-${{ matrix.target }}
 
       - name: upload assets
         uses: actions/upload-artifact@v2
@@ -121,10 +127,6 @@ jobs:
         with:
           submodules: true
 
-          #      - name: update submodule
-          #        run: |
-          #          git submodule init && git submodule update
-
       - name: show last commit
         run: |
           git show --summary
@@ -133,10 +135,6 @@ jobs:
         run: |
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-path
-
-          #      - name: build openssl
-          #        run: |
-          #          ./misc/build_ios_openssl.sh
 
       - name: install rust
         uses: hecrj/setup-rust-action@v1
@@ -153,6 +151,7 @@ jobs:
       - name: build
         run: |
           # OPENSSL_DIR=/tmp/openssl-ios64 cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
+          make gen
           cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
 
       - name: generate header

@@ -1,4 +1,0 @@
-FROM rustembedded/cross:aarch64-unknown-linux-gnu-0.2.1
-
-RUN apt update && \
-apt install llvm-dev libclang-dev clang libssl-dev pkg-config upx curl unzip -y
