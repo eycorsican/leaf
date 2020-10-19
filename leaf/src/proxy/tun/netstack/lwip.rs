@@ -5,9 +5,12 @@
 #![allow(dead_code)]
 #![allow(clippy::all)]
 
-// Note the bindings are generated on the host OS when cross compiling,
-// this shouldn't be problematic since we only use lwip functions from
+// Note the bindings are generated on macOS.
+// This shouldn't be problematic since we only use lwip functions from
 // the bindings. We should have the bindings automatically generated
 // for each target at compile time, but I couldn't find a way to make
 // bindgen work with cross.
-include!(concat!(env!("CARGO_MANIFEST_DIR"), "/bindings.rs"));
+include!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/src/proxy/tun/netstack/bindings.rs"
+));

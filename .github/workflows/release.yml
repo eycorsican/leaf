@@ -48,7 +48,6 @@ jobs:
 
       - name: build
         run: |
-          make gen
           cross build --target ${{ matrix.target }} -p leaf-bin --release
 
       - name: rename and compress artifacts
@@ -107,7 +106,6 @@ jobs:
 
       - name: build
         run: |
-          make gen
           cargo build --release --target ${{ matrix.target }} -p leaf-bin
 
       - name: rename and compress artifacts
@@ -153,7 +151,6 @@ jobs:
       - name: build
         run: |
           # OPENSSL_DIR=/tmp/openssl-ios64 cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
-          make gen
           cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
 
       - name: generate header

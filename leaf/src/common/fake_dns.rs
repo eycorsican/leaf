@@ -91,7 +91,7 @@ impl FakeDns {
         };
 
         for ex in &self.exclude_domains {
-            if domain.contains(ex) {
+            if domain.contains(ex) || ex == "*" {
                 return Err(anyhow!("domain {} excluded", domain));
             }
         }

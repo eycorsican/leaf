@@ -10,7 +10,7 @@ local:
 local-dev:
 	cargo build -p leaf-bin
 
-# Force a re-generation of protobuf files and C bindings.
-gen:
+# Force a re-generation of protobuf files.
+proto-gen:
 	touch leaf/build.rs
-	PROTO_GEN=1 BINDINGS_GEN=1 cargo build -p leaf
+	PROTO_GEN=1 cargo build -p leaf

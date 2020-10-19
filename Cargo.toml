@@ -4,8 +4,8 @@ cargo-features = ["strip"]
 members = [
     "leaf",
     "leaf-bin",
-	"leaf-mobile",
-    # "tun2socks-bin",
+    "leaf-mobile",
+    "tun2socks-bin",
 ]
 default-members = ["leaf-bin"]
 
