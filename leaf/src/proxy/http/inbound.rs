@@ -110,13 +110,13 @@ pub fn new(inbound: Inbound, dispatcher: Arc<Dispatcher>) -> Result<Runner> {
                         return;
                     };
 
-                    let sess = Session {
+                    let mut sess = Session {
                         source: Some(source),
                         destination,
                     };
 
                     // dispatch err logging was handled in dispatcher
-                    let _ = dispatcher.dispatch_tcp(&sess, parts.io).await;
+                    let _ = dispatcher.dispatch_tcp(&mut sess, parts.io).await;
                 });
             }
         }

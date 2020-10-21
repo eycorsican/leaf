@@ -104,7 +104,7 @@ impl NetStackImpl {
                 let fakedns = fakedns.clone();
 
                 tokio::spawn(async move {
-                    let sess = if fakedns.lock().await.is_fake_ip(&stream.remote_addr().ip()) {
+                    let mut sess = if fakedns.lock().await.is_fake_ip(&stream.remote_addr().ip()) {
                         match fakedns
                             .lock()
                             .await
@@ -127,7 +127,9 @@ impl NetStackImpl {
                     };
 
                     // dispatch err logging was handled in dispatcher
-                    let _ = dispatcher.dispatch_tcp(&sess, TcpStream::new(stream)).await;
+                    let _ = dispatcher
+                        .dispatch_tcp(&mut sess, TcpStream::new(stream))
+                        .await;
                 });
             }
         });

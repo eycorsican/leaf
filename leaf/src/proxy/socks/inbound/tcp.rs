@@ -147,12 +147,12 @@ pub fn new(
                                         return;
                                     }
                                 };
-                                let sess = Session {
+                                let mut sess = Session {
                                     source: Some(peer_addr),
                                     destination,
                                 };
 
-                                let _ = dispatcher.dispatch_tcp(&sess, stream).await;
+                                let _ = dispatcher.dispatch_tcp(&mut sess, stream).await;
                             }
                             0x03 => {
                                 buf.clear();
