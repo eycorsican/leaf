@@ -154,7 +154,7 @@ impl FakeDns {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_u32_to_ip() {

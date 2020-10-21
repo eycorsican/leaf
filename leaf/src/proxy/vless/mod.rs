@@ -1,6 +1,3 @@
-mod protocol;
-pub use protocol::SocksAddr;
-
 mod vless;
 pub use vless::*;
 

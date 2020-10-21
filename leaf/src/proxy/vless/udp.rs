@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::convert::TryFrom;
 use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -9,9 +8,7 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use futures::future::TryFutureExt;
 use log::*;
-use socket2::{Domain, Socket, Type};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
-use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::{
@@ -20,10 +17,8 @@ use crate::{
         ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf, ProxyStream, ProxyUdpHandler,
         UdpTransportType,
     },
-    session::{Session, SocksAddr},
+    session::{Session, SocksAddr, SocksAddrWireType},
 };
-
-use super::SocksAddr as VLessSocksAddr;
 
 pub struct Handler {
     pub address: String,
@@ -53,113 +48,45 @@ impl ProxyUdpHandler for Handler {
         _datagram: Option<Box<dyn ProxyDatagram>>,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyDatagram>> {
-        let uuid = if let Ok(v) = Uuid::parse_str(&self.uuid) {
-            v
+        let uuid = Uuid::parse_str(&self.uuid).map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("parse uuid failed: {}", e))
+        })?;
+        let mut buf = BytesMut::new();
+        buf.put_u8(0x0); // version
+        buf.put_slice(uuid.as_bytes()); // uuid
+        buf.put_u8(0x0); // addons
+        buf.put_u8(0x02); // ucp command
+        sess.destination
+            .write_buf(&mut buf, SocksAddrWireType::PortFirst)?;
+
+        let mut stream = if let Some(stream) = stream {
+            stream
         } else {
-            return Err(io::Error::new(io::ErrorKind::Other, "invalid uuid"));
-        };
-        let target = match &sess.destination {
-            SocksAddr::Ip(addr) => VLessSocksAddr::from(addr),
-            SocksAddr::Domain(domain, port) => match VLessSocksAddr::try_from((domain, *port)) {
-                Ok(addr) => addr,
-                Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "invalid destination")),
-            },
-        };
-
-        if let Some(mut stream) = stream {
-            let mut buf = BytesMut::new();
-            buf.put_u8(0x0); // version
-            buf.put_slice(uuid.as_bytes()); // uuid
-            buf.put_u8(0x0); // addons
-            buf.put_u8(0x02); // ucp command
-            target.write_into(&mut buf)?;
-            stream.write_all(&buf[..]).await?;
-
-            let target = match sess.destination {
-                SocksAddr::Ip(addr) => VLessSocksAddr::from(addr),
-                SocksAddr::Domain(ref domain, port) => {
-                    match VLessSocksAddr::try_from((domain, port)) {
-                        Ok(addr) => addr,
-                        Err(e) => {
-                            return Err(io::Error::new(
-                                io::ErrorKind::Other,
-                                format!("invalid destination: {}", e),
-                            ))
-                        }
-                    }
-                }
-            };
-            return Ok(Box::new(Datagram { stream, target }));
-        }
-
-        let ips = match self
-            .dns_client
-            .lookup_with_bind(String::from(&self.address), &self.bind_addr)
-            .await
-        {
-            Ok(ips) => ips,
-            Err(err) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("lookup {} failed: {}", &self.address, err),
-                ));
-            }
-        };
-
-        let mut last_err = None;
-
-        for ip in ips {
-            let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
-            socket.bind(&self.bind_addr.into())?;
-            let addr = SocketAddr::new(ip, self.port);
-            match TcpStream::connect_std(socket.into_tcp_stream(), &addr).await {
-                Ok(mut stream) => {
-                    let mut buf = BytesMut::new();
-                    buf.put_u8(0x0); // version
-                    buf.put_slice(uuid.as_bytes()); // uuid
-                    buf.put_u8(0x0); // addons
-                    buf.put_u8(0x02); // ucp command
-                    target.write_into(&mut buf)?;
-                    stream.write_all(&buf[..]).await?;
-
-                    let target = match sess.destination {
-                        SocksAddr::Ip(addr) => VLessSocksAddr::from(addr),
-                        SocksAddr::Domain(ref domain, port) => {
-                            match VLessSocksAddr::try_from((domain, port)) {
-                                Ok(addr) => addr,
-                                Err(e) => {
-                                    return Err(io::Error::new(
-                                        io::ErrorKind::Other,
-                                        format!("invalid destination: {}", e),
-                                    ))
-                                }
-                            }
-                        }
-                    };
-                    return Ok(Box::new(Datagram { stream, target }));
-                }
-                Err(e) => {
-                    last_err = Some(e);
-                }
-            }
-        }
-        Err(last_err.unwrap_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "could not resolve to any address",
+            self.dial_tcp_stream(
+                self.dns_client.clone(),
+                &self.bind_addr,
+                &self.address,
+                &self.port,
             )
+            .await?
+        };
+
+        stream.write_all(&buf[..]).await?;
+        Ok(Box::new(Datagram {
+            stream,
+            target: sess.destination.clone(),
         }))
     }
 }
 
 pub struct Datagram<S> {
     stream: S,
-    target: VLessSocksAddr,
+    target: SocksAddr,
 }
 
 impl<S> ProxyDatagram for Datagram<S>
 where
-    S: 'static + AsyncRead + AsyncWrite + Unpin + Send,
+    S: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
 {
     fn split(
         self: Box<Self>,
@@ -175,12 +102,12 @@ where
     }
 }
 
-pub struct DatagramRecvHalf<T>(ReadHalf<T>, VLessSocksAddr, bool);
+pub struct DatagramRecvHalf<T>(ReadHalf<T>, SocksAddr, bool);
 
 #[async_trait]
 impl<T> ProxyDatagramRecvHalf for DatagramRecvHalf<T>
 where
-    T: AsyncRead + AsyncWrite + Send,
+    T: AsyncRead + AsyncWrite + Send + Sync,
 {
     async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
         let mut buf2 = BytesMut::new();
@@ -223,7 +150,7 @@ where
         }
         buf[..to_write].copy_from_slice(&buf2[..to_write]);
         let addr = match self.1 {
-            VLessSocksAddr::Ip(addr) => addr,
+            SocksAddr::Ip(addr) => addr,
             _ => {
                 error!("unexpected domain address");
                 return Err(io::Error::new(
@@ -241,7 +168,7 @@ pub struct DatagramSendHalf<T>(WriteHalf<T>);
 #[async_trait]
 impl<T> ProxyDatagramSendHalf for DatagramSendHalf<T>
 where
-    T: AsyncRead + AsyncWrite + Send,
+    T: AsyncRead + AsyncWrite + Send + Sync,
 {
     async fn send_to(&mut self, buf: &[u8], _target: &SocketAddr) -> io::Result<usize> {
         let mut data = BytesMut::new();

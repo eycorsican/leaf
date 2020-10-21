@@ -7,7 +7,7 @@ use super::ProxyStream;
 
 pub struct SimpleStream<T>(pub T);
 
-impl<T: AsyncRead + AsyncWrite + Send + Unpin> ProxyStream for SimpleStream<T> {}
+impl<T: AsyncRead + AsyncWrite + Send + Sync + Unpin> ProxyStream for SimpleStream<T> {}
 
 impl<T: AsyncRead + Unpin> AsyncRead for SimpleStream<T> {
     fn poll_read(

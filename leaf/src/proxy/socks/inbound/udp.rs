@@ -10,7 +10,7 @@ use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 
 use crate::{
     app::nat_manager::{NatManager, UdpPacket},
-    session::{Session, SocksAddr},
+    session::{Session, SocksAddr, SocksAddrWireType},
     Runner,
 };
 
@@ -53,7 +53,7 @@ pub fn new(listen: String, port: u16, nat_manager: Arc<NatManager>) -> Result<Ru
                         continue;
                     }
                 };
-                if let Err(e) = src_addr.write_into(&mut buf) {
+                if let Err(e) = src_addr.write_buf(&mut buf, SocksAddrWireType::PortLast) {
                     warn!("write address failed: {}", e);
                     continue;
                 }
@@ -79,13 +79,14 @@ pub fn new(listen: String, port: u16, nat_manager: Arc<NatManager>) -> Result<Ru
                         continue;
                     }
 
-                    let dst_addr = match SocksAddr::try_from(&buf[3..]) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            warn!("read address failed: {}", e);
-                            continue;
-                        }
-                    };
+                    let dst_addr =
+                        match SocksAddr::try_from((&buf[3..], SocksAddrWireType::PortLast)) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                warn!("read address failed: {}", e);
+                                continue;
+                            }
+                        };
 
                     if !nat_manager.contains_key(&src_addr).await {
                         let sess = Session {

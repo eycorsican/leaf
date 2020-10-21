@@ -1,9 +1,4 @@
-pub mod wss;
-
-mod protocol;
 mod vmess;
-
-pub use protocol::SocksAddr;
 pub use vmess::*;
 
 pub mod tcp;

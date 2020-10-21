@@ -7,8 +7,8 @@ use std::{
 use async_socks5::{AddrKind, Auth, SocksDatagram, SocksDatagramRecvHalf, SocksDatagramSendHalf};
 use async_trait::async_trait;
 use futures::future::TryFutureExt;
-use socket2::{Domain, Socket, Type};
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::UdpSocket;
 
 use crate::{
     common::dns_client::DnsClient,
@@ -46,73 +46,54 @@ impl ProxyUdpHandler for Handler {
         _datagram: Option<Box<dyn ProxyDatagram>>,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyDatagram>> {
-        let ips = match self
-            .dns_client
-            .lookup_with_bind(String::from(&self.address), &self.bind_addr)
-            .await
-        {
-            Ok(ips) => ips,
-            Err(err) => {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    format!("lookup failed: {}", err),
-                ));
-            }
-        };
-
-        let mut last_err = None;
-
-        for ip in ips {
-            let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
-            socket.bind(&self.bind_addr.into())?;
-            let addr = SocketAddr::new(ip, self.port);
-            match TcpStream::connect_std(socket.into_tcp_stream(), &addr).await {
-                Ok(stream) => {
-                    let socket = UdpSocket::bind("0.0.0.0:0").await?;
-                    let dg =
-                        SocksDatagram::associate(stream, socket, None::<Auth>, None::<AddrKind>)
-                            .map_err(|x| Error::new(ErrorKind::Other, x))
-                            .await?;
-                    let (rh, sh) = dg.split();
-                    return Ok(Box::new(Datagram {
-                        recv_half: rh,
-                        send_half: sh,
-                    }));
-                }
-                Err(e) => {
-                    last_err = Some(e);
-                }
-            }
-        }
-        Err(last_err.unwrap_or_else(|| {
-            Error::new(ErrorKind::InvalidInput, "could not resolve to any address")
-        }))
+        // TODO support chaining, this requires implementing our own socks5 client
+        let stream = self
+            .dial_tcp_stream(
+                self.dns_client.clone(),
+                &self.bind_addr,
+                &self.address,
+                &self.port,
+            )
+            .await?;
+        let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        let socket = SocksDatagram::associate(stream, socket, None::<Auth>, None::<AddrKind>)
+            .map_err(|x| Error::new(ErrorKind::Other, x))
+            .await?;
+        Ok(Box::new(Datagram { socket }))
     }
 }
 
-pub struct Datagram {
-    pub recv_half: SocksDatagramRecvHalf<TcpStream>,
-    pub send_half: SocksDatagramSendHalf<TcpStream>,
+pub struct Datagram<S> {
+    pub socket: SocksDatagram<S>,
 }
 
-impl ProxyDatagram for Datagram {
+impl<S> ProxyDatagram for Datagram<S>
+where
+    S: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
+{
     fn split(
         self: Box<Self>,
     ) -> (
         Box<dyn ProxyDatagramRecvHalf>,
         Box<dyn ProxyDatagramSendHalf>,
     ) {
+        let (rh, sh) = self.socket.split();
         (
-            Box::new(DatagramRecvHalf(self.recv_half)),
-            Box::new(DatagramSendHalf(self.send_half)),
+            Box::new(DatagramRecvHalf(rh)),
+            Box::new(DatagramSendHalf(sh)),
         )
     }
 }
 
-pub struct DatagramRecvHalf(SocksDatagramRecvHalf<TcpStream>);
+pub struct DatagramRecvHalf<S>(SocksDatagramRecvHalf<S>);
+
+// unsafe impl<S> Send for DatagramRecvHalf<S> {}
 
 #[async_trait]
-impl ProxyDatagramRecvHalf for DatagramRecvHalf {
+impl<S> ProxyDatagramRecvHalf for DatagramRecvHalf<S>
+where
+    S: 'static + AsyncRead + AsyncWrite + Send + Unpin + Sync,
+{
     async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
         let (n, addr) = self
             .0
@@ -129,10 +110,15 @@ impl ProxyDatagramRecvHalf for DatagramRecvHalf {
     }
 }
 
-pub struct DatagramSendHalf(SocksDatagramSendHalf<TcpStream>);
+pub struct DatagramSendHalf<S>(SocksDatagramSendHalf<S>);
+
+// unsafe impl<S> Send for DatagramSendHalf<S> {}
 
 #[async_trait]
-impl ProxyDatagramSendHalf for DatagramSendHalf {
+impl<S> ProxyDatagramSendHalf for DatagramSendHalf<S>
+where
+    S: 'static + AsyncRead + AsyncWrite + Send + Unpin + Sync,
+{
     async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> Result<usize> {
         self.0
             .send_to(buf, target.to_owned())

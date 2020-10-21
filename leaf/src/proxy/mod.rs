@@ -1,9 +1,13 @@
-use std::{io::Result, net::SocketAddr};
+use std::sync::Arc;
+use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
+use futures::TryFutureExt;
+use socket2::{Domain, Socket, Type};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
 
-use crate::session::Session;
+use crate::{common::dns_client::DnsClient, common::resolver::Resolver, session::Session};
 
 pub mod datagram;
 pub mod handler;
@@ -68,7 +72,7 @@ pub trait ProxyHandler:
 {
 }
 
-pub trait ProxyStream: AsyncRead + AsyncWrite + Send + Unpin {}
+pub trait ProxyStream: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
 
 pub trait Tag {
     fn tag(&self) -> &String;
@@ -82,6 +86,43 @@ pub trait HandlerTyped {
     fn handler_type(&self) -> ProxyHandlerType;
 }
 
+async fn dial_tcp_stream(
+    dns_client: Arc<DnsClient>,
+    bind_addr: &SocketAddr,
+    address: &String,
+    port: &u16,
+) -> io::Result<Box<dyn ProxyStream>> {
+    let resolver = Resolver::new(dns_client, bind_addr, address, port)
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("resolve address failed: {}", e),
+            )
+        })
+        .await?;
+
+    let mut last_err = None;
+
+    for addr in resolver {
+        let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
+        socket.bind(&bind_addr.clone().into())?;
+        match TcpStream::connect_std(socket.into_tcp_stream(), &addr).await {
+            Ok(stream) => {
+                return Ok(Box::new(SimpleStream(stream)));
+            }
+            Err(e) => {
+                last_err = Some(e);
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "could not resolve to any address",
+        )
+    }))
+}
+
 #[async_trait]
 pub trait ProxyTcpHandler: Send + Sync + Unpin {
     fn name(&self) -> &str;
@@ -90,7 +131,17 @@ pub trait ProxyTcpHandler: Send + Sync + Unpin {
         &'a self,
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
-    ) -> Result<Box<dyn ProxyStream>>;
+    ) -> io::Result<Box<dyn ProxyStream>>;
+
+    async fn dial_tcp_stream(
+        &self,
+        dns_client: Arc<DnsClient>,
+        bind_addr: &SocketAddr,
+        address: &String,
+        port: &u16,
+    ) -> io::Result<Box<dyn ProxyStream>> {
+        dial_tcp_stream(dns_client, bind_addr, address, port).await
+    }
 }
 
 pub trait ProxyDatagram: Send + Unpin {
@@ -103,13 +154,13 @@ pub trait ProxyDatagram: Send + Unpin {
 }
 
 #[async_trait]
-pub trait ProxyDatagramRecvHalf: Send + Unpin {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocketAddr)>;
+pub trait ProxyDatagramRecvHalf: Sync + Send + Unpin {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)>;
 }
 
 #[async_trait]
-pub trait ProxyDatagramSendHalf: Send + Unpin {
-    async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> Result<usize>;
+pub trait ProxyDatagramSendHalf: Sync + Send + Unpin {
+    async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize>;
 }
 
 #[async_trait]
@@ -122,5 +173,15 @@ pub trait ProxyUdpHandler: Send + Sync + Unpin {
         sess: &'a Session,
         datagram: Option<Box<dyn ProxyDatagram>>,
         stream: Option<Box<dyn ProxyStream>>,
-    ) -> Result<Box<dyn ProxyDatagram>>;
+    ) -> io::Result<Box<dyn ProxyDatagram>>;
+
+    async fn dial_tcp_stream(
+        &self,
+        dns_client: Arc<DnsClient>,
+        bind_addr: &SocketAddr,
+        address: &String,
+        port: &u16,
+    ) -> io::Result<Box<dyn ProxyStream>> {
+        dial_tcp_stream(dns_client, bind_addr, address, port).await
+    }
 }

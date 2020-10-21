@@ -82,17 +82,14 @@ pub struct AeadCipher {
 }
 
 impl AeadCipher {
-    pub fn new(cipher: &str, password: &str) -> Option<Self> {
+    pub fn new(cipher: &str, password: &str) -> Result<Self> {
         let (ks, ss, alg) = if let Some(v) = AEAD_LIST.get(cipher) {
             (v.key_size, v.salt_size, v.algorithm)
         } else {
-            return None;
+            return Err(anyhow!("unsupported cipher: {}", cipher));
         };
-        let psk = match kdf(password, ks) {
-            Ok(k) => k,
-            Err(_) => return None,
-        };
-        Some(AeadCipher {
+        let psk = kdf(password, ks)?;
+        Ok(AeadCipher {
             psk: Bytes::from(psk),
             key_size: ks,
             salt_size: ss,

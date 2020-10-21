@@ -1,9 +1,7 @@
 mod crypto;
-mod protocol;
 mod shadow;
 
 pub use crypto::{list_ciphers, AeadCipher, Cipher};
-pub use protocol::SocksAddr;
 pub use shadow::{
     ShadowedDatagram, ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf, ShadowedStream,
 };

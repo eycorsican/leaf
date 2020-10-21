@@ -12,7 +12,6 @@ use log::*;
 use tokio::net::UdpSocket;
 
 use super::AeadCipher;
-use super::SocksAddr as SSSocksAddr;
 use super::{ShadowedDatagram, ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf};
 use crate::{
     common::dns_client::DnsClient,
@@ -20,7 +19,7 @@ use crate::{
         ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf, ProxyStream, ProxyUdpHandler,
         SimpleDatagram, UdpTransportType,
     },
-    session::Session,
+    session::{Session, SocksAddr, SocksAddrWireType},
 };
 
 pub struct Handler {
@@ -52,15 +51,9 @@ impl ProxyUdpHandler for Handler {
         datagram: Option<Box<dyn ProxyDatagram>>,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyDatagram>> {
-        let cipher = if let Some(c) = AeadCipher::new(&self.cipher, &self.password) {
-            c
-        } else {
-            return Err(Error::new(
-                ErrorKind::Other,
-                "unsable to create aead cipher",
-            ));
-        };
-        let cipher = Box::new(cipher);
+        let cipher = AeadCipher::new(&self.cipher, &self.password).map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("create cipher failed: {}", e))
+        })?;
 
         let ips = match self
             .dns_client
@@ -91,7 +84,7 @@ impl ProxyUdpHandler for Handler {
             socket
         };
 
-        let dgram = ShadowedDatagram::with_initial_buffer_size(socket, cipher, 2 * 1024);
+        let dgram = ShadowedDatagram::with_initial_buffer_size(socket, Box::new(cipher), 2 * 1024);
         let (r, s) = dgram.split();
         return Ok(Box::new(Datagram { r, s, server: addr }));
     }
@@ -128,7 +121,7 @@ impl ProxyDatagramRecvHalf for DatagramRecvHalf {
         // TODO optimize
         let mut buf2 = [0u8; 2 * 1024];
         let (n, _) = self.0.recv_from(&mut buf2).await?;
-        let tgt_addr = match SSSocksAddr::try_from(&buf2[..n]) {
+        let tgt_addr = match SocksAddr::try_from((&buf2[..n], SocksAddrWireType::PortLast)) {
             Ok(v) => v,
             Err(e) => {
                 return Err(io::Error::new(
@@ -138,7 +131,7 @@ impl ProxyDatagramRecvHalf for DatagramRecvHalf {
             }
         };
         match tgt_addr {
-            SSSocksAddr::Ip(addr) => {
+            SocksAddr::Ip(addr) => {
                 let payload_len = n - tgt_addr.size();
                 let to_write = min(payload_len, buf.len());
                 if to_write < payload_len {
@@ -164,8 +157,8 @@ pub struct DatagramSendHalf {
 impl ProxyDatagramSendHalf for DatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
         let mut buf2 = BytesMut::new();
-        let target = SSSocksAddr::from(target);
-        target.write_into(&mut buf2)?;
+        let target = SocksAddr::from(target);
+        target.write_buf(&mut buf2, SocksAddrWireType::PortLast)?;
         buf2.put_slice(&buf);
 
         match self.send_half.send_to(&buf2, &self.server).await {

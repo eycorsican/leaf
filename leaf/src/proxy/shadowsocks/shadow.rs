@@ -1,5 +1,6 @@
 use std::{cmp::min, io, net::SocketAddr, pin::Pin, sync::Arc};
 
+use anyhow::Result;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use futures::{
@@ -10,7 +11,7 @@ use log::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::crypto::{Cipher, Decryptor, Encryptor};
+use super::crypto::{AeadCipher, Cipher, Decryptor, Encryptor};
 use crate::proxy::{ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf};
 
 enum ReadState {
@@ -40,8 +41,9 @@ pub struct ShadowedStream<T> {
 }
 
 impl<T> ShadowedStream<T> {
-    pub fn new(s: T, cipher: Box<dyn Cipher>) -> Self {
-        ShadowedStream {
+    pub fn new(s: T, cipher: &String, password: &String) -> Result<Self> {
+        let cipher = Box::new(AeadCipher::new(cipher, password)?);
+        Ok(ShadowedStream {
             inner: s,
             cipher,
             enc: None,
@@ -54,7 +56,7 @@ impl<T> ShadowedStream<T> {
             read_state: ReadState::WaitingSalt,
             write_state: WriteState::WaitingSalt,
             read_pos: 0,
-        }
+        })
     }
 }
 

@@ -647,20 +647,21 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
     if let Some(ext_dns) = json.dns {
         if let Some(ext_bind) = ext_dns.bind {
             dns.bind = ext_bind;
-        } else {
-            dns.bind = "0.0.0.0".to_string();
         }
         if let Some(ext_servers) = ext_dns.servers {
             for ext_server in ext_servers {
                 servers.push(ext_server);
             }
-            if servers.len() == 0 {
-                servers.push("114.114.114.114".to_string());
-                servers.push("8.8.8.8".to_string());
-            }
-            dns.servers = servers;
         }
     }
+    if dns.bind.is_empty() {
+        dns.bind = "0.0.0.0".to_string();
+    }
+    if servers.len() == 0 {
+        servers.push("114.114.114.114".to_string());
+        servers.push("8.8.8.8".to_string());
+    }
+    dns.servers = servers;
 
     let mut config = internal::Config::new();
     config.log = protobuf::SingularPtrField::some(log);

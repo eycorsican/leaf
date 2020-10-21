@@ -27,8 +27,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use uuid::Uuid;
 
 use crate::common;
-
-use super::SocksAddr;
+use crate::session::{SocksAddr, SocksAddrWireType};
 
 type RequestCommand = u8;
 
@@ -91,7 +90,7 @@ impl RequestHeader {
         buf.put_u8(0);
         buf.put_u8(self.command);
 
-        self.address.write_into(buf)?;
+        self.address.write_buf(buf, SocksAddrWireType::PortFirst)?;
 
         // add random bytes
         if padding_len > 0 {

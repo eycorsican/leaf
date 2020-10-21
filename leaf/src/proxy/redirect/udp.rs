@@ -1,6 +1,6 @@
 use std::{
     io::Result,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::{IpAddr, SocketAddr},
 };
 
 use async_trait::async_trait;
@@ -69,26 +69,19 @@ impl ProxyDatagram for Datagram {
         Box<dyn ProxyDatagramSendHalf>,
     ) {
         (
-            Box::new(DatagramRecvHalf(self.recv_half)),
+            Box::new(DatagramRecvHalf(self.recv_half, self.target.clone())),
             Box::new(DatagramSendHalf(self.send_half, self.target)),
         )
     }
 }
 
-pub struct DatagramRecvHalf(RecvHalf);
+pub struct DatagramRecvHalf(RecvHalf, SocketAddr);
 
 #[async_trait]
 impl ProxyDatagramRecvHalf for DatagramRecvHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
-        self.0
-            .recv_from(buf)
-            .map_ok(|(n, _)| {
-                (
-                    n,
-                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 2, 3, 4)), 1234),
-                )
-            })
-            .await
+        let addr = self.1.clone();
+        self.0.recv_from(buf).map_ok(|(n, _)| (n, addr)).await
     }
 }
 

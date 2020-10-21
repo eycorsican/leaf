@@ -6,9 +6,8 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use socket2::{Domain, Socket, Type};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::net::UdpSocket;
 
 use crate::{
     common::dns_client::DnsClient,
@@ -195,132 +194,85 @@ impl ProxyUdpHandler for Handler {
 
         for a in self.actors.iter() {
             if let Some((connect_addr, port, bind_addr)) = a.udp_connect_addr() {
-                let ips = match self
-                    .dns_client
-                    .lookup_with_bind(connect_addr.clone(), &bind_addr)
-                    .await
-                {
-                    Ok(ips) => ips,
-                    Err(err) => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Other,
-                            format!("lookup {} failed: {}", &connect_addr, err),
-                        ));
-                    }
-                };
+                let mut stream = self
+                    .dial_tcp_stream(self.dns_client.clone(), &bind_addr, &connect_addr, &port)
+                    .await?;
+                let mut datagram: Option<Box<dyn ProxyDatagram>> = None;
 
-                let mut last_err = None;
+                let mut last_index = 0;
 
-                for ip in ips {
-                    let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
-                    socket.bind(&bind_addr.to_owned().into())?;
-                    let addr = SocketAddr::new(ip, port);
-                    match TcpStream::connect_std(socket.into_tcp_stream(), &addr).await {
-                        Ok(stream) => {
-                            let mut stream: Box<dyn ProxyStream> = Box::new(SimpleStream(stream));
-                            let mut datagram: Option<Box<dyn ProxyDatagram>> = None;
-
-                            let mut last_index = 0;
-
-                            for (i, a) in self.actors.iter().enumerate() {
-                                last_index = i;
-                                let mut new_sess = sess.clone();
-                                for j in (i + 1)..self.actors.len() {
-                                    if let Some((connect_addr, port, _)) =
-                                        self.actors[j].udp_connect_addr()
-                                    {
-                                        if let Ok(addr) = SocksAddr::try_from(format!(
-                                            "{}:{}",
-                                            connect_addr, port
-                                        )) {
-                                            new_sess.destination = addr;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if i == self.actors.len() - 1 {
-                                    let dgram =
-                                        a.connect(&new_sess, datagram, Some(stream)).await?;
-                                    return Ok(dgram);
-                                } else {
-                                    let mut transport_type: UdpTransportType =
-                                        UdpTransportType::Packet;
-
-                                    // can only transport unreliable upon reliable, not the
-                                    // reverse, if any following actor requires reliable transport,
-                                    // we must also use reliable transport here.
-                                    for k in i..self.actors.len() {
-                                        if self.actors[k].udp_transport_type()
-                                            == UdpTransportType::Stream
-                                        {
-                                            transport_type = UdpTransportType::Stream;
-                                        }
-                                    }
-
-                                    match transport_type {
-                                        UdpTransportType::Stream => {
-                                            stream = a.handle(&new_sess, Some(stream)).await?;
-                                        }
-                                        UdpTransportType::Packet => {
-                                            // once a Packet type is encountered, it's guaranteed all
-                                            // following actors are Packet type.
-                                            datagram = Some(
-                                                a.connect(&new_sess, datagram, Some(stream))
-                                                    .await?,
-                                            );
-                                            break;
-                                        }
-                                        UdpTransportType::Unknown => {
-                                            return Err(io::Error::new(
-                                                io::ErrorKind::Other,
-                                                "unknown transport type",
-                                            ));
-                                        }
-                                    }
-                                }
-                            }
-
-                            // catch up the last actor index, and treats all the remaining
-                            // actors are Packet transports, and they should be
-                            for i in (last_index + 1)..self.actors.len() {
-                                let mut new_sess = sess.clone();
-                                for j in (i + 1)..self.actors.len() {
-                                    if let Some((connect_addr, port, _)) =
-                                        self.actors[j].udp_connect_addr()
-                                    {
-                                        if let Ok(addr) = SocksAddr::try_from(format!(
-                                            "{}:{}",
-                                            connect_addr, port
-                                        )) {
-                                            new_sess.destination = addr;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if i == self.actors.len() - 1 {
-                                    let dgram =
-                                        self.actors[i].connect(&new_sess, datagram, None).await?;
-                                    return Ok(dgram);
-                                } else {
-                                    datagram = Some(
-                                        self.actors[i].connect(&new_sess, datagram, None).await?,
-                                    );
-                                }
+                for (i, a) in self.actors.iter().enumerate() {
+                    last_index = i;
+                    let mut new_sess = sess.clone();
+                    for j in (i + 1)..self.actors.len() {
+                        if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
+                            if let Ok(addr) =
+                                SocksAddr::try_from(format!("{}:{}", connect_addr, port))
+                            {
+                                new_sess.destination = addr;
+                                break;
                             }
                         }
-                        Err(e) => {
-                            last_err = Some(e);
+                    }
+
+                    if i == self.actors.len() - 1 {
+                        let dgram = a.connect(&new_sess, datagram, Some(stream)).await?;
+                        return Ok(dgram);
+                    } else {
+                        let mut transport_type: UdpTransportType = UdpTransportType::Packet;
+
+                        // can only transport unreliable upon reliable, not the
+                        // reverse, if any following actor requires reliable transport,
+                        // we must also use reliable transport here.
+                        for k in i..self.actors.len() {
+                            if self.actors[k].udp_transport_type() == UdpTransportType::Stream {
+                                transport_type = UdpTransportType::Stream;
+                            }
+                        }
+
+                        match transport_type {
+                            UdpTransportType::Stream => {
+                                stream = a.handle(&new_sess, Some(stream)).await?;
+                            }
+                            UdpTransportType::Packet => {
+                                // once a Packet type is encountered, it's guaranteed all
+                                // following actors are Packet type.
+                                datagram =
+                                    Some(a.connect(&new_sess, datagram, Some(stream)).await?);
+                                break;
+                            }
+                            UdpTransportType::Unknown => {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::Other,
+                                    "unknown transport type",
+                                ));
+                            }
                         }
                     }
                 }
-                return Err(last_err.unwrap_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "could not resolve to any address",
-                    )
-                }));
+
+                // catch up the last actor index, and treats all the remaining
+                // actors are Packet transports, and they should be
+                for i in (last_index + 1)..self.actors.len() {
+                    let mut new_sess = sess.clone();
+                    for j in (i + 1)..self.actors.len() {
+                        if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
+                            if let Ok(addr) =
+                                SocksAddr::try_from(format!("{}:{}", connect_addr, port))
+                            {
+                                new_sess.destination = addr;
+                                break;
+                            }
+                        }
+                    }
+
+                    if i == self.actors.len() - 1 {
+                        let dgram = self.actors[i].connect(&new_sess, datagram, None).await?;
+                        return Ok(dgram);
+                    } else {
+                        datagram = Some(self.actors[i].connect(&new_sess, datagram, None).await?);
+                    }
+                }
             }
         }
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"));
