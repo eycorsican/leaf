@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
+use futures::future::select_ok;
 use log::*;
 use lru::LruCache;
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -54,6 +55,89 @@ impl DnsClient {
         }
     }
 
+    async fn query_task(
+        request: Box<[u8]>,
+        domain: &String,
+        server: &SocketAddr,
+        bind_addr: &SocketAddr,
+    ) -> Result<Vec<IpAddr>> {
+        let mut socket = UdpSocket::bind(bind_addr).await?;
+        let mut last_err = None;
+        for _i in 0..4 {
+            debug!("looking up domain {} on {}", domain, server);
+            let start = tokio::time::Instant::now();
+            match socket.send_to(&request, server).await {
+                Ok(_) => {
+                    let mut buf = vec![0u8; 512];
+                    match timeout(Duration::from_secs(4), socket.recv_from(&mut buf)).await {
+                        Ok(res) => match res {
+                            Ok((n, _)) => {
+                                let resp = match Message::from_vec(&buf[..n]) {
+                                    Ok(resp) => resp,
+                                    Err(err) => {
+                                        last_err = Some(anyhow!("parse message failed: {:?}", err));
+                                        // broken response, no retry
+                                        break;
+                                    }
+                                };
+                                if resp.response_code() != ResponseCode::NoError {
+                                    last_err =
+                                        Some(anyhow!("response error {}", resp.response_code()));
+                                    // error response, no retry
+                                    //
+                                    // TODO Needs more careful investigations, I'm not quite sure about
+                                    // this.
+                                    break;
+                                }
+                                let mut addrs = Vec::new();
+                                for ans in resp.answers() {
+                                    // TODO checks?
+                                    match ans.rdata() {
+                                        RData::A(addr) => {
+                                            addrs.push(IpAddr::V4(addr.to_owned()));
+                                        }
+                                        _ => (),
+                                    }
+                                }
+                                if addrs.len() > 0 {
+                                    let elapsed = tokio::time::Instant::now().duration_since(start);
+                                    debug!(
+                                        "return {} ips for {} from {} in {}ms",
+                                        addrs.len(),
+                                        domain,
+                                        server,
+                                        elapsed.as_millis(),
+                                    );
+                                    trace!("ips for {}:\n{:#?}:", domain, &addrs);
+                                    return Ok(addrs);
+                                } else {
+                                    // response with 0 records
+                                    //
+                                    // TODO Not sure how to due with this.
+                                    last_err = Some(anyhow!("no records"));
+                                    break;
+                                }
+                            }
+                            Err(err) => {
+                                last_err = Some(anyhow!("recv failed: {:?}", err));
+                                // socket recv_from error, retry
+                            }
+                        },
+                        Err(e) => {
+                            last_err = Some(anyhow!("recv timeout: {}", e));
+                            // timeout, retry
+                        }
+                    }
+                }
+                Err(err) => {
+                    last_err = Some(anyhow!("send failed: {:?}", err));
+                    // socket send_to error, retry
+                }
+            }
+        }
+        Err(last_err.unwrap_or_else(|| anyhow!("could not resolve to any address")))
+    }
+
     pub async fn lookup(&self, domain: String) -> Result<Vec<IpAddr>> {
         self.lookup_with_bind(domain, &self.bind_addr).await
     }
@@ -77,9 +161,7 @@ impl DnsClient {
         fqdn.push('.');
         let name = match Name::from_str(&fqdn) {
             Ok(n) => n,
-            Err(e) => {
-                return Err(anyhow!("invalid domain name [{}]: {}", &domain, e));
-            }
+            Err(e) => return Err(anyhow!("invalid domain name [{}]: {}", &domain, e)),
         };
         let query = Query::query(name, RecordType::A);
         msg.add_query(query);
@@ -94,72 +176,25 @@ impl DnsClient {
 
         let msg_buf = match msg.to_vec() {
             Ok(b) => b,
-            Err(e) => {
-                return Err(anyhow!("encode message to buffer failed: {}", e));
-            }
+            Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
         };
 
-        let mut socket = UdpSocket::bind(bind_addr).await?;
-
-        let mut last_err = None;
-
+        let mut tasks = Vec::new();
         for server in &self.servers {
-            for _i in 0..4 {
-                debug!("looking up domain {} on {}", &domain, &server);
-                match socket.send_to(&msg_buf, &server).await {
-                    Ok(_) => {
-                        let mut buf = vec![0u8; 1024]; // could be smaller?
-                        match timeout(Duration::from_secs(4), socket.recv_from(&mut buf)).await {
-                            Ok(res) => match res {
-                                Ok((n, _)) => {
-                                    let resp = match Message::from_vec(&buf[..n]) {
-                                        Ok(resp) => resp,
-                                        Err(err) => {
-                                            last_err =
-                                                Some(anyhow!("parse message failed: {:?}", err));
-                                            continue;
-                                        }
-                                    };
-                                    if resp.response_code() != ResponseCode::NoError {
-                                        last_err = Some(anyhow!(
-                                            "response error {}",
-                                            resp.response_code()
-                                        ));
-                                        continue;
-                                    }
-                                    let mut addrs = Vec::new();
-                                    for ans in resp.answers() {
-                                        // TODO checks?
-                                        match ans.rdata() {
-                                            RData::A(addr) => {
-                                                addrs.push(IpAddr::V4(addr.to_owned()));
-                                            }
-                                            _ => (),
-                                        }
-                                    }
-                                    if addrs.len() > 0 {
-                                        debug!("return {} ips for {}", addrs.len(), &domain);
-                                        trace!("ips for {}:\n{:#?}:", &domain, &addrs);
-                                        self.cache.lock().await.put(domain, addrs.clone());
-                                        return Ok(addrs);
-                                    }
-                                }
-                                Err(err) => {
-                                    last_err = Some(anyhow!("recv failed: {:?}", err));
-                                }
-                            },
-                            Err(e) => {
-                                last_err = Some(anyhow!("recv timeout: {}", e));
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        last_err = Some(anyhow!("send failed: {:?}", err));
-                    }
-                }
-            }
+            let t = Self::query_task(
+                msg_buf.clone().into_boxed_slice(),
+                &domain,
+                &server,
+                bind_addr,
+            );
+            tasks.push(Box::pin(t));
         }
-
-        Err(last_err.unwrap_or_else(|| anyhow!("could not resolve to any address")))
+        match select_ok(tasks.into_iter()).await {
+            Ok(v) => {
+                self.cache.lock().await.put(domain.to_owned(), v.0.clone());
+                Ok(v.0)
+            }
+            Err(e) => Err(anyhow!("all dns servers failed, last error: {}", e)),
+        }
     }
 }
