@@ -1,8 +1,8 @@
 ios:
-	cargo lipo -p leaf-mobile --release --targets aarch64-apple-ios && cp target/universal/release/libleaf.a /tmp/ && cbindgen leaf-mobile/src/lib.rs -l c > /tmp/leaf.h
+	cargo lipo -p leaf-mobile --release --targets aarch64-apple-ios && cbindgen leaf-mobile/src/lib.rs -l c > target/universal/release/leaf.h
 
 ios-dev:
-	cargo lipo -p leaf-mobile --targets aarch64-apple-ios && cp target/universal/debug/libleaf.a /tmp/ && cbindgen leaf-mobile/src/lib.rs -l c > /tmp/leaf.h
+	cargo lipo -p leaf-mobile --targets aarch64-apple-ios && cbindgen leaf-mobile/src/lib.rs -l c > target/universal/debug/leaf.h
 
 local:
 	cargo build -p leaf-bin --release

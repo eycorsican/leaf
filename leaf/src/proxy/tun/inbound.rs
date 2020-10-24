@@ -34,10 +34,20 @@ pub fn new(
         let mut cfg = tun::Configuration::default();
         cfg.name(settings.name)
             .address(settings.address)
-            .netmask(settings.netmask)
             .destination(settings.gateway)
-            .mtu(settings.mtu)
-            .up();
+            .mtu(settings.mtu);
+
+        #[cfg(not(any(
+            target_arch = "mips",
+            target_arch = "mips64",
+            target_arch = "mipsel",
+            target_arch = "mipsel64",
+        )))]
+        {
+            cfg.netmask(settings.netmask);
+        }
+
+        cfg.up();
         cfg
     };
 

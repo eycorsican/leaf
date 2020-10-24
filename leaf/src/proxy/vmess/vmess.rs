@@ -1,33 +1,30 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::{cmp::min, io, io::Read, pin::Pin};
+use std::{cmp::min, io, pin::Pin};
 
 use aes::Aes128;
 use anyhow::anyhow;
-use anyhow::Result;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use cfb_mode::stream_cipher::{NewStreamCipher, StreamCipher};
 use cfb_mode::Cfb;
-use digest::ExtendableOutputDirty;
 use futures::{
     ready,
     task::{Context, Poll},
 };
 use hmac::{Hmac, Mac, NewMac};
-use log::*;
 use lz_fnv::{Fnv1a, FnvHasher};
 use md5::{Digest, Md5};
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use ring::{
-    aead::{Aad, BoundKey, Nonce, NonceSequence, OpeningKey, SealingKey, UnboundKey, NONCE_LEN},
-    error::Unspecified,
-};
-use sha3::Shake128;
 use tokio::io::{AsyncRead, AsyncWrite};
 use uuid::Uuid;
 
-use crate::common;
+use crate::common::crypto::{
+    aead::{AeadDecryptor, AeadEncryptor},
+    Decryptor, Encryptor,
+};
 use crate::session::{SocksAddr, SocksAddrWireType};
+
+use super::crypto::{PaddingLengthGenerator, ShakeSizeParser, VMessAEADSequence};
 
 type RequestCommand = u8;
 
@@ -177,133 +174,6 @@ impl ClientSession {
     }
 }
 
-pub struct VMessAEADSequence {
-    nonce: Vec<u8>,
-    size: usize,
-    count: u16,
-}
-
-impl VMessAEADSequence {
-    pub fn new(nonce: Vec<u8>, size: usize) -> Self {
-        assert_eq!(nonce.len() >= size, true);
-        VMessAEADSequence {
-            nonce,
-            size,
-            count: 0xffff,
-        }
-    }
-
-    fn inc(&mut self) {
-        self.count = self.count.wrapping_add(1);
-    }
-}
-
-impl NonceSequence for VMessAEADSequence {
-    fn advance(&mut self) -> Result<Nonce, Unspecified> {
-        self.inc();
-        BigEndian::write_u16(&mut self.nonce, self.count);
-        Nonce::try_assume_unique_for_key(&self.nonce[..self.size])
-    }
-}
-
-pub struct ShakeSizeParser {
-    shake_reader: sha3::Sha3XofReader,
-    buf: [u8; 2],
-}
-
-impl ShakeSizeParser {
-    pub fn new(nonce: &[u8]) -> Self {
-        let mut shake = Shake128::default();
-        digest::Update::update(&mut shake, nonce);
-        let shake_reader = shake.finalize_xof_dirty();
-        ShakeSizeParser {
-            shake_reader,
-            buf: [0, 0],
-        }
-    }
-
-    pub fn size_bytes(&self) -> usize {
-        2
-    }
-
-    fn next(&mut self) -> u16 {
-        match self.shake_reader.read(&mut self.buf) {
-            Ok(_) => (),
-            Err(e) => {
-                error!("read from shake reader failed: {}", e);
-            }
-        };
-        BigEndian::read_u16(&self.buf)
-    }
-
-    pub fn decode(&mut self, b: &[u8]) -> u16 {
-        assert_eq!(b.len() >= 2, true);
-        let mask = self.next();
-        let size = BigEndian::read_u16(b);
-        mask ^ size
-    }
-
-    pub fn encode(&mut self, size: u16, b: &mut [u8]) {
-        let mask = self.next();
-        BigEndian::write_u16(b, mask ^ size);
-    }
-}
-
-pub trait PaddingLengthGenerator {
-    fn next_padding_len(&mut self) -> u16;
-    fn max_padding_len(&self) -> u16;
-}
-
-impl PaddingLengthGenerator for ShakeSizeParser {
-    fn next_padding_len(&mut self) -> u16 {
-        self.next() % 64
-    }
-
-    fn max_padding_len(&self) -> u16 {
-        64
-    }
-}
-
-fn generate_chacha20poly1305_key(key: &[u8]) -> Vec<u8> {
-    let key_1 = Md5::digest(&key).to_vec();
-    let key_2 = Md5::digest(&key_1).to_vec();
-    [key_1, key_2].concat()
-}
-
-pub fn new_encryptor(cipher: &str, key: &[u8], iv: &[u8]) -> Result<SealingKey<VMessAEADSequence>> {
-    let key = generate_chacha20poly1305_key(key);
-    let nonce = VMessAEADSequence::new(iv.to_vec(), NONCE_LEN);
-    let unbound_key = if let Some(cipher) = common::crypto::AEAD_LIST.get(cipher) {
-        let key = match UnboundKey::new(cipher, &key) {
-            Ok(k) => k,
-            Err(e) => {
-                return Err(anyhow!(format!("new unbound key failed: {}", e)));
-            }
-        };
-        key
-    } else {
-        return Err(anyhow!(format!("invalid cipher {}", cipher)));
-    };
-    Ok(SealingKey::new(unbound_key, nonce))
-}
-
-pub fn new_decryptor(cipher: &str, key: &[u8], iv: &[u8]) -> Result<OpeningKey<VMessAEADSequence>> {
-    let key = generate_chacha20poly1305_key(key);
-    let nonce = VMessAEADSequence::new(iv.to_vec(), NONCE_LEN);
-    let unbound_key = if let Some(cipher) = common::crypto::AEAD_LIST.get(cipher) {
-        let key = match UnboundKey::new(cipher, &key) {
-            Ok(k) => k,
-            Err(e) => {
-                return Err(anyhow!(format!("new unbound key failed: {}", e)));
-            }
-        };
-        key
-    } else {
-        return Err(anyhow!(format!("invalid cipher {}", cipher)));
-    };
-    Ok(OpeningKey::new(unbound_key, nonce))
-}
-
 enum ReadState {
     WaitingResponseHeader,
     WaitingLength,
@@ -319,10 +189,11 @@ enum WriteState {
 pub struct VMessAuthStream<T> {
     inner: T,
     sess: ClientSession,
-    enc: SealingKey<VMessAEADSequence>,
+    enc: AeadEncryptor<VMessAEADSequence>,
     enc_size_parser: ShakeSizeParser,
-    dec: OpeningKey<VMessAEADSequence>,
+    dec: AeadDecryptor<VMessAEADSequence>,
     dec_size_parser: ShakeSizeParser,
+    tag_len: usize,
     read_buf: BytesMut,
     write_buf: BytesMut,
     read_state: ReadState,
@@ -334,10 +205,11 @@ impl<T> VMessAuthStream<T> {
     pub fn new(
         s: T,
         sess: ClientSession,
-        enc: SealingKey<VMessAEADSequence>,
+        enc: AeadEncryptor<VMessAEADSequence>,
         enc_size_parser: ShakeSizeParser,
-        dec: OpeningKey<VMessAEADSequence>,
+        dec: AeadDecryptor<VMessAEADSequence>,
         dec_size_parser: ShakeSizeParser,
+        tag_len: usize,
     ) -> Self {
         VMessAuthStream {
             inner: s,
@@ -346,6 +218,7 @@ impl<T> VMessAuthStream<T> {
             enc_size_parser,
             dec,
             dec_size_parser,
+            tag_len,
 
             // never depend on these sizes, reserve when need
             read_buf: BytesMut::with_capacity(0x2 + 0x4000),
@@ -434,13 +307,10 @@ impl<T: AsyncRead + Unpin> AsyncRead for VMessAuthStream<T> {
                     ready!(me.poll_read_exact(cx, size))?;
                     let encrypted_size = size - padding_size;
                     let _ = me.read_buf.split_off(encrypted_size); // trim padding
-                    me.dec
-                        .open_within(Aad::empty(), &mut me.read_buf, 0..)
-                        .map_err(|_| crypto_err())?;
+                    me.dec.decrypt(&mut me.read_buf).map_err(|_| crypto_err())?;
 
                     // ready to read plaintext payload into buf
-                    me.read_state =
-                        ReadState::PendingData(encrypted_size - me.dec.algorithm().tag_len());
+                    me.read_state = ReadState::PendingData(encrypted_size - me.tag_len);
                 }
                 ReadState::PendingData(n) => {
                     let to_read = min(buf.len(), n);
@@ -471,11 +341,10 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for VMessAuthStream<T> {
             match self.write_state {
                 WriteState::WaitingChunk => {
                     let me = &mut *self;
-                    let tag_len = me.enc.algorithm().tag_len();
                     let padding_size = me.enc_size_parser.next_padding_len() as usize;
-                    let max_payload_size = 0x4000 - tag_len - padding_size;
+                    let max_payload_size = 0x4000 - me.tag_len - padding_size;
                     let consume_len = min(buf.len(), max_payload_size);
-                    let payload_len = consume_len + tag_len + padding_size;
+                    let payload_len = consume_len + me.tag_len + padding_size;
 
                     // encode size
                     let size_bytes = me.enc_size_parser.size_bytes();
@@ -486,13 +355,11 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for VMessAuthStream<T> {
                     let mut piece2 = me.write_buf.split_off(size_bytes);
 
                     // seal payload
-                    piece2.reserve(consume_len + tag_len);
+                    piece2.reserve(consume_len + me.tag_len);
                     piece2.put_slice(&buf[..consume_len]);
-                    me.enc
-                        .seal_in_place_append_tag(Aad::empty(), &mut piece2)
-                        .map_err(|_| crypto_err())?;
+                    me.enc.encrypt(&mut piece2).map_err(|_| crypto_err())?;
 
-                    let mut piece3 = piece2.split_off(consume_len + tag_len);
+                    let mut piece3 = piece2.split_off(consume_len + me.tag_len);
 
                     // add random paddings
                     if padding_size > 0 {

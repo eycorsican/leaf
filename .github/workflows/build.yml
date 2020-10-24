@@ -4,32 +4,36 @@ on: [push, pull_request]
 
 jobs:
   build-bin-cross:
+    runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
         target:
-          - aarch64-unknown-linux-gnu
-          - aarch64-unknown-linux-musl
-          - arm-unknown-linux-gnueabi
-          - arm-unknown-linux-musleabi
-          - i686-unknown-linux-gnu
-          - i686-unknown-linux-musl
-          # - mips-unknown-linux-gnu
-          - x86_64-pc-windows-gnu
-          - x86_64-unknown-linux-gnu
+          - mips-unknown-linux-musl
+          - mips-unknown-linux-gnu
+            #- mips64-unknown-linux-gnuabi64
+          - mipsel-unknown-linux-musl
+          - mipsel-unknown-linux-gnu
+            #- mipsel64-unknown-linux-gnuabi64
           - x86_64-unknown-linux-musl
-
-    runs-on: ubuntu-latest
+          - x86_64-unknown-linux-gnu
+          - i686-unknown-linux-musl
+          - i686-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
+          - arm-unknown-linux-musleabi
+          - arm-unknown-linux-gnueabi
+          - armv7-unknown-linux-musleabihf
+          - armv7-unknown-linux-gnueabihf
+            #- i686-pc-windows-gnu
+          - x86_64-pc-windows-gnu
 
     steps:
       - name: checkout
         uses: actions/checkout@v2
         with:
           submodules: true
-
-      - name: show last commit
-        run: |
-          git show --summary
 
       - name: install rust toolchain
         uses: hecrj/setup-rust-action@v1
@@ -46,7 +50,7 @@ jobs:
 
       - name: build
         run: |
-          cross build --target ${{ matrix.target }} -p leaf-bin --release
+          ./misc/build_cross.sh ${{ matrix.target }}
 
       - name: rename and compress artifacts
         if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
@@ -100,7 +104,11 @@ jobs:
       - name: install llvm
         if: ${{ matrix.os == 'macos-latest' }}
         run: |
-          brew update && brew install llvm protobuf upx
+          brew uninstall openssl@1.0.2t
+          brew uninstall python@2.7.17
+          brew untap local/openssl
+          brew untap local/python2
+          brew update && brew install llvm protobuf
 
       - name: build
         run: |
@@ -125,15 +133,6 @@ jobs:
         with:
           submodules: true
 
-      - name: show last commit
-        run: |
-          git show --summary
-
-      - name: show xcode
-        run: |
-          xcodebuild -version
-          xcrun --sdk iphoneos --show-sdk-path
-
       - name: install rust
         uses: hecrj/setup-rust-action@v1
         with:
@@ -144,6 +143,10 @@ jobs:
           rustup target add aarch64-apple-ios
           cargo install cargo-lipo
           cargo install cbindgen
+          brew uninstall openssl@1.0.2t
+          brew uninstall python@2.7.17
+          brew untap local/openssl
+          brew untap local/python2
           brew update && brew install llvm unzip protobuf
 
       - name: build
@@ -159,10 +162,6 @@ jobs:
         run: |
           mv target/universal/release/libleaf.a .
           zip libleaf-ios.zip leaf.h libleaf.a
-
-      - name: verify zip artifacts
-        run: |
-          unzip -l libleaf-ios.zip
 
       - name: upload assets
         uses: actions/upload-artifact@v2

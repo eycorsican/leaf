@@ -8,13 +8,26 @@ edition = "2018"
 name = "leaf"
 path = "src/main.rs"
 
+[features]
+default = ["common", "config", "ring-aead", "rustls-tls"]
+
+config = ["json-config", "conf-config"]
+
+json-config = ["leaf/json"]
+conf-config = ["leaf/conf"]
+
+ring-aead = ["leaf/ring-aead"]
+openssl-aead = ["leaf/openssl-aead"]
+
+rustls-tls = ["leaf/rustls-tls"]
+openssl-tls = ["leaf/openssl-tls"]
+
+common = ["leaf/endpoint", "leaf/ensemble"]
+
 [dependencies]
-leaf = { path = "../leaf" }
+leaf = { path = "../leaf", default-features = false, optional = true }
 clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }
 log = { version = "0.4", features = ["std"] }
 fern = { version = "0.5", features = ["colored"] }
 tokio = { version = "0.2", features = ["signal"] }
 futures = "0.3"
-
-# [target.'cfg(not(target_env = "msvc"))'.dependencies]
-# jemallocator = "0.3.2"

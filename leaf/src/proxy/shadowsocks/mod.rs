@@ -1,7 +1,6 @@
 mod crypto;
 mod shadow;
 
-pub use crypto::{list_ciphers, AeadCipher, Cipher};
 pub use shadow::{
     ShadowedDatagram, ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf, ShadowedStream,
 };

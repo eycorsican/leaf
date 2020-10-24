@@ -1,6 +1,6 @@
 use std::{cmp::min, io, net::SocketAddr, pin::Pin, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use futures::{
@@ -11,8 +11,13 @@ use log::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::crypto::{AeadCipher, Cipher, Decryptor, Encryptor};
+use crate::common::crypto::{
+    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
+    Cipher, Decryptor, Encryptor, SizedCipher,
+};
 use crate::proxy::{ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf};
+
+use super::crypto::{hkdf_sha1, kdf, ShadowsocksNonceSequence};
 
 enum ReadState {
     WaitingSalt,
@@ -30,9 +35,10 @@ enum WriteState {
 
 pub struct ShadowedStream<T> {
     inner: T,
-    cipher: Box<dyn Cipher>,
-    enc: Option<Box<dyn Encryptor>>,
-    dec: Option<Box<dyn Decryptor>>,
+    cipher: AeadCipher,
+    psk: Vec<u8>,
+    enc: Option<AeadEncryptor<ShadowsocksNonceSequence>>,
+    dec: Option<AeadDecryptor<ShadowsocksNonceSequence>>,
     read_buf: BytesMut,
     write_buf: BytesMut,
     read_state: ReadState,
@@ -42,10 +48,12 @@ pub struct ShadowedStream<T> {
 
 impl<T> ShadowedStream<T> {
     pub fn new(s: T, cipher: &String, password: &String) -> Result<Self> {
-        let cipher = Box::new(AeadCipher::new(cipher, password)?);
+        let cipher = AeadCipher::new(cipher)?;
+        let psk = kdf(password, cipher.key_len())?;
         Ok(ShadowedStream {
             inner: s,
             cipher,
+            psk,
             enc: None,
             dec: None,
 
@@ -64,7 +72,10 @@ trait ReadExt {
     fn poll_read_exact(&mut self, cx: &mut Context, size: usize) -> Poll<io::Result<()>>;
 }
 
-impl<T: AsyncRead + Unpin> ReadExt for ShadowedStream<T> {
+impl<T> ReadExt for ShadowedStream<T>
+where
+    T: AsyncRead + Unpin,
+{
     fn poll_read_exact(&mut self, cx: &mut Context, size: usize) -> Poll<io::Result<()>> {
         self.read_buf.reserve(size);
         unsafe { self.read_buf.set_len(size) };
@@ -94,7 +105,10 @@ fn crypto_err() -> io::Error {
     io::Error::new(io::ErrorKind::Other, "crypto error")
 }
 
-impl<T: AsyncRead + Unpin> AsyncRead for ShadowedStream<T> {
+impl<T> AsyncRead for ShadowedStream<T>
+where
+    T: AsyncRead + Unpin,
+{
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
@@ -104,11 +118,20 @@ impl<T: AsyncRead + Unpin> AsyncRead for ShadowedStream<T> {
             match self.read_state {
                 ReadState::WaitingSalt => {
                     // read salt and create decryptor
-                    let salt_size = self.cipher.salt_size();
+                    let salt_size = self.cipher.key_len();
                     ready!(self.poll_read_exact(cx, salt_size))?;
+                    let key = hkdf_sha1(
+                        &self.psk,
+                        &self.read_buf[..salt_size],
+                        String::from("ss-subkey").as_bytes().to_vec(),
+                        self.cipher.key_len(),
+                    )
+                    .map_err(|_| crypto_err())?;
+                    let nonce =
+                        super::crypto::ShadowsocksNonceSequence::new(self.cipher.nonce_len());
                     let dec = self
                         .cipher
-                        .decryptor(&self.read_buf[..salt_size])
+                        .decryptor(&key, nonce)
                         .map_err(|_| crypto_err())?;
                     self.dec.replace(dec);
                     self.read_buf.clear();
@@ -157,7 +180,10 @@ impl<T: AsyncRead + Unpin> AsyncRead for ShadowedStream<T> {
     }
 }
 
-impl<T: AsyncWrite + Unpin> AsyncWrite for ShadowedStream<T> {
+impl<T> AsyncWrite for ShadowedStream<T>
+where
+    T: AsyncWrite + Unpin,
+{
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
@@ -167,17 +193,28 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for ShadowedStream<T> {
             match self.write_state {
                 WriteState::WaitingSalt => {
                     // generate random salt and create encryptor
-                    let salt_size = self.cipher.salt_size();
+                    let salt_size = self.cipher.key_len();
                     self.write_buf.reserve(salt_size);
                     unsafe { self.write_buf.set_len(salt_size) };
                     let mut rng = StdRng::from_entropy();
                     for i in 0..salt_size {
                         self.write_buf[i] = rng.gen();
                     }
+
+                    let key = hkdf_sha1(
+                        &self.psk,
+                        &self.write_buf[..salt_size],
+                        String::from("ss-subkey").as_bytes().to_vec(),
+                        self.cipher.key_len(),
+                    )
+                    .map_err(|_| crypto_err())?;
+                    let nonce =
+                        super::crypto::ShadowsocksNonceSequence::new(self.cipher.nonce_len());
                     let enc = self
                         .cipher
-                        .encryptor(&self.write_buf[..salt_size])
+                        .encryptor(&key, nonce)
                         .map_err(|_| crypto_err())?;
+
                     self.enc.replace(enc);
 
                     // ready to write salt
@@ -262,8 +299,8 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for ShadowedStream<T> {
 }
 
 struct InnerHalf {
-    // server: SocketAddr,
-    cipher: Box<dyn Cipher>,
+    cipher: AeadCipher,
+    psk: Vec<u8>,
 }
 
 struct Half<T> {
@@ -280,7 +317,7 @@ pub struct ShadowedDatagramRecvHalf(Half<Box<dyn ProxyDatagramRecvHalf>>);
 
 impl ShadowedDatagramRecvHalf {
     pub async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        let salt_size = self.0.inner.cipher.salt_size();
+        let salt_size = self.0.inner.cipher.key_len();
         let tag_len = self.0.inner.cipher.tag_len();
         let buffer_size = salt_size + /* addr::MAX_SOCKS_ADDR_SIZE + */ buf.len() + tag_len;
 
@@ -303,17 +340,25 @@ impl ShadowedDatagramRecvHalf {
 
         // buffer: |ciphertext(addr+payload)|tag|
 
+        let key = hkdf_sha1(
+            &self.0.inner.psk,
+            &salt,
+            String::from("ss-subkey").as_bytes().to_vec(),
+            self.0.inner.cipher.key_len(),
+        )
+        .map_err(|_| crypto_err())?;
+        let nonce = ShadowsocksNonceSequence::new(self.0.inner.cipher.nonce_len());
         let mut dec = self
             .0
             .inner
             .cipher
-            .decryptor(&salt)
+            .decryptor(&key, nonce)
             .map_err(|_| crypto_err())?;
+
         if self.0.buffer.len() < tag_len {
             debug!("buffer size {}", self.0.buffer.len());
             return Err(short_packet());
         }
-        debug_assert_eq!(tag_len, dec.tag_len());
 
         dec.decrypt(&mut self.0.buffer).map_err(|_| crypto_err())?;
 
@@ -341,7 +386,7 @@ impl ShadowedDatagramSendHalf {
             return Ok(0);
         }
 
-        let salt_size = self.0.inner.cipher.salt_size();
+        let salt_size = self.0.inner.cipher.key_len();
         let tag_len = self.0.inner.cipher.tag_len();
         let buffer_size = salt_size + /* target.size() + */ buf.len() + tag_len;
 
@@ -355,39 +400,28 @@ impl ShadowedDatagramSendHalf {
             self.0.buffer[i] = rng.gen();
         }
 
-        // buffer: |salt|
-
+        let key = hkdf_sha1(
+            &self.0.inner.psk,
+            &self.0.buffer[..salt_size],
+            String::from("ss-subkey").as_bytes().to_vec(),
+            self.0.inner.cipher.key_len(),
+        )
+        .map_err(|_| crypto_err())?;
+        let nonce = ShadowsocksNonceSequence::new(self.0.inner.cipher.nonce_len());
         let mut enc = self
             .0
             .inner
             .cipher
-            .encryptor(&self.0.buffer[..salt_size])
+            .encryptor(&key, nonce)
             .map_err(|_| crypto_err())?;
-        debug_assert_eq!(enc.tag_len(), tag_len);
 
         let mut piece = self.0.buffer.split_off(salt_size);
 
-        // buffer: |salt|
-        // piece: ||
-
-        // target.write_into(&mut piece)?;
-
-        // buffer: |salt|
-        // piece: |addr|
-
         piece.put_slice(buf);
-
-        // buffer: |salt|
-        // piece: |addr+payload|
 
         enc.encrypt(&mut piece).map_err(|_| crypto_err())?;
 
-        // buffer: |salt|
-        // piece: |ciphertext(addr+payload)|tag|
-
         self.0.buffer.unsplit(piece);
-
-        // buffer: |salt|ciphertext(addr+payload)|tag|
 
         self.0.half.send_to(&self.0.buffer, addr).await?;
         Ok(buf.len())
@@ -396,24 +430,25 @@ impl ShadowedDatagramSendHalf {
 
 pub struct ShadowedDatagram {
     inner: Box<dyn ProxyDatagram>,
-    // server: SocketAddr,
-    cipher: Box<dyn Cipher>,
+    cipher: AeadCipher,
+    psk: Vec<u8>,
     recv_buf: BytesMut,
     send_buf: BytesMut,
 }
 
 impl ShadowedDatagram {
-    pub fn new(
-        socket: Box<dyn ProxyDatagram>,
-        /* server: SocketAddr,*/ cipher: Box<dyn Cipher>,
-    ) -> Self {
-        ShadowedDatagram {
+    pub fn new(socket: Box<dyn ProxyDatagram>, cipher: &String, password: &String) -> Result<Self> {
+        let cipher =
+            AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
+        let psk =
+            kdf(password, cipher.key_len()).map_err(|e| anyhow!("derive key failed: {}", e))?;
+        Ok(ShadowedDatagram {
             inner: socket,
-            // server,
             cipher,
+            psk,
             recv_buf: BytesMut::with_capacity(65507),
             send_buf: BytesMut::with_capacity(65507),
-        }
+        })
     }
 
     /// Creates a shadowed datagram with a given initial buffer size. This buffer size is
@@ -421,24 +456,28 @@ impl ShadowedDatagram {
     /// (allocate extra memory when need) enough space each time sending or receiving packets.
     pub fn with_initial_buffer_size(
         socket: Box<dyn ProxyDatagram>,
-        // server: SocketAddr,
-        cipher: Box<dyn Cipher>,
+        cipher: &String,
+        password: &String,
         buf_size: usize,
-    ) -> Self {
-        ShadowedDatagram {
+    ) -> Result<Self> {
+        let cipher =
+            AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
+        let psk =
+            kdf(password, cipher.key_len()).map_err(|e| anyhow!("derive key failed: {}", e))?;
+        Ok(ShadowedDatagram {
             inner: socket,
-            // server,
             cipher,
+            psk,
             recv_buf: BytesMut::with_capacity(buf_size),
             send_buf: BytesMut::with_capacity(buf_size),
-        }
+        })
     }
 
     pub fn split(self) -> (ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf) {
         let (r, s) = self.inner.split();
         let hi = Arc::new(InnerHalf {
-            // server: self.server,
             cipher: self.cipher,
+            psk: self.psk,
         });
         (
             ShadowedDatagramRecvHalf(Half {

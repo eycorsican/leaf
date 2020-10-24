@@ -16,7 +16,9 @@ use crate::{
     session::{Session, SocksAddr},
 };
 
-use super::*;
+use super::crypto::*;
+use super::vmess;
+use super::vmess::*;
 
 pub struct Handler {
     pub address: String,
@@ -61,6 +63,21 @@ impl ProxyUdpHandler for Handler {
         request_header.set_option(vmess::REQUEST_OPTION_CHUNK_MASKING);
         request_header.set_option(vmess::REQUEST_OPTION_GLOBAL_PADDING);
 
+        match self.security.to_lowercase().as_str() {
+            "chacha20-poly1305" | "chacha20-ietf-poly1305" => {
+                request_header.security = vmess::SECURITY_TYPE_CHACHA20_POLY1305;
+            }
+            "aes-128-gcm" => {
+                request_header.security = vmess::SECURITY_TYPE_AES128_GCM;
+            }
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("unsupported cipher: {}", &self.security),
+                ))
+            }
+        }
+
         let mut header_buf = BytesMut::new();
         let client_sess = ClientSession::new();
         request_header
@@ -73,7 +90,7 @@ impl ProxyUdpHandler for Handler {
             })?;
 
         let enc_size_parser = ShakeSizeParser::new(&client_sess.request_body_iv);
-        let enc = vmess::new_encryptor(
+        let enc = new_encryptor(
             self.security.as_str(),
             &client_sess.request_body_key,
             &client_sess.request_body_iv,
@@ -83,7 +100,7 @@ impl ProxyUdpHandler for Handler {
         })?;
 
         let dec_size_parser = ShakeSizeParser::new(&client_sess.response_body_iv);
-        let dec = vmess::new_decryptor(
+        let dec = new_decryptor(
             self.security.as_str(),
             &client_sess.response_body_key,
             &client_sess.response_body_iv,
@@ -112,6 +129,7 @@ impl ProxyUdpHandler for Handler {
             enc_size_parser,
             dec,
             dec_size_parser,
+            16, // FIXME
         );
         Ok(Box::new(Datagram {
             stream,

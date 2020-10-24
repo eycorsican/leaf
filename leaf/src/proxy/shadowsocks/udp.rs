@@ -11,7 +11,6 @@ use bytes::{BufMut, BytesMut};
 use log::*;
 use tokio::net::UdpSocket;
 
-use super::AeadCipher;
 use super::{ShadowedDatagram, ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf};
 use crate::{
     common::dns_client::DnsClient,
@@ -51,10 +50,6 @@ impl ProxyUdpHandler for Handler {
         datagram: Option<Box<dyn ProxyDatagram>>,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyDatagram>> {
-        let cipher = AeadCipher::new(&self.cipher, &self.password).map_err(|e| {
-            io::Error::new(io::ErrorKind::Other, format!("create cipher failed: {}", e))
-        })?;
-
         let ips = match self
             .dns_client
             .lookup_with_bind(String::from(&self.address), &self.bind_addr)
@@ -84,7 +79,18 @@ impl ProxyUdpHandler for Handler {
             socket
         };
 
-        let dgram = ShadowedDatagram::with_initial_buffer_size(socket, Box::new(cipher), 2 * 1024);
+        let dgram = ShadowedDatagram::with_initial_buffer_size(
+            socket,
+            &self.cipher,
+            &self.password,
+            2 * 1024,
+        )
+        .map_err(|e| {
+            Error::new(
+                ErrorKind::Other,
+                format!("new shadowed stream failed: {}", e),
+            )
+        })?;
         let (r, s) = dgram.split();
         return Ok(Box::new(Datagram { r, s, server: addr }));
     }

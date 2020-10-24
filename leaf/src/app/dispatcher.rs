@@ -287,11 +287,7 @@ fn log_tcp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: 
     {
         info!(
             "[{}] [{}] [{}ms] {}",
-            "tcp".color(colored::Color::TrueColor {
-                r: 107,
-                g: 208,
-                b: 255,
-            }),
+            "tcp".color(colored::Color::Blue),
             tag.color(tag_color),
             handshake_time,
             addr,
@@ -308,11 +304,7 @@ fn log_udp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: 
     {
         info!(
             "[{}] [{}] [{}ms] {}",
-            "udp".color(colored::Color::TrueColor {
-                r: 255,
-                g: 193,
-                b: 107,
-            }),
+            "udp".color(colored::Color::Yellow),
             tag.color(tag_color),
             handshake_time,
             addr,
