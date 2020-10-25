@@ -27,7 +27,7 @@ impl Handler {
 #[async_trait]
 impl ProxyUdpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {

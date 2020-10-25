@@ -53,7 +53,7 @@ impl Condition for MmdbMatcher {
                 if let Ok(country) = self.reader.lookup::<Country>(ip) {
                     if let Some(country) = country.country {
                         if let Some(iso_code) = country.iso_code {
-                            if &iso_code.to_lowercase() == &self.country_code.to_lowercase() {
+                            if iso_code.to_lowercase() == self.country_code.to_lowercase() {
                                 debug!("[{}] matches geoip code [{}]", ip, &self.country_code);
                                 return true;
                             }
@@ -140,14 +140,14 @@ impl DomainSuffixMatcher {
 //   video.google.com vs google.com -> true
 //   video.google.com vs gle.com -> false
 //   google.com vs video.google.com -> false
-fn is_sub_domain(d1: &String, d2: &String) -> bool {
+fn is_sub_domain(d1: &str, d2: &str) -> bool {
     let d1_parts: Vec<&str> = d1.split('.').rev().collect();
     let d2_parts: Vec<&str> = d2.split('.').rev().collect();
     if d1_parts.len() < d2_parts.len() {
         return false;
     }
-    let mut d2_enum = d2_parts.iter().enumerate();
-    while let Some((i, v)) = d2_enum.next() {
+    let d2_enum = d2_parts.iter().enumerate();
+    for (i, v) in d2_enum {
         if &d1_parts[i] != v {
             return false;
         }

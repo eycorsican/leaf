@@ -137,12 +137,10 @@ fn remove_comments(text: &str) -> Cow<str> {
     re.replace(text, "")
 }
 
-fn get_section<'a>(text: &'a str) -> Option<&'a str> {
+fn get_section(text: &str) -> Option<&str> {
     let re = Regex::new(r"^\s*\[\s*([^\]]*)\s*\]\s*$").unwrap();
     let caps = re.captures(text);
-    if caps.is_none() {
-        return None;
-    }
+    caps.as_ref()?;
     Some(caps.unwrap().get(1).unwrap().as_str())
 }
 
@@ -161,7 +159,7 @@ where
             }
             if curr_sect.as_str() == section {
                 let line = line.trim();
-                if line.len() > 0 {
+                if !line.is_empty() {
                     new_lines.push(line.to_string());
                 }
             }
@@ -176,11 +174,11 @@ where
     let mut items = Vec::new();
     for item in text.trim().split(pat) {
         let item = item.trim();
-        if item.len() > 0 {
+        if !item.is_empty() {
             items.push(item.to_string());
         }
     }
-    if items.len() > 0 {
+    if !items.is_empty() {
         Some(items)
     } else {
         None
@@ -189,7 +187,7 @@ where
 
 fn get_string(text: &str) -> Option<String> {
     let s = text.trim();
-    if s.len() > 0 {
+    if !s.is_empty() {
         Some(s.to_string())
     } else {
         None
@@ -200,7 +198,7 @@ fn get_value<T>(text: &str) -> Option<T>
 where
     T: std::str::FromStr,
 {
-    if text.trim().len() > 0 {
+    if !text.trim().is_empty() {
         if let Ok(v) = text.trim().parse::<T>() {
             return Some(v);
         }
@@ -271,7 +269,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         }
         let mut proxy = Proxy::default();
         let tag = parts[0].trim();
-        if tag.len() == 0 {
+        if tag.is_empty() {
             // empty tag is not allowed
             continue;
         }
@@ -281,7 +279,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         } else {
             continue;
         };
-        if params.len() == 0 {
+        if params.is_empty() {
             // there must be at least one param, i.e. the protocol field
             continue;
         }
@@ -296,7 +294,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             let k = parts[0].trim();
             let v = parts[1].trim();
-            if k.len() == 0 || v.len() == 0 {
+            if k.is_empty() || v.is_empty() {
                 continue;
             }
             match k {
@@ -357,12 +355,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         };
         proxy.port = Some(port);
 
-        match proxy.protocol.as_str() {
-            // compat
-            "ss" => {
-                proxy.protocol = "shadowsocks".to_string();
-            }
-            _ => {}
+        // compat
+        if let "ss" = proxy.protocol.as_str() {
+            proxy.protocol = "shadowsocks".to_string();
         }
 
         proxies.push(proxy);
@@ -377,7 +372,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         }
         let mut group = ProxyGroup::default();
         let tag = parts[0].trim();
-        if tag.len() == 0 {
+        if tag.is_empty() {
             // empty tag is not allowed
             continue;
         }
@@ -387,14 +382,14 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         } else {
             continue;
         };
-        if params.len() == 0 {
+        if params.is_empty() {
             // there must be at least one param, i.e. the protocol field
             continue;
         }
         group.protocol = params[0].clone();
 
         let params = &params[1..];
-        if params.len() == 0 {
+        if params.is_empty() {
             // require at least one proxy
             continue;
         }
@@ -403,12 +398,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         for param in params {
             if !param.contains('=') {
                 let actor = param.trim();
-                if actor.len() > 0 {
+                if !actor.is_empty() {
                     actors.push(actor.to_string());
                 }
             }
         }
-        if actors.len() == 0 {
+        if actors.is_empty() {
             // require at least one actor
             continue;
         }
@@ -422,7 +417,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 }
                 let k = parts[0].trim();
                 let v = parts[1].trim();
-                if k.len() == 0 || v.len() == 0 {
+                if k.is_empty() || v.is_empty() {
                     continue;
                 }
                 match k {
@@ -750,10 +745,10 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     let mut chain_outbound = internal::Outbound::new();
                     chain_outbound.tag = ext_proxy.tag.clone();
                     let mut chain_settings = internal::ChainOutboundSettings::new();
-                    if ext_proxy.tls.unwrap() == true {
+                    if ext_proxy.tls.unwrap() {
                         chain_settings.actors.push(tls_outbound.tag.clone());
                     }
-                    if ext_proxy.ws.unwrap() == true {
+                    if ext_proxy.ws.unwrap() {
                         chain_settings.actors.push(ws_outbound.tag.clone());
                     }
                     chain_settings.actors.push(outbound.tag.clone());
@@ -764,10 +759,10 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     // always push chain first, in case there isn't final rule,
                     // the chain outbound will be the default one to use
                     outbounds.push(chain_outbound);
-                    if ext_proxy.tls.unwrap() == true {
+                    if ext_proxy.tls.unwrap() {
                         outbounds.push(tls_outbound);
                     }
-                    if ext_proxy.ws.unwrap() == true {
+                    if ext_proxy.ws.unwrap() {
                         outbounds.push(ws_outbound);
                     }
                     outbounds.push(outbound);
@@ -824,10 +819,10 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     let mut chain_outbound = internal::Outbound::new();
                     chain_outbound.tag = ext_proxy.tag.clone();
                     let mut chain_settings = internal::ChainOutboundSettings::new();
-                    if ext_proxy.tls.unwrap() == true {
+                    if ext_proxy.tls.unwrap() {
                         chain_settings.actors.push(tls_outbound.tag.clone());
                     }
-                    if ext_proxy.ws.unwrap() == true {
+                    if ext_proxy.ws.unwrap() {
                         chain_settings.actors.push(ws_outbound.tag.clone());
                     }
                     chain_settings.actors.push(outbound.tag.clone());
@@ -838,10 +833,10 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     // always push chain first, in case there isn't final rule,
                     // the chain outbound will be the default one to use
                     outbounds.push(chain_outbound);
-                    if ext_proxy.tls.unwrap() == true {
+                    if ext_proxy.tls.unwrap() {
                         outbounds.push(tls_outbound);
                     }
-                    if ext_proxy.ws.unwrap() == true {
+                    if ext_proxy.ws.unwrap() {
                         outbounds.push(ws_outbound);
                     }
                     outbounds.push(outbound);

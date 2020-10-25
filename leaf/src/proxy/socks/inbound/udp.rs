@@ -90,13 +90,14 @@ pub fn new(listen: String, port: u16, nat_manager: Arc<NatManager>) -> Result<Ru
 
                     if !nat_manager.contains_key(&src_addr).await {
                         let sess = Session {
-                            source: Some(src_addr.clone()),
+                            source: src_addr,
                             destination: dst_addr.clone(),
                         };
 
-                        if let Err(_) = nat_manager
+                        if nat_manager
                             .add_session(&sess, src_addr, client_ch_tx.clone())
                             .await
+                            .is_err()
                         {
                             continue; // dispatch failed
                         }

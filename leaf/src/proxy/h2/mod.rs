@@ -4,4 +4,4 @@ pub mod udp;
 pub use tcp::Handler as TcpHandler;
 pub use udp::Handler as UdpHandler;
 
-pub static NAME: &'static str = "h2";
+pub static NAME: &str = "h2";

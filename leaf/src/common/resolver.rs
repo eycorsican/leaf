@@ -15,7 +15,7 @@ impl Resolver {
     pub async fn new<'a>(
         client: Arc<DnsClient>,
         bind_addr: &'a SocketAddr,
-        address: &'a String,
+        address: &'a str,
         port: &'a u16,
     ) -> Result<Self> {
         let mut ips = client
@@ -24,7 +24,7 @@ impl Resolver {
             .await?;
         ips.reverse();
         Ok(Resolver {
-            ips: ips,
+            ips,
             port: port.to_owned(),
         })
     }

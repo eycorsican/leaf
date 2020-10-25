@@ -32,7 +32,7 @@ pub fn new(
             while let Some(stream) = listener.next().await {
                 if let Ok(mut stream) = stream {
                     let dispatcher = dispatcher.clone();
-                    let bind_addr = bind_addr.clone();
+                    let bind_addr = bind_addr;
                     tokio::spawn(async move {
                         let mut buf = BytesMut::with_capacity(1024);
 
@@ -74,12 +74,10 @@ pub fn new(
                                 debug!("write auth response failed: {}", e);
                             };
                             return;
-                        } else {
-                            if let Err(e) = stream.write_all(&[0x05, method_idx]).await {
-                                debug!("write auth response failed: {}", e);
-                                return;
-                            };
-                        }
+                        } else if let Err(e) = stream.write_all(&[0x05, method_idx]).await {
+                            debug!("write auth response failed: {}", e);
+                            return;
+                        };
 
                         // handle request
                         buf.resize(3, 0);
@@ -140,15 +138,11 @@ pub fn new(
                                     return;
                                 };
 
-                                let peer_addr = match stream.peer_addr() {
-                                    Ok(a) => a,
-                                    Err(e) => {
-                                        warn!("error get peer addr: {}", e);
-                                        return;
-                                    }
-                                };
+                                let source = stream
+                                    .peer_addr()
+                                    .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
                                 let mut sess = Session {
-                                    source: Some(peer_addr),
+                                    source,
                                     destination,
                                 };
 
@@ -171,7 +165,8 @@ pub fn new(
                                     return;
                                 };
                                 let mut buf = [0u8; 1];
-                                if let Err(_) = stream.read_exact(&mut buf).await {
+                                // TODO explicitly drop resources allocated above before waiting?
+                                if stream.read_exact(&mut buf).await.is_err() {
                                     // perhaps explicitly notifies the NAT manager?
                                     debug!("udp association end");
                                 }

@@ -27,7 +27,7 @@ pub struct Handler {
 #[async_trait]
 impl ProxyUdpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
@@ -69,7 +69,7 @@ impl ProxyDatagram for Datagram {
         Box<dyn ProxyDatagramSendHalf>,
     ) {
         (
-            Box::new(DatagramRecvHalf(self.recv_half, self.target.clone())),
+            Box::new(DatagramRecvHalf(self.recv_half, self.target)),
             Box::new(DatagramSendHalf(self.send_half, self.target)),
         )
     }
@@ -80,7 +80,7 @@ pub struct DatagramRecvHalf(RecvHalf, SocketAddr);
 #[async_trait]
 impl ProxyDatagramRecvHalf for DatagramRecvHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
-        let addr = self.1.clone();
+        let addr = self.1;
         self.0.recv_from(buf).map_ok(|(n, _)| (n, addr)).await
     }
 }

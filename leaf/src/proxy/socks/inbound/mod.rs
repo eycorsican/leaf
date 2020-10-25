@@ -36,15 +36,15 @@ pub fn new(
         bind = "0.0.0.0".to_string();
     }
 
-    if let Ok(r) = tcp::new(listen, port, bind, dispatcher.clone()) {
+    if let Ok(r) = tcp::new(listen, port, bind, dispatcher) {
         runners.push(r);
     }
 
-    if runners.len() > 0 {
-        return Ok(Box::pin(async move {
+    if !runners.is_empty() {
+        Ok(Box::pin(async move {
             futures::future::join_all(runners).await;
-        }));
+        }))
     } else {
-        return Err(anyhow!("no runners"));
+        Err(anyhow!("no runners"))
     }
 }

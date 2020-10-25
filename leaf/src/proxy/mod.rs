@@ -98,21 +98,19 @@ async fn dial_task(
     match TcpStream::connect_std(socket.into_tcp_stream(), &dial_addr).await {
         Ok(stream) => {
             trace!("connected tcp {}", &dial_addr);
-            return Ok(Box::new(SimpleStream(stream)));
+            Ok(Box::new(SimpleStream(stream)))
         }
-        Err(e) => {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("connect failed: {}", e),
-            ))
-        }
+        Err(e) => Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("connect failed: {}", e),
+        )),
     }
 }
 
 async fn dial_tcp_stream(
     dns_client: Arc<DnsClient>,
     bind_addr: &SocketAddr,
-    address: &String,
+    address: &str,
     port: &u16,
 ) -> io::Result<Box<dyn ProxyStream>> {
     let mut resolver = Resolver::new(dns_client, bind_addr, address, port)
@@ -140,10 +138,10 @@ async fn dial_tcp_stream(
                     break; // break and execute tasks if there're any
                 }
             };
-            let t = dial_task(dial_addr.clone(), bind_addr);
+            let t = dial_task(dial_addr, bind_addr);
             tasks.push(Box::pin(t));
         }
-        if tasks.len() > 0 {
+        if !tasks.is_empty() {
             match select_ok(tasks.into_iter()).await {
                 Ok(v) => return Ok(v.0),
                 Err(e) => {
@@ -178,7 +176,7 @@ pub trait ProxyTcpHandler: Send + Sync + Unpin {
         &self,
         dns_client: Arc<DnsClient>,
         bind_addr: &SocketAddr,
-        address: &String,
+        address: &str,
         port: &u16,
     ) -> io::Result<Box<dyn ProxyStream>> {
         dial_tcp_stream(dns_client, bind_addr, address, port).await
@@ -220,7 +218,7 @@ pub trait ProxyUdpHandler: Send + Sync + Unpin {
         &self,
         dns_client: Arc<DnsClient>,
         bind_addr: &SocketAddr,
-        address: &String,
+        address: &str,
         port: &u16,
     ) -> io::Result<Box<dyn ProxyStream>> {
         dial_tcp_stream(dns_client, bind_addr, address, port).await

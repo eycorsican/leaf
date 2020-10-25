@@ -50,19 +50,17 @@ impl AsyncRead for Adapter {
                     if data.len() > to_read {
                         self.recv_buf.extend_from_slice(&data[to_read..]);
                     }
-                    return Poll::Ready(Ok(to_read));
+                    Poll::Ready(Ok(to_read))
                 }
-                Err(e) => {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("receive data failed: {}", e),
-                    )));
-                }
+                Err(e) => Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("receive data failed: {}", e),
+                ))),
             },
             None => {
                 panic!("could never happend, we already checked stream end");
             }
-        };
+        }
     }
 }
 
@@ -73,15 +71,11 @@ impl AsyncWrite for Adapter {
         let mut buf2 = BytesMut::new();
         buf2.extend_from_slice(buf);
         match me.send_stream.send_data(buf2.freeze(), false) {
-            Ok(_) => {
-                return Poll::Ready(Ok(buf.len()));
-            }
-            Err(e) => {
-                return Poll::Ready(Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("send data failed: {}", e),
-                )));
-            }
+            Ok(_) => Poll::Ready(Ok(buf.len())),
+            Err(e) => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("send data failed: {}", e),
+            ))),
         }
     }
 
@@ -102,7 +96,7 @@ pub struct Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
@@ -160,7 +154,7 @@ impl ProxyTcpHandler for Handler {
                     recv_stream,
                     recv_buf: BytesMut::new(),
                 };
-                return Ok(Box::new(SimpleStream(h2_stream)));
+                Ok(Box::new(SimpleStream(h2_stream)))
             }
             None => Err(io::Error::new(io::ErrorKind::Other, "invalid h2 input")),
         }

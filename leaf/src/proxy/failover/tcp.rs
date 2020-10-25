@@ -47,15 +47,13 @@ impl Handler {
                         debug!("health checking tcp for [{}] index [{}]", a.tag(), i);
                         let single_measure = async move {
                             let sess = Session {
-                                source: None,
+                                source: "0.0.0.0:0".parse().unwrap(),
                                 destination: SocksAddr::Domain("www.google.com".to_string(), 80),
                             };
                             let start = tokio::time::Instant::now();
                             match a.handle(&sess, None).await {
                                 Ok(mut stream) => {
-                                    if let Err(_) =
-                                        stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await
-                                    {
+                                    if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
                                         return Measure(i, u128::MAX - 2); // handshake is ok
                                     }
                                     let mut buf = vec![0u8; 1];
@@ -64,18 +62,14 @@ impl Handler {
                                         Ok(_) => {
                                             let elapsed =
                                                 tokio::time::Instant::now().duration_since(start);
-                                            return Measure(i, elapsed.as_millis());
+                                            Measure(i, elapsed.as_millis())
                                         }
                                         // handshake and write are ok
-                                        Err(_) => {
-                                            return Measure(i, u128::MAX - 3);
-                                        }
+                                        Err(_) => Measure(i, u128::MAX - 3),
                                     }
                                 }
                                 // handshake not ok
-                                Err(_) => {
-                                    return Measure(i, u128::MAX);
-                                }
+                                Err(_) => Measure(i, u128::MAX),
                             }
                         };
                         match timeout(time::Duration::from_secs(10), single_measure).await {
@@ -96,9 +90,9 @@ impl Handler {
                         .map(|m| {
                             // construct tag(millis)
                             let mut repr = actors2[m.0].tag().to_owned();
-                            repr.push_str("(");
+                            repr.push('(');
                             repr.push_str(m.1.to_string().as_str());
-                            repr.push_str(")");
+                            repr.push(')');
                             repr
                         })
                         .collect();
@@ -143,7 +137,7 @@ impl Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {

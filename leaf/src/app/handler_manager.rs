@@ -59,7 +59,7 @@ impl HandlerManager {
                 dns_servers.push(SocketAddr::new(ip, 53));
             }
         }
-        if dns_servers.len() == 0 {
+        if dns_servers.is_empty() {
             panic!("no dns servers");
         }
         let bind_addr = {
@@ -448,8 +448,7 @@ impl HandlerManager {
                                 actors.push(a.clone());
                             }
                         }
-                        if actors.len() == 0 {
-                            // warn!("no actors in [{}] outbound", &tag);
+                        if actors.is_empty() {
                             continue;
                         }
                         let tcp = Box::new(tryall::TcpHandler {
@@ -491,8 +490,7 @@ impl HandlerManager {
                                 actors.push(a.clone());
                             }
                         }
-                        if actors.len() == 0 {
-                            // warn!("no actors in [{}] outbound", &tag);
+                        if actors.is_empty() {
                             continue;
                         }
                         let tcp = Box::new(random::TcpHandler {
@@ -530,8 +528,7 @@ impl HandlerManager {
                                 actors.push(a.clone());
                             }
                         }
-                        if actors.len() == 0 {
-                            // warn!("no actors in [{}] outbound", &tag);
+                        if actors.is_empty() {
                             continue;
                         }
                         let tcp = Box::new(failover::TcpHandler::new(
@@ -579,8 +576,7 @@ impl HandlerManager {
                                 actors.push(a.clone());
                             }
                         }
-                        if actors.len() == 0 {
-                            // warn!("no actors in [{}] outbound", &tag);
+                        if actors.is_empty() {
                             continue;
                         }
                         let tcp = Box::new(chain::TcpHandler {
@@ -623,7 +619,7 @@ impl HandlerManager {
         self.handlers.insert(tag, handler);
     }
 
-    pub fn get(&self, tag: &String) -> Option<&Arc<dyn ProxyHandler>> {
+    pub fn get(&self, tag: &str) -> Option<&Arc<dyn ProxyHandler>> {
         self.handlers.get(tag)
     }
 

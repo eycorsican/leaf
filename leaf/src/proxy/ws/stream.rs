@@ -51,38 +51,38 @@ impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRe
                                 if data.len() > to_read {
                                     self.buf.extend_from_slice(&data[to_read..]);
                                 }
-                                return Poll::Ready(Ok(to_read));
+                                Poll::Ready(Ok(to_read))
                             }
                             Message::Close(_) => {
                                 // FIXME should we send close here?
-                                return Pin::new(&mut self.inner)
+                                Pin::new(&mut self.inner)
                                     .poll_close(cx)
                                     .map_ok(|_| 0)
                                     .map_err(|_| {
                                         io::Error::new(io::ErrorKind::Other, "error closing")
-                                    });
+                                    })
                             }
                             _ => {
                                 // FIXME
-                                return Poll::Ready(Err(io::Error::new(
+                                Poll::Ready(Err(io::Error::new(
                                     io::ErrorKind::Interrupted,
                                     "unexpected ws msg",
-                                )));
+                                )))
                             }
                         }
                     }
                     Err(err) => {
                         // FIXME
-                        return Poll::Ready(Err(io::Error::new(
+                        Poll::Ready(Err(io::Error::new(
                             io::ErrorKind::Interrupted,
                             format!("ws error: {}", err),
-                        )));
+                        )))
                     }
                 }
             }
             None => {
                 // FIXME
-                return Poll::Ready(Err(io::Error::new(io::ErrorKind::Interrupted, "none msg")));
+                Poll::Ready(Err(io::Error::new(io::ErrorKind::Interrupted, "none msg")))
             }
         }
     }
@@ -94,37 +94,31 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for Adapter<S> {
         cx: &mut Context,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        match Pin::new(&mut self.inner).poll_ready(cx) {
-            Poll::Pending => return Poll::Pending,
-            _ => (),
+        if let Poll::Pending = Pin::new(&mut self.inner).poll_ready(cx) {
+            return Poll::Pending;
         }
+
         let msg = Message::Binary(Vec::from(buf));
         match Pin::new(&mut self.inner).start_send(msg) {
-            Err(_) => {
-                return Poll::Ready(Err(io::Error::new(
-                    io::ErrorKind::Interrupted,
-                    "ws send error",
-                )));
-            }
-            Ok(()) => return Poll::Ready(Ok(buf.len())),
+            Err(_) => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "ws send error",
+            ))),
+            Ok(()) => Poll::Ready(Ok(buf.len())),
         }
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         match Pin::new(&mut self.inner).poll_flush(cx) {
-            Poll::Pending => return Poll::Pending,
-            Poll::Ready(_) => {
-                return Poll::Ready(Ok(()));
-            }
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(_) => Poll::Ready(Ok(())),
         }
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
         match Pin::new(&mut self.inner).poll_close(cx) {
-            Poll::Pending => return Poll::Pending,
-            Poll::Ready(_) => {
-                return Poll::Ready(Ok(()));
-            }
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(_) => Poll::Ready(Ok(())),
         }
     }
 }

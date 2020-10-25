@@ -56,7 +56,7 @@ impl Handler {
                         debug!("health checking udp for [{}] index [{}]", a.tag(), i);
                         let single_measure = async move {
                             let sess = Session {
-                                source: None,
+                                source: "0.0.0.0:0".parse().unwrap(),
                                 destination: SocksAddr::Ip(SocketAddr::new(
                                     IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
                                     53,
@@ -93,7 +93,7 @@ impl Handler {
 
                                     let (mut recv, mut send) = socket.split();
 
-                                    if let Err(_) = send.send_to(&msg_buf, &addr).await {
+                                    if send.send_to(&msg_buf, &addr).await.is_err() {
                                         return Measure(i, u128::MAX - 2); // handshake is ok
                                     }
                                     let mut buf = [0u8; 1500];
@@ -102,18 +102,14 @@ impl Handler {
                                         Ok(_) => {
                                             let elapsed =
                                                 tokio::time::Instant::now().duration_since(start);
-                                            return Measure(i, elapsed.as_millis());
+                                            Measure(i, elapsed.as_millis())
                                         }
                                         // handshake and write are ok
-                                        Err(_) => {
-                                            return Measure(i, u128::MAX - 3);
-                                        }
+                                        Err(_) => Measure(i, u128::MAX - 3),
                                     }
                                 }
                                 // handshake not ok
-                                Err(_) => {
-                                    return Measure(i, u128::MAX);
-                                }
+                                Err(_) => Measure(i, u128::MAX),
                             }
                         };
                         match timeout(time::Duration::from_secs(10), single_measure).await {
@@ -134,9 +130,9 @@ impl Handler {
                         .map(|m| {
                             // construct tag(millis)
                             let mut repr = actors2[m.0].tag().to_owned();
-                            repr.push_str("(");
+                            repr.push('(');
                             repr.push_str(m.1.to_string().as_str());
-                            repr.push_str(")");
+                            repr.push(')');
                             repr
                         })
                         .collect();
@@ -180,7 +176,7 @@ impl Handler {
 #[async_trait]
 impl ProxyUdpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {

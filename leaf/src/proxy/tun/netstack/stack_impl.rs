@@ -111,17 +111,17 @@ impl NetStackImpl {
                             .query_domain(&stream.remote_addr().ip())
                         {
                             Some(domain) => Session {
-                                source: Some(stream.local_addr().to_owned()),
+                                source: stream.local_addr().to_owned(),
                                 destination: SocksAddr::Domain(domain, stream.remote_addr().port()),
                             },
                             None => Session {
-                                source: Some(stream.local_addr().to_owned()),
+                                source: stream.local_addr().to_owned(),
                                 destination: SocksAddr::Ip(*stream.remote_addr()),
                             },
                         }
                     } else {
                         Session {
-                            source: Some(stream.local_addr().to_owned()),
+                            source: stream.local_addr().to_owned(),
                             destination: SocksAddr::Ip(*stream.remote_addr()),
                         }
                     };
@@ -229,13 +229,14 @@ impl NetStackImpl {
 
                 if !nat_manager.contains_key(&src_addr).await {
                     let sess = Session {
-                        source: Some(src_addr.clone()),
+                        source: src_addr,
                         destination: SocksAddr::Ip(dst_addr),
                     };
 
-                    if let Err(_) = nat_manager
+                    if nat_manager
                         .add_session(&sess, src_addr, client_ch_tx.clone())
                         .await
+                        .is_err()
                     {
                         // dispatch err logging was handled in dispatcher
                         continue; // in case the pkt was sent to drop, err is returned immediately

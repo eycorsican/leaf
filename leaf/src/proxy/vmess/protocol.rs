@@ -1,253 +1,163 @@
-use std::convert::TryFrom;
-use std::{
-    io,
-    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use bytes::{Buf, BufMut, BytesMut};
+use aes::Aes128;
+use anyhow::{anyhow, Result};
+use byteorder::{BigEndian, ByteOrder};
+use bytes::{BufMut, BytesMut};
+use cfb_mode::stream_cipher::{NewStreamCipher, StreamCipher};
+use cfb_mode::Cfb;
+use hmac::{Hmac, Mac, NewMac};
+use lz_fnv::{Fnv1a, FnvHasher};
+use md5::{Digest, Md5};
+use rand::{rngs::StdRng, Rng, SeedableRng};
+use uuid::Uuid;
 
-// pub const MAX_SOCKS_ADDR_SIZE: usize = 1 + 1 + 255 + 2;
+use crate::session::{SocksAddr, SocksAddrWireType};
 
-struct SocksAddrType;
+type RequestCommand = u8;
 
-impl SocksAddrType {
-    const V4: u8 = 0x1;
-    const V6: u8 = 0x3;
-    const DOMAIN: u8 = 0x2;
+pub const REQUEST_COMMAND_TCP: RequestCommand = 0x01;
+pub const REQUEST_COMMAND_UDP: RequestCommand = 0x02;
+
+type Security = u8;
+
+pub const SECURITY_TYPE_AES128_GCM: Security = 0x03;
+pub const SECURITY_TYPE_CHACHA20_POLY1305: Security = 0x04;
+
+type RequestOption = u8;
+
+pub const REQUEST_OPTION_CHUNK_STREAM: RequestOption = 0x01;
+pub const REQUEST_OPTION_CHUNK_MASKING: RequestOption = 0x04;
+pub const REQUEST_OPTION_GLOBAL_PADDING: RequestOption = 0x08;
+
+pub struct RequestHeader {
+    pub version: u8,
+    pub command: RequestCommand,
+    pub option: u8,
+    pub security: Security,
+    pub address: SocksAddr,
+    pub uuid: Uuid,
 }
 
-#[derive(Debug)]
-pub enum SocksAddr {
-    Ip(SocketAddr),
-    Domain(String, u16),
-}
-
-const INSUFF_BYTES: &str = "insufficient bytes";
-
-/// Tries to read `SocksAddr` from `BytesBuf` and advances the cursor.
-impl TryFrom<&mut BytesMut> for SocksAddr {
-    type Error = &'static str;
-
-    fn try_from(buf: &mut BytesMut) -> Result<Self, Self::Error> {
-        if buf.remaining() < 1 {
-            return Err(INSUFF_BYTES);
-        }
-
-        match buf.get_u8() {
-            SocksAddrType::V4 => {
-                if buf.remaining() < 4 + 2 {
-                    return Err(INSUFF_BYTES);
-                }
-                let ip = Ipv4Addr::from(buf.get_u32());
-                let port = buf.get_u16();
-                Ok(Self::Ip((ip, port).into()))
-            }
-            SocksAddrType::V6 => {
-                if buf.remaining() < 16 + 2 {
-                    return Err(INSUFF_BYTES);
-                }
-                let ip = Ipv6Addr::from(buf.get_u128());
-                let port = buf.get_u16();
-                Ok(Self::Ip((ip, port).into()))
-            }
-            SocksAddrType::DOMAIN => {
-                if buf.remaining() < 1 {
-                    return Err(INSUFF_BYTES);
-                }
-                let domain_len = buf.get_u8() as usize;
-                if buf.remaining() < domain_len + 2 {
-                    return Err(INSUFF_BYTES);
-                }
-                let domain = String::from_utf8((&buf[..domain_len]).to_vec())
-                    .map_err(|_| "invalid domain")?;
-                buf.advance(domain_len);
-                let port = buf.get_u16();
-                Ok(Self::Domain(domain, port))
-            }
-            _ => Err("invalid address type"),
-        }
-    }
-}
-
-/// Tries to read `SocksAddr` from `&[u8]`.
-impl TryFrom<&[u8]> for SocksAddr {
-    type Error = &'static str;
-
-    fn try_from(buf: &[u8]) -> Result<Self, Self::Error> {
-        if buf.len() < 1 {
-            return Err(INSUFF_BYTES);
-        }
-
-        match buf[0] {
-            SocksAddrType::V4 => {
-                if buf.len() < 1 + 4 + 2 {
-                    return Err(INSUFF_BYTES);
-                }
-                let mut ip_bytes = [0u8; 4];
-                (&mut ip_bytes).copy_from_slice(&buf[1..5]);
-                let ip = Ipv4Addr::from(ip_bytes);
-                let mut port_bytes = [0u8; 2];
-                (&mut port_bytes).copy_from_slice(&buf[5..7]);
-                let port = u16::from_be_bytes(port_bytes);
-                Ok(Self::Ip((ip, port).into()))
-            }
-            SocksAddrType::V6 => {
-                if buf.len() < 1 + 16 + 2 {
-                    return Err(INSUFF_BYTES);
-                }
-                let mut ip_bytes = [0u8; 16];
-                (&mut ip_bytes).copy_from_slice(&buf[1..17]);
-                let ip = Ipv6Addr::from(ip_bytes);
-                let mut port_bytes = [0u8; 2];
-                (&mut port_bytes).copy_from_slice(&buf[17..19]);
-                let port = u16::from_be_bytes(port_bytes);
-                Ok(Self::Ip((ip, port).into()))
-            }
-            SocksAddrType::DOMAIN => {
-                if buf.len() < 1 {
-                    return Err(INSUFF_BYTES);
-                }
-                let domain_len = buf[1] as usize;
-                if buf.len() < 1 + domain_len + 2 {
-                    return Err(INSUFF_BYTES);
-                }
-                let domain = String::from_utf8((&buf[2..domain_len + 2]).to_vec())
-                    .map_err(|_| "invalid domain")?;
-                let mut port_bytes = [0u8; 2];
-                (&mut port_bytes).copy_from_slice(&buf[domain_len + 2..domain_len + 4]);
-                let port = u16::from_be_bytes(port_bytes);
-                Ok(Self::Domain(domain, port))
-            }
-            _ => Err("invalid address type"),
-        }
-    }
-}
-
-fn insuff() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "buffer too small")
-}
-
-impl SocksAddr {
-    pub fn size(&self) -> usize {
-        match self {
-            Self::Ip(addr) => match addr {
-                SocketAddr::V4(_addr) => 1 + 4 + 2,
-                SocketAddr::V6(_addr) => 1 + 16 + 2,
-            },
-            Self::Domain(domain, _port) => 1 + 1 + domain.len() + 2,
-        }
+impl RequestHeader {
+    pub fn set_option(&mut self, opt: RequestOption) {
+        self.option |= opt;
     }
 
-    /// Writes `self` into `buf`.
-    pub fn write_into<T: BufMut>(&self, buf: &mut T) -> io::Result<()> {
-        match self {
-            Self::Ip(addr) => match addr {
-                SocketAddr::V4(addr) => {
-                    if buf.remaining_mut() < 1 + 4 + 2 {
-                        return Err(insuff());
-                    }
-                    buf.put_u16(addr.port());
-                    buf.put_u8(SocksAddrType::V4);
-                    buf.put_slice(&addr.ip().octets());
-                }
-                SocketAddr::V6(addr) => {
-                    if buf.remaining_mut() < 1 + 16 + 2 {
-                        return Err(insuff());
-                    }
-                    buf.put_u16(addr.port());
-                    buf.put_u8(SocksAddrType::V6);
-                    buf.put_slice(&addr.ip().octets());
-                }
-            },
-            Self::Domain(domain, port) => {
-                if buf.remaining_mut() < 1 + domain.len() + 2 {
-                    return Err(insuff());
-                }
-                buf.put_u16(*port);
-                buf.put_u8(SocksAddrType::DOMAIN);
-                buf.put_u8(domain.len() as u8);
-                buf.put_slice(domain.as_bytes());
+    pub fn encode(&self, buf: &mut BytesMut, sess: &ClientSession) -> Result<()> {
+        // generate auth info
+        let mut timestamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(n) => n.as_secs(),
+            Err(_) => return Err(anyhow!("invalid system time")),
+        };
+        let mut rng = StdRng::from_entropy();
+        let delta: i32 = rng.gen_range(0, 30 * 2) - 30;
+        timestamp = timestamp.wrapping_add(delta as u64);
+        let mut mac =
+            Hmac::<Md5>::new_varkey(self.uuid.as_bytes()).map_err(|_| anyhow!("md5 failed"))?;
+        let mut tmp = [0u8; 8];
+        BigEndian::write_u64(&mut tmp, timestamp as u64);
+        mac.update(&tmp);
+        let auth_info = mac.finalize().into_bytes();
+
+        buf.put_slice(&auth_info[..]);
+
+        buf.put_u8(self.version);
+        buf.put_slice(&sess.request_body_iv);
+        buf.put_slice(&sess.request_body_key);
+        buf.put_u8(sess.response_header);
+        buf.put_u8(self.option);
+
+        let padding_len = StdRng::from_entropy().gen_range(0, 16) as u8;
+        let security = (padding_len << 4) | self.security as u8;
+
+        buf.put_u8(security);
+        buf.put_u8(0);
+        buf.put_u8(self.command);
+
+        self.address.write_buf(buf, SocksAddrWireType::PortFirst)?;
+
+        // add random bytes
+        if padding_len > 0 {
+            let mut padding_bytes = BytesMut::with_capacity(padding_len as usize);
+            unsafe { padding_bytes.set_len(padding_len as usize) };
+            let mut rng = StdRng::from_entropy();
+            for i in 0..padding_bytes.len() {
+                padding_bytes[i] = rng.gen();
             }
+            buf.put_slice(&padding_bytes);
         }
+
+        // checksum
+        let mut hasher = Fnv1a::<u32>::default();
+        hasher.write(&buf[auth_info.len()..]);
+        let h = hasher.finish();
+        let buf_size = buf.len();
+        buf.resize(buf_size + 4, 0);
+        BigEndian::write_u32(&mut buf[buf_size..], h);
+
+        // iv for header encryption
+        let mut tmp = [0u8; 8];
+        BigEndian::write_u64(&mut tmp, timestamp as u64);
+        let mut hasher = Md5::new();
+        hasher.update(&tmp);
+        hasher.update(&tmp);
+        hasher.update(&tmp);
+        hasher.update(&tmp);
+        let iv = hasher.finalize();
+
+        // key for header ecnryption
+        let mut hasher = Md5::new();
+        hasher.update(self.uuid.as_bytes());
+        hasher.update(
+            "c48619fe-8f02-49e0-b9e9-edf763e17e21"
+                .to_string()
+                .as_bytes(),
+        );
+        let key = hasher.finalize();
+
+        // encrypt cmd part
+        let mut enc =
+            Cfb::<Aes128>::new_var(&key, &iv).map_err(|_| anyhow!("new aes128 enc failed"))?;
+        enc.encrypt(&mut buf[auth_info.len()..]);
         Ok(())
     }
 }
 
-impl From<(IpAddr, u16)> for SocksAddr {
-    fn from(value: (IpAddr, u16)) -> Self {
-        Self::Ip(value.into())
-    }
+pub struct ClientSession {
+    pub request_body_key: Vec<u8>,
+    pub request_body_iv: Vec<u8>,
+    pub response_body_key: Vec<u8>,
+    pub response_body_iv: Vec<u8>,
+    pub response_header: u8,
 }
 
-impl From<(Ipv4Addr, u16)> for SocksAddr {
-    fn from(value: (Ipv4Addr, u16)) -> Self {
-        Self::Ip(value.into())
-    }
-}
+impl ClientSession {
+    pub fn new() -> Self {
+        let mut request_body_key = vec![0u8; 16];
+        let mut request_body_iv = vec![0u8; 16];
+        let response_header: u8;
 
-impl From<(Ipv6Addr, u16)> for SocksAddr {
-    fn from(value: (Ipv6Addr, u16)) -> Self {
-        Self::Ip(value.into())
-    }
-}
-
-impl From<SocketAddr> for SocksAddr {
-    fn from(addr: SocketAddr) -> Self {
-        Self::Ip(addr)
-    }
-}
-
-impl From<&SocketAddr> for SocksAddr {
-    fn from(addr: &SocketAddr) -> Self {
-        Self::Ip(addr.to_owned())
-    }
-}
-
-impl TryFrom<(String, u16)> for SocksAddr {
-    type Error = &'static str;
-
-    fn try_from((domain, port): (String, u16)) -> Result<Self, Self::Error> {
-        if domain.len() > 0xff {
-            Err("domain too long")
-        } else {
-            Ok(Self::Domain(domain, port))
+        // fill random bytes
+        let mut rand_bytes = BytesMut::with_capacity(16 + 16 + 1);
+        unsafe { rand_bytes.set_len(16 + 16 + 1) };
+        let mut rng = StdRng::from_entropy();
+        for i in 0..rand_bytes.len() {
+            rand_bytes[i] = rng.gen();
         }
-    }
-}
+        (&mut request_body_key[..]).copy_from_slice(&rand_bytes[..16]);
+        (&mut request_body_iv[..]).copy_from_slice(&rand_bytes[16..32]);
+        response_header = rand_bytes[32];
 
-impl TryFrom<(&String, u16)> for SocksAddr {
-    type Error = &'static str;
+        let response_body_key = Md5::digest(&request_body_key).to_vec();
+        let response_body_iv = Md5::digest(&request_body_iv).to_vec();
 
-    fn try_from((domain, port): (&String, u16)) -> Result<Self, Self::Error> {
-        if domain.len() > 0xff {
-            Err("domain too long")
-        } else {
-            Ok(Self::Domain(domain.to_owned(), port))
-        }
-    }
-}
-
-impl TryFrom<(&str, u16)> for SocksAddr {
-    type Error = &'static str;
-
-    fn try_from((domain, port): (&str, u16)) -> Result<Self, Self::Error> {
-        let domain = domain.to_owned();
-        if domain.len() > 0xff {
-            Err("domain too long")
-        } else {
-            Ok(Self::Domain(domain, port))
-        }
-    }
-}
-
-impl ToString for SocksAddr {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Ip(addr) => match addr {
-                SocketAddr::V4(addr) => addr.to_string(),
-                SocketAddr::V6(addr) => addr.to_string(),
-            },
-            Self::Domain(domain, port) => format!("{}:{}", domain, port),
+        ClientSession {
+            request_body_key,
+            request_body_iv,
+            response_body_key,
+            response_body_iv,
+            response_header,
         }
     }
 }

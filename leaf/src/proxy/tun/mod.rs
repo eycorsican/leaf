@@ -1,4 +1,4 @@
 pub mod inbound;
 pub mod netstack;
 
-pub static NAME: &'static str = "tun";
+pub static NAME: &str = "tun";

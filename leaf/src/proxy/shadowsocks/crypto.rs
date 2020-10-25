@@ -10,11 +10,7 @@ pub struct ShadowsocksNonceSequence(Vec<u8>);
 
 impl ShadowsocksNonceSequence {
     pub fn new(size: usize) -> Self {
-        let mut c = Vec::new();
-        for _ in 0..size {
-            c.push(0xff);
-        }
-        ShadowsocksNonceSequence(c)
+        ShadowsocksNonceSequence(vec![0xff; size])
     }
 
     fn inc(&mut self) {

@@ -11,4 +11,4 @@ pub mod udp;
 pub use tcp::Handler as TcpHandler;
 pub use udp::Handler as UdpHandler;
 
-pub static NAME: &'static str = "shadowsocks";
+pub static NAME: &str = "shadowsocks";

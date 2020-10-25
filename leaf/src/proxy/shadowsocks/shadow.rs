@@ -47,7 +47,7 @@ pub struct ShadowedStream<T> {
 }
 
 impl<T> ShadowedStream<T> {
-    pub fn new(s: T, cipher: &String, password: &String) -> Result<Self> {
+    pub fn new(s: T, cipher: &str, password: &str) -> Result<Self> {
         let cipher = AeadCipher::new(cipher)?;
         let psk = kdf(password, cipher.key_len())?;
         Ok(ShadowedStream {
@@ -437,7 +437,7 @@ pub struct ShadowedDatagram {
 }
 
 impl ShadowedDatagram {
-    pub fn new(socket: Box<dyn ProxyDatagram>, cipher: &String, password: &String) -> Result<Self> {
+    pub fn new(socket: Box<dyn ProxyDatagram>, cipher: &str, password: &str) -> Result<Self> {
         let cipher =
             AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
         let psk =
@@ -456,8 +456,8 @@ impl ShadowedDatagram {
     /// (allocate extra memory when need) enough space each time sending or receiving packets.
     pub fn with_initial_buffer_size(
         socket: Box<dyn ProxyDatagram>,
-        cipher: &String,
-        password: &String,
+        cipher: &str,
+        password: &str,
         buf_size: usize,
     ) -> Result<Self> {
         let cipher =

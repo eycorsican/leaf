@@ -19,7 +19,7 @@ impl AtomicMutex {
         }
     }
 
-    pub fn try_lock<'a>(&'a self) -> Result<AtomicMutexGuard<'a>, AtomicMutexErr> {
+    pub fn try_lock(&self) -> Result<AtomicMutexGuard<'_>, AtomicMutexErr> {
         if self.locked.swap(true, Acquire) {
             Err(AtomicMutexErr)
         } else {
@@ -27,12 +27,18 @@ impl AtomicMutex {
         }
     }
 
-    pub fn lock<'a>(&'a self) -> AtomicMutexGuard<'a> {
+    pub fn lock(&self) -> AtomicMutexGuard<'_> {
         loop {
             if let Ok(m) = self.try_lock() {
                 break m;
             }
         }
+    }
+}
+
+impl Default for AtomicMutex {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

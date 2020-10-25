@@ -86,7 +86,7 @@ where
                             continue;
                         }
                         let sbuf = &sbuf[2 + cipher_suite_bytes..];
-                        if sbuf.len() < 1 {
+                        if sbuf.is_empty() {
                             continue;
                         }
                         let compression_method_bytes = sbuf[0] as usize;
@@ -102,7 +102,7 @@ where
                             continue;
                         }
                         let mut sbuf = &sbuf[2..2 + extensions_bytes];
-                        while sbuf.len() > 0 {
+                        while !sbuf.is_empty() {
                             // extension + extension-specific-len
                             if sbuf.len() < 4 {
                                 continue 'outer;
@@ -125,7 +125,7 @@ where
                                     continue 'outer;
                                 }
                                 // just make sure no oob
-                                if ebuf.len() < 1 {
+                                if ebuf.is_empty() {
                                     continue 'outer;
                                 }
                                 let entry_type = ebuf[0];
@@ -282,7 +282,7 @@ where
     }
 }
 
-fn log_tcp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
+fn log_tcp(tag: &str, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
     #[cfg(not(target_os = "ios"))]
     {
         info!(
@@ -299,7 +299,7 @@ fn log_tcp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: 
     }
 }
 
-fn log_udp(tag: &String, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
+fn log_udp(tag: &str, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
     #[cfg(not(target_os = "ios"))]
     {
         info!(
@@ -359,15 +359,12 @@ impl Dispatcher {
     }
 
     async fn dispatch_endpoint_tcp_done(&self) {
-        match self.endpoint_tcp_rx.lock().await.try_recv() {
-            Ok(_) => {
-                *self.num_endpoint_tcp.lock().await -= 1;
-                debug!(
-                    "active proxied tcp connections -1: {}",
-                    self.num_endpoint_tcp.lock().await
-                );
-            }
-            Err(_) => (),
+        if self.endpoint_tcp_rx.lock().await.try_recv().is_ok() {
+            *self.num_endpoint_tcp.lock().await -= 1;
+            debug!(
+                "active proxied tcp connections -1: {}",
+                self.num_endpoint_tcp.lock().await
+            );
         }
     }
 
@@ -387,15 +384,12 @@ impl Dispatcher {
     }
 
     async fn dispatch_direct_tcp_done(&self) {
-        match self.direct_tcp_rx.lock().await.try_recv() {
-            Ok(_) => {
-                *self.num_direct_tcp.lock().await -= 1;
-                debug!(
-                    "active direct tcp connections -1: {}",
-                    self.num_direct_tcp.lock().await
-                );
-            }
-            Err(_) => (),
+        if self.direct_tcp_rx.lock().await.try_recv().is_ok() {
+            *self.num_direct_tcp.lock().await -= 1;
+            debug!(
+                "active direct tcp connections -1: {}",
+                self.num_direct_tcp.lock().await
+            );
         }
     }
 
@@ -407,12 +401,9 @@ impl Dispatcher {
             Box::new(SimpleStream(lhs))
         } else {
             let mut lhs = SniffingStream::new(lhs);
-            match lhs.sniff().await? {
-                Some(domain) => {
-                    debug!("sniffed domain {}", &domain);
-                    sess.destination = SocksAddr::from((domain, sess.destination.port()));
-                }
-                None => (),
+            if let Some(domain) = lhs.sniff().await? {
+                debug!("sniffed domain {}", &domain);
+                sess.destination = SocksAddr::from((domain, sess.destination.port()));
             }
             Box::new(SimpleStream(lhs))
         };
@@ -421,9 +412,7 @@ impl Dispatcher {
             Ok(tag) => {
                 debug!(
                     "picked route [{}] for {} -> {}",
-                    tag,
-                    &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
-                    &sess.destination
+                    tag, &sess.source, &sess.destination
                 );
                 tag
             }
@@ -432,9 +421,7 @@ impl Dispatcher {
                 if let Some(tag) = self.handler_manager.default_handler() {
                     debug!(
                         "picked default route [{}] for {} -> {}",
-                        tag,
-                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
-                        &sess.destination
+                        tag, &sess.source, &sess.destination
                     );
                     tag
                 } else {
@@ -513,7 +500,7 @@ impl Dispatcher {
                                 Ok(up_n) => {
                                     debug!(
                                         "tcp uplink {} -> {} done, {} bytes transfered [{}]",
-                                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
+                                        &sess.source,
                                         &sess.destination,
                                         up_n,
                                         &h.tag(),
@@ -522,7 +509,7 @@ impl Dispatcher {
                                 Err(e) => {
                                     debug!(
                                         "tcp uplink {} -> {} error: {} [{}]",
-                                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
+                                        &sess.source,
                                         &sess.destination,
                                         e,
                                         &h.tag()
@@ -533,7 +520,7 @@ impl Dispatcher {
                                 Ok(down_n) => {
                                     debug!(
                                         "tcp downlink {} <- {} done, {} bytes transfered [{}]",
-                                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
+                                        &sess.source,
                                         &sess.destination,
                                         down_n,
                                         &h.tag(),
@@ -542,7 +529,7 @@ impl Dispatcher {
                                 Err(e) => {
                                     debug!(
                                         "tcp downlink {} <- {} error: {} [{}]",
-                                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
+                                        &sess.source,
                                         &sess.destination,
                                         e,
                                         &h.tag()
@@ -553,7 +540,7 @@ impl Dispatcher {
                         Err(e) => {
                             debug!(
                                 "tcp link {} <-> {} interrupted: {} [{}]",
-                                &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
+                                &sess.source,
                                 &sess.destination,
                                 e,
                                 &h.tag()
@@ -573,7 +560,7 @@ impl Dispatcher {
                 Err(e) => {
                     debug!(
                         "dispatch tcp {} -> {} to [{}] failed: {}",
-                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
+                        &sess.source,
                         &sess.destination,
                         &h.tag(),
                         e
@@ -600,9 +587,7 @@ impl Dispatcher {
             Ok(tag) => {
                 debug!(
                     "picked route [{}] for {} -> {}",
-                    tag,
-                    &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
-                    &sess.destination
+                    tag, &sess.source, &sess.destination
                 );
                 tag
             }
@@ -611,9 +596,7 @@ impl Dispatcher {
                 if let Some(tag) = self.handler_manager.default_handler() {
                     debug!(
                         "picked default route [{}] for {} -> {}",
-                        tag,
-                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
-                        &sess.destination
+                        tag, &sess.source, &sess.destination
                     );
                     tag
                 } else {
@@ -634,7 +617,7 @@ impl Dispatcher {
                 Err(e) => {
                     debug!(
                         "dispatch udp {} -> {} to [{}] failed: {}",
-                        &sess.source.unwrap_or("0.0.0.0:0".parse().unwrap()),
+                        &sess.source,
                         &sess.destination,
                         &h.tag(),
                         e

@@ -1,3 +1,3 @@
 pub mod inbound;
 
-pub static NAME: &'static str = "http";
+pub static NAME: &str = "http";

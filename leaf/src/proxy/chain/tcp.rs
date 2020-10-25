@@ -18,7 +18,7 @@ pub struct Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
@@ -76,6 +76,6 @@ impl ProxyTcpHandler for Handler {
                 return Ok(Box::new(SimpleStream(stream)));
             }
         }
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"));
+        Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"))
     }
 }

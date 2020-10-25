@@ -57,7 +57,7 @@ impl DnsClient {
 
     async fn query_task(
         request: Box<[u8]>,
-        domain: &String,
+        domain: &str,
         server: &SocketAddr,
         bind_addr: &SocketAddr,
     ) -> Result<Vec<IpAddr>> {
@@ -92,14 +92,11 @@ impl DnsClient {
                                 let mut addrs = Vec::new();
                                 for ans in resp.answers() {
                                     // TODO checks?
-                                    match ans.rdata() {
-                                        RData::A(addr) => {
-                                            addrs.push(IpAddr::V4(addr.to_owned()));
-                                        }
-                                        _ => (),
+                                    if let RData::A(addr) = ans.rdata() {
+                                        addrs.push(IpAddr::V4(addr.to_owned()));
                                     }
                                 }
-                                if addrs.len() > 0 {
+                                if !addrs.is_empty() {
                                     let elapsed = tokio::time::Instant::now().duration_since(start);
                                     debug!(
                                         "return {} ips for {} from {} in {}ms",
@@ -157,7 +154,7 @@ impl DnsClient {
 
         let mut msg = Message::new();
 
-        let mut fqdn = String::from(domain.clone());
+        let mut fqdn = domain.clone();
         fqdn.push('.');
         let name = match Name::from_str(&fqdn) {
             Ok(n) => n,

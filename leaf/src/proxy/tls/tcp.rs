@@ -19,7 +19,7 @@ pub struct Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
@@ -45,7 +45,7 @@ impl ProxyTcpHandler for Handler {
                         io::Error::new(io::ErrorKind::Other, format!("wrap tls failed: {}", e))
                     })
                     .await?;
-                return Ok(tls_stream);
+                Ok(tls_stream)
             }
             None => Err(io::Error::new(io::ErrorKind::Other, "invalid tls input")),
         }

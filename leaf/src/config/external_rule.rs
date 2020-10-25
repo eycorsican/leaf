@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use super::{geosite, internal};
 
-pub fn load_file_or_default(filter: &String, default: &str) -> Result<(String, String)> {
+pub fn load_file_or_default(filter: &str, default: &str) -> Result<(String, String)> {
     let parts: Vec<&str> = filter.split(':').collect();
     let (file, code) = if parts.len() == 3 {
         let path = if Path::new(parts[1]).is_absolute() {
@@ -31,17 +31,17 @@ pub fn load_file_or_default(filter: &String, default: &str) -> Result<(String, S
     Ok((file, code))
 }
 
-pub fn load_mmdb_rule(filter: &String) -> Result<(String, String)> {
+pub fn load_mmdb_rule(filter: &str) -> Result<(String, String)> {
     load_file_or_default(filter, "geo.mmdb")
 }
 
-pub fn load_site_rule(filter: &String) -> Result<(String, String)> {
+pub fn load_site_rule(filter: &str) -> Result<(String, String)> {
     load_file_or_default(filter, "site.dat")
 }
 
 pub fn add_external_rule(
     rule: &mut internal::RoutingRule,
-    ext_external: &String,
+    ext_external: &str,
     site_group_lists: &mut HashMap<String, geosite::SiteGroupList>,
 ) -> Result<()> {
     if ext_external.starts_with("mmdb") {

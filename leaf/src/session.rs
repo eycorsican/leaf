@@ -11,14 +11,14 @@ use log::*;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub struct Session {
-    pub source: Option<SocketAddr>,
+    pub source: SocketAddr,
     pub destination: SocksAddr,
 }
 
 impl Clone for Session {
     fn clone(&self) -> Self {
         Session {
-            source: self.source.clone(),
+            source: self.source,
             destination: self.destination.clone(),
         }
     }
@@ -369,9 +369,9 @@ impl TryFrom<String> for SocksAddr {
             if parts[0].len() > 0xff {
                 return Err("domain too long");
             }
-            return Ok(Self::from((parts[0], port)));
+            Ok(Self::from((parts[0], port)))
         } else {
-            return Err("invalid port");
+            Err("invalid port")
         }
     }
 }
@@ -381,7 +381,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
     type Error = &'static str;
 
     fn try_from((buf, addr_type): (&[u8], SocksAddrWireType)) -> Result<Self, Self::Error> {
-        if buf.len() < 1 {
+        if buf.is_empty() {
             return Err(INSUFF_BYTES);
         }
 
@@ -412,7 +412,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     Ok(Self::Ip((ip, port).into()))
                 }
                 SocksAddrPortLastType::DOMAIN => {
-                    if buf.len() < 1 {
+                    if buf.is_empty() {
                         return Err(INSUFF_BYTES);
                     }
                     let domain_len = buf[1] as usize;

@@ -33,11 +33,11 @@ pub struct Handler {
 #[async_trait]
 impl ProxyUdpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        Some((self.address.clone(), self.port, self.bind_addr.clone()))
+        Some((self.address.clone(), self.port, self.bind_addr))
     }
 
     fn udp_transport_type(&self) -> UdpTransportType {
@@ -64,7 +64,7 @@ impl ProxyUdpHandler for Handler {
             }
         };
 
-        if ips.len() == 0 {
+        if ips.is_empty() {
             return Err(Error::new(ErrorKind::Other, "no resolved address"));
         }
 
@@ -75,8 +75,7 @@ impl ProxyUdpHandler for Handler {
             socket
         } else {
             let socket = UdpSocket::bind(self.bind_addr).await?;
-            let socket = Box::new(SimpleDatagram(socket));
-            socket
+            Box::new(SimpleDatagram(socket))
         };
 
         let dgram = ShadowedDatagram::with_initial_buffer_size(
@@ -92,7 +91,7 @@ impl ProxyUdpHandler for Handler {
             )
         })?;
         let (r, s) = dgram.split();
-        return Ok(Box::new(Datagram { r, s, server: addr }));
+        Ok(Box::new(Datagram { r, s, server: addr }))
     }
 }
 

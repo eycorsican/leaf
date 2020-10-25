@@ -11,7 +11,7 @@ use super::{
     ProxyTcpHandler, ProxyUdpHandler, Tag, UdpTransportType,
 };
 
-pub static NAME: &'static str = "handler";
+pub static NAME: &str = "handler";
 
 pub struct Handler {
     tag: String,
@@ -66,7 +66,7 @@ impl HandlerTyped for Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return NAME;
+        NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
@@ -85,7 +85,7 @@ impl ProxyTcpHandler for Handler {
 #[async_trait]
 impl ProxyUdpHandler for Handler {
     fn name(&self) -> &str {
-        return NAME;
+        NAME
     }
 
     fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {

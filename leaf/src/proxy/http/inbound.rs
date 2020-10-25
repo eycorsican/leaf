@@ -30,10 +30,10 @@ impl ProxyService {
     }
 }
 
+#[allow(clippy::type_complexity)]
 impl Service<Request<Body>> for ProxyService {
     type Error = Box<dyn std::error::Error + Send + Sync>;
-    type Future =
-        Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>> + Send>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
     type Response = Response<Body>;
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
@@ -66,13 +66,9 @@ pub fn new(inbound: Inbound, dispatcher: Arc<Dispatcher>) -> Result<Runner> {
             if let Ok(stream) = stream {
                 let dispatcher = dispatcher.clone();
                 tokio::spawn(async move {
-                    let source = match stream.peer_addr() {
-                        Ok(a) => a,
-                        Err(e) => {
-                            warn!("invalid peer addr {}", e);
-                            return;
-                        }
-                    };
+                    let source = stream
+                        .peer_addr()
+                        .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
                     let http = Http::new();
                     let proxy_service = ProxyService::new();
                     let conn = http
@@ -111,7 +107,7 @@ pub fn new(inbound: Inbound, dispatcher: Arc<Dispatcher>) -> Result<Runner> {
                     };
 
                     let mut sess = Session {
-                        source: Some(source),
+                        source,
                         destination,
                     };
 

@@ -195,7 +195,7 @@ impl AsyncRead for TcpStreamImpl {
         cx: &mut Context,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        if self.write_buf.len() > 0 {
+        if !self.write_buf.is_empty() {
             let to_read = min(buf.len(), self.write_buf.len());
             let piece = self.write_buf.split_to(to_read);
             (&mut buf[..to_read]).copy_from_slice(&piece[..to_read]);

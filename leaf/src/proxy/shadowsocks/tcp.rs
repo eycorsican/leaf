@@ -21,11 +21,11 @@ pub struct Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        Some((self.address.clone(), self.port, self.bind_addr.clone()))
+        Some((self.address.clone(), self.port, self.bind_addr))
     }
 
     async fn handle<'a>(
@@ -54,6 +54,6 @@ impl ProxyTcpHandler for Handler {
         sess.destination
             .write_to(&mut stream, SocksAddrWireType::PortLast)
             .await?;
-        return Ok(Box::new(SimpleStream(stream)));
+        Ok(Box::new(SimpleStream(stream)))
     }
 }

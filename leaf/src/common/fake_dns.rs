@@ -39,7 +39,7 @@ impl FakeDns {
         self.exclude_domains.push(domain);
     }
 
-    fn allocate_ip(&mut self, domain: &String) -> Ipv4Addr {
+    fn allocate_ip(&mut self, domain: &str) -> Ipv4Addr {
         self.map.insert(self.cursor, domain.to_owned());
         let ip = Self::u32_to_ip(self.cursor);
         self.cursor += 1;
@@ -63,7 +63,7 @@ impl FakeDns {
     pub fn generate_fake_response(&mut self, request: &[u8]) -> Result<Vec<u8>> {
         let req = Message::from_vec(request)?;
 
-        if req.queries().len() == 0 {
+        if req.queries().is_empty() {
             return Err(anyhow!("no queries in this DNS request"));
         }
 
@@ -112,7 +112,7 @@ impl FakeDns {
                 .set_checking_disabled(req.checking_disabled());
         }
         resp.set_response_code(ResponseCode::NoError);
-        if req.queries().len() > 0 {
+        if !req.queries().is_empty() {
             resp.add_query(query.clone());
         }
 
@@ -135,11 +135,7 @@ impl FakeDns {
             _ => return false,
         };
         let ip = Self::ip_to_u32(ip);
-        if ip >= self.min_cursor && ip <= self.max_cursor {
-            true
-        } else {
-            false
-        }
+        ip >= self.min_cursor && ip <= self.max_cursor
     }
 
     fn u32_to_ip(ip: u32) -> Ipv4Addr {
@@ -148,6 +144,12 @@ impl FakeDns {
 
     fn ip_to_u32(ip: &Ipv4Addr) -> u32 {
         BigEndian::read_u32(&ip.octets())
+    }
+}
+
+impl Default for FakeDns {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

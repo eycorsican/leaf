@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::crypto::*;
-use super::vmess;
-use super::vmess::*;
+use super::protocol::*;
+use super::stream::*;
 
 pub struct Handler {
     pub address: String,
@@ -27,11 +27,11 @@ pub struct Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        Some((self.address.clone(), self.port, self.bind_addr.clone()))
+        Some((self.address.clone(), self.port, self.bind_addr))
     }
 
     async fn handle<'a>(
@@ -44,21 +44,21 @@ impl ProxyTcpHandler for Handler {
         })?;
         let mut request_header = RequestHeader {
             version: 0x1,
-            command: vmess::REQUEST_COMMAND_TCP,
-            option: vmess::REQUEST_OPTION_CHUNK_STREAM,
-            security: vmess::SECURITY_TYPE_CHACHA20_POLY1305,
+            command: REQUEST_COMMAND_TCP,
+            option: REQUEST_OPTION_CHUNK_STREAM,
+            security: SECURITY_TYPE_CHACHA20_POLY1305,
             address: sess.destination.clone(),
             uuid,
         };
-        request_header.set_option(vmess::REQUEST_OPTION_CHUNK_MASKING);
-        request_header.set_option(vmess::REQUEST_OPTION_GLOBAL_PADDING);
+        request_header.set_option(REQUEST_OPTION_CHUNK_MASKING);
+        request_header.set_option(REQUEST_OPTION_GLOBAL_PADDING);
 
         match self.security.to_lowercase().as_str() {
             "chacha20-poly1305" | "chacha20-ietf-poly1305" => {
-                request_header.security = vmess::SECURITY_TYPE_CHACHA20_POLY1305;
+                request_header.security = SECURITY_TYPE_CHACHA20_POLY1305;
             }
             "aes-128-gcm" => {
-                request_header.security = vmess::SECURITY_TYPE_AES128_GCM;
+                request_header.security = SECURITY_TYPE_AES128_GCM;
             }
             _ => {
                 return Err(io::Error::new(

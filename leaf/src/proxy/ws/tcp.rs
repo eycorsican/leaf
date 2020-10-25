@@ -12,7 +12,7 @@ use crate::{
     session::Session,
 };
 
-use super::ws;
+use super::stream;
 
 pub struct Handler {
     pub path: String,
@@ -22,7 +22,7 @@ pub struct Handler {
 #[async_trait]
 impl ProxyTcpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
@@ -51,8 +51,8 @@ impl ProxyTcpHandler for Handler {
                         )
                     })
                     .await?;
-                let ws_stream = ws::Adapter::new(socket);
-                return Ok(Box::new(SimpleStream(ws_stream)));
+                let ws_stream = stream::Adapter::new(socket);
+                Ok(Box::new(SimpleStream(ws_stream)))
             }
             None => Err(io::Error::new(io::ErrorKind::Other, "invalid tls input")),
         }

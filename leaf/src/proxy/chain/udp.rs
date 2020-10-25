@@ -34,17 +34,11 @@ impl AsyncRead for DatagramToStream {
         let mut recv = self.get_mut().recv.recv_from(buf);
         match recv.as_mut().poll(cx) {
             Poll::Ready(res) => match res {
-                Ok((n, _)) => {
-                    return Poll::Ready(Ok(n));
-                }
-                Err(e) => {
-                    return Poll::Ready(Err(e));
-                }
+                Ok((n, _)) => Poll::Ready(Ok(n)),
+                Err(e) => Poll::Ready(Err(e)),
             },
 
-            Poll::Pending => {
-                return Poll::Pending;
-            }
+            Poll::Pending => Poll::Pending,
         }
     }
 }
@@ -55,12 +49,10 @@ impl AsyncWrite for DatagramToStream {
         let mut send = me.send.send_to(buf, &me.target);
         match send.as_mut().poll(cx) {
             Poll::Ready(res) => match res {
-                Ok(n) => {
-                    return Poll::Ready(Ok(n));
-                }
-                Err(e) => return Poll::Ready(Err(e)),
+                Ok(n) => Poll::Ready(Ok(n)),
+                Err(e) => Poll::Ready(Err(e)),
             },
-            Poll::Pending => return Poll::Pending,
+            Poll::Pending => Poll::Pending,
         }
     }
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
@@ -79,7 +71,7 @@ pub struct Handler {
 #[async_trait]
 impl ProxyUdpHandler for Handler {
     fn name(&self) -> &str {
-        return super::NAME;
+        super::NAME
     }
 
     fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
@@ -161,35 +153,31 @@ impl ProxyUdpHandler for Handler {
             }
         }
         // if all actors are Packet transports, simply chaining the datagrams.
-        match transport_type {
-            UdpTransportType::Packet => {
-                let mut bind_addr: SocketAddr =
-                    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0);
-                for a in self.actors.iter() {
-                    if let Some((_, _, baddr)) = a.udp_connect_addr() {
-                        bind_addr = baddr;
-                    }
+        if let UdpTransportType::Packet = transport_type {
+            let mut bind_addr: SocketAddr =
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0);
+            for a in self.actors.iter() {
+                if let Some((_, _, baddr)) = a.udp_connect_addr() {
+                    bind_addr = baddr;
                 }
-                let socket = UdpSocket::bind(bind_addr).await?;
-                let mut dgram: Box<dyn ProxyDatagram> = Box::new(SimpleDatagram(socket));
+            }
+            let socket = UdpSocket::bind(bind_addr).await?;
+            let mut dgram: Box<dyn ProxyDatagram> = Box::new(SimpleDatagram(socket));
 
-                for (i, a) in self.actors.iter().enumerate() {
-                    let mut new_sess = sess.clone();
-                    for j in (i + 1)..self.actors.len() {
-                        if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
-                            if let Ok(addr) =
-                                SocksAddr::try_from(format!("{}:{}", connect_addr, port))
-                            {
-                                new_sess.destination = addr;
-                                break;
-                            }
+            for (i, a) in self.actors.iter().enumerate() {
+                let mut new_sess = sess.clone();
+                for j in (i + 1)..self.actors.len() {
+                    if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
+                        if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port))
+                        {
+                            new_sess.destination = addr;
+                            break;
                         }
                     }
-                    dgram = a.connect(&new_sess, Some(dgram), None).await?;
                 }
-                return Ok(dgram);
+                dgram = a.connect(&new_sess, Some(dgram), None).await?;
             }
-            _ => (),
+            return Ok(dgram);
         }
 
         for a in self.actors.iter() {
@@ -275,6 +263,6 @@ impl ProxyUdpHandler for Handler {
                 }
             }
         }
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"));
+        Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"))
     }
 }
