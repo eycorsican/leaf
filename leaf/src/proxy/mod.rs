@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
+use futures::future::select_ok;
 use futures::TryFutureExt;
+use log::*;
 use socket2::{Domain, Socket, Type};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
@@ -86,13 +88,34 @@ pub trait HandlerTyped {
     fn handler_type(&self) -> ProxyHandlerType;
 }
 
+async fn dial_task(
+    dial_addr: SocketAddr,
+    bind_addr: &SocketAddr,
+) -> io::Result<Box<dyn ProxyStream>> {
+    let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
+    socket.bind(&bind_addr.clone().into())?;
+    trace!("dialing tcp {}", &dial_addr);
+    match TcpStream::connect_std(socket.into_tcp_stream(), &dial_addr).await {
+        Ok(stream) => {
+            trace!("connected tcp {}", &dial_addr);
+            return Ok(Box::new(SimpleStream(stream)));
+        }
+        Err(e) => {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("connect failed: {}", e),
+            ))
+        }
+    }
+}
+
 async fn dial_tcp_stream(
     dns_client: Arc<DnsClient>,
     bind_addr: &SocketAddr,
     address: &String,
     port: &u16,
 ) -> io::Result<Box<dyn ProxyStream>> {
-    let resolver = Resolver::new(dns_client, bind_addr, address, port)
+    let mut resolver = Resolver::new(dns_client, bind_addr, address, port)
         .map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,
@@ -103,18 +126,36 @@ async fn dial_tcp_stream(
 
     let mut last_err = None;
 
-    for addr in resolver {
-        let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
-        socket.bind(&bind_addr.clone().into())?;
-        match TcpStream::connect_std(socket.into_tcp_stream(), &addr).await {
-            Ok(stream) => {
-                return Ok(Box::new(SimpleStream(stream)));
-            }
-            Err(e) => {
-                last_err = Some(e);
+    // TODO make configurable
+    let dial_concurrency = 3;
+    let mut done = false;
+
+    while !done {
+        let mut tasks = Vec::new();
+        for _ in 0..dial_concurrency {
+            let dial_addr = match resolver.next() {
+                Some(a) => a,
+                None => {
+                    done = true; // run out
+                    break; // break and execute tasks if there're any
+                }
+            };
+            let t = dial_task(dial_addr.clone(), bind_addr);
+            tasks.push(Box::pin(t));
+        }
+        if tasks.len() > 0 {
+            match select_ok(tasks.into_iter()).await {
+                Ok(v) => return Ok(v.0),
+                Err(e) => {
+                    last_err = Some(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("all attempts failed, last error: {}", e),
+                    ));
+                }
             }
         }
     }
+
     Err(last_err.unwrap_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
