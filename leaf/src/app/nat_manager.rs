@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use anyhow::Result;
-use futures::future::abortable;
+use futures::future::{abortable, AbortHandle, BoxFuture};
 use log::*;
 use tokio::sync::{
     mpsc::{self, Sender},
@@ -22,16 +22,56 @@ pub struct UdpPacket {
     pub dst_addr: Option<SocksAddr>,
 }
 
+type SessionMap = Arc<TokioMutex<HashMap<SocketAddr, (Sender<UdpPacket>, AbortHandle, Instant)>>>;
+
 pub struct NatManager {
-    sessions: Arc<TokioMutex<HashMap<SocketAddr, Sender<UdpPacket>>>>,
+    sessions: SessionMap,
     dispatcher: Arc<Dispatcher>,
+    timeout_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
 }
 
 impl NatManager {
     pub fn new(dispatcher: Arc<Dispatcher>) -> Self {
+        let timeout: u64 = 30;
+        let check_interval: u64 = 10;
+        let sessions: SessionMap = Arc::new(TokioMutex::new(HashMap::new()));
+        let sessions2 = sessions.clone();
+
+        // The task is lazy, will not run until any sessions added.
+        let timeout_check_task: BoxFuture<'static, ()> = Box::pin(async move {
+            loop {
+                let mut sessions = sessions2.lock().await;
+                let n_total = sessions.len();
+                let now = Instant::now();
+                sessions.retain(|key, sess| {
+                    if now.duration_since(sess.2).as_secs() >= timeout {
+                        // Abort downlink task, uplink task will end automatically
+                        // when we drop the channel's tx side upon session removal.
+                        sess.1.abort();
+                        debug!("udp session {} ended", key);
+                        false
+                    } else {
+                        true
+                    }
+                });
+                let n_remaining = sessions.len();
+                let n_removed = n_total - n_remaining;
+                drop(sessions); // release the lock
+                if n_removed > 0 {
+                    trace!(
+                        "removed {} nat sessions, remaining {} sessions",
+                        n_removed,
+                        n_remaining
+                    );
+                }
+                tokio::time::delay_for(Duration::from_secs(check_interval)).await;
+            }
+        });
+
         NatManager {
-            sessions: Arc::new(TokioMutex::new(HashMap::new())),
+            sessions,
             dispatcher,
+            timeout_check_task: TokioMutex::new(Some(timeout_check_task)),
         }
     }
 
@@ -41,10 +81,11 @@ impl NatManager {
 
     pub async fn send(&self, key: &SocketAddr, pkt: UdpPacket) {
         let mut sessions = self.sessions.lock().await;
-        if let Some(tx) = sessions.get_mut(key) {
-            if let Err(err) = tx.try_send(pkt) {
+        if let Some(sess) = sessions.get_mut(key) {
+            if let Err(err) = sess.0.try_send(pkt) {
                 debug!("send uplink packet failed {:?}", err);
             }
+            sess.2 = Instant::now(); // activity update
         } else {
             error!("no nat association found");
         }
@@ -59,8 +100,13 @@ impl NatManager {
         sess: &Session,
         raddr: SocketAddr,
         client_ch_tx: Sender<UdpPacket>,
-        timeout: u64,
     ) -> Result<()> {
+        if self.timeout_check_task.lock().await.is_some() {
+            if let Some(task) = self.timeout_check_task.lock().await.take() {
+                tokio::spawn(task);
+            }
+        }
+
         // new socket to communicate with the target.
         let socket = match self.dispatcher.dispatch_udp(sess).await {
             Ok(s) => s,
@@ -71,8 +117,6 @@ impl NatManager {
         let (mut target_sock_recv, mut target_sock_send) = socket.split();
 
         let (target_ch_tx, mut target_ch_rx) = mpsc::channel(100);
-
-        self.sessions.lock().await.insert(raddr, target_ch_tx);
 
         let mut client_ch_tx = client_ch_tx.clone();
 
@@ -104,16 +148,37 @@ impl NatManager {
                                 &addr, &raddr, err
                             );
                         }
-                        // TODO update timeout
+
+                        if addr.port() == 53 {
+                            // If the destination port is 53, we assume it's a
+                            // DNS query and remove the session at once after
+                            // receiving the response.
+                            sessions.lock().await.remove(&raddr);
+                            break;
+                        }
+
+                        // activity update
+                        {
+                            let mut sessions = sessions.lock().await;
+                            if let Some(sess) = sessions.get_mut(&raddr) {
+                                sess.2 = Instant::now();
+                            }
+                        }
                     }
                 }
             }
         };
+
         let (downlink_task, downlink_task_handle) = abortable(downlink_task);
         tokio::spawn(downlink_task);
 
+        self.sessions
+            .lock()
+            .await
+            .insert(raddr, (target_ch_tx, downlink_task_handle, Instant::now()));
+
         // uplink
-        let uplink_task = async move {
+        tokio::spawn(async move {
             while let Some(pkt) = target_ch_rx.recv().await {
                 if pkt.dst_addr.is_none() {
                     warn!("unexpected none dst addr in uplink pkts");
@@ -144,17 +209,6 @@ impl NatManager {
                     }
                 }
             }
-        };
-        let (uplink_task, uplink_task_handle) = abortable(uplink_task);
-        tokio::spawn(uplink_task);
-
-        let sessions = self.sessions.clone();
-        tokio::spawn(async move {
-            tokio::time::delay_for(Duration::from_secs(timeout)).await;
-            sessions.lock().await.remove(&raddr);
-            downlink_task_handle.abort();
-            uplink_task_handle.abort();
-            debug!("udp session {} end", &raddr);
         });
 
         Ok(())

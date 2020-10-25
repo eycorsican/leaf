@@ -180,6 +180,10 @@ impl NetStackImpl {
                     };
                     send_udp(lwip_lock2.clone(), &src_addr, &dst_addr, pcb, &pkt.data[..]);
                 }
+
+                // client_ch_tx will not be dropped unless the listener loop
+                // below exit, which should never happen, so the client_ch_rx
+                // loop should never end.
                 error!("unexpected udp downlink ended");
             });
 
@@ -218,7 +222,7 @@ impl NetStackImpl {
                             continue;
                         }
                         Err(err) => {
-                            debug!("generate fake ip failed: {}", err);
+                            trace!("generate fake ip failed: {}", err);
                         }
                     }
                 }
@@ -230,7 +234,7 @@ impl NetStackImpl {
                     };
 
                     if let Err(_) = nat_manager
-                        .add_session(&sess, src_addr, client_ch_tx.clone(), 30)
+                        .add_session(&sess, src_addr, client_ch_tx.clone())
                         .await
                     {
                         // dispatch err logging was handled in dispatcher

@@ -172,6 +172,7 @@ pub fn new(
                                 };
                                 let mut buf = [0u8; 1];
                                 if let Err(_) = stream.read_exact(&mut buf).await {
+                                    // perhaps explicitly notifies the NAT manager?
                                     debug!("udp association end");
                                 }
                             }

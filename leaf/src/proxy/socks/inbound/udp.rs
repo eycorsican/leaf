@@ -95,7 +95,7 @@ pub fn new(listen: String, port: u16, nat_manager: Arc<NatManager>) -> Result<Ru
                         };
 
                         if let Err(_) = nat_manager
-                            .add_session(&sess, src_addr, client_ch_tx.clone(), 30)
+                            .add_session(&sess, src_addr, client_ch_tx.clone())
                             .await
                         {
                             continue; // dispatch failed
