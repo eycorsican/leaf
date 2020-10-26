@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{hash_map, HashMap},
     convert::From,
     net::{IpAddr, SocketAddr, SocketAddrV4},
     str::FromStr,
@@ -625,5 +625,23 @@ impl HandlerManager {
 
     pub fn default_handler(&self) -> Option<&String> {
         self.default_handler.as_ref()
+    }
+
+    pub fn handlers(&self) -> Handlers {
+        Handlers {
+            inner: self.handlers.values(),
+        }
+    }
+}
+
+pub struct Handlers<'a> {
+    inner: hash_map::Values<'a, String, Arc<dyn ProxyHandler>>,
+}
+
+impl<'a> Iterator for Handlers<'a> {
+    type Item = &'a Arc<dyn ProxyHandler>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
     }
 }

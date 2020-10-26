@@ -16,9 +16,16 @@ fn main() {
                 .short('c')
                 .long("config")
                 .value_name("FILE")
-                .about("The configuration file.")
+                .about("The configuration file")
                 .takes_value(true)
                 .default_value("config.conf"),
+        )
+        .arg(
+            Arg::new("test-outbound")
+                .long("test-outbound")
+                .value_name("TAG")
+                .about("Tests the availability of a specified outbound")
+                .takes_value(true),
         )
         .get_matches();
 
@@ -31,6 +38,17 @@ fn main() {
             exit(1);
         }
     };
+
+    let mut rt = tokio::runtime::Builder::new()
+        .basic_scheduler()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    if let Some(tag) = matches.value_of("test-outbound") {
+        rt.block_on(leaf::util::test_outbound(&tag, &config));
+        exit(1);
+    }
 
     let loglevel = if let Some(log) = config.log.as_ref() {
         match log.level {
@@ -59,12 +77,6 @@ fn main() {
         }
     }
     leaf::common::log::apply_logger(logger);
-
-    let mut rt = tokio::runtime::Builder::new()
-        .basic_scheduler()
-        .enable_all()
-        .build()
-        .unwrap();
 
     let runners = match leaf::util::create_runners(config) {
         Ok(v) => v,

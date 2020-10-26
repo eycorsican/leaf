@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use log::*;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::runtime;
 
 #[cfg(feature = "socks")]
@@ -14,6 +15,7 @@ use crate::{
     },
     config::Config,
     proxy::http,
+    session::{Session, SocksAddr},
     Runner,
 };
 
@@ -64,4 +66,45 @@ pub fn run_with_config(config: Config) -> Result<()> {
     let runners = create_runners(config)?;
     rt.block_on(futures::future::join_all(runners));
     Ok(())
+}
+
+pub async fn test_outbound(tag: &str, config: &Config) {
+    let handler_manager = HandlerManager::new(&config.outbounds, config.dns.as_ref().unwrap());
+    let handler = if let Some(v) = handler_manager.get(tag) {
+        v
+    } else {
+        println!("outbound {} not found", tag);
+        return;
+    };
+    let sess = Session {
+        source: "0.0.0.0:0".parse().unwrap(),
+        destination: SocksAddr::Domain("www.google.com".to_string(), 80),
+    };
+    println!("testing outbound {}", &handler.tag());
+    let start = tokio::time::Instant::now();
+    match handler.handle(&sess, None).await {
+        Ok(mut stream) => {
+            if let Err(e) = stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await {
+                println!("write to outbound {} failed: {}", &handler.tag(), e);
+                return;
+            }
+            let mut buf = vec![0u8; 1];
+            match stream.read_exact(&mut buf).await {
+                Ok(_) => {
+                    let elapsed = tokio::time::Instant::now().duration_since(start);
+                    println!(
+                        "received response from outbound {} in {}ms",
+                        &handler.tag(),
+                        elapsed.as_millis()
+                    );
+                }
+                Err(e) => {
+                    println!("read from outbound {} failed: {}", &handler.tag(), e);
+                }
+            }
+        }
+        Err(e) => {
+            println!("dispatch to outbound {} failed: {}", &handler.tag(), e);
+        }
+    }
 }
