@@ -7,3 +7,6 @@ A lightweight and fast proxy utility tries to include any useful features.
 
 ### Usage
 There's a brief introduction written in Chinese you can find [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md).
+
+### iOS
+https://github.com/eycorsican/ileaf
