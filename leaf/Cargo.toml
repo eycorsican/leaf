@@ -10,7 +10,7 @@ name = "leaf"
 path = "src/lib.rs"
 
 [features]
-default = ["config", "endpoint", "ensemble", "openssl-aead", "openssl-tls"]
+default = ["config", "endpoint", "ensemble", "ring-aead", "rustls-tls"]
 
 ring-aead = ["ring"]
 openssl-aead = ["openssl"]

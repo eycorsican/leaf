@@ -152,15 +152,12 @@ jobs:
       - name: build
         run: |
           # OPENSSL_DIR=/tmp/openssl-ios64 cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
-          cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
-
-      - name: generate header
-        run: |
-          cbindgen leaf-mobile/src/lib.rs -l c > leaf.h
+          make ios
 
       - name: zip artifacts
         run: |
           mv target/universal/release/libleaf.a .
+          mv target/universal/release/leaf.h .
           zip libleaf-ios.zip leaf.h libleaf.a
 
       - name: upload assets

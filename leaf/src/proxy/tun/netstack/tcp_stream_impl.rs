@@ -178,12 +178,12 @@ impl Drop for TcpStreamImpl {
         unsafe {
             let _g = self.lwip_lock.lock();
             if !self.errored {
-                // tcp_arg(self.pcb, std::ptr::null_mut());
-                // tcp_recv(self.pcb, None);
-                // tcp_sent(self.pcb, None);
-                // tcp_err(self.pcb, None);
-                // tcp_close(self.pcb);
-                tcp_abort(self.pcb);
+                // TODO
+                tcp_close(self.pcb);
+                tcp_arg(self.pcb, std::ptr::null_mut());
+                tcp_recv(self.pcb, None);
+                tcp_sent(self.pcb, None);
+                tcp_err(self.pcb, None);
             }
         }
     }
