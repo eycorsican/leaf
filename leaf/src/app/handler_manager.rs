@@ -62,8 +62,8 @@ impl HandlerManager {
         if dns_servers.is_empty() {
             panic!("no dns servers");
         }
-        let bind_addr = {
-            let addr = format!("{}:0", dns.bind);
+        let dns_bind_addr = {
+            let addr = format!("{}:0", &dns.bind);
             let addr = match SocketAddrV4::from_str(&addr) {
                 Ok(a) => a,
                 Err(e) => {
@@ -73,13 +73,28 @@ impl HandlerManager {
             };
             SocketAddr::from(addr)
         };
-        let dns_client = Arc::new(DnsClient::new(dns_servers, bind_addr));
+        let dns_client = Arc::new(DnsClient::new(dns_servers, dns_bind_addr));
+
         for outbound in outbounds.iter() {
             let tag = String::from(&outbound.tag);
             if default_handler.is_none() {
                 default_handler = Some(String::from(&outbound.tag));
                 debug!("default handler [{}]", &outbound.tag);
             }
+            let bind_addr = {
+                let addr = format!("{}:0", &outbound.bind);
+                let addr = match SocketAddrV4::from_str(&addr) {
+                    Ok(a) => a,
+                    Err(e) => {
+                        error!(
+                            "invalid bind addr [{}] in outbound {}: {}",
+                            &outbound.bind, &outbound.tag, e
+                        );
+                        panic!("");
+                    }
+                };
+                SocketAddr::from(addr)
+            };
             match outbound.protocol.as_str() {
                 #[cfg(feature = "direct")]
                 "direct" => {

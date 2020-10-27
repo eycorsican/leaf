@@ -680,6 +680,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     chain_settings.actors.push(outbound.tag.clone());
                     let chain_settings = chain_settings.write_to_bytes().unwrap();
                     chain_outbound.settings = chain_settings;
+                    chain_outbound.bind = ext_proxy.interface.clone();
                     chain_outbound.protocol = "chain".to_string();
 
                     // always push chain first, in case there isn't final rule,
@@ -754,6 +755,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     chain_settings.actors.push(outbound.tag.clone());
                     let chain_settings = chain_settings.write_to_bytes().unwrap();
                     chain_outbound.settings = chain_settings;
+                    chain_outbound.bind = ext_proxy.interface.clone();
                     chain_outbound.protocol = "chain".to_string();
 
                     // always push chain first, in case there isn't final rule,
@@ -828,6 +830,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     chain_settings.actors.push(outbound.tag.clone());
                     let chain_settings = chain_settings.write_to_bytes().unwrap();
                     chain_outbound.settings = chain_settings;
+                    chain_outbound.bind = ext_proxy.interface.clone();
                     chain_outbound.protocol = "chain".to_string();
 
                     // always push chain first, in case there isn't final rule,
