@@ -15,6 +15,9 @@ use tokio::sync::{
 use crate::app::dispatcher::Dispatcher;
 use crate::session::{Session, SocksAddr};
 
+static UDP_SESSION_TIMEOUT: u64 = 30;
+static UDP_SESSION_TIMEOUT_CHECK_INTERVAL: u64 = 10;
+
 #[derive(Debug)]
 pub struct UdpPacket {
     pub data: Vec<u8>,
@@ -32,8 +35,6 @@ pub struct NatManager {
 
 impl NatManager {
     pub fn new(dispatcher: Arc<Dispatcher>) -> Self {
-        let timeout: u64 = 30;
-        let check_interval: u64 = 10;
         let sessions: SessionMap = Arc::new(TokioMutex::new(HashMap::new()));
         let sessions2 = sessions.clone();
 
@@ -44,7 +45,7 @@ impl NatManager {
                 let n_total = sessions.len();
                 let now = Instant::now();
                 sessions.retain(|key, sess| {
-                    if now.duration_since(sess.2).as_secs() >= timeout {
+                    if now.duration_since(sess.2).as_secs() >= UDP_SESSION_TIMEOUT {
                         // Abort downlink task, uplink task will end automatically
                         // when we drop the channel's tx side upon session removal.
                         sess.1.abort();
@@ -64,7 +65,8 @@ impl NatManager {
                         n_remaining
                     );
                 }
-                tokio::time::delay_for(Duration::from_secs(check_interval)).await;
+                tokio::time::delay_for(Duration::from_secs(UDP_SESSION_TIMEOUT_CHECK_INTERVAL))
+                    .await;
             }
         });
 
@@ -150,9 +152,6 @@ impl NatManager {
                         }
 
                         if addr.port() == 53 {
-                            // If the destination port is 53, we assume it's a
-                            // DNS query and remove the session at once after
-                            // receiving the response.
                             sessions.lock().await.remove(&raddr);
                             break;
                         }
@@ -161,7 +160,14 @@ impl NatManager {
                         {
                             let mut sessions = sessions.lock().await;
                             if let Some(sess) = sessions.get_mut(&raddr) {
-                                sess.2 = Instant::now();
+                                if addr.port() == 53 {
+                                    // If the destination port is 53, we assume it's a
+                                    // DNS query and set a negative timeout so it will
+                                    // be removed on next check.
+                                    sess.2.checked_sub(Duration::from_secs(UDP_SESSION_TIMEOUT));
+                                } else {
+                                    sess.2 = Instant::now();
+                                }
                             }
                         }
                     }

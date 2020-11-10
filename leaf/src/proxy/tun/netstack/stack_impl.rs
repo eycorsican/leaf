@@ -309,6 +309,8 @@ impl AsyncRead for NetStackImpl {
 impl AsyncWrite for NetStackImpl {
     fn poll_write(self: Pin<&mut Self>, _cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
         unsafe {
+            let _g = self.lwip_lock.lock();
+
             let pbuf = pbuf_alloc(pbuf_layer_PBUF_RAW, buf.len() as u16_t, pbuf_type_PBUF_RAM);
             if pbuf.is_null() {
                 warn!("alloc null pbuf");
@@ -316,26 +318,23 @@ impl AsyncWrite for NetStackImpl {
             }
             pbuf_take(pbuf, buf.as_ptr() as *const raw::c_void, buf.len() as u16_t);
 
-            {
-                let _g = self.lwip_lock.lock();
-                if let Some(input_fn) = (*netif_list).input {
-                    let err = input_fn(pbuf, netif_list);
-                    if err == err_enum_t_ERR_OK as err_t {
-                        Poll::Ready(Ok(buf.len()))
-                    } else {
-                        pbuf_free(pbuf);
-                        Poll::Ready(Err(io::Error::new(
-                            io::ErrorKind::Interrupted,
-                            "input failed",
-                        )))
-                    }
+            if let Some(input_fn) = (*netif_list).input {
+                let err = input_fn(pbuf, netif_list);
+                if err == err_enum_t_ERR_OK as err_t {
+                    Poll::Ready(Ok(buf.len()))
                 } else {
                     pbuf_free(pbuf);
                     Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::Interrupted,
-                        "none input fn",
+                        "input failed",
                     )))
                 }
+            } else {
+                pbuf_free(pbuf);
+                Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "none input fn",
+                )))
             }
         }
     }

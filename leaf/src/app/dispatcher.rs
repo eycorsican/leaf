@@ -397,16 +397,17 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
-        let lhs: Box<dyn ProxyStream> = if sess.destination.is_domain() {
-            Box::new(SimpleStream(lhs))
-        } else {
-            let mut lhs = SniffingStream::new(lhs);
-            if let Some(domain) = lhs.sniff().await? {
-                debug!("sniffed domain {}", &domain);
-                sess.destination = SocksAddr::from((domain, sess.destination.port()));
-            }
-            Box::new(SimpleStream(lhs))
-        };
+        let lhs: Box<dyn ProxyStream> =
+            if sess.destination.is_domain() && sess.destination.port() == 443 {
+                Box::new(SimpleStream(lhs))
+            } else {
+                let mut lhs = SniffingStream::new(lhs);
+                if let Some(domain) = lhs.sniff().await? {
+                    debug!("sniffed domain {}", &domain);
+                    sess.destination = SocksAddr::from((domain, sess.destination.port()));
+                }
+                Box::new(SimpleStream(lhs))
+            };
 
         let outbound = match self.router.pick_route(&sess) {
             Ok(tag) => {
