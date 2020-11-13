@@ -5,4 +5,4 @@ pub static ENDPOINT_TCP_CONCURRENCY: usize = 1024;
 pub static DIRECT_TCP_CONCURRENCY: usize = 1024;
 
 /// DNS cache size in the built-in DNS client.
-pub static DNS_CACHE_SIZE: usize = 256;
+pub static DNS_CACHE_SIZE: usize = 32;
