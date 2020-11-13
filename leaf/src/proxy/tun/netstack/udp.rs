@@ -108,7 +108,7 @@ pub fn send_udp(
                 return;
             }
         };
-        udp_sendto(
+        let err = udp_sendto(
             pcb as *mut udp_pcb,
             pbuf,
             &dst_ip as *const ip_addr_t,
@@ -116,6 +116,9 @@ pub fn send_udp(
             &src_ip as *const ip_addr_t,
             src_addr.port() as u16_t,
         );
+        if err != err_enum_t_ERR_OK as err_t {
+            warn!("udp_sendto err {}", err);
+        }
         pbuf_free(pbuf);
     }
 }

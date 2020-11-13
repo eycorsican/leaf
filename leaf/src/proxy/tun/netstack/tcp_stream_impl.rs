@@ -179,7 +179,10 @@ impl Drop for TcpStreamImpl {
             let _g = self.lwip_lock.lock();
             if !self.errored {
                 // TODO
-                tcp_close(self.pcb);
+                let err = tcp_close(self.pcb);
+                if err != err_enum_t_ERR_OK as err_t {
+                    warn!("tcp_close err {}", err);
+                }
                 tcp_arg(self.pcb, std::ptr::null_mut());
                 tcp_recv(self.pcb, None);
                 tcp_sent(self.pcb, None);
@@ -279,8 +282,12 @@ impl AsyncWrite for TcpStreamImpl {
                 TCP_WRITE_FLAG_COPY as u8,
             );
             if err == err_enum_t_ERR_OK as err_t {
-                tcp_output(self.pcb);
+                let err = tcp_output(self.pcb);
+                if err != err_enum_t_ERR_OK as err_t {
+                    warn!("tcp_output err {}", err);
+                }
             } else if err == err_enum_t_ERR_MEM as err_t {
+                warn!("tcp err_mem");
                 return Poll::Pending;
             } else {
                 return Poll::Ready(Err(io::Error::new(

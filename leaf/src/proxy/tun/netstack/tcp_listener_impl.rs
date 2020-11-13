@@ -12,7 +12,7 @@ use super::tcp_stream_impl::TcpStreamImpl;
 #[allow(unused_variables)]
 pub extern "C" fn tcp_accept_cb(arg: *mut raw::c_void, newpcb: *mut tcp_pcb, err: err_t) -> err_t {
     if newpcb.is_null() {
-        debug!("tcp full");
+        warn!("tcp full");
         return err_enum_t_ERR_OK as err_t;
     }
     let listener = unsafe { &mut *(arg as *mut TcpListenerImpl) };
