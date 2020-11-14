@@ -11,6 +11,12 @@ use crate::proxy::socks;
 #[cfg(feature = "inbound-http")]
 use crate::proxy::http;
 
+#[cfg(all(
+    feature = "inbound-tun",
+    any(target_os = "ios", target_os = "macos", target_os = "linux")
+))]
+use crate::proxy::tun;
+
 use crate::{
     app::{
         dispatcher::Dispatcher, handler_manager::HandlerManager, nat_manager::NatManager,
@@ -20,9 +26,6 @@ use crate::{
     session::{Session, SocksAddr},
     Runner,
 };
-
-#[cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))]
-use crate::proxy::tun;
 
 pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
     let handler_manager = HandlerManager::new(&config.outbounds, config.dns.as_ref().unwrap());
@@ -46,7 +49,10 @@ pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
                     runners.push(r);
                 }
             }
-            #[cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))]
+            #[cfg(all(
+                feature = "inbound-tun",
+                any(target_os = "ios", target_os = "macos", target_os = "linux")
+            ))]
             "tun" => {
                 if let Ok(r) = tun::inbound::new(inbound, dispatcher.clone(), nat_manager.clone()) {
                     runners.push(Box::pin(r));

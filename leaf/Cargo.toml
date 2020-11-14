@@ -23,8 +23,11 @@ all-configs = [
     "config-json",
 ]
 all-endpoints = [
+    # inbounds
     "inbound-http",
     "inbound-socks",
+    "inbound-tun",
+    # outbounds
     "outbound-direct",
     "outbound-drop",
     "outbound-redirect",
@@ -74,13 +77,11 @@ outbound-chain = []
 # Inbounds
 inbound-socks = []
 inbound-http = ["hyper"]
-
-# tun inbound is currently platform-specific
-# tun = []
+inbound-tun = ["tun"]
 
 [dependencies]
 # Common
-tokio = { version = "0.2", features = ["macros", "sync", "io-util", "net"] }
+tokio = { version = "0.2", features = ["macros", "sync", "io-util", "net", "stream"] }
 futures-util = "0.3"
 protobuf = "2.17"
 socket2 = "0.3"
@@ -171,7 +172,7 @@ hex = { version = "0.4", optional = true }
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
-tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fix", features = ["async"] }
+tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fix", features = ["async"], optional = true }
 
 [build-dependencies]
 cc = "1.0"

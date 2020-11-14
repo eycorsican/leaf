@@ -17,7 +17,10 @@ pub mod stream;
 
 #[cfg(feature = "inbound-http")]
 pub mod http;
-#[cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))]
+#[cfg(all(
+    feature = "inbound-tun",
+    any(target_os = "ios", target_os = "macos", target_os = "linux")
+))]
 pub mod tun;
 
 #[cfg(feature = "outbound-direct")]
