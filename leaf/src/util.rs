@@ -8,7 +8,7 @@ use tokio::runtime;
 #[cfg(feature = "inbound-socks")]
 use crate::proxy::socks;
 
-#[cfg(feature = "feature-http")]
+#[cfg(feature = "inbound-http")]
 use crate::proxy::http;
 
 use crate::{
@@ -32,7 +32,7 @@ pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
     let mut runners: Vec<Runner> = Vec::new();
     for inbound in config.inbounds.into_iter() {
         match inbound.protocol.as_str() {
-            #[cfg(feature = "feature-http")]
+            #[cfg(feature = "inbound-http")]
             "http" => {
                 if let Ok(r) = http::inbound::new(inbound, dispatcher.clone()) {
                     runners.push(r);

@@ -23,6 +23,8 @@ all-configs = [
     "config-json",
 ]
 all-endpoints = [
+    "inbound-http",
+    "inbound-socks",
     "outbound-direct",
     "outbound-drop",
     "outbound-redirect",
@@ -34,8 +36,6 @@ all-endpoints = [
     "outbound-ws",
     "outbound-vless",
     "outbound-h2",
-    "inbound-http",
-    "inbound-socks",
     "outbound-failover",
     "outbound-random",
     "outbound-tryall",
@@ -147,10 +147,6 @@ http = { version = "0.2", optional = true }
 # SOCKS outbound
 async-socks5 = { version = "0.3", optional = true }
 
-# TUN
-[target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
-tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fix", features = ["async"] }
-
 # VMess
 lz_fnv = { version = "0.1", optional = true }
 cfb-mode = { version = "0.5", optional = true }
@@ -172,6 +168,10 @@ sha-1 = { version = "0.9", optional = true }
 # Trojan
 sha2 = { version = "0.9", optional = true }
 hex = { version = "0.4", optional = true }
+
+# TUN
+[target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
+tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fix", features = ["async"] }
 
 [build-dependencies]
 cc = "1.0"
