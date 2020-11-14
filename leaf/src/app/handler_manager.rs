@@ -8,34 +8,34 @@ use std::{
 
 use log::*;
 
-#[cfg(feature = "chain")]
+#[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;
-#[cfg(feature = "failover")]
+#[cfg(feature = "outbound-failover")]
 use crate::proxy::failover;
-#[cfg(feature = "random")]
+#[cfg(feature = "outbound-random")]
 use crate::proxy::random;
-#[cfg(feature = "tryall")]
+#[cfg(feature = "outbound-tryall")]
 use crate::proxy::tryall;
 
-#[cfg(feature = "direct")]
+#[cfg(feature = "outbound-direct")]
 use crate::proxy::direct;
-#[cfg(feature = "drop")]
+#[cfg(feature = "outbound-drop")]
 use crate::proxy::drop;
-#[cfg(feature = "redirect")]
+#[cfg(feature = "outbound-redirect")]
 use crate::proxy::redirect;
-#[cfg(feature = "shadowsocks")]
+#[cfg(feature = "outbound-shadowsocks")]
 use crate::proxy::shadowsocks;
-#[cfg(feature = "socks")]
+#[cfg(feature = "outbound-socks")]
 use crate::proxy::socks;
-#[cfg(feature = "tls")]
+#[cfg(feature = "outbound-tls")]
 use crate::proxy::tls;
-#[cfg(feature = "trojan")]
+#[cfg(feature = "outbound-trojan")]
 use crate::proxy::trojan;
-#[cfg(feature = "vless")]
+#[cfg(feature = "outbound-vless")]
 use crate::proxy::vless;
-#[cfg(feature = "vmess")]
+#[cfg(feature = "outbound-vmess")]
 use crate::proxy::vmess;
-#[cfg(feature = "ws")]
+#[cfg(feature = "outbound-ws")]
 use crate::proxy::ws;
 
 use crate::{
@@ -96,7 +96,7 @@ impl HandlerManager {
                 SocketAddr::from(addr)
             };
             match outbound.protocol.as_str() {
-                #[cfg(feature = "direct")]
+                #[cfg(feature = "outbound-direct")]
                 "direct" => {
                     let tcp = Box::new(direct::TcpHandler::new(bind_addr, dns_client.clone()));
                     let udp = Box::new(direct::UdpHandler::new(bind_addr));
@@ -109,7 +109,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag.clone(), handler);
                 }
-                #[cfg(feature = "drop")]
+                #[cfg(feature = "outbound-drop")]
                 "drop" => {
                     let tcp = Box::new(drop::TcpHandler {});
                     let udp = Box::new(drop::UdpHandler {});
@@ -122,7 +122,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag.clone(), handler);
                 }
-                #[cfg(feature = "redirect")]
+                #[cfg(feature = "outbound-redirect")]
                 "redirect" => {
                     let settings = match protobuf::parse_from_bytes::<
                         config::RedirectOutboundSettings,
@@ -151,7 +151,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag.clone(), handler);
                 }
-                #[cfg(feature = "socks")]
+                #[cfg(feature = "outbound-socks")]
                 "socks" => {
                     let settings = match protobuf::parse_from_bytes::<config::SocksOutboundSettings>(
                         &outbound.settings,
@@ -187,7 +187,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag.clone(), handler);
                 }
-                #[cfg(feature = "shadowsocks")]
+                #[cfg(feature = "outbound-shadowsocks")]
                 "shadowsocks" => {
                     let settings = match protobuf::parse_from_bytes::<
                         config::ShadowsocksOutboundSettings,
@@ -224,7 +224,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag, handler);
                 }
-                #[cfg(feature = "trojan")]
+                #[cfg(feature = "outbound-trojan")]
                 "trojan" => {
                     let settings = match protobuf::parse_from_bytes::<config::TrojanOutboundSettings>(
                         &outbound.settings,
@@ -260,7 +260,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag, handler);
                 }
-                #[cfg(feature = "vmess")]
+                #[cfg(feature = "outbound-vmess")]
                 "vmess" => {
                     let settings = match protobuf::parse_from_bytes::<config::VMessOutboundSettings>(
                         &outbound.settings,
@@ -298,7 +298,7 @@ impl HandlerManager {
                     handlers.insert(tag, handler);
                     drop(settings); // TODO do this for all others
                 }
-                #[cfg(feature = "vless")]
+                #[cfg(feature = "outbound-vless")]
                 "vless" => {
                     let settings = match protobuf::parse_from_bytes::<config::VLessOutboundSettings>(
                         &outbound.settings,
@@ -334,7 +334,7 @@ impl HandlerManager {
                     handlers.insert(tag, handler);
                     drop(settings); // TODO do this for all others
                 }
-                #[cfg(feature = "tls")]
+                #[cfg(feature = "outbound-tls")]
                 "tls" => {
                     let settings = match protobuf::parse_from_bytes::<config::TlsOutboundSettings>(
                         &outbound.settings,
@@ -370,7 +370,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag.clone(), handler);
                 }
-                #[cfg(feature = "ws")]
+                #[cfg(feature = "outbound-ws")]
                 "ws" => {
                     let settings = match protobuf::parse_from_bytes::<
                         config::WebSocketOutboundSettings,
@@ -401,7 +401,7 @@ impl HandlerManager {
                     );
                     handlers.insert(tag.clone(), handler);
                 }
-                #[cfg(feature = "feature-h2")]
+                #[cfg(feature = "outbound-h2")]
                 "h2" => {
                     let settings = match protobuf::parse_from_bytes::<config::HTTP2OutboundSettings>(
                         &outbound.settings,
@@ -445,7 +445,7 @@ impl HandlerManager {
             for outbound in outbounds.iter() {
                 let tag = String::from(&outbound.tag);
                 match outbound.protocol.as_str() {
-                    #[cfg(feature = "tryall")]
+                    #[cfg(feature = "outbound-tryall")]
                     "tryall" => {
                         let settings = match protobuf::parse_from_bytes::<
                             config::TryAllOutboundSettings,
@@ -487,7 +487,7 @@ impl HandlerManager {
                         );
                         handlers.insert(tag.clone(), handler);
                     }
-                    #[cfg(feature = "random")]
+                    #[cfg(feature = "outbound-random")]
                     "random" => {
                         let settings = match protobuf::parse_from_bytes::<
                             config::RandomOutboundSettings,
@@ -525,7 +525,7 @@ impl HandlerManager {
                         );
                         handlers.insert(tag.clone(), handler);
                     }
-                    #[cfg(feature = "failover")]
+                    #[cfg(feature = "outbound-failover")]
                     "failover" => {
                         let settings = match protobuf::parse_from_bytes::<
                             config::FailOverOutboundSettings,
@@ -573,7 +573,7 @@ impl HandlerManager {
                         );
                         handlers.insert(tag.clone(), handler);
                     }
-                    #[cfg(feature = "chain")]
+                    #[cfg(feature = "outbound-chain")]
                     "chain" => {
                         let settings = match protobuf::parse_from_bytes::<
                             config::ChainOutboundSettings,

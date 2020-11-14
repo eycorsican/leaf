@@ -9,20 +9,12 @@ name = "leaf"
 path = "src/main.rs"
 
 [features]
-default = ["common", "config", "ring-aead", "rustls-tls"]
-
-config = ["json-config", "conf-config"]
-
-json-config = ["leaf/json"]
-conf-config = ["leaf/conf"]
-
-ring-aead = ["leaf/ring-aead"]
-openssl-aead = ["leaf/openssl-aead"]
-
-rustls-tls = ["leaf/rustls-tls"]
-openssl-tls = ["leaf/openssl-tls"]
-
-common = ["leaf/endpoint", "leaf/ensemble"]
+default = [
+    "leaf/all-configs",
+    "leaf/all-endpoints",
+    "leaf/ring-aead",
+    "leaf/rustls-tls",
+]
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }

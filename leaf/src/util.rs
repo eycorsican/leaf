@@ -5,8 +5,11 @@ use log::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::runtime;
 
-#[cfg(feature = "socks")]
+#[cfg(feature = "inbound-socks")]
 use crate::proxy::socks;
+
+#[cfg(feature = "feature-http")]
+use crate::proxy::http;
 
 use crate::{
     app::{
@@ -14,7 +17,6 @@ use crate::{
         router::Router,
     },
     config::Config,
-    proxy::http,
     session::{Session, SocksAddr},
     Runner,
 };
@@ -30,12 +32,13 @@ pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
     let mut runners: Vec<Runner> = Vec::new();
     for inbound in config.inbounds.into_iter() {
         match inbound.protocol.as_str() {
+            #[cfg(feature = "feature-http")]
             "http" => {
                 if let Ok(r) = http::inbound::new(inbound, dispatcher.clone()) {
                     runners.push(r);
                 }
             }
-            #[cfg(feature = "socks")]
+            #[cfg(feature = "inbound-socks")]
             "socks" => {
                 if let Ok(r) =
                     socks::inbound::new(&inbound, dispatcher.clone(), nat_manager.clone())

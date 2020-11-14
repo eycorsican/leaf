@@ -10,100 +10,168 @@ name = "leaf"
 path = "src/lib.rs"
 
 [features]
-default = ["config", "endpoint", "ensemble", "ring-aead", "rustls-tls"]
+default = [
+    "all-configs",
+    "all-endpoints",
+    "ring-aead",
+    "rustls-tls",
+]
 
+# Grouping all features
+all-configs = [
+    "config-conf",
+    "config-json",
+]
+all-endpoints = [
+    "outbound-direct",
+    "outbound-drop",
+    "outbound-redirect",
+    "outbound-shadowsocks",
+    "outbound-socks",
+    "outbound-trojan",
+    "outbound-vmess",
+    "outbound-tls",
+    "outbound-ws",
+    "outbound-vless",
+    "outbound-h2",
+    "inbound-http",
+    "inbound-socks",
+    "outbound-failover",
+    "outbound-random",
+    "outbound-tryall",
+    "outbound-chain",
+]
+
+# Ring-related
 ring-aead = ["ring"]
-openssl-aead = ["openssl"]
-
 rustls-tls = ["tokio-rustls", "webpki-roots"]
+
+# Openssl-related, for platforms not supported by ring, such as mips
+openssl-aead = ["openssl"]
 openssl-tls = ["openssl", "tokio-openssl", "openssl-probe"]
 
-config = ["conf", "json"]
+# Config formats
+config-conf = ["regex"]
+config-json = ["serde", "serde_derive", "serde_json"]
 
-conf = ["regex"]
-json = ["serde", "serde_derive", "serde_json"]
+# Outbounds
+outbound-direct = []
+outbound-drop = []
+outbound-redirect = []
+outbound-shadowsocks = ["hkdf", "sha-1", "md-5"]
+outbound-socks = ["async-socks5"]
+outbound-trojan = ["sha2", "hex"]
+outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5"]
+outbound-tls = []
+outbound-ws = ["tungstenite", "tokio-tungstenite", "url"]
+outbound-h2 = ["h2", "http", "url"]
+outbound-vless = ["uuid"]
+outbound-failover = []
+outbound-random = []
+outbound-tryall = []
+outbound-chain = []
 
-endpoint = ["direct", "drop", "redirect", "shadowsocks", "socks", "trojan", "vmess", "tls", "ws", "vless", "feature-h2"]
-ensemble = ["failover", "random", "tryall", "chain"]
+# Inbounds
+inbound-socks = []
+inbound-http = ["hyper"]
 
-# TODO make corresponding deps optional
-direct = []
-drop = []
-redirect = []
-shadowsocks = []
-socks = []
-trojan = []
-vmess = []
-tls = []
-ws = []
-feature-h2 = []
-vless = []
-
-failover = []
-random = []
-tryall = []
-chain = []
+# tun inbound is currently platform-specific
+# tun = []
 
 [dependencies]
-tokio = { version = "0.2", features = ["macros"] }
-tungstenite = { version = "0.11", default-features = false }
-tokio-tungstenite = { version = "0.11" }
-hyper = { version = "0.13", default-features = false, features = [] }
-h2 = { version = "0.2.6", features = ["stream"] }
+# Common
+tokio = { version = "0.2", features = ["macros", "sync", "io-util", "net"] }
 futures-util = "0.3"
-maxminddb = { version = "0.15.0", features = ["mmap"] }
-async-socks5 = "0.3"
-trust-dns-proto = "*"
 protobuf = "2.17"
-fern = { version = "0.5", features = ["colored"] }
 socket2 = "0.3"
-memmap = "0.7.0"
-log = { version = "0.4", features = ["std"] }
 thiserror = "1.0"
 futures = "0.3"
 async-trait = "0.1"
 byteorder = "1.3"
-md-5 = "0.9"
-hkdf = "0.9"
-sha-1 = "0.9"
-rand = "0.7"
 bytes = "0.5"
 lazy_static = "1.4.0"
-url = "2.1"
-sha3 = "0.9"
-digest = "0.9"
-cfb-mode = "0.5"
-aes = "0.5"
-hmac = "0.9"
-lz_fnv = "0.1"
-uuid = "0.8"
 anyhow = "1.0"
-lru = "0.6"
-cidr = { version = "0.1", default-features = false }
-colored = "2.0"
-sha2 = "0.9"
-hex = "0.4"
-chrono = "0.4"
-httparse = "1.3"
-http = "0.2"
+rand = "0.7"
 
-openssl = { version = "0.10", features = ["vendored"], optional = true }
-ring = { version = "0.16", optional = true }
-
+# config-json
 serde_json = { version = "1.0", features = ["raw_value"], optional = true }
 serde_derive = { version = "1.0", optional = true }
 serde = { version = "1.0", optional = true }
 
+# config-conf
 regex = { version = "1.3", default-features=false, features=["std", "perf"], optional = true }
 
+# Openssl
+openssl = { version = "0.10", features = ["vendored"], optional = true }
+
+# Ring
+ring = { version = "0.16", optional = true }
+
+# Router
+maxminddb = { version = "0.15.0", features = ["mmap"] }
+memmap = "0.7.0"
+cidr = { version = "0.1", default-features = false }
+
+# DNS
+trust-dns-proto = "*"
+lru = "0.6"
+
+# Logging
+log = { version = "0.4", features = ["std"] }
+fern = { version = "0.5", features = ["colored"] }
+chrono = "0.4"
+colored = "2.0"
+
+# TLS/rustls
 tokio-rustls = { version = "0.14", optional = true }
 webpki-roots = { version = "0.20", optional = true }
 
+# TLS/openssl
 openssl-probe = { version = "0.1.2", optional = true }
 tokio-openssl = { version = "0.4", optional = true }
 
+# WebSocket
+tungstenite = { version = "0.11", default-features = false, optional = true }
+tokio-tungstenite = { version = "0.11", optional = true }
+
+# WebSocket/HTTP/2
+url = { version = "2.1", optional = true }
+
+# HTTP inbound
+hyper = { version = "0.13", default-features = false, features = [], optional = true }
+
+# HTTP/2
+h2 = { version = "0.2.6", features = ["stream"], optional = true }
+http = { version = "0.2", optional = true }
+
+# SOCKS outbound
+async-socks5 = { version = "0.3", optional = true }
+
+# TUN
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fix", features = ["async"] }
+
+# VMess
+lz_fnv = { version = "0.1", optional = true }
+cfb-mode = { version = "0.5", optional = true }
+hmac = { version = "0.9", optional = true }
+aes = { version = "0.5", optional = true }
+sha3 = { version = "0.9", optional = true }
+digest = { version = "0.9", optional = true }
+
+# VMess/VLESS
+uuid = { version = "0.8", optional = true }
+
+# VMess/Shadowsocks
+md-5 = { version = "0.9", optional = true }
+
+# Shadowsocks
+hkdf = { version = "0.9", optional = true }
+sha-1 = { version = "0.9", optional = true }
+
+# Trojan
+sha2 = { version = "0.9", optional = true }
+hex = { version = "0.4", optional = true }
 
 [build-dependencies]
 cc = "1.0"

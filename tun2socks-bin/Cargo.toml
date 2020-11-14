@@ -9,7 +9,7 @@ name = "tun2socks"
 path = "src/main.rs"
 
 [dependencies]
-leaf = { path = "../leaf", default-features=false, features=["socks"] }
+leaf = { path = "../leaf", default-features=false, features=["outbound-socks"] }
 clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }
 log = { version = "0.4", features = ["std"] }
 env_logger = "0.8"

@@ -15,41 +15,42 @@ pub mod datagram;
 pub mod handler;
 pub mod stream;
 
-#[cfg(feature = "direct")]
-pub mod direct;
-#[cfg(feature = "drop")]
-pub mod drop;
-#[cfg(feature = "feature-h2")]
-pub mod h2;
-#[cfg(feature = "redirect")]
-pub mod redirect;
-#[cfg(feature = "shadowsocks")]
-pub mod shadowsocks;
-#[cfg(feature = "socks")]
-pub mod socks;
-#[cfg(feature = "tls")]
-pub mod tls;
-#[cfg(feature = "trojan")]
-pub mod trojan;
-#[cfg(feature = "vless")]
-pub mod vless;
-#[cfg(feature = "vmess")]
-pub mod vmess;
-#[cfg(feature = "ws")]
-pub mod ws;
-
-#[cfg(feature = "chain")]
-pub mod chain;
-#[cfg(feature = "failover")]
-pub mod failover;
-#[cfg(feature = "random")]
-pub mod random;
-#[cfg(feature = "tryall")]
-pub mod tryall;
-
+#[cfg(feature = "inbound-http")]
 pub mod http;
 #[cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))]
 pub mod tun;
+
+#[cfg(feature = "outbound-direct")]
+pub mod direct;
+#[cfg(feature = "outbound-drop")]
+pub mod drop;
+#[cfg(feature = "outbound-h2")]
+pub mod h2;
+#[cfg(feature = "outbound-redirect")]
+pub mod redirect;
+#[cfg(feature = "outbound-shadowsocks")]
+pub mod shadowsocks;
+#[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
+pub mod socks;
+#[cfg(feature = "outbound-tls")]
+pub mod tls;
+#[cfg(feature = "outbound-trojan")]
+pub mod trojan;
+#[cfg(feature = "outbound-vless")]
+pub mod vless;
+#[cfg(feature = "outbound-vmess")]
+pub mod vmess;
+#[cfg(feature = "outbound-ws")]
+pub mod ws;
+
+#[cfg(feature = "outbound-chain")]
+pub mod chain;
+#[cfg(feature = "outbound-failover")]
+pub mod failover;
+#[cfg(feature = "outbound-random")]
+pub mod random;
+#[cfg(feature = "outbound-tryall")]
+pub mod tryall;
 
 pub use datagram::{SimpleDatagram, SimpleDatagramRecvHalf, SimpleDatagramSendHalf};
 pub use handler::Handler;
