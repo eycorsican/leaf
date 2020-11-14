@@ -288,6 +288,13 @@ impl AsyncWrite for TcpStreamImpl {
                 }
             } else if err == err_enum_t_ERR_MEM as err_t {
                 warn!("tcp err_mem");
+                if let Some(waker) = self.write_waker.as_ref() {
+                    if !waker.will_wake(cx.waker()) {
+                        self.write_waker.replace(cx.waker().clone());
+                    }
+                } else {
+                    self.write_waker.replace(cx.waker().clone());
+                }
                 return Poll::Pending;
             } else {
                 return Poll::Ready(Err(io::Error::new(
