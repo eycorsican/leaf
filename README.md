@@ -6,7 +6,52 @@
 A lightweight and fast proxy utility tries to include any useful features.
 
 ### Usage
-There's a brief introduction written in Chinese you can find [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md).
+You may find some configuration samples [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md), it also serves as a reference for the JSON config format.
+
+### Build
+Install Rust: https://www.rust-lang.org/tools/install
+
+Install nightly toolchain:
+```sh
+rustup default nightly
+```
+
+Install a C compiler, e.g. GCC:
+```sh
+apt update && apt install gcc
+
+# Or clang on macOS
+# brew update && brew install clang
+```
+
+Clone & Build:
+```sh
+git clone https://github.com/eycorsican/leaf.git
+cd leaf
+git submodule init
+git submodule update
+cargo build -p leaf-bin
+```
+
+Run:
+```sh
+./target/debug/leaf -h
+```
+
+### Customizing Build
+You may build leaf with a selected set of features.
+
+By including only the demanded features, you will get an optimized artifact with smaller binary size and lower runtime memory footprint.
+
+For example, this build command,
+```sh
+cargo build --release --manifest-path leaf-bin/Cargo.toml --no-default-features --features "leaf/config-json leaf/inbound-socks leaf/outbound-direct leaf/outbound-shadowsocks leaf/ring-aead"
+```
+will result in an executable supports only the JSON config format, `socks` inbound, `direct` and `shadowsocks` outbounds.
+
+Note that for proxy protocols with AEAD crypto functions, one of the `leaf/ring-aead` and `leaf/openssl-aead` features must be included. Similarly, one of the `leaf/rustls-tls` and `leaf/openssl-tls` must be included for `leaf/outbound-tls` feature.
+
+Refer to `leaf/Cargo.toml` for a full list of available features.
 
 ### iOS
 Open Source Demo: https://github.com/eycorsican/ileaf

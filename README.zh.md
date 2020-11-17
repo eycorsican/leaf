@@ -402,6 +402,8 @@ WebSocket 传输，一般用来叠加到其它代理或传输协议上。
 }
 ```
 
+还未支持自定义 Headers，Host 会尝试从下层协议获取。
+
 ### h2
 
 HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 alpn。
@@ -446,8 +448,6 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
     }
 ]
 ```
-
-还未支持自定义 Headers，Host 会尝试从下层协议获取。
 
 ### shadowsocks
 
