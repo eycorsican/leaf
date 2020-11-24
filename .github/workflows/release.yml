@@ -230,7 +230,7 @@ jobs:
       - name: get upload url
         run: |
           upload_url=`cat upload_url.txt`
-          echo "::set-env name=uploadurl::$upload_url"
+          echo "uploadurl=$upload_url" >> $GITHUB_ENV
 
       - name: download asset
         if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
@@ -278,7 +278,7 @@ jobs:
       - name: get upload url
         run: |
           upload_url=`cat upload_url.txt`
-          echo "::set-env name=uploadurl::$upload_url"
+          echo "uploadurl=$upload_url" >> $GITHUB_ENV
 
       - name: install deps
         run: |
