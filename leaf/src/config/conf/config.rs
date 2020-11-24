@@ -624,6 +624,18 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                 "direct" | "drop" => {
                     outbounds.push(outbound);
                 }
+                "socks" => {
+                    let mut settings = internal::SocksOutboundSettings::new();
+                    if let Some(ext_address) = &ext_proxy.address {
+                        settings.address = ext_address.clone();
+                    }
+                    if let Some(ext_port) = &ext_proxy.port {
+                        settings.port = *ext_port as u32;
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
                 "shadowsocks" => {
                     let mut settings = internal::ShadowsocksOutboundSettings::new();
                     if let Some(ext_address) = &ext_proxy.address {
