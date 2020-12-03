@@ -54,9 +54,11 @@ Note that for proxy protocols with AEAD crypto functions, one of the `leaf/ring-
 Refer to `leaf/Cargo.toml` for a full list of available features.
 
 ### iOS
-Open Source Demo: https://github.com/eycorsican/ileaf
+App Store: https://apps.apple.com/us/app/leaf-lightweight-proxy/id1534109007
 
-TestFlight App: https://testflight.apple.com/join/std0FFCS
+TestFlight: https://testflight.apple.com/join/std0FFCS
+
+Demo for Developer: https://github.com/eycorsican/ileaf
 
 ### OpenWrt
 Running as transparent proxy on OpenWrt:
