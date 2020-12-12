@@ -174,7 +174,7 @@ impl NetStackImpl {
                             }
                         },
                         None => {
-                            warn!("unexpected dst addr");
+                            warn!("unexpected none dst addr");
                             continue;
                         }
                     };
@@ -210,11 +210,12 @@ impl NetStackImpl {
                         }
                     },
                     None => {
-                        warn!("unexpected dst addr");
+                        warn!("unexpected none dst addr");
                         continue;
                     }
                 };
 
+                // dns query
                 if dst_addr.port() == 53 {
                     match fakedns.lock().await.generate_fake_response(&pkt.data) {
                         Ok(resp) => {

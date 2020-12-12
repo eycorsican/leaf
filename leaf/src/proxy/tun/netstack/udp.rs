@@ -21,14 +21,14 @@ pub extern "C" fn udp_recv_cb(
     arg: *mut raw::c_void,
     _pcb: *mut udp_pcb,
     p: *mut pbuf,
-    addr: *const ip_addr_t,
-    port: u16_t,
+    src_addr: *const ip_addr_t,
+    src_port: u16_t,
     dst_addr: *const ip_addr_t,
     dst_port: u16_t,
 ) {
     let listener = unsafe { &mut *(arg as *mut UdpListener) };
     let src_addr = unsafe {
-        match util::to_socket_addr(&*addr, port) {
+        match util::to_socket_addr(&*src_addr, src_port) {
             Ok(a) => a,
             Err(e) => {
                 warn!("udp recv failed: {}", e);

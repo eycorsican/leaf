@@ -151,6 +151,7 @@ impl NatManager {
                             );
                         }
 
+                        // dns query
                         if addr.port() == 53 {
                             sessions.lock().await.remove(&raddr);
                             break;
@@ -192,7 +193,7 @@ impl NatManager {
                 }
                 let addr = match pkt.dst_addr {
                     Some(a) => match a {
-                        SocksAddr::Ip(v) => v,
+                        SocksAddr::Ip(a) => a,
                         _ => {
                             warn!("unexpected domain addr");
                             continue;

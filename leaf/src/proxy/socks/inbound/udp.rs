@@ -30,19 +30,19 @@ pub fn new(listen: String, port: u16, nat_manager: Arc<NatManager>) -> Result<Ru
         tokio::spawn(async move {
             while let Some(pkt) = client_ch_rx.recv().await {
                 let dst_addr = match pkt.dst_addr {
-                    Some(a) => a,
+                    Some(a) => match a {
+                        SocksAddr::Ip(a) => a,
+                        _ => {
+                            warn!("unexpected domain addr");
+                            continue;
+                        }
+                    },
                     None => {
                         warn!("ignore udp pkt with unexpected empty dst addr");
                         continue;
                     }
                 };
-                let dst_addr = match dst_addr {
-                    SocksAddr::Ip(a) => a,
-                    _ => {
-                        error!("unexpected domain address");
-                        continue;
-                    }
-                };
+
                 let mut buf = BytesMut::new();
                 buf.put_u16(0);
                 buf.put_u8(0);
