@@ -67,6 +67,27 @@ impl FakeDns {
         }
     }
 
+    fn accept(&self, domain: &str) -> bool {
+        match self.mode {
+            FakeDnsMode::Exclude => {
+                for d in &self.domains {
+                    if domain.contains(d) || d == "*" {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            FakeDnsMode::Include => {
+                for d in &self.domains {
+                    if domain.contains(d) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+    }
+
     pub fn generate_fake_response(&mut self, request: &[u8]) -> Result<Vec<u8>> {
         let req = Message::from_vec(request)?;
 
@@ -97,21 +118,8 @@ impl FakeDns {
             raw_name.to_ascii()
         };
 
-        match self.mode {
-            FakeDnsMode::Exclude => {
-                for d in &self.domains {
-                    if domain.contains(d) || d == "*" {
-                        return Err(anyhow!("domain {} excluded", domain));
-                    }
-                }
-            }
-            FakeDnsMode::Include => {
-                for d in &self.domains {
-                    if !domain.contains(d) {
-                        return Err(anyhow!("domain {} not included", domain));
-                    }
-                }
-            }
+        if !self.accept(&domain) {
+            return Err(anyhow!("domain {} not accepted", domain));
         }
 
         let ip = self.allocate_ip(&domain);
