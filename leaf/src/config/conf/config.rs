@@ -28,6 +28,7 @@ pub struct General {
     pub dns_server: Option<Vec<String>>,
     pub dns_interface: Option<String>,
     pub always_real_ip: Option<Vec<String>>,
+    pub always_fake_ip: Option<Vec<String>>,
     pub interface: Option<String>,
     pub port: Option<u16>,
     pub socks_interface: Option<String>,
@@ -243,6 +244,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "always-real-ip" => {
                 general.always_real_ip = get_char_sep_slice(parts[1], ',');
+            }
+            "always-fake-ip" => {
+                general.always_fake_ip = get_char_sep_slice(parts[1], ',');
             }
             "interface" => {
                 general.interface = get_string(parts[1]);
@@ -561,6 +565,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "tun".to_string();
             let mut settings = internal::TUNInboundSettings::new();
+
             let mut fake_dns_exclude = protobuf::RepeatedField::new();
             if let Some(ext_always_real_ip) = &ext_general.always_real_ip {
                 for item in ext_always_real_ip {
@@ -568,6 +573,16 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                 }
                 if fake_dns_exclude.len() > 0 {
                     settings.fake_dns_exclude = fake_dns_exclude;
+                }
+            }
+
+            let mut fake_dns_include = protobuf::RepeatedField::new();
+            if let Some(ext_always_fake_ip) = &ext_general.always_fake_ip {
+                for item in ext_always_fake_ip {
+                    fake_dns_include.push(item.clone())
+                }
+                if fake_dns_include.len() > 0 {
+                    settings.fake_dns_include = fake_dns_include;
                 }
             }
 
