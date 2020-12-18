@@ -56,21 +56,33 @@ iOS TF 测试公开链接：https://testflight.apple.com/join/std0FFCS
 loglevel = info
 dns-server = 114.114.114.114, 223.5.5.5
 always-real-ip = tracker, apple.com
+
+# Local HTTP CONNECT proxy
 interface = 127.0.0.1
 port = 1087
+
+# Local SOCKS5 proxy with UDP Associate support
 socks-interface = 127.0.0.1
 socks-port = 1086
 
 [Proxy]
 Direct = direct
 Reject = reject
+
+# Shadowsocks
 SS = ss, 1.2.3.4, 8485, encrypt-method=chacha20-ietf-poly1305, password=123456
 
+# VMess
 VMess = vmess, my.domain.com, 8001, username=0eb5486e-e1b5-49c5-aa75-d15e54dfac9d
 
+# VMess over WebSocket over TLS (TLS + WebSocket + VMess)
 VMessWSS = vmess, my.domain.com, 443, username=0eb5486e-e1b5-49c5-aa75-d15e54dfac9d, ws=true, tls=true, ws-path=/v2
 
+# Trojan (with TLS)
 Trojan = trojan, 4.3.2.1, 443, password=123456, sni=www.domain.com
+
+# Trojan over WebSocket over TLS (TLS + WebSocket + Trojan)
+TrojanWS = trojan, 4.3.2.1, 443, password=123456, sni=www.domain.com, ws=true, ws-path=/abc
 
 [Proxy Group]
 # fallback 等效于 failover

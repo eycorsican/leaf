@@ -663,6 +663,20 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     tls_outbound.settings = tls_settings;
                     tls_outbound.tag = format!("{}_tls_xxx", ext_proxy.tag.clone());
 
+                    // ws
+                    let mut ws_outbound = internal::Outbound::new();
+                    ws_outbound.protocol = "ws".to_string();
+                    ws_outbound.bind = ext_proxy.interface.clone();
+                    let mut ws_settings = internal::WebSocketOutboundSettings::new();
+                    if let Some(ext_ws_path) = &ext_proxy.ws_path {
+                        ws_settings.path = ext_ws_path.clone();
+                    } else {
+                        ws_settings.path = "/".to_string();
+                    }
+                    let ws_settings = ws_settings.write_to_bytes().unwrap();
+                    ws_outbound.settings = ws_settings;
+                    ws_outbound.tag = format!("{}_ws_xxx", ext_proxy.tag.clone());
+
                     // plain trojan
                     let mut settings = internal::TrojanOutboundSettings::new();
                     if let Some(ext_address) = &ext_proxy.address {
@@ -683,6 +697,9 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     chain_outbound.tag = ext_proxy.tag.clone();
                     let mut chain_settings = internal::ChainOutboundSettings::new();
                     chain_settings.actors.push(tls_outbound.tag.clone());
+                    if ext_proxy.ws.unwrap() {
+                        chain_settings.actors.push(ws_outbound.tag.clone());
+                    }
                     chain_settings.actors.push(outbound.tag.clone());
                     let chain_settings = chain_settings.write_to_bytes().unwrap();
                     chain_outbound.settings = chain_settings;
@@ -693,6 +710,9 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     // the chain outbound will be the default one to use
                     outbounds.push(chain_outbound);
                     outbounds.push(tls_outbound);
+                    if ext_proxy.ws.unwrap() {
+                        outbounds.push(ws_outbound);
+                    }
                     outbounds.push(outbound);
                 }
                 "vmess" => {
