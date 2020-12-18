@@ -1,7 +1,6 @@
-pub mod tcp;
-pub mod udp;
-
-pub use tcp::Handler as TcpHandler;
-pub use udp::Handler as UdpHandler;
+#[cfg(feature = "inbound-trojan")]
+pub mod inbound;
+#[cfg(feature = "outbound-trojan")]
+pub mod outbound;
 
 pub static NAME: &str = "trojan";

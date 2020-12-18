@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::net::TcpStream;
 
 use crate::{
-    proxy::{stream::SimpleStream, ProxyStream, ProxyTcpHandler},
+    proxy::{stream::SimpleProxyStream, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -16,7 +16,7 @@ pub struct Handler {
 }
 
 #[async_trait]
-impl ProxyTcpHandler for Handler {
+impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -25,12 +25,12 @@ impl ProxyTcpHandler for Handler {
         None
     }
 
-    async fn handle<'a>(
+    async fn handle_tcp<'a>(
         &'a self,
         _sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyStream>> {
         let stream = TcpStream::connect(format!("{}:{}", self.address, self.port)).await?;
-        Ok(Box::new(SimpleStream(stream)))
+        Ok(Box::new(SimpleProxyStream(stream)))
     }
 }

@@ -6,7 +6,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
-use crate::common::fake_dns::FakeDns;
+use crate::app::fake_dns::FakeDns;
 
 use super::stack_impl::NetStackImpl;
 

@@ -1,126 +1,109 @@
+use std::cmp::min;
 use std::convert::TryFrom;
-use std::sync::Arc;
+use std::io;
+use std::net::SocketAddr;
 
-use anyhow::Result;
+use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use log::*;
-use tokio::net::UdpSocket;
-use tokio::sync::mpsc::channel as tokio_channel;
-use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 
 use crate::{
-    app::nat_manager::{NatManager, UdpPacket},
-    session::{Session, SocksAddr, SocksAddrWireType},
-    Runner,
+    proxy::{InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, UdpInboundHandler},
+    session::{SocksAddr, SocksAddrWireType},
 };
 
-pub fn new(listen: String, port: u16, nat_manager: Arc<NatManager>) -> Result<Runner> {
-    let t = async move {
-        let socket = UdpSocket::bind(format!("{}:{}", listen, port))
-            .await
-            .unwrap();
-        info!("socks inbound listening udp {}:{}", listen.clone(), port);
+pub struct Handler;
 
-        let (mut client_sock_recv, mut client_sock_send) = socket.split();
-
-        let (client_ch_tx, mut client_ch_rx): (TokioSender<UdpPacket>, TokioReceiver<UdpPacket>) =
-            tokio_channel(100);
-
-        // downlink
-        tokio::spawn(async move {
-            while let Some(pkt) = client_ch_rx.recv().await {
-                let dst_addr = match pkt.dst_addr {
-                    Some(a) => a,
-                    None => {
-                        warn!("ignore udp pkt with unexpected empty dst addr");
-                        continue;
-                    }
-                };
-                let dst_addr = match dst_addr {
-                    SocksAddr::Ip(a) => a,
-                    _ => {
-                        error!("unexpected domain address");
-                        continue;
-                    }
-                };
-                let mut buf = BytesMut::new();
-                buf.put_u16(0);
-                buf.put_u8(0);
-                let src_addr = match pkt.src_addr {
-                    Some(a) => a,
-                    None => {
-                        warn!("ignore udp pkt with unexpected empty src addr");
-                        continue;
-                    }
-                };
-                if let Err(e) = src_addr.write_buf(&mut buf, SocksAddrWireType::PortLast) {
-                    warn!("write address failed: {}", e);
-                    continue;
-                }
-                buf.put_slice(&pkt.data);
-                if let Err(e) = client_sock_send.send_to(&buf[..], &dst_addr).await {
-                    warn!("send udp pkt failed: {}", e);
-                    return;
-                }
-            }
-            error!("unexpected udp downlink ended");
-        });
-
-        let mut buf = [0u8; 2 * 1024];
-        loop {
-            match client_sock_recv.recv_from(&mut buf).await {
-                Err(e) => {
-                    error!("udp recv error: {}", e);
-                    break;
-                }
-                Ok((n, src_addr)) => {
-                    if n < 3 {
-                        warn!("recv short udp pkt");
-                        continue;
-                    }
-
-                    let dst_addr =
-                        match SocksAddr::try_from((&buf[3..], SocksAddrWireType::PortLast)) {
-                            Ok(v) => v,
-                            Err(e) => {
-                                warn!("read address failed: {}", e);
-                                continue;
-                            }
-                        };
-
-                    if !nat_manager.contains_key(&src_addr).await {
-                        let sess = Session {
-                            source: src_addr,
-                            destination: dst_addr.clone(),
-                        };
-
-                        if nat_manager
-                            .add_session(&sess, src_addr, client_ch_tx.clone())
-                            .await
-                            .is_err()
-                        {
-                            continue; // dispatch failed
-                        }
-
-                        debug!(
-                            "udp session {}:{} -> {} ({})",
-                            &src_addr.ip(),
-                            &src_addr.port(),
-                            &dst_addr.to_string(),
-                            nat_manager.size().await,
-                        );
-                    }
-
-                    let pkt = UdpPacket {
-                        data: (&buf[3 + dst_addr.size()..n]).to_vec(),
-                        src_addr: Some(SocksAddr::from(src_addr)),
-                        dst_addr: Some(dst_addr),
-                    };
-                    nat_manager.send(&src_addr, pkt).await;
-                }
-            }
+#[async_trait]
+impl UdpInboundHandler for Handler {
+    async fn handle_udp<'a>(
+        &'a self,
+        socket: Option<Box<dyn InboundDatagram>>,
+    ) -> io::Result<Box<dyn InboundDatagram>> {
+        if let Some(socket) = socket {
+            Ok(Box::new(Datagram { socket }))
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "invalid input"))
         }
-    };
+    }
+}
 
-    Ok(Box::pin(t))
+pub struct Datagram {
+    socket: Box<dyn InboundDatagram>,
+}
+
+impl InboundDatagram for Datagram {
+    fn split(
+        self: Box<Self>,
+    ) -> (
+        Box<dyn InboundDatagramRecvHalf>,
+        Box<dyn InboundDatagramSendHalf>,
+    ) {
+        let (rh, sh) = self.socket.split();
+        (
+            Box::new(DatagramRecvHalf(rh)),
+            Box::new(DatagramSendHalf(sh)),
+        )
+    }
+}
+
+pub struct DatagramRecvHalf(Box<dyn InboundDatagramRecvHalf>);
+
+#[async_trait]
+impl InboundDatagramRecvHalf for DatagramRecvHalf {
+    async fn recv_from(
+        &mut self,
+        buf: &mut [u8],
+    ) -> io::Result<(usize, SocketAddr, Option<SocksAddr>)> {
+        let mut recv_buf = [0u8; 2 * 1024];
+        let (n, src_addr, _) = self.0.recv_from(&mut recv_buf).await?;
+        if n < 3 {
+            return Err(io::Error::new(io::ErrorKind::Other, "recv short udp pkt"));
+        }
+        let dst_addr = match SocksAddr::try_from((&recv_buf[3..], SocksAddrWireType::PortLast)) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("read address failed: {}", e),
+                ));
+            }
+        };
+        let header_size = 3 + dst_addr.size();
+        let payload_size = n - header_size;
+        let to_recv = min(buf.len(), payload_size);
+        if to_recv < payload_size {
+            warn!("truncated pkt");
+        }
+        (&mut buf[..to_recv]).copy_from_slice(&recv_buf[header_size..header_size + to_recv]);
+        Ok((payload_size, src_addr, Some(dst_addr)))
+    }
+}
+
+pub struct DatagramSendHalf(Box<dyn InboundDatagramSendHalf>);
+
+#[async_trait]
+impl InboundDatagramSendHalf for DatagramSendHalf {
+    async fn send_to(
+        &mut self,
+        buf: &[u8],
+        src_addr: Option<&SocksAddr>,
+        dst_addr: &SocketAddr,
+    ) -> io::Result<usize> {
+        let mut send_buf = BytesMut::new();
+        send_buf.put_u16(0);
+        send_buf.put_u8(0);
+
+        if let Some(src_addr) = src_addr {
+            src_addr.write_buf(&mut send_buf, SocksAddrWireType::PortLast)?;
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "sending message without source",
+            ));
+        }
+
+        send_buf.put_slice(buf);
+        self.0.send_to(&send_buf[..], None, dst_addr).await
+    }
 }

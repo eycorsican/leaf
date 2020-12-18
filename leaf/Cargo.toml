@@ -24,6 +24,9 @@ all-configs = [
 ]
 all-endpoints = [
     # inbounds
+    "inbound-chain",
+    "inbound-ws",
+    "inbound-trojan",
     "inbound-http",
     "inbound-socks",
     "inbound-tun",
@@ -75,9 +78,12 @@ outbound-tryall = []
 outbound-chain = []
 
 # Inbounds
+inbound-trojan = ["sha2", "hex"]
 inbound-socks = []
 inbound-http = ["hyper"]
 inbound-tun = ["tun"]
+inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
+inbound-chain = []
 
 [dependencies]
 # Common

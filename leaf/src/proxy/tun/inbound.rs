@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::{sink::SinkExt, stream::StreamExt};
 use log::*;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
@@ -9,8 +9,8 @@ use tun::{self, Device, TunPacket};
 
 use crate::{
     app::dispatcher::Dispatcher,
+    app::fake_dns::{FakeDns, FakeDnsMode},
     app::nat_manager::NatManager,
-    common::fake_dns::FakeDns,
     config::{Inbound, TUNInboundSettings},
     Runner,
 };
@@ -56,14 +56,27 @@ pub fn new(
     //     cfg.packet_information(true);
     // });
 
+    // FIXME it's a bad design to have 2 lists in config while we need only one
     let fake_dns_exclude = settings.fake_dns_exclude;
+    let fake_dns_include = settings.fake_dns_include;
+    if !fake_dns_exclude.is_empty() && !fake_dns_include.is_empty() {
+        return Err(anyhow!(
+            "fake DNS run in either include mode or exclude mode"
+        ));
+    }
+    let (fake_dns_mode, fake_dns_domains) = if !fake_dns_exclude.is_empty() {
+        (FakeDnsMode::Exclude, fake_dns_exclude)
+    } else {
+        (FakeDnsMode::Include, fake_dns_include)
+    };
 
     Ok(Box::pin(async move {
         let tun = tun::create_as_async(&cfg).unwrap();
 
-        let fakedns = Arc::new(TokioMutex::new(FakeDns::new()));
-        for domain in fake_dns_exclude.into_iter() {
-            fakedns.lock().await.exclude(domain);
+        let fakedns = Arc::new(TokioMutex::new(FakeDns::new(fake_dns_mode)));
+
+        for domain in fake_dns_domains.into_iter() {
+            fakedns.lock().await.add(domain);
         }
 
         let stack = NetStack::new(dispatcher, nat_manager, fakedns);

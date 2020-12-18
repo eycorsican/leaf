@@ -8,10 +8,10 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, Wr
 use uuid::Uuid;
 
 use crate::{
-    common::dns_client::DnsClient,
+    app::dns_client::DnsClient,
     proxy::{
-        ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf, ProxyStream, ProxyUdpHandler,
-        UdpTransportType,
+        OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf, OutboundTransport,
+        UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -30,7 +30,7 @@ pub struct Handler {
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -43,12 +43,11 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Stream
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         sess: &'a Session,
-        _datagram: Option<Box<dyn ProxyDatagram>>,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyDatagram>> {
+        transport: Option<OutboundTransport>,
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
         let uuid = Uuid::parse_str(&self.uuid).map_err(|e| {
             io::Error::new(io::ErrorKind::Other, format!("parse uuid failed: {}", e))
         })?;
@@ -109,7 +108,7 @@ impl ProxyUdpHandler for Handler {
             io::Error::new(io::ErrorKind::Other, format!("new decryptor failed: {}", e))
         })?;
 
-        let mut stream = if let Some(stream) = stream {
+        let mut stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream
         } else {
             self.dial_tcp_stream(
@@ -143,15 +142,15 @@ pub struct Datagram<S> {
     target: SocksAddr,
 }
 
-impl<S> ProxyDatagram for Datagram<S>
+impl<S> OutboundDatagram for Datagram<S>
 where
     S: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
 {
     fn split(
         self: Box<Self>,
     ) -> (
-        Box<dyn ProxyDatagramRecvHalf>,
-        Box<dyn ProxyDatagramSendHalf>,
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
     ) {
         let (r, w) = tokio::io::split(self.stream);
         (
@@ -164,7 +163,7 @@ where
 pub struct DatagramRecvHalf<T>(ReadHalf<T>, SocksAddr);
 
 #[async_trait]
-impl<T> ProxyDatagramRecvHalf for DatagramRecvHalf<T>
+impl<T> OutboundDatagramRecvHalf for DatagramRecvHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
@@ -191,7 +190,7 @@ where
 pub struct DatagramSendHalf<T>(WriteHalf<T>);
 
 #[async_trait]
-impl<T> ProxyDatagramSendHalf for DatagramSendHalf<T>
+impl<T> OutboundDatagramSendHalf for DatagramSendHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {

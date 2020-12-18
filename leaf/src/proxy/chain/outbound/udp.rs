@@ -10,17 +10,18 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::UdpSocket;
 
 use crate::{
-    common::dns_client::DnsClient,
+    app::dns_client::DnsClient,
     proxy::{
-        stream::SimpleStream, ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf,
-        ProxyHandler, ProxyStream, ProxyUdpHandler, SimpleDatagram, UdpTransportType,
+        stream::SimpleProxyStream, OutboundDatagram, OutboundDatagramRecvHalf,
+        OutboundDatagramSendHalf, OutboundTransport, OutboundHandler, SimpleOutboundDatagram,
+        UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
 };
 
 struct DatagramToStream {
-    recv: Box<dyn ProxyDatagramRecvHalf>,
-    send: Box<dyn ProxyDatagramSendHalf>,
+    recv: Box<dyn OutboundDatagramRecvHalf>,
+    send: Box<dyn OutboundDatagramSendHalf>,
     target: SocketAddr,
 }
 
@@ -30,7 +31,7 @@ impl AsyncRead for DatagramToStream {
         cx: &mut Context,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        // FIXME use a large internal buffor recv?
+        // FIXME use an internal buf for overflow data
         let mut recv = self.get_mut().recv.recv_from(buf);
         match recv.as_mut().poll(cx) {
             Poll::Ready(res) => match res {
@@ -64,12 +65,12 @@ impl AsyncWrite for DatagramToStream {
 }
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn ProxyHandler>>,
+    pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub dns_client: Arc<DnsClient>,
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -92,13 +93,12 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Packet
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         sess: &'a Session,
-        _datagram: Option<Box<dyn ProxyDatagram>>,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyDatagram>> {
-        if let Some(mut stream) = stream {
+        transport: Option<OutboundTransport>,
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        if let Some(OutboundTransport::Stream(mut stream)) = transport {
             for (i, a) in self.actors.iter().enumerate() {
                 let mut new_sess = sess.clone();
                 for j in (i + 1)..self.actors.len() {
@@ -112,7 +112,9 @@ impl ProxyUdpHandler for Handler {
                 }
 
                 if i == self.actors.len() - 1 {
-                    let dgram = a.connect(&new_sess, None, Some(stream)).await?;
+                    let dgram = a
+                        .handle_udp(&new_sess, Some(OutboundTransport::Stream(stream)))
+                        .await?;
                     return Ok(dgram);
                 } else {
                     let mut transport_type: UdpTransportType = UdpTransportType::Packet;
@@ -123,16 +125,17 @@ impl ProxyUdpHandler for Handler {
                     }
                     match transport_type {
                         UdpTransportType::Stream => {
-                            stream = a.handle(&new_sess, Some(stream)).await?;
+                            stream = a.handle_tcp(&new_sess, Some(stream)).await?;
                         }
                         UdpTransportType::Packet => {
-                            let dgram = a.connect(&new_sess, None, Some(stream)).await?;
+                            let dgram = a
+                                .handle_udp(&new_sess, Some(OutboundTransport::Stream(stream)))
+                                .await?;
                             let (r, s) = dgram.split();
-                            stream = Box::new(SimpleStream(DatagramToStream {
+                            stream = Box::new(SimpleProxyStream(DatagramToStream {
                                 recv: r,
                                 send: s,
                                 target: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
-                                // target: new_sess.destination.must_ip(), // FIXME
                             }));
                         }
                         UdpTransportType::Unknown => {
@@ -162,7 +165,7 @@ impl ProxyUdpHandler for Handler {
                 }
             }
             let socket = UdpSocket::bind(bind_addr).await?;
-            let mut dgram: Box<dyn ProxyDatagram> = Box::new(SimpleDatagram(socket));
+            let mut dgram: Box<dyn OutboundDatagram> = Box::new(SimpleOutboundDatagram(socket));
 
             for (i, a) in self.actors.iter().enumerate() {
                 let mut new_sess = sess.clone();
@@ -175,7 +178,9 @@ impl ProxyUdpHandler for Handler {
                         }
                     }
                 }
-                dgram = a.connect(&new_sess, Some(dgram), None).await?;
+                dgram = a
+                    .handle_udp(&new_sess, Some(OutboundTransport::Datagram(dgram)))
+                    .await?;
             }
             return Ok(dgram);
         }
@@ -185,7 +190,7 @@ impl ProxyUdpHandler for Handler {
                 let mut stream = self
                     .dial_tcp_stream(self.dns_client.clone(), &bind_addr, &connect_addr, &port)
                     .await?;
-                let mut datagram: Option<Box<dyn ProxyDatagram>> = None;
+                let mut datagram: Option<Box<dyn OutboundDatagram>> = None;
 
                 let mut last_index = 0;
 
@@ -204,8 +209,15 @@ impl ProxyUdpHandler for Handler {
                     }
 
                     if i == self.actors.len() - 1 {
-                        let dgram = a.connect(&new_sess, datagram, Some(stream)).await?;
-                        return Ok(dgram);
+                        if let Some(d) = datagram {
+                            return a
+                                .handle_udp(&new_sess, Some(OutboundTransport::Datagram(d)))
+                                .await;
+                        } else {
+                            return a
+                                .handle_udp(&new_sess, Some(OutboundTransport::Stream(stream)))
+                                .await;
+                        }
                     } else {
                         let mut transport_type: UdpTransportType = UdpTransportType::Packet;
 
@@ -220,13 +232,28 @@ impl ProxyUdpHandler for Handler {
 
                         match transport_type {
                             UdpTransportType::Stream => {
-                                stream = a.handle(&new_sess, Some(stream)).await?;
+                                stream = a.handle_tcp(&new_sess, Some(stream)).await?;
                             }
                             UdpTransportType::Packet => {
                                 // once a Packet type is encountered, it's guaranteed all
                                 // following actors are Packet type.
-                                datagram =
-                                    Some(a.connect(&new_sess, datagram, Some(stream)).await?);
+                                if let Some(d) = datagram {
+                                    datagram = Some(
+                                        a.handle_udp(
+                                            &new_sess,
+                                            Some(OutboundTransport::Datagram(d)),
+                                        )
+                                        .await?,
+                                    );
+                                } else {
+                                    datagram = Some(
+                                        a.handle_udp(
+                                            &new_sess,
+                                            Some(OutboundTransport::Stream(stream)),
+                                        )
+                                        .await?,
+                                    );
+                                }
                                 break;
                             }
                             UdpTransportType::Unknown => {
@@ -255,10 +282,21 @@ impl ProxyUdpHandler for Handler {
                     }
 
                     if i == self.actors.len() - 1 {
-                        let dgram = self.actors[i].connect(&new_sess, datagram, None).await?;
-                        return Ok(dgram);
+                        return self.actors[i]
+                            .handle_udp(
+                                &new_sess,
+                                Some(OutboundTransport::Datagram(datagram.unwrap())),
+                            )
+                            .await;
                     } else {
-                        datagram = Some(self.actors[i].connect(&new_sess, datagram, None).await?);
+                        datagram = Some(
+                            self.actors[i]
+                                .handle_udp(
+                                    &new_sess,
+                                    Some(OutboundTransport::Datagram(datagram.unwrap())),
+                                )
+                                .await?,
+                        );
                     }
                 }
             }

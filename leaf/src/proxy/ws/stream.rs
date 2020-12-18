@@ -10,21 +10,23 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tungstenite::error::Error as WsError;
 use tungstenite::Message;
 
-pub struct Adapter<S> {
+pub struct WebSocketToStream<S> {
     buf: BytesMut,
     inner: S,
 }
 
-impl<S> Adapter<S> {
+impl<S> WebSocketToStream<S> {
     pub fn new(stream: S) -> Self {
-        Adapter {
+        WebSocketToStream {
             buf: BytesMut::new(),
             inner: stream,
         }
     }
 }
 
-impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRead for Adapter<S> {
+impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRead
+    for WebSocketToStream<S>
+{
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
@@ -88,7 +90,7 @@ impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRe
     }
 }
 
-impl<S: Sink<Message> + Unpin> AsyncWrite for Adapter<S> {
+impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context,

@@ -12,10 +12,10 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 
 use crate::{
-    common::dns_client::DnsClient,
+    app::dns_client::DnsClient,
     proxy::{
-        ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf, ProxyStream, ProxyUdpHandler,
-        UdpTransportType,
+        OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf, OutboundTransport,
+        UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr, SocksAddrWireType},
 };
@@ -29,7 +29,7 @@ pub struct Handler {
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -42,13 +42,12 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Stream
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         sess: &'a Session,
-        _datagram: Option<Box<dyn ProxyDatagram>>,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyDatagram>> {
-        let mut stream = if let Some(stream) = stream {
+        transport: Option<OutboundTransport>,
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        let stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream
         } else {
             self.dial_tcp_stream(
@@ -68,35 +67,41 @@ impl ProxyUdpHandler for Handler {
         sess.destination
             .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
         buf.put_slice(b"\r\n");
-        stream.write_all(&buf).await?;
 
-        Ok(Box::new(Datagram { stream }))
+        Ok(Box::new(Datagram {
+            stream,
+            head: Some(buf),
+        }))
     }
 }
 
 pub struct Datagram<S> {
     stream: S,
+    head: Option<BytesMut>,
 }
 
-impl<S> ProxyDatagram for Datagram<S>
+impl<S> OutboundDatagram for Datagram<S>
 where
     S: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
 {
     fn split(
         self: Box<Self>,
     ) -> (
-        Box<dyn ProxyDatagramRecvHalf>,
-        Box<dyn ProxyDatagramSendHalf>,
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
     ) {
         let (r, w) = tokio::io::split(self.stream);
-        (Box::new(DatagramRecvHalf(r)), Box::new(DatagramSendHalf(w)))
+        (
+            Box::new(DatagramRecvHalf(r)),
+            Box::new(DatagramSendHalf(w, self.head)),
+        )
     }
 }
 
 pub struct DatagramRecvHalf<T>(ReadHalf<T>);
 
 #[async_trait]
-impl<T> ProxyDatagramRecvHalf for DatagramRecvHalf<T>
+impl<T> OutboundDatagramRecvHalf for DatagramRecvHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
@@ -131,20 +136,33 @@ where
     }
 }
 
-pub struct DatagramSendHalf<T>(WriteHalf<T>);
+pub struct DatagramSendHalf<T>(WriteHalf<T>, Option<BytesMut>);
 
 #[async_trait]
-impl<T> ProxyDatagramSendHalf for DatagramSendHalf<T>
+impl<T> OutboundDatagramSendHalf for DatagramSendHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
     async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
+        // FIXME we should calculate the return size more carefully.
+        // max(0, n_written - all_headers_size)
+        let payload_size = buf.len();
+
         let mut data = BytesMut::new();
         let target = SocksAddr::from(target.to_owned());
         target.write_buf(&mut data, SocksAddrWireType::PortLast)?;
         data.put_u16(buf.len() as u16);
         data.put_slice(b"\r\n");
         data.put_slice(buf);
-        self.0.write_all(&data).map_ok(|_| buf.len()).await
+
+        // Writes the header along with the first payload.
+        if self.1.is_some() {
+            if let Some(mut head) = self.1.take() {
+                head.extend_from_slice(&data);
+                return self.0.write_all(&head).map_ok(|_| payload_size).await;
+            }
+        }
+
+        self.0.write_all(&data).map_ok(|_| payload_size).await
     }
 }

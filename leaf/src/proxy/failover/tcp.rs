@@ -9,12 +9,12 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
 
 use crate::{
-    proxy::{ProxyHandler, ProxyStream, ProxyTcpHandler},
+    proxy::{OutboundHandler, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn ProxyHandler>>,
+    pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub fail_timeout: u32,
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
@@ -25,7 +25,7 @@ struct Measure(usize, u128); // (index, duration in millis)
 
 impl Handler {
     pub fn new(
-        actors: Vec<Arc<dyn ProxyHandler>>,
+        actors: Vec<Arc<dyn OutboundHandler>>,
         fail_timeout: u32,
         health_check: bool,
         check_interval: u32,
@@ -48,10 +48,11 @@ impl Handler {
                         let single_measure = async move {
                             let sess = Session {
                                 source: "0.0.0.0:0".parse().unwrap(),
+                                local_addr: "0.0.0.0:0".parse().unwrap(),
                                 destination: SocksAddr::Domain("www.google.com".to_string(), 80),
                             };
                             let start = tokio::time::Instant::now();
-                            match a.handle(&sess, None).await {
+                            match a.handle_tcp(&sess, None).await {
                                 Ok(mut stream) => {
                                     if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
                                         return Measure(i, u128::MAX - 2); // handshake is ok
@@ -135,7 +136,7 @@ impl Handler {
 }
 
 #[async_trait]
-impl ProxyTcpHandler for Handler {
+impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -144,7 +145,7 @@ impl ProxyTcpHandler for Handler {
         None
     }
 
-    async fn handle<'a>(
+    async fn handle_tcp<'a>(
         &'a self,
         sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
@@ -162,9 +163,14 @@ impl ProxyTcpHandler for Handler {
                 return Err(io::Error::new(io::ErrorKind::Other, "invalid actor index"));
             }
 
+            debug!(
+                "failover handles tcp [{}] to [{}]",
+                sess.destination,
+                self.actors[i].tag()
+            );
             match timeout(
                 time::Duration::from_secs(self.fail_timeout as u64),
-                (&self.actors[i]).handle(sess, None),
+                (&self.actors[i]).handle_tcp(sess, None),
             )
             .await
             {

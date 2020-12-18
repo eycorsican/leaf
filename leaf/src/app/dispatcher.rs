@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use byteorder::{BigEndian, ByteOrder};
 use bytes::BytesMut;
-use futures::future::{self, try_select, Either, Future, FutureExt, TryFutureExt};
+use futures::future::{self, try_select, Either, Future, FutureExt};
 use futures::ready;
 use log::*;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
@@ -19,11 +19,11 @@ use colored::Colorize;
 
 use crate::{
     option,
-    proxy::{stream::SimpleStream, ProxyDatagram, ProxyHandlerType, ProxyStream},
+    proxy::{stream::SimpleProxyStream, OutboundDatagram, ProxyHandlerType, ProxyStream},
     session::{Session, SocksAddr},
 };
 
-use super::handler_manager::HandlerManager;
+use super::outbound::manager::OutboundManager;
 use super::router::Router;
 
 struct SniffingStream<T> {
@@ -317,7 +317,7 @@ fn log_udp(tag: &str, tag_color: colored::Color, handshake_time: u128, addr: &So
 }
 
 pub struct Dispatcher {
-    handler_manager: HandlerManager,
+    outbound_manager: OutboundManager,
     router: Router,
     endpoint_tcp_tx: TokioMutex<Sender<bool>>,
     endpoint_tcp_rx: TokioMutex<Receiver<bool>>,
@@ -328,11 +328,11 @@ pub struct Dispatcher {
 }
 
 impl Dispatcher {
-    pub fn new(handler_manager: HandlerManager, router: Router) -> Self {
+    pub fn new(outbound_manager: OutboundManager, router: Router) -> Self {
         let (endpoint_tcp_tx, endpoint_tcp_rx) = mpsc::channel(option::ENDPOINT_TCP_CONCURRENCY);
         let (direct_tcp_tx, direct_tcp_rx) = mpsc::channel(option::DIRECT_TCP_CONCURRENCY);
         Dispatcher {
-            handler_manager,
+            outbound_manager,
             router,
             endpoint_tcp_tx: TokioMutex::new(endpoint_tcp_tx),
             endpoint_tcp_rx: TokioMutex::new(endpoint_tcp_rx),
@@ -399,14 +399,14 @@ impl Dispatcher {
     {
         let lhs: Box<dyn ProxyStream> =
             if sess.destination.is_domain() && sess.destination.port() == 443 {
-                Box::new(SimpleStream(lhs))
+                Box::new(SimpleProxyStream(lhs))
             } else {
                 let mut lhs = SniffingStream::new(lhs);
                 if let Some(domain) = lhs.sniff().await? {
                     debug!("sniffed domain {}", &domain);
                     sess.destination = SocksAddr::from((domain, sess.destination.port()));
                 }
-                Box::new(SimpleStream(lhs))
+                Box::new(SimpleProxyStream(lhs))
             };
 
         let outbound = match self.router.pick_route(&sess) {
@@ -419,7 +419,7 @@ impl Dispatcher {
             }
             Err(err) => {
                 trace!("pick route failed: {}", err);
-                if let Some(tag) = self.handler_manager.default_handler() {
+                if let Some(tag) = self.outbound_manager.default_handler() {
                     debug!(
                         "picked default route [{}] for {} -> {}",
                         tag, &sess.source, &sess.destination
@@ -432,7 +432,7 @@ impl Dispatcher {
         };
 
         let handshake_start = tokio::time::Instant::now();
-        if let Some(h) = self.handler_manager.get(outbound) {
+        if let Some(h) = self.outbound_manager.get(outbound) {
             match h.handler_type() {
                 ProxyHandlerType::Direct => self.dispatch_direct_tcp_start().await,
                 ProxyHandlerType::Endpoint | ProxyHandlerType::Ensemble => {
@@ -440,7 +440,7 @@ impl Dispatcher {
                 }
             }
 
-            match h.handle(sess, None).await {
+            match h.handle_tcp(sess, None).await {
                 Ok(rhs) => {
                     let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
                     log_tcp(h.tag(), h.color(), elapsed.as_millis(), &sess.destination);
@@ -461,24 +461,40 @@ impl Dispatcher {
                             Ok(Either::Left((up_n, r2l))) => {
                                 let timed_r2l =
                                     timeout(Duration::from_secs(option::TCP_DOWNLINK_TIMEOUT), r2l);
-                                let timed_r2l = timed_r2l.map_ok(move |down_res| match down_res {
-                                    Ok(down_n) => (Ok(up_n), Ok(down_n)),
-                                    Err(down_e) => (Ok(up_n), Err(down_e)),
-                                });
-                                let timed_r2l = timed_r2l.map_err(|_to| {
-                                    io::Error::new(io::ErrorKind::TimedOut, "downlink timeout")
+                                let timed_r2l = timed_r2l.map(move |timed_res| match timed_res {
+                                    Ok(down_res) => match down_res {
+                                        Ok(down_n) => Ok((Ok(up_n), Ok(down_n))),
+                                        Err(down_e) => Ok((Ok(up_n), Err(down_e))),
+                                    },
+                                    // FIXME We should call poll_shutdown() on the writer here,
+                                    // transports such as WebSocket expects a close frame before
+                                    // closing the underlying stream, calling shutdown will do
+                                    // that.
+                                    Err(_to_e) => Ok((
+                                        Ok(up_n),
+                                        Err(io::Error::new(
+                                            io::ErrorKind::TimedOut,
+                                            "downlink timeout",
+                                        )),
+                                    )),
                                 });
                                 Box::new(timed_r2l)
                             }
                             Ok(Either::Right((down_n, l2r))) => {
                                 let timed_l2r =
                                     timeout(Duration::from_secs(option::TCP_UPLINK_TIMEOUT), l2r);
-                                let timed_l2r = timed_l2r.map_ok(move |up_res| match up_res {
-                                    Ok(up_n) => (Ok(up_n), Ok(down_n)),
-                                    Err(up_e) => (Err(up_e), Ok(down_n)),
-                                });
-                                let timed_l2r = timed_l2r.map_err(|_to| {
-                                    io::Error::new(io::ErrorKind::TimedOut, "uplink timeout")
+                                let timed_l2r = timed_l2r.map(move |timed_res| match timed_res {
+                                    Ok(up_res) => match up_res {
+                                        Ok(up_n) => Ok((Ok(up_n), Ok(down_n))),
+                                        Err(up_e) => Ok((Err(up_e), Ok(down_n))),
+                                    },
+                                    Err(_to_e) => Ok((
+                                        Err(io::Error::new(
+                                            io::ErrorKind::TimedOut,
+                                            "uplink timeout",
+                                        )),
+                                        Ok(down_n),
+                                    )),
                                 });
                                 Box::new(timed_l2r)
                             }
@@ -583,7 +599,7 @@ impl Dispatcher {
         }
     }
 
-    pub async fn dispatch_udp(&self, sess: &Session) -> io::Result<Box<dyn ProxyDatagram>> {
+    pub async fn dispatch_udp(&self, sess: &Session) -> io::Result<Box<dyn OutboundDatagram>> {
         let outbound = match self.router.pick_route(&sess) {
             Ok(tag) => {
                 debug!(
@@ -594,7 +610,7 @@ impl Dispatcher {
             }
             Err(err) => {
                 trace!("pick route failed: {}", err);
-                if let Some(tag) = self.handler_manager.default_handler() {
+                if let Some(tag) = self.outbound_manager.default_handler() {
                     debug!(
                         "picked default route [{}] for {} -> {}",
                         tag, &sess.source, &sess.destination
@@ -608,8 +624,8 @@ impl Dispatcher {
 
         let handshake_start = tokio::time::Instant::now();
 
-        if let Some(h) = self.handler_manager.get(outbound) {
-            match h.connect(sess, None, None).await {
+        if let Some(h) = self.outbound_manager.get(outbound) {
+            match h.handle_udp(sess, None).await {
                 Ok(c) => {
                     let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
                     log_udp(h.tag(), h.color(), elapsed.as_millis(), &sess.destination);

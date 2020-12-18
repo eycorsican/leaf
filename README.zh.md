@@ -13,6 +13,9 @@ Leaf 是一个轻量且快速的代理工具。
 - [Inbounds](#inbounds)
   * [http](#http)
   * [socks](#socks)
+  * [trojan](#trojan)
+  * [ws](#ws)
+  * [chain](#chain)
 - [Outbounds](#outbounds)
   * [direct](#direct)
   * [drop](#drop)
@@ -120,17 +123,14 @@ JSON 配置文件目前不考虑兼容性，每个版本都可能会变。
     },
     "inbounds": [
         {
-            "listen": "127.0.0.1",
+            "address": "127.0.0.1",
             "port": 1087,
             "protocol": "http"
         },
         {
-            "listen": "127.0.0.1",
+            "address": "127.0.0.1",
             "port": 1086,
-            "protocol": "socks",
-            "settings": {
-                "bind": "127.0.0.1"
-            }
+            "protocol": "socks"
         }
     ],
     "outbounds": [
@@ -310,7 +310,7 @@ inbounds 是一个数组，每一项可以是以下：
 ```json
 {
     "protocol": "http",
-    "listen": "127.0.0.1",
+    "address": "127.0.0.1",
     "port": 1087
 }
 ```
@@ -322,15 +322,91 @@ inbounds 是一个数组，每一项可以是以下：
 ```json
 {
     "protocol": "socks",
-    "listen": "127.0.0.1",
-    "port": 1086,
-    "settings": {
-        "bind": "127.0.0.1"
-    }
+    "address": "127.0.0.1",
+    "port": 1086
 }
 ```
 
 默认支持 UDP。
+
+### trojan
+
+```json
+{
+    "protocol": "trojan",
+    "address": "127.0.0.1",
+    "port": 10086,
+    "settings": {
+        "password": "123456"
+    }
+}
+```
+
+### ws
+
+WebSocket 传输，一般在 `chain` 叠加到其它代理协议上。
+
+```json
+{
+    "protocol": "ws",
+    "settings": {
+        "path": "/abc"
+    }
+}
+```
+
+### chain
+
+`chain` 可以对多个协议进行叠加。
+
+```json
+{
+    "protocol": "chain",
+    "address": "127.0.0.1",
+    "port": 10086,
+    "settings": {
+        "actors": [
+            "ws_out",
+            "trojan_out"
+        ]
+    }
+}
+```
+
+例如这是一个 WebSocket + Trojan 配置：
+
+```json
+"inbounds": [
+    {
+        "protocol": "chain",
+        "tag": "ws_trojan_in",
+        "address": "127.0.0.1",
+        "port": 4003,
+        "settings": {
+            "actors": [
+                "ws_in",
+                "trojan_in"
+            ]
+        }
+    },
+    {
+        "protocol": "ws",
+        "tag": "ws_in",
+        "settings": {
+            "path": "/abc"
+        }
+    },
+    {
+        "protocol": "trojan",
+        "tag": "trojan_in",
+        "settings": {
+            "password": "12345"
+        }
+    }
+]
+```
+
+注意上面配置示例没有 TLS，一般可以交给 nginx 来处理。
 
 ## Outbounds
 
@@ -487,7 +563,6 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
 `security`：
 - chacha20-ietf-poly1305
 - aes-128-gcm
-- aes-256-gcm
 
 ### trojan
 
@@ -802,10 +877,8 @@ V2Ray 的 `dat` 文件格式，可以有如下形式：
             "netmask": "255.255.255.0",
             "gateway": "10.10.0.1",
             "mtu": 1500,
-            "fakeDnsExclude": [
-                "tracker",
-                "time.asia.apple.com",
-                "mesu.apple.com"
+            "fakeDnsInclude": [
+                "google"
             ]
         },
         "tag": "tun_in"
@@ -817,7 +890,10 @@ V2Ray 的 `dat` 文件格式，可以有如下形式：
 
 - `name` 在 macOS 上必须是 `utun` 开头后加一个数字，在 Linux 上必须是 `tun` 开头后加一个数字
 - `address` `netmask` `gateway` `mtu` TUN 接口的一些参数
-- `fakeDnsExclude` 使用 TUN Inbound 将默认使用 `FakeDNS` 功能，这个列表可以将某些域名排除在外，**目前**处理使用域名的 UDP 请求会有问题，所以需要排除
+- `fakeDnsInclude` 使用 TUN Inbound 将默认使用 `FakeDNS` 功能，这个列表可以指定哪些域名会返回伪造 IP，以关键字方式匹配，未指定的域名将不受影响。
+- `fakeDnsExclude` 使用 TUN Inbound 将默认使用 `FakeDNS` 功能，这个列表可以将某些域名排除在外，以关键字方式匹配，未指定的域名将会返回伪造的 IP。
+
+`fakeDnsInclude` 和 `fakeDnsExclude` 只能二选一，这个配置方式将来大概率会改。
 
 在 macOS 上还不能自动配置地址需要手动：sudo ifconfig utun7 10.10.0.2 netmask 255.255.255.0 10.10.0.1
 

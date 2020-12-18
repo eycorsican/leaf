@@ -15,7 +15,7 @@ use crate::common::crypto::{
     aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
     Cipher, Decryptor, Encryptor, SizedCipher,
 };
-use crate::proxy::{ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf};
+use crate::proxy::{OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf};
 
 use super::crypto::{hkdf_sha1, kdf, ShadowsocksNonceSequence};
 
@@ -313,7 +313,7 @@ fn short_packet() -> io::Error {
     io::Error::new(io::ErrorKind::Other, "short packet")
 }
 
-pub struct ShadowedDatagramRecvHalf(Half<Box<dyn ProxyDatagramRecvHalf>>);
+pub struct ShadowedDatagramRecvHalf(Half<Box<dyn OutboundDatagramRecvHalf>>);
 
 impl ShadowedDatagramRecvHalf {
     pub async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
@@ -378,7 +378,7 @@ impl ShadowedDatagramRecvHalf {
     }
 }
 
-pub struct ShadowedDatagramSendHalf(Half<Box<dyn ProxyDatagramSendHalf>>);
+pub struct ShadowedDatagramSendHalf(Half<Box<dyn OutboundDatagramSendHalf>>);
 
 impl ShadowedDatagramSendHalf {
     pub async fn send_to(&mut self, buf: &[u8], addr: &SocketAddr) -> io::Result<usize> {
@@ -429,7 +429,7 @@ impl ShadowedDatagramSendHalf {
 }
 
 pub struct ShadowedDatagram {
-    inner: Box<dyn ProxyDatagram>,
+    inner: Box<dyn OutboundDatagram>,
     cipher: AeadCipher,
     psk: Vec<u8>,
     recv_buf: BytesMut,
@@ -437,7 +437,7 @@ pub struct ShadowedDatagram {
 }
 
 impl ShadowedDatagram {
-    pub fn new(socket: Box<dyn ProxyDatagram>, cipher: &str, password: &str) -> Result<Self> {
+    pub fn new(socket: Box<dyn OutboundDatagram>, cipher: &str, password: &str) -> Result<Self> {
         let cipher =
             AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
         let psk =
@@ -455,7 +455,7 @@ impl ShadowedDatagram {
     /// only used for the buffer's initialization, the buffer actually used will reserve
     /// (allocate extra memory when need) enough space each time sending or receiving packets.
     pub fn with_initial_buffer_size(
-        socket: Box<dyn ProxyDatagram>,
+        socket: Box<dyn OutboundDatagram>,
         cipher: &str,
         password: &str,
         buf_size: usize,

@@ -102,10 +102,6 @@ jobs:
       - name: install llvm
         if: ${{ matrix.os == 'macos-latest' }}
         run: |
-          brew uninstall openssl@1.0.2t
-          brew uninstall python@2.7.17
-          brew untap local/openssl
-          brew untap local/python2
           brew update && brew install llvm protobuf
 
       - name: build
@@ -141,10 +137,6 @@ jobs:
           rustup target add aarch64-apple-ios
           cargo install cargo-lipo
           cargo install cbindgen
-          brew uninstall openssl@1.0.2t
-          brew uninstall python@2.7.17
-          brew untap local/openssl
-          brew untap local/python2
           brew update && brew install llvm unzip protobuf
 
       - name: build
@@ -282,10 +274,6 @@ jobs:
 
       - name: install deps
         run: |
-          brew uninstall openssl@1.0.2t
-          brew uninstall python@2.7.17
-          brew untap local/openssl
-          brew untap local/python2
           brew update && brew install unzip
 
       - name: download asset

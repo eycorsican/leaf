@@ -11,10 +11,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::UdpSocket;
 
 use crate::{
-    common::dns_client::DnsClient,
+    app::dns_client::DnsClient,
     proxy::{
-        ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf, ProxyStream, ProxyUdpHandler,
-        UdpTransportType,
+        OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf, OutboundTransport,
+        UdpOutboundHandler, UdpTransportType,
     },
     session::Session,
 };
@@ -27,7 +27,7 @@ pub struct Handler {
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -40,12 +40,11 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Packet
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         _sess: &'a Session,
-        _datagram: Option<Box<dyn ProxyDatagram>>,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> Result<Box<dyn ProxyDatagram>> {
+        _transport: Option<OutboundTransport>,
+    ) -> Result<Box<dyn OutboundDatagram>> {
         // TODO support chaining, this requires implementing our own socks5 client
         let stream = self
             .dial_tcp_stream(
@@ -67,15 +66,15 @@ pub struct Datagram<S> {
     pub socket: SocksDatagram<S>,
 }
 
-impl<S> ProxyDatagram for Datagram<S>
+impl<S> OutboundDatagram for Datagram<S>
 where
     S: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
 {
     fn split(
         self: Box<Self>,
     ) -> (
-        Box<dyn ProxyDatagramRecvHalf>,
-        Box<dyn ProxyDatagramSendHalf>,
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
     ) {
         let (rh, sh) = self.socket.split();
         (
@@ -90,7 +89,7 @@ pub struct DatagramRecvHalf<S>(SocksDatagramRecvHalf<S>);
 // unsafe impl<S> Send for DatagramRecvHalf<S> {}
 
 #[async_trait]
-impl<S> ProxyDatagramRecvHalf for DatagramRecvHalf<S>
+impl<S> OutboundDatagramRecvHalf for DatagramRecvHalf<S>
 where
     S: 'static + AsyncRead + AsyncWrite + Send + Unpin + Sync,
 {
@@ -115,7 +114,7 @@ pub struct DatagramSendHalf<S>(SocksDatagramSendHalf<S>);
 // unsafe impl<S> Send for DatagramSendHalf<S> {}
 
 #[async_trait]
-impl<S> ProxyDatagramSendHalf for DatagramSendHalf<S>
+impl<S> OutboundDatagramSendHalf for DatagramSendHalf<S>
 where
     S: 'static + AsyncRead + AsyncWrite + Send + Unpin + Sync,
 {

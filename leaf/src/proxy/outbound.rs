@@ -7,18 +7,21 @@ use async_trait::async_trait;
 use crate::session::Session;
 
 use super::{
-    Color, HandlerTyped, ProxyDatagram, ProxyHandler, ProxyHandlerType, ProxyStream,
-    ProxyTcpHandler, ProxyUdpHandler, Tag, UdpTransportType,
+    Color, HandlerTyped, OutboundDatagram, OutboundHandler, OutboundTransport, ProxyHandlerType,
+    ProxyStream, Tag, TcpOutboundHandler, UdpOutboundHandler, UdpTransportType,
 };
 
 pub static NAME: &str = "handler";
 
+/// An outbound handler groups a TCP outbound handler and a UDP outbound
+/// handler.
 pub struct Handler {
     tag: String,
     color: colored::Color,
     handler_type: ProxyHandlerType,
-    tcp_handler: Box<dyn ProxyTcpHandler>,
-    udp_handler: Box<dyn ProxyUdpHandler>,
+    // TODO make handlers optional so we can remove those unimplemented outbounds
+    tcp_handler: Box<dyn TcpOutboundHandler>,
+    udp_handler: Box<dyn UdpOutboundHandler>,
 }
 
 impl Handler {
@@ -26,8 +29,8 @@ impl Handler {
         tag: String,
         color: colored::Color,
         handler_type: ProxyHandlerType,
-        tcp: Box<dyn ProxyTcpHandler>,
-        udp: Box<dyn ProxyUdpHandler>,
+        tcp: Box<dyn TcpOutboundHandler>,
+        udp: Box<dyn UdpOutboundHandler>,
     ) -> Arc<Self> {
         Arc::new(Handler {
             tag,
@@ -39,7 +42,7 @@ impl Handler {
     }
 }
 
-impl ProxyHandler for Handler {}
+impl OutboundHandler for Handler {}
 
 impl Tag for Handler {
     fn tag(&self) -> &String {
@@ -64,7 +67,7 @@ impl HandlerTyped for Handler {
 }
 
 #[async_trait]
-impl ProxyTcpHandler for Handler {
+impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         NAME
     }
@@ -73,17 +76,17 @@ impl ProxyTcpHandler for Handler {
         self.tcp_handler.tcp_connect_addr()
     }
 
-    async fn handle<'a>(
+    async fn handle_tcp<'a>(
         &'a self,
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyStream>> {
-        self.tcp_handler.handle(sess, stream).await
+        self.tcp_handler.handle_tcp(sess, stream).await
     }
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         NAME
     }
@@ -96,12 +99,11 @@ impl ProxyUdpHandler for Handler {
         self.udp_handler.udp_transport_type()
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         sess: &'a Session,
-        datagram: Option<Box<dyn ProxyDatagram>>,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> Result<Box<dyn ProxyDatagram>> {
-        self.udp_handler.connect(sess, datagram, stream).await
+        transport: Option<OutboundTransport>,
+    ) -> Result<Box<dyn OutboundDatagram>> {
+        self.udp_handler.handle_udp(sess, transport).await
     }
 }

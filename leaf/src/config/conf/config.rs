@@ -545,21 +545,15 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         if ext_general.interface.is_some() && ext_general.port.is_some() {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "http".to_string();
-            inbound.listen = ext_general.interface.as_ref().unwrap().to_string();
+            inbound.address = ext_general.interface.as_ref().unwrap().to_string();
             inbound.port = ext_general.port.unwrap() as u32;
             inbounds.push(inbound);
         }
         if ext_general.socks_interface.is_some() && ext_general.socks_port.is_some() {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "socks".to_string();
-            inbound.listen = ext_general.socks_interface.as_ref().unwrap().to_string();
+            inbound.address = ext_general.socks_interface.as_ref().unwrap().to_string();
             inbound.port = ext_general.socks_port.unwrap() as u32;
-
-            let mut settings = internal::SocksInboundSettings::new();
-            settings.bind = inbound.listen.clone();
-            let settings = settings.write_to_bytes().unwrap();
-            inbound.settings = settings;
-
             inbounds.push(inbound);
         }
 

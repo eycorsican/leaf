@@ -5,18 +5,18 @@ use std::{io, sync::Arc};
 use async_trait::async_trait;
 
 use crate::{
-    common::dns_client::DnsClient,
-    proxy::{stream::SimpleStream, ProxyHandler, ProxyStream, ProxyTcpHandler},
+    app::dns_client::DnsClient,
+    proxy::{stream::SimpleProxyStream, OutboundHandler, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn ProxyHandler>>,
+    pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub dns_client: Arc<DnsClient>,
 }
 
 #[async_trait]
-impl ProxyTcpHandler for Handler {
+impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -30,7 +30,7 @@ impl ProxyTcpHandler for Handler {
         None
     }
 
-    async fn handle<'a>(
+    async fn handle_tcp<'a>(
         &'a self,
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
@@ -46,10 +46,10 @@ impl ProxyTcpHandler for Handler {
                         }
                     }
                 }
-                stream = a.handle(&new_sess, Some(stream)).await?;
+                stream = a.handle_tcp(&new_sess, Some(stream)).await?;
             }
 
-            return Ok(Box::new(SimpleStream(stream)));
+            return Ok(Box::new(SimpleProxyStream(stream)));
         }
 
         for a in self.actors.iter() {
@@ -70,10 +70,10 @@ impl ProxyTcpHandler for Handler {
                             }
                         }
                     }
-                    stream = a.handle(&new_sess, Some(stream)).await?;
+                    stream = a.handle_tcp(&new_sess, Some(stream)).await?;
                 }
 
-                return Ok(Box::new(SimpleStream(stream)));
+                return Ok(Box::new(SimpleProxyStream(stream)));
             }
         }
         Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"))

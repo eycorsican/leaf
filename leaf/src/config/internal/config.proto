@@ -32,16 +32,25 @@ message TUNInboundSettings {
 	string netmask = 5;
 	int32 mtu = 6;
 	repeated string fake_dns_exclude = 7;
+	repeated string fake_dns_include = 8;
 }
 
-message SocksInboundSettings {
-	string bind = 1;
+message TrojanInboundSettings {
+	string password = 3;
+}
+
+message WebSocketInboundSettings {
+	string path = 1;
+}
+
+message ChainInboundSettings {
+	repeated string actors = 1;
 }
 
 message Inbound {
 	string tag = 1;
 	string protocol = 2; // TODO use enum
-	string listen = 3;
+	string address = 3;
 	uint32 port = 4;
 	bytes settings = 5;
 }

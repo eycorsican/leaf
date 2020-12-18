@@ -18,12 +18,14 @@ use trust_dns_proto::{
 };
 
 use crate::{
-    proxy::{ProxyDatagram, ProxyHandler, ProxyStream, ProxyUdpHandler, UdpTransportType},
+    proxy::{
+        OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler, UdpTransportType,
+    },
     session::{Session, SocksAddr},
 };
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn ProxyHandler>>,
+    pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub fail_timeout: u32,
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
@@ -34,7 +36,7 @@ struct Measure(usize, u128); // (index, duration in millis)
 
 impl Handler {
     pub fn new(
-        actors: Vec<Arc<dyn ProxyHandler>>,
+        actors: Vec<Arc<dyn OutboundHandler>>,
         fail_timeout: u32,
         health_check: bool,
         check_interval: u32,
@@ -57,13 +59,14 @@ impl Handler {
                         let single_measure = async move {
                             let sess = Session {
                                 source: "0.0.0.0:0".parse().unwrap(),
+                                local_addr: "0.0.0.0:0".parse().unwrap(),
                                 destination: SocksAddr::Ip(SocketAddr::new(
                                     IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
                                     53,
                                 )),
                             };
                             let start = tokio::time::Instant::now();
-                            match a.connect(&sess, None, None).await {
+                            match a.handle_udp(&sess, None).await {
                                 Ok(socket) => {
                                     let addr =
                                         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53);
@@ -174,7 +177,7 @@ impl Handler {
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -187,12 +190,11 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Unknown
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         sess: &'a Session,
-        _datagram: Option<Box<dyn ProxyDatagram>>,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyDatagram>> {
+        _transport: Option<OutboundTransport>,
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
         if self.health_check_task.lock().await.is_some() {
             if let Some(task) = self.health_check_task.lock().await.take() {
                 tokio::spawn(task);
@@ -206,9 +208,14 @@ impl ProxyUdpHandler for Handler {
                 return Err(io::Error::new(io::ErrorKind::Other, "invalid actor index"));
             }
 
+            debug!(
+                "failover handles udp [{}] to [{}]",
+                sess.destination,
+                self.actors[i].tag()
+            );
             match timeout(
                 time::Duration::from_secs(self.fail_timeout as u64),
-                (&self.actors[i]).connect(sess, None, None),
+                (&self.actors[i]).handle_udp(sess, None),
             )
             .await
             {

@@ -1,9 +1,8 @@
+#[cfg(feature = "inbound-ws")]
+pub mod inbound;
+#[cfg(feature = "outbound-ws")]
+pub mod outbound;
+
 mod stream;
-
-pub mod tcp;
-pub mod udp;
-
-pub use tcp::Handler as TcpHandler;
-pub use udp::Handler as UdpHandler;
 
 pub static NAME: &str = "ws";

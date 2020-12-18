@@ -13,10 +13,10 @@ use tokio::net::UdpSocket;
 
 use super::{ShadowedDatagram, ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf};
 use crate::{
-    common::dns_client::DnsClient,
+    app::dns_client::DnsClient,
     proxy::{
-        ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf, ProxyStream, ProxyUdpHandler,
-        SimpleDatagram, UdpTransportType,
+        OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf, OutboundTransport,
+        SimpleOutboundDatagram, UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr, SocksAddrWireType},
 };
@@ -31,7 +31,7 @@ pub struct Handler {
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -44,12 +44,11 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Packet
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         _sess: &'a Session,
-        datagram: Option<Box<dyn ProxyDatagram>>,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyDatagram>> {
+        transport: Option<OutboundTransport>,
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
         let ips = match self
             .dns_client
             .lookup_with_bind(String::from(&self.address), &self.bind_addr)
@@ -71,11 +70,11 @@ impl ProxyUdpHandler for Handler {
         let ip = ips[0]; // pick a random one? iterate all?
         let addr = SocketAddr::new(ip, self.port);
 
-        let socket = if let Some(socket) = datagram {
+        let socket = if let Some(OutboundTransport::Datagram(socket)) = transport {
             socket
         } else {
             let socket = UdpSocket::bind(self.bind_addr).await?;
-            Box::new(SimpleDatagram(socket))
+            Box::new(SimpleOutboundDatagram(socket))
         };
 
         let dgram = ShadowedDatagram::with_initial_buffer_size(
@@ -101,12 +100,12 @@ pub struct Datagram {
     pub server: SocketAddr,
 }
 
-impl ProxyDatagram for Datagram {
+impl OutboundDatagram for Datagram {
     fn split(
         self: Box<Self>,
     ) -> (
-        Box<dyn ProxyDatagramRecvHalf>,
-        Box<dyn ProxyDatagramSendHalf>,
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
     ) {
         (
             Box::new(DatagramRecvHalf(self.r)),
@@ -121,7 +120,7 @@ impl ProxyDatagram for Datagram {
 pub struct DatagramRecvHalf(ShadowedDatagramRecvHalf);
 
 #[async_trait]
-impl ProxyDatagramRecvHalf for DatagramRecvHalf {
+impl OutboundDatagramRecvHalf for DatagramRecvHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
         // TODO optimize
         let mut buf2 = [0u8; 2 * 1024];
@@ -159,7 +158,7 @@ pub struct DatagramSendHalf {
 }
 
 #[async_trait]
-impl ProxyDatagramSendHalf for DatagramSendHalf {
+impl OutboundDatagramSendHalf for DatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
         let mut buf2 = BytesMut::new();
         let target = SocksAddr::from(target);

@@ -11,7 +11,11 @@ use log::*;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 pub struct Session {
+    /// The socket address of the remote peer of an inbound connection.
     pub source: SocketAddr,
+    /// The socket address of the local socket of an inbound connection.
+    pub local_addr: SocketAddr,
+    /// The proxy target address of a proxy connection.
     pub destination: SocksAddr,
 }
 
@@ -19,6 +23,7 @@ impl Clone for Session {
     fn clone(&self) -> Self {
         Session {
             source: self.source,
+            local_addr: self.local_addr,
             destination: self.destination.clone(),
         }
     }

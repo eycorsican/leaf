@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use futures::TryFutureExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::proxy::{ProxyStream, SimpleStream};
+use crate::proxy::{ProxyStream, SimpleProxyStream};
 
 #[cfg(feature = "rustls-tls")]
 pub mod wrapper {
@@ -57,7 +57,7 @@ pub mod wrapper {
             .map_err(|e| anyhow!(format!("tls connect failed: {}", e)))
             .await?;
         // FIXME check negotiated alpn
-        Ok(Box::new(SimpleStream(tls_stream)))
+        Ok(Box::new(SimpleProxyStream(tls_stream)))
     }
 }
 
@@ -104,7 +104,7 @@ pub mod wrapper {
         let stream = tokio_openssl::connect(config, domain, stream)
             .map_err(|_| anyhow!(format!("connect tls failed")))
             .await?;
-        Ok(Box::new(SimpleStream(stream)))
+        Ok(Box::new(SimpleProxyStream(stream)))
     }
 }
 

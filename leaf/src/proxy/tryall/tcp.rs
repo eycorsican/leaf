@@ -5,17 +5,17 @@ use async_trait::async_trait;
 use futures::future::select_ok;
 
 use crate::{
-    proxy::{ProxyHandler, ProxyStream, ProxyTcpHandler},
+    proxy::{OutboundHandler, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn ProxyHandler>>,
+    pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub delay_base: u32,
 }
 
 #[async_trait]
-impl ProxyTcpHandler for Handler {
+impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -24,7 +24,7 @@ impl ProxyTcpHandler for Handler {
         None
     }
 
-    async fn handle<'a>(
+    async fn handle_tcp<'a>(
         &'a self,
         sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
@@ -38,7 +38,7 @@ impl ProxyTcpHandler for Handler {
                     ))
                     .await;
                 }
-                a.handle(sess, None).await
+                a.handle_tcp(sess, None).await
             };
             tasks.push(Box::pin(t));
         }

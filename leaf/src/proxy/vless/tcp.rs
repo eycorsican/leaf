@@ -8,8 +8,8 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
-    common::dns_client::DnsClient,
-    proxy::{stream::SimpleStream, ProxyStream, ProxyTcpHandler},
+    app::dns_client::DnsClient,
+    proxy::{stream::SimpleProxyStream, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
 
@@ -24,7 +24,7 @@ pub struct Handler {
 }
 
 #[async_trait]
-impl ProxyTcpHandler for Handler {
+impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -33,7 +33,7 @@ impl ProxyTcpHandler for Handler {
         Some((self.address.clone(), self.port, self.bind_addr))
     }
 
-    async fn handle<'a>(
+    async fn handle_tcp<'a>(
         &'a self,
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
@@ -63,6 +63,6 @@ impl ProxyTcpHandler for Handler {
 
         stream.write_all(&buf[..]).await?;
         let stream = VLessAuthStream::new(stream);
-        Ok(Box::new(SimpleStream(stream)))
+        Ok(Box::new(SimpleProxyStream(stream)))
     }
 }

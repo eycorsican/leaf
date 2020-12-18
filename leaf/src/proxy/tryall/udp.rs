@@ -6,17 +6,19 @@ use async_trait::async_trait;
 use futures::future::select_ok;
 
 use crate::{
-    proxy::{ProxyDatagram, ProxyHandler, ProxyStream, ProxyUdpHandler, UdpTransportType},
+    proxy::{
+        OutboundDatagram, OutboundTransport, OutboundHandler, UdpOutboundHandler, UdpTransportType,
+    },
     session::Session,
 };
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn ProxyHandler>>,
+    pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub delay_base: u32,
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -29,12 +31,11 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Unknown
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         sess: &'a Session,
-        _datagram: Option<Box<dyn ProxyDatagram>>,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyDatagram>> {
+        _transport: Option<OutboundTransport>,
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
         let mut tasks = Vec::new();
         for (i, a) in self.actors.iter().enumerate() {
             let t = async move {
@@ -44,7 +45,7 @@ impl ProxyUdpHandler for Handler {
                     ))
                     .await;
                 }
-                a.connect(sess, None, None).await
+                a.handle_udp(sess, None).await
             };
             tasks.push(Box::pin(t));
         }

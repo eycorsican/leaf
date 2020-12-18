@@ -1,26 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use log::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::runtime;
 
-#[cfg(feature = "inbound-socks")]
-use crate::proxy::socks;
-
-#[cfg(feature = "inbound-http")]
-use crate::proxy::http;
-
-#[cfg(all(
-    feature = "inbound-tun",
-    any(target_os = "ios", target_os = "macos", target_os = "linux")
-))]
-use crate::proxy::tun;
-
 use crate::{
     app::{
-        dispatcher::Dispatcher, handler_manager::HandlerManager, nat_manager::NatManager,
-        router::Router,
+        dispatcher::Dispatcher, inbound::manager::InboundManager, nat_manager::NatManager,
+        outbound::manager::OutboundManager, router::Router,
     },
     config::Config,
     session::{Session, SocksAddr},
@@ -28,41 +15,12 @@ use crate::{
 };
 
 pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
-    let handler_manager = HandlerManager::new(&config.outbounds, config.dns.as_ref().unwrap());
+    let outbound_manager = OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap());
     let router = Router::new(&config.routing_rules);
-    let dispatcher = Arc::new(Dispatcher::new(handler_manager, router));
+    let dispatcher = Arc::new(Dispatcher::new(outbound_manager, router));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
-    let mut runners: Vec<Runner> = Vec::new();
-    for inbound in config.inbounds.into_iter() {
-        match inbound.protocol.as_str() {
-            #[cfg(feature = "inbound-http")]
-            "http" => {
-                if let Ok(r) = http::inbound::new(inbound, dispatcher.clone()) {
-                    runners.push(r);
-                }
-            }
-            #[cfg(feature = "inbound-socks")]
-            "socks" => {
-                if let Ok(r) =
-                    socks::inbound::new(&inbound, dispatcher.clone(), nat_manager.clone())
-                {
-                    runners.push(r);
-                }
-            }
-            #[cfg(all(
-                feature = "inbound-tun",
-                any(target_os = "ios", target_os = "macos", target_os = "linux")
-            ))]
-            "tun" => {
-                if let Ok(r) = tun::inbound::new(inbound, dispatcher.clone(), nat_manager.clone()) {
-                    runners.push(Box::pin(r));
-                }
-            }
-            _ => {
-                warn!("unknown protocol {:?}", inbound.protocol);
-            }
-        }
-    }
+    let inbound_manager = InboundManager::new(&config.inbounds, dispatcher, nat_manager);
+    let runners = inbound_manager.get_runners();
     Ok(runners)
 }
 
@@ -78,8 +36,8 @@ pub fn run_with_config(config: Config) -> Result<()> {
 }
 
 pub async fn test_outbound(tag: &str, config: &Config) {
-    let handler_manager = HandlerManager::new(&config.outbounds, config.dns.as_ref().unwrap());
-    let handler = if let Some(v) = handler_manager.get(tag) {
+    let outbound_manager = OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap());
+    let handler = if let Some(v) = outbound_manager.get(tag) {
         v
     } else {
         println!("outbound {} not found", tag);
@@ -87,17 +45,18 @@ pub async fn test_outbound(tag: &str, config: &Config) {
     };
     let sess = Session {
         source: "0.0.0.0:0".parse().unwrap(),
+        local_addr: "0.0.0.0:0".parse().unwrap(),
         destination: SocksAddr::Domain("www.google.com".to_string(), 80),
     };
     println!("testing outbound {}", &handler.tag());
     let start = tokio::time::Instant::now();
-    match handler.handle(&sess, None).await {
+    match handler.handle_tcp(&sess, None).await {
         Ok(mut stream) => {
             if let Err(e) = stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await {
                 println!("write to outbound {} failed: {}", &handler.tag(), e);
                 return;
             }
-            let mut buf = vec![0u8; 1];
+            let mut buf = vec![0u8; 30];
             match stream.read_exact(&mut buf).await {
                 Ok(_) => {
                     let elapsed = tokio::time::Instant::now().duration_since(start);
@@ -106,6 +65,7 @@ pub async fn test_outbound(tag: &str, config: &Config) {
                         &handler.tag(),
                         elapsed.as_millis()
                     );
+                    println!("truncated response:\n{}", String::from_utf8_lossy(&buf))
                 }
                 Err(e) => {
                     println!("read from outbound {} failed: {}", &handler.tag(), e);

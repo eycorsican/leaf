@@ -8,8 +8,8 @@ use tokio::net::{
 
 use crate::{
     proxy::{
-        ProxyDatagram, ProxyDatagramRecvHalf, ProxyDatagramSendHalf, ProxyStream, ProxyUdpHandler,
-        UdpTransportType,
+        OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf, OutboundTransport,
+        UdpOutboundHandler, UdpTransportType,
     },
     session::Session,
 };
@@ -25,7 +25,7 @@ impl Handler {
 }
 
 #[async_trait]
-impl ProxyUdpHandler for Handler {
+impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -38,12 +38,11 @@ impl ProxyUdpHandler for Handler {
         UdpTransportType::Packet
     }
 
-    async fn connect<'a>(
+    async fn handle_udp<'a>(
         &'a self,
         _sess: &'a Session,
-        _datagram: Option<Box<dyn ProxyDatagram>>,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyDatagram>> {
+        _transport: Option<OutboundTransport>,
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
         let socket = UdpSocket::bind(&self.bind_addr).await?;
         let (rh, sh) = socket.split();
         Ok(Box::new(Datagram {
@@ -58,12 +57,12 @@ pub struct Datagram {
     pub send_half: SendHalf,
 }
 
-impl ProxyDatagram for Datagram {
+impl OutboundDatagram for Datagram {
     fn split(
         self: Box<Self>,
     ) -> (
-        Box<dyn ProxyDatagramRecvHalf>,
-        Box<dyn ProxyDatagramSendHalf>,
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
     ) {
         (
             Box::new(DatagramRecvHalf(self.recv_half)),
@@ -75,7 +74,7 @@ impl ProxyDatagram for Datagram {
 pub struct DatagramRecvHalf(RecvHalf);
 
 #[async_trait]
-impl ProxyDatagramRecvHalf for DatagramRecvHalf {
+impl OutboundDatagramRecvHalf for DatagramRecvHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
         self.0.recv_from(buf).await
     }
@@ -84,7 +83,7 @@ impl ProxyDatagramRecvHalf for DatagramRecvHalf {
 pub struct DatagramSendHalf(SendHalf);
 
 #[async_trait]
-impl ProxyDatagramSendHalf for DatagramSendHalf {
+impl OutboundDatagramSendHalf for DatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
         self.0.send_to(buf, target).await
     }

@@ -151,11 +151,6 @@ impl NatManager {
                             );
                         }
 
-                        if addr.port() == 53 {
-                            sessions.lock().await.remove(&raddr);
-                            break;
-                        }
-
                         // activity update
                         {
                             let mut sessions = sessions.lock().await;

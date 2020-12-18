@@ -3,8 +3,8 @@ use std::{io, net::SocketAddr, sync::Arc};
 use async_trait::async_trait;
 
 use crate::{
-    common::dns_client::DnsClient,
-    proxy::{ProxyStream, ProxyTcpHandler},
+    app::dns_client::DnsClient,
+    proxy::{ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -23,7 +23,7 @@ impl Handler {
 }
 
 #[async_trait]
-impl ProxyTcpHandler for Handler {
+impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
@@ -32,7 +32,7 @@ impl ProxyTcpHandler for Handler {
         None
     }
 
-    async fn handle<'a>(
+    async fn handle_tcp<'a>(
         &'a self,
         sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,

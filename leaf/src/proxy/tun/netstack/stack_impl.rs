@@ -24,9 +24,9 @@ use tokio::{
 
 use crate::{
     app::dispatcher::Dispatcher,
+    app::fake_dns::FakeDns,
     app::nat_manager::NatManager,
     app::nat_manager::UdpPacket,
-    common::fake_dns::FakeDns,
     common::mutex::AtomicMutex,
     session::{Session, SocksAddr},
 };
@@ -112,16 +112,19 @@ impl NetStackImpl {
                         {
                             Some(domain) => Session {
                                 source: stream.local_addr().to_owned(),
+                                local_addr: stream.remote_addr().to_owned(),
                                 destination: SocksAddr::Domain(domain, stream.remote_addr().port()),
                             },
                             None => Session {
                                 source: stream.local_addr().to_owned(),
+                                local_addr: stream.remote_addr().to_owned(),
                                 destination: SocksAddr::Ip(*stream.remote_addr()),
                             },
                         }
                     } else {
                         Session {
                             source: stream.local_addr().to_owned(),
+                            local_addr: stream.remote_addr().to_owned(),
                             destination: SocksAddr::Ip(*stream.remote_addr()),
                         }
                     };
@@ -230,6 +233,7 @@ impl NetStackImpl {
                 if !nat_manager.contains_key(&src_addr).await {
                     let sess = Session {
                         source: src_addr,
+                        local_addr: "0.0.0.0:0".parse().unwrap(),
                         destination: SocksAddr::Ip(dst_addr),
                     };
 
