@@ -4279,6 +4279,9 @@ pub struct FailOverOutboundSettings {
     pub health_check: bool,
     pub check_interval: u32,
     pub failover: bool,
+    pub fallback_cache: bool,
+    pub cache_size: u32,
+    pub cache_timeout: u32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -4379,6 +4382,51 @@ impl FailOverOutboundSettings {
     pub fn set_failover(&mut self, v: bool) {
         self.failover = v;
     }
+
+    // bool fallback_cache = 6;
+
+
+    pub fn get_fallback_cache(&self) -> bool {
+        self.fallback_cache
+    }
+    pub fn clear_fallback_cache(&mut self) {
+        self.fallback_cache = false;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_fallback_cache(&mut self, v: bool) {
+        self.fallback_cache = v;
+    }
+
+    // uint32 cache_size = 7;
+
+
+    pub fn get_cache_size(&self) -> u32 {
+        self.cache_size
+    }
+    pub fn clear_cache_size(&mut self) {
+        self.cache_size = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_cache_size(&mut self, v: u32) {
+        self.cache_size = v;
+    }
+
+    // uint32 cache_timeout = 8;
+
+
+    pub fn get_cache_timeout(&self) -> u32 {
+        self.cache_timeout
+    }
+    pub fn clear_cache_timeout(&mut self) {
+        self.cache_timeout = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_cache_timeout(&mut self, v: u32) {
+        self.cache_timeout = v;
+    }
 }
 
 impl ::protobuf::Message for FailOverOutboundSettings {
@@ -4421,6 +4469,27 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                     let tmp = is.read_bool()?;
                     self.failover = tmp;
                 },
+                6 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_bool()?;
+                    self.fallback_cache = tmp;
+                },
+                7 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.cache_size = tmp;
+                },
+                8 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.cache_timeout = tmp;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -4448,6 +4517,15 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.failover != false {
             my_size += 2;
         }
+        if self.fallback_cache != false {
+            my_size += 2;
+        }
+        if self.cache_size != 0 {
+            my_size += ::protobuf::rt::value_size(7, self.cache_size, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if self.cache_timeout != 0 {
+            my_size += ::protobuf::rt::value_size(8, self.cache_timeout, ::protobuf::wire_format::WireTypeVarint);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -4468,6 +4546,15 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         }
         if self.failover != false {
             os.write_bool(5, self.failover)?;
+        }
+        if self.fallback_cache != false {
+            os.write_bool(6, self.fallback_cache)?;
+        }
+        if self.cache_size != 0 {
+            os.write_uint32(7, self.cache_size)?;
+        }
+        if self.cache_timeout != 0 {
+            os.write_uint32(8, self.cache_timeout)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -4532,6 +4619,21 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                 |m: &FailOverOutboundSettings| { &m.failover },
                 |m: &mut FailOverOutboundSettings| { &mut m.failover },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
+                "fallback_cache",
+                |m: &FailOverOutboundSettings| { &m.fallback_cache },
+                |m: &mut FailOverOutboundSettings| { &mut m.fallback_cache },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "cache_size",
+                |m: &FailOverOutboundSettings| { &m.cache_size },
+                |m: &mut FailOverOutboundSettings| { &mut m.cache_size },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "cache_timeout",
+                |m: &FailOverOutboundSettings| { &m.cache_timeout },
+                |m: &mut FailOverOutboundSettings| { &mut m.cache_timeout },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<FailOverOutboundSettings>(
                 "FailOverOutboundSettings",
                 fields,
@@ -4553,6 +4655,9 @@ impl ::protobuf::Clear for FailOverOutboundSettings {
         self.health_check = false;
         self.check_interval = 0;
         self.failover = false;
+        self.fallback_cache = false;
+        self.cache_size = 0;
+        self.cache_timeout = 0;
         self.unknown_fields.clear();
     }
 }
@@ -6020,29 +6125,31 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     tings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1d\n\ndelay\
     _base\x18\x02\x20\x01(\rR\tdelayBase\"0\n\x16RandomOutboundSettings\x12\
     \x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"/\n\x15ChainOutboundSett\
-    ings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\xbb\x01\n\x18Fa\
+    ings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\xa6\x02\n\x18Fa\
     ilOverOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\
     \x12!\n\x0cfail_timeout\x18\x02\x20\x01(\rR\x0bfailTimeout\x12!\n\x0chea\
     lth_check\x18\x03\x20\x01(\x08R\x0bhealthCheck\x12%\n\x0echeck_interval\
     \x18\x04\x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\x18\x05\x20\
-    \x01(\x08R\x08failover\"h\n\x08Outbound\x12\x10\n\x03tag\x18\x01\x20\x01\
-    (\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\x08protocol\x12\
-    \x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08settings\x18\x04\
-    \x20\x01(\x0cR\x08settings\"\xd5\x02\n\x0bRoutingRule\x12\x1d\n\ntarget_\
-    tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\x18\x02\x20\x03(\
-    \x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08ip_cidrs\x18\x03\
-    \x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\x0b2\x11.Routin\
-    gRule.MmdbR\x05mmdbs\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01(\
-    \x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\
-    \x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOM\
-    AIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\
-    \x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\
-    \x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\
-    \x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.Inbou\
-    ndR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\tout\
-    bounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0cr\
-    outingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DNSR\x03dnsb\x06p\
-    roto3\
+    \x01(\x08R\x08failover\x12%\n\x0efallback_cache\x18\x06\x20\x01(\x08R\rf\
+    allbackCache\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcacheSize\x12#\n\
+    \rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"h\n\x08Outbound\x12\
+    \x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\
+    \x20\x01(\tR\x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\
+    \x12\x1a\n\x08settings\x18\x04\x20\x01(\x0cR\x08settings\"\xd5\x02\n\x0b\
+    RoutingRule\x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\
+    \x07domains\x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\
+    \x19\n\x08ip_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\
+    \x04\x20\x03(\x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x1au\n\x06Domain\x12,\
+    \n\x04type\x18\x01\x20\x01(\x0e2\x18.RoutingRule.Domain.TypeR\x04type\
+    \x12\x14\n\x05value\x18\x02\x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\
+    \x05PLAIN\x10\0\x12\n\n\x06DOMAIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\
+    \n\x04Mmdb\x12\x12\n\x04file\x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccount\
+    ry_code\x18\x02\x20\x01(\tR\x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\
+    \n\x03log\x18\x01\x20\x01(\x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\
+    \x02\x20\x03(\x0b2\x08.InboundR\x08inbounds\x12'\n\toutbounds\x18\x03\
+    \x20\x03(\x0b2\t.OutboundR\toutbounds\x121\n\rrouting_rules\x18\x04\x20\
+    \x03(\x0b2\x0c.RoutingRuleR\x0croutingRules\x12\x16\n\x03dns\x18\x05\x20\
+    \x01(\x0b2\x04.DNSR\x03dnsb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

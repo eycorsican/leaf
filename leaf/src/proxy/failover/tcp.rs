@@ -4,6 +4,7 @@ use std::{io, sync::Arc, time};
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use log::*;
+use lru_time_cache::LruCache;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
@@ -18,6 +19,7 @@ pub struct Handler {
     pub fail_timeout: u32,
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
+    pub cache: Option<Arc<TokioMutex<LruCache<String, usize>>>>,
 }
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -26,10 +28,13 @@ struct Measure(usize, u128); // (index, duration in millis)
 impl Handler {
     pub fn new(
         actors: Vec<Arc<dyn OutboundHandler>>,
-        fail_timeout: u32,
+        fail_timeout: u32, // in secs
         health_check: bool,
-        check_interval: u32,
+        check_interval: u32, // in secs
         failover: bool,
+        fallback_cache: bool,
+        cache_size: usize,
+        cache_timeout: u64, // in minutes
     ) -> Self {
         let mut schedule = Vec::new();
         for i in 0..actors.len() {
@@ -126,11 +131,23 @@ impl Handler {
             None
         };
 
+        let cache = if fallback_cache {
+            Some(Arc::new(TokioMutex::new(
+                LruCache::with_expiry_duration_and_capacity(
+                    time::Duration::from_secs(cache_timeout * 60),
+                    cache_size,
+                ),
+            )))
+        } else {
+            None
+        };
+
         Handler {
             actors,
             fail_timeout,
             schedule,
             health_check_task: TokioMutex::new(task),
+            cache,
         }
     }
 }
@@ -156,32 +173,68 @@ impl TcpOutboundHandler for Handler {
             }
         }
 
+        if let Some(cache) = &self.cache {
+            // Try the cached actor first if exists.
+            let cache_key = sess.destination.to_string();
+            if let Some(idx) = cache.lock().await.get(&cache_key) {
+                debug!(
+                    "failover handles tcp [{}] to cached [{}]",
+                    sess.destination,
+                    self.actors[*idx].tag()
+                );
+                // TODO Remove the entry immediately if timeout or fail?
+                match timeout(
+                    time::Duration::from_secs(self.fail_timeout as u64),
+                    (&self.actors[*idx]).handle_tcp(sess, None),
+                )
+                .await
+                {
+                    Ok(t) => match t {
+                        Ok(v) => return Ok(v),
+                        Err(_) => (),
+                    },
+                    Err(_) => (),
+                }
+            };
+        }
+
         let schedule = self.schedule.lock().await.clone();
 
-        for i in schedule {
-            if i >= self.actors.len() {
+        for (sche_idx, actor_idx) in schedule.into_iter().enumerate() {
+            if actor_idx >= self.actors.len() {
                 return Err(io::Error::new(io::ErrorKind::Other, "invalid actor index"));
             }
 
             debug!(
                 "failover handles tcp [{}] to [{}]",
                 sess.destination,
-                self.actors[i].tag()
+                self.actors[actor_idx].tag()
             );
             match timeout(
                 time::Duration::from_secs(self.fail_timeout as u64),
-                (&self.actors[i]).handle_tcp(sess, None),
+                (&self.actors[actor_idx]).handle_tcp(sess, None),
             )
             .await
             {
                 // return before timeout
                 Ok(t) => match t {
-                    // return ok
-                    Ok(v) => return Ok(v),
-                    // return err
+                    Ok(v) => {
+                        // Only cache for fallback actors.
+                        if let Some(cache) = &self.cache {
+                            if sche_idx > 0 {
+                                let cache_key = sess.destination.to_string();
+                                trace!(
+                                    "failover inserts {} -> {} to cache",
+                                    cache_key,
+                                    self.actors[actor_idx].tag()
+                                );
+                                cache.lock().await.insert(cache_key, actor_idx);
+                            }
+                        }
+                        return Ok(v);
+                    }
                     Err(_) => continue,
                 },
-                // after timeout
                 Err(_) => continue,
             }
         }

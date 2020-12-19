@@ -546,6 +546,9 @@ impl OutboundManager {
                             settings.health_check,
                             settings.check_interval,
                             settings.failover,
+                            settings.fallback_cache,
+                            settings.cache_size as usize,
+                            settings.cache_timeout as u64,
                         ));
                         let udp = Box::new(failover::UdpHandler::new(
                             actors,

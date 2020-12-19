@@ -72,7 +72,7 @@ outbound-tls = []
 outbound-ws = ["tungstenite", "tokio-tungstenite", "url"]
 outbound-h2 = ["h2", "http", "url"]
 outbound-vless = ["uuid"]
-outbound-failover = []
+outbound-failover = ["lru_time_cache"]
 outbound-random = []
 outbound-tryall = []
 outbound-chain = []
@@ -175,6 +175,9 @@ sha-1 = { version = "0.9", optional = true }
 # Trojan
 sha2 = { version = "0.9", optional = true }
 hex = { version = "0.4", optional = true }
+
+# Failover
+lru_time_cache = { version = "0.11", optional = true }
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]

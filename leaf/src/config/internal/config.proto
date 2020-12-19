@@ -126,6 +126,9 @@ message FailOverOutboundSettings {
 	bool health_check = 3;
 	uint32 check_interval = 4;
 	bool failover = 5;
+	bool fallback_cache = 6;
+	uint32 cache_size = 7;
+	uint32 cache_timeout = 8;
 }
 
 message Outbound {

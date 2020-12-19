@@ -90,6 +90,9 @@ pub struct ProxyGroup {
     pub check_interval: Option<i32>,
     pub fail_timeout: Option<i32>,
     pub failover: Option<bool>,
+    pub fallback_cache: Option<bool>,
+    pub cache_size: Option<i32>,
+    pub cache_timeout: Option<i32>,
 
     // tryall
     pub delay_base: Option<i32>,
@@ -105,6 +108,9 @@ impl Default for ProxyGroup {
             check_interval: Some(300),
             fail_timeout: Some(4),
             failover: Some(true),
+            fallback_cache: Some(false),
+            cache_size: Some(256),
+            cache_timeout: Some(60),
             delay_base: Some(0),
         }
     }
@@ -446,6 +452,25 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                     }
                     "failover" => {
                         group.failover = if v == "true" { Some(true) } else { Some(false) };
+                    }
+                    "fallback-cache" => {
+                        group.fallback_cache = if v == "true" { Some(true) } else { Some(false) };
+                    }
+                    "cache-size" => {
+                        let i = if let Ok(i) = v.parse::<i32>() {
+                            Some(i)
+                        } else {
+                            None
+                        };
+                        group.cache_size = i;
+                    }
+                    "cache-timeout" => {
+                        let i = if let Ok(i) = v.parse::<i32>() {
+                            Some(i)
+                        } else {
+                            None
+                        };
+                        group.cache_timeout = i;
                     }
                     "delay-base" => {
                         let i = if let Ok(i) = v.parse::<i32>() {
@@ -950,6 +975,21 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                         settings.failover = ext_failover;
                     } else {
                         settings.failover = true;
+                    }
+                    if let Some(ext_fallback_cache) = ext_proxy_group.fallback_cache {
+                        settings.fallback_cache = ext_fallback_cache;
+                    } else {
+                        settings.fallback_cache = false;
+                    }
+                    if let Some(ext_cache_size) = ext_proxy_group.cache_size {
+                        settings.cache_size = ext_cache_size as u32;
+                    } else {
+                        settings.cache_size = 256;
+                    }
+                    if let Some(ext_cache_timeout) = ext_proxy_group.cache_timeout {
+                        settings.cache_timeout = ext_cache_timeout as u32;
+                    } else {
+                        settings.cache_timeout = 60; // in minutes
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

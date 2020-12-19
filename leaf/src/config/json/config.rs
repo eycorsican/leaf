@@ -146,6 +146,12 @@ pub struct FailOverOutboundSettings {
     #[serde(rename = "checkInterval")]
     pub check_interval: Option<u32>,
     pub failover: Option<bool>,
+    #[serde(rename = "fallbackCache")]
+    pub fallback_cache: Option<bool>,
+    #[serde(rename = "cacheSize")]
+    pub cache_size: Option<u32>,
+    #[serde(rename = "cacheTimeout")]
+    pub cache_timeout: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -604,6 +610,21 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         settings.failover = ext_failover;
                     } else {
                         settings.failover = true;
+                    }
+                    if let Some(ext_fallback_cache) = ext_settings.fallback_cache {
+                        settings.fallback_cache = ext_fallback_cache;
+                    } else {
+                        settings.fallback_cache = false;
+                    }
+                    if let Some(ext_cache_size) = ext_settings.cache_size {
+                        settings.cache_size = ext_cache_size;
+                    } else {
+                        settings.cache_size = 256;
+                    }
+                    if let Some(ext_cache_timeout) = ext_settings.cache_timeout {
+                        settings.cache_timeout = ext_cache_timeout;
+                    } else {
+                        settings.cache_timeout = 60; // in minutes
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
