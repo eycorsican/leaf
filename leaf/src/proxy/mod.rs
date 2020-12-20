@@ -282,7 +282,7 @@ pub enum OutboundTransport {
     Datagram(Box<dyn OutboundDatagram>),
 }
 
-pub trait InboundHandler: TcpInboundHandler + UdpInboundHandler + Send + Unpin {
+pub trait InboundHandler: Tag + TcpInboundHandler + UdpInboundHandler + Send + Unpin {
     fn has_tcp(&self) -> bool;
     fn has_udp(&self) -> bool;
 }

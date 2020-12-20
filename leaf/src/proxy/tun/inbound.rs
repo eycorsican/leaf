@@ -79,7 +79,7 @@ pub fn new(
             fakedns.lock().await.add(domain);
         }
 
-        let stack = NetStack::new(dispatcher, nat_manager, fakedns);
+        let stack = NetStack::new(inbound.tag.clone(), dispatcher, nat_manager, fakedns);
 
         let mtu = tun.get_ref().mtu().unwrap_or(MTU as i32);
         let framed = tun.into_framed();

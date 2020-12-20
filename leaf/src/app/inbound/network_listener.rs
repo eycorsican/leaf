@@ -15,7 +15,11 @@ use crate::Runner;
 
 use super::InboundListener;
 
-async fn handle_inbound_datagram(socket: Box<dyn InboundDatagram>, nat_manager: Arc<NatManager>) {
+async fn handle_inbound_datagram(
+    inbound_tag: String,
+    socket: Box<dyn InboundDatagram>,
+    nat_manager: Arc<NatManager>,
+) {
     let (mut client_sock_recv, mut client_sock_send) = socket.split();
 
     let (client_ch_tx, mut client_ch_rx): (TokioSender<UdpPacket>, TokioReceiver<UdpPacket>) =
@@ -74,6 +78,7 @@ async fn handle_inbound_datagram(socket: Box<dyn InboundDatagram>, nat_manager: 
                         source: src_addr,
                         local_addr: "0.0.0.0:0".parse().unwrap(),
                         destination: dst_addr.clone(),
+                        inbound_tag: inbound_tag.clone(),
                     };
 
                     if nat_manager
@@ -120,6 +125,7 @@ async fn handle_inbound_stream(
         source,
         local_addr,
         destination: SocksAddr::empty_ipv4(),
+        inbound_tag: handler.tag().clone(),
     };
 
     match handler
@@ -134,7 +140,7 @@ async fn handle_inbound_stream(
                 let _ = dispatcher.dispatch_tcp(&mut sess, stream).await;
             }
             InboundTransport::Datagram(socket) => {
-                handle_inbound_datagram(socket, nat_manager).await;
+                handle_inbound_datagram(handler.tag().clone(), socket, nat_manager).await;
             }
             InboundTransport::Empty => (),
         },
@@ -202,7 +208,7 @@ impl InboundListener for NetworkInboundListener {
                     .await
                 {
                     Ok(socket) => {
-                        handle_inbound_datagram(socket, nat_manager).await;
+                        handle_inbound_datagram(handler.tag().clone(), socket, nat_manager).await;
                     }
                     Err(e) => {
                         error!("handle inbound socket failed: {}", e);

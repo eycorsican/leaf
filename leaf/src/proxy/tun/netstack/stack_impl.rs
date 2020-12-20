@@ -54,6 +54,7 @@ unsafe impl Send for NetStackImpl {}
 
 impl NetStackImpl {
     pub fn new(
+        inbound_tag: String,
         dispatcher: Arc<Dispatcher>,
         nat_manager: Arc<NatManager>,
         fakedns: Arc<TokioMutex<FakeDns>>,
@@ -93,6 +94,7 @@ impl NetStackImpl {
             }
         });
 
+        let inbound_tag_1 = inbound_tag.clone();
         let lwip_locktcp = stack.lwip_lock.clone();
         let dispatcher = stack.dispatcher.clone();
         let fakedns = stack.fakedns.clone();
@@ -102,6 +104,7 @@ impl NetStackImpl {
             while let Some(stream) = listener.next().await {
                 let dispatcher = dispatcher.clone();
                 let fakedns = fakedns.clone();
+                let inbound_tag_1 = inbound_tag_1.clone();
 
                 tokio::spawn(async move {
                     let mut sess = if fakedns.lock().await.is_fake_ip(&stream.remote_addr().ip()) {
@@ -114,11 +117,13 @@ impl NetStackImpl {
                                 source: stream.local_addr().to_owned(),
                                 local_addr: stream.remote_addr().to_owned(),
                                 destination: SocksAddr::Domain(domain, stream.remote_addr().port()),
+                                inbound_tag: inbound_tag_1.clone(),
                             },
                             None => Session {
                                 source: stream.local_addr().to_owned(),
                                 local_addr: stream.remote_addr().to_owned(),
                                 destination: SocksAddr::Ip(*stream.remote_addr()),
+                                inbound_tag: inbound_tag_1.clone(),
                             },
                         }
                     } else {
@@ -126,6 +131,7 @@ impl NetStackImpl {
                             source: stream.local_addr().to_owned(),
                             local_addr: stream.remote_addr().to_owned(),
                             destination: SocksAddr::Ip(*stream.remote_addr()),
+                            inbound_tag: inbound_tag_1.clone(),
                         }
                     };
 
@@ -235,6 +241,7 @@ impl NetStackImpl {
                         source: src_addr,
                         local_addr: "0.0.0.0:0".parse().unwrap(),
                         destination: SocksAddr::Ip(dst_addr),
+                        inbound_tag: inbound_tag.clone(),
                     };
 
                     if nat_manager

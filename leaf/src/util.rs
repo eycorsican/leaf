@@ -47,6 +47,7 @@ pub async fn test_outbound(tag: &str, config: &Config) {
         source: "0.0.0.0:0".parse().unwrap(),
         local_addr: "0.0.0.0:0".parse().unwrap(),
         destination: SocksAddr::Domain("www.google.com".to_string(), 80),
+        inbound_tag: "".to_string(),
     };
     println!("testing outbound {}", &handler.tag());
     let start = tokio::time::Instant::now();

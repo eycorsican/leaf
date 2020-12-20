@@ -64,6 +64,7 @@ impl Handler {
                                     IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
                                     53,
                                 )),
+                                inbound_tag: "".to_string(),
                             };
                             let start = tokio::time::Instant::now();
                             match a.handle_udp(&sess, None).await {

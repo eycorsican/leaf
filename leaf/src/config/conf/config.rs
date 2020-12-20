@@ -574,6 +574,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         if ext_general.interface.is_some() && ext_general.port.is_some() {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "http".to_string();
+            inbound.tag = "http".to_string();
             inbound.address = ext_general.interface.as_ref().unwrap().to_string();
             inbound.port = ext_general.port.unwrap() as u32;
             inbounds.push(inbound);
@@ -581,6 +582,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         if ext_general.socks_interface.is_some() && ext_general.socks_port.is_some() {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "socks".to_string();
+            inbound.tag = "socks".to_string();
             inbound.address = ext_general.socks_interface.as_ref().unwrap().to_string();
             inbound.port = ext_general.socks_port.unwrap() as u32;
             inbounds.push(inbound);
@@ -589,6 +591,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         if ext_general.tun_fd.is_some() || ext_general.tun.is_some() {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "tun".to_string();
+            inbound.tag = "tun".to_string();
             let mut settings = internal::TUNInboundSettings::new();
 
             let mut fake_dns_exclude = protobuf::RepeatedField::new();

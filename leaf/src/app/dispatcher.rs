@@ -282,37 +282,57 @@ where
     }
 }
 
-fn log_tcp(tag: &str, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
+fn log_tcp(
+    inbound_tag: &str,
+    outbound_tag: &str,
+    outbound_tag_color: colored::Color,
+    handshake_time: u128,
+    addr: &SocksAddr,
+) {
     #[cfg(not(target_os = "ios"))]
     {
         info!(
-            "[{}] [{}] [{}ms] {}",
+            "[{}] [{}] [{}] [{}ms] {}",
+            inbound_tag,
             "tcp".color(colored::Color::Blue),
-            tag.color(tag_color),
+            outbound_tag.color(outbound_tag_color),
             handshake_time,
             addr,
         );
     }
     #[cfg(target_os = "ios")]
     {
-        info!("[{}] [{}] [{}ms] {}", "tcp", tag, handshake_time, addr);
+        info!(
+            "[{}] [{}] [{}] [{}ms] {}",
+            "tcp", inbound_tag, outbound_tag, handshake_time, addr
+        );
     }
 }
 
-fn log_udp(tag: &str, tag_color: colored::Color, handshake_time: u128, addr: &SocksAddr) {
+fn log_udp(
+    inbound_tag: &str,
+    outbound_tag: &str,
+    outbound_tag_color: colored::Color,
+    handshake_time: u128,
+    addr: &SocksAddr,
+) {
     #[cfg(not(target_os = "ios"))]
     {
         info!(
-            "[{}] [{}] [{}ms] {}",
+            "[{}] [{}] [{}] [{}ms] {}",
+            inbound_tag,
             "udp".color(colored::Color::Yellow),
-            tag.color(tag_color),
+            outbound_tag.color(outbound_tag_color),
             handshake_time,
             addr,
         );
     }
     #[cfg(target_os = "ios")]
     {
-        info!("[{}] [{}] [{}ms] {}", "udp", tag, handshake_time, addr);
+        info!(
+            "[{}] [{}] [{}] [{}ms] {}",
+            "udp", inbound_tag, outbound_tag, handshake_time, addr
+        );
     }
 }
 
@@ -443,7 +463,13 @@ impl Dispatcher {
             match h.handle_tcp(sess, None).await {
                 Ok(rhs) => {
                     let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
-                    log_tcp(h.tag(), h.color(), elapsed.as_millis(), &sess.destination);
+                    log_tcp(
+                        &sess.inbound_tag,
+                        h.tag(),
+                        h.color(),
+                        elapsed.as_millis(),
+                        &sess.destination,
+                    );
 
                     let (lr, lw) = tokio::io::split(lhs);
                     let (rr, rw) = tokio::io::split(rhs);
@@ -628,7 +654,13 @@ impl Dispatcher {
             match h.handle_udp(sess, None).await {
                 Ok(c) => {
                     let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
-                    log_udp(h.tag(), h.color(), elapsed.as_millis(), &sess.destination);
+                    log_udp(
+                        &sess.inbound_tag,
+                        h.tag(),
+                        h.color(),
+                        elapsed.as_millis(),
+                        &sess.destination,
+                    );
                     Ok(c)
                 }
                 Err(e) => {
