@@ -5,6 +5,89 @@
 ### Leaf
 A lightweight and fast proxy utility tries to include any useful features.
 
+### Features
+Inbounds are proxy servers and outbounds are clients.
+
+- HTTP inbound supports CONNECT method
+- SOCKS 5 inbound and outbound with UDP ASSOCIATE support
+- TUN inbound
+- Trojan inbound and outbound
+- Direct outbound sends a proxy request directly to it's destination
+- Drop outbound rejects a proxy request
+- Shadowsocks outbound
+- VMess outbound
+
+- WebSocket inbound and outbound
+- TLS outbound
+- H2 outbound
+
+- Chain inbound and outbound for chaining other inbounds and outbounds
+- Failover outbound tries a proxy request on a group of outbounds one by one
+- Random outbound sends a proxy request to one of the outbounds randomly
+- Tryall outbound tries a proxy request on a group of outbounds simultaneously
+
+- A router routes requests from inbounds to outbounds base on domain or IP rules
+- Full cone NAT
+- TUN-based transport proxy
+- Fake DNS
+- Domain sniffing from TLS traffic enabled by default
+- Load balancing / high availability through failover/random/tryall outbounds
+
+### Getting Started
+A local HTTP server redirects accepted requests to a SOCKS 5 server:
+
+```json
+{
+    "inbounds": [
+        {
+            "address": "127.0.0.1",
+            "port": 1087,
+            "protocol": "http"
+        }
+    ],
+    "log": {
+        "level": "trace"
+    },
+    "outbounds": [
+        {
+            "protocol": "socks",
+            "settings": {
+                "address": "127.0.0.1",
+                "port": 1080
+            }
+        }
+    ]
+}
+```
+
+A SOCKS 5 server sends out accepted requests directly:
+
+```json
+{
+    "inbounds": [
+        {
+            "address": "127.0.0.1",
+            "port": 1080,
+            "protocol": "socks"
+        }
+    ],
+    "log": {
+        "level": "trace"
+    },
+    "outbounds": [
+        {
+            "protocol": "direct"
+        }
+    ]
+}
+```
+
+Tests the setup:
+
+```sh
+https_proxy=127.0.0.1:1087 curl "https://example.org"
+```
+
 ### Usage
 You may find some configuration samples [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md), it also serves as a reference for the JSON config format.
 
