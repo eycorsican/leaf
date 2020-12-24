@@ -10,8 +10,8 @@ use uuid::Uuid;
 use crate::{
     app::dns_client::DnsClient,
     proxy::{
-        OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf, OutboundTransport,
-        UdpOutboundHandler, UdpTransportType,
+        OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
+        OutboundTransport, UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -35,8 +35,12 @@ impl UdpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        Some((self.address.clone(), self.port, self.bind_addr))
+    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+        Some(OutboundConnect::Proxy(
+            self.address.clone(),
+            self.port,
+            self.bind_addr,
+        ))
     }
 
     fn udp_transport_type(&self) -> UdpTransportType {

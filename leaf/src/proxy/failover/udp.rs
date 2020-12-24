@@ -19,7 +19,8 @@ use trust_dns_proto::{
 
 use crate::{
     proxy::{
-        OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler, UdpTransportType,
+        OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler,
+        UdpTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -183,7 +184,7 @@ impl UdpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 

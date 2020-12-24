@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{stream::SimpleProxyStream, ProxyStream, TcpOutboundHandler},
+    proxy::{stream::SimpleProxyStream, OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -30,8 +30,12 @@ impl TcpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        Some((self.address.clone(), self.port, self.bind_addr))
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+        Some(OutboundConnect::Proxy(
+            self.address.clone(),
+            self.port,
+            self.bind_addr,
+        ))
     }
 
     async fn handle_tcp<'a>(

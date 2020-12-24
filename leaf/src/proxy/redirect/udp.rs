@@ -12,8 +12,8 @@ use tokio::net::{
 
 use crate::{
     proxy::{
-        OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf, OutboundTransport,
-        UdpOutboundHandler, UdpTransportType,
+        OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
+        OutboundTransport, UdpOutboundHandler, UdpTransportType,
     },
     session::Session,
 };
@@ -30,7 +30,7 @@ impl UdpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 

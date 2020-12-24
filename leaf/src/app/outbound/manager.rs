@@ -17,6 +17,9 @@ use crate::proxy::random;
 #[cfg(feature = "outbound-tryall")]
 use crate::proxy::tryall;
 
+#[cfg(feature = "outbound-stat")]
+use crate::proxy::stat;
+
 #[cfg(feature = "outbound-direct")]
 use crate::proxy::direct;
 #[cfg(feature = "outbound-drop")]
@@ -424,6 +427,31 @@ impl OutboundManager {
                             g: 107,
                             b: 3,
                         },
+                        ProxyHandlerType::Endpoint,
+                        tcp,
+                        udp,
+                    );
+                    handlers.insert(tag.clone(), handler);
+                }
+                #[cfg(feature = "outbound-stat")]
+                "stat" => {
+                    let settings = match protobuf::parse_from_bytes::<config::StatOutboundSettings>(
+                        &outbound.settings,
+                    ) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("invalid [{}] outbound settings: {}", &tag, e);
+                            continue;
+                        }
+                    };
+                    let tcp = Box::new(stat::TcpHandler::new(
+                        settings.address,
+                        settings.port as u16,
+                    ));
+                    let udp = Box::new(stat::UdpHandler::new());
+                    let handler = proxy::outbound::Handler::new(
+                        tag.clone(),
+                        colored::Color::Red,
                         ProxyHandlerType::Endpoint,
                         tcp,
                         udp,

@@ -35,7 +35,7 @@ pub extern "C" fn tcp_recv_cb(
         stream = &mut *(arg as *mut TcpStreamImpl);
 
         if p.is_null() {
-            debug!("tcp eof {}", stream.local_addr());
+            trace!("tcp eof {}", stream.local_addr());
             stream.local_closed = true;
             if let Ok(waker) = stream.waker.lock() {
                 if let Some(waker) = waker.as_ref() {
@@ -52,7 +52,7 @@ pub extern "C" fn tcp_recv_cb(
         buf.set_len(pbuflen as usize);
 
         if let Err(err) = stream.tx.try_send((&buf[..buflen]).to_vec()) {
-            debug!("send recv data failed: {}", err);
+            trace!("send recv data failed: {}", err);
             if let Ok(waker) = stream.waker.lock() {
                 if let Some(waker) = waker.as_ref() {
                     waker.wake_by_ref();
@@ -89,7 +89,7 @@ pub extern "C" fn tcp_err_cb(arg: *mut ::std::os::raw::c_void, err: err_t) {
     unsafe {
         let stream: &mut TcpStreamImpl;
         stream = &mut *(arg as *mut TcpStreamImpl);
-        debug!("tcp err {} {}", err, stream.local_addr());
+        trace!("tcp err {} {}", err, stream.local_addr());
         stream.errored = true;
         if let Ok(waker) = stream.waker.lock() {
             if let Some(waker) = waker.as_ref() {
@@ -149,7 +149,7 @@ impl TcpStreamImpl {
 
             stream.apply_pcb_opts();
 
-            debug!("tcp new {}", stream.local_addr());
+            trace!("tcp new {}", stream.local_addr());
 
             Ok(stream)
         }
@@ -174,7 +174,7 @@ impl TcpStreamImpl {
 
 impl Drop for TcpStreamImpl {
     fn drop(&mut self) {
-        debug!("tcp drop {}", self.local_addr());
+        trace!("tcp drop {}", self.local_addr());
         unsafe {
             let _g = self.lwip_lock.lock();
             if !self.errored {

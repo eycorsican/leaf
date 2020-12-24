@@ -12,8 +12,8 @@ use tokio::net::UdpSocket;
 use crate::{
     app::dns_client::DnsClient,
     proxy::{
-        stream::SimpleProxyStream, OutboundDatagram, OutboundDatagramRecvHalf,
-        OutboundDatagramSendHalf, OutboundTransport, OutboundHandler, SimpleOutboundDatagram,
+        stream::SimpleProxyStream, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
+        OutboundDatagramSendHalf, OutboundHandler, OutboundTransport, SimpleOutboundDatagram,
         UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
@@ -69,13 +69,24 @@ pub struct Handler {
     pub dns_client: Arc<DnsClient>,
 }
 
+impl Handler {
+    fn next_udp_connect_addr(&self, start: usize) -> Option<OutboundConnect> {
+        for i in start..self.actors.len() {
+            if let Some(addr) = self.actors[i].udp_connect_addr() {
+                return Some(addr);
+            }
+        }
+        None
+    }
+}
+
 #[async_trait]
 impl UdpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
 
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         for a in self.actors.iter() {
             if let Some(addr) = a.udp_connect_addr() {
                 return Some(addr);
@@ -101,14 +112,15 @@ impl UdpOutboundHandler for Handler {
         if let Some(OutboundTransport::Stream(mut stream)) = transport {
             for (i, a) in self.actors.iter().enumerate() {
                 let mut new_sess = sess.clone();
-                for j in (i + 1)..self.actors.len() {
-                    if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
+
+                match self.next_udp_connect_addr(i + 1) {
+                    Some(OutboundConnect::Proxy(connect_addr, port, _)) => {
                         if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port))
                         {
                             new_sess.destination = addr;
-                            break;
                         }
                     }
+                    _ => (),
                 }
 
                 if i == self.actors.len() - 1 {
@@ -160,7 +172,7 @@ impl UdpOutboundHandler for Handler {
             let mut bind_addr: SocketAddr =
                 SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0);
             for a in self.actors.iter() {
-                if let Some((_, _, baddr)) = a.udp_connect_addr() {
+                if let Some(OutboundConnect::Proxy(_, _, baddr)) = a.udp_connect_addr() {
                     bind_addr = baddr;
                 }
             }
@@ -169,15 +181,17 @@ impl UdpOutboundHandler for Handler {
 
             for (i, a) in self.actors.iter().enumerate() {
                 let mut new_sess = sess.clone();
-                for j in (i + 1)..self.actors.len() {
-                    if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
+
+                match self.next_udp_connect_addr(i + 1) {
+                    Some(OutboundConnect::Proxy(connect_addr, port, _)) => {
                         if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port))
                         {
                             new_sess.destination = addr;
-                            break;
                         }
                     }
+                    _ => (),
                 }
+
                 dgram = a
                     .handle_udp(&new_sess, Some(OutboundTransport::Datagram(dgram)))
                     .await?;
@@ -185,122 +199,128 @@ impl UdpOutboundHandler for Handler {
             return Ok(dgram);
         }
 
-        for a in self.actors.iter() {
-            if let Some((connect_addr, port, bind_addr)) = a.udp_connect_addr() {
-                let mut stream = self
-                    .dial_tcp_stream(self.dns_client.clone(), &bind_addr, &connect_addr, &port)
-                    .await?;
-                let mut datagram: Option<Box<dyn OutboundDatagram>> = None;
+        let mut stream = match self.udp_connect_addr() {
+            Some(OutboundConnect::Proxy(connect_addr, port, bind_addr)) => {
+                self.dial_tcp_stream(self.dns_client.clone(), &bind_addr, &connect_addr, &port)
+                    .await?
+            }
+            Some(OutboundConnect::Direct(bind_addr)) => {
+                unimplemented!();
+                // self.dial_tcp_stream(
+                //     self.dns_client.clone(),
+                //     &bind_addr,
+                //     &sess.destination.host(),
+                //     &sess.destination.port(),
+                // )
+                // .await?
+            }
+            None => {
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"));
+            }
+        };
 
-                let mut last_index = 0;
+        let mut datagram: Option<Box<dyn OutboundDatagram>> = None;
 
-                for (i, a) in self.actors.iter().enumerate() {
-                    last_index = i;
-                    let mut new_sess = sess.clone();
-                    for j in (i + 1)..self.actors.len() {
-                        if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
-                            if let Ok(addr) =
-                                SocksAddr::try_from(format!("{}:{}", connect_addr, port))
-                            {
-                                new_sess.destination = addr;
-                                break;
-                            }
-                        }
+        let mut last_index = 0;
+
+        for (i, a) in self.actors.iter().enumerate() {
+            last_index = i;
+            let mut new_sess = sess.clone();
+
+            match self.next_udp_connect_addr(i + 1) {
+                Some(OutboundConnect::Proxy(connect_addr, port, _)) => {
+                    if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port)) {
+                        new_sess.destination = addr;
                     }
+                }
+                _ => (),
+            }
 
-                    if i == self.actors.len() - 1 {
-                        if let Some(d) = datagram {
-                            return a
-                                .handle_udp(&new_sess, Some(OutboundTransport::Datagram(d)))
-                                .await;
-                        } else {
-                            return a
-                                .handle_udp(&new_sess, Some(OutboundTransport::Stream(stream)))
-                                .await;
-                        }
-                    } else {
-                        let mut transport_type: UdpTransportType = UdpTransportType::Packet;
+            if i == self.actors.len() - 1 {
+                if let Some(d) = datagram {
+                    return a
+                        .handle_udp(&new_sess, Some(OutboundTransport::Datagram(d)))
+                        .await;
+                } else {
+                    return a
+                        .handle_udp(&new_sess, Some(OutboundTransport::Stream(stream)))
+                        .await;
+                }
+            } else {
+                let mut transport_type: UdpTransportType = UdpTransportType::Packet;
 
-                        // can only transport unreliable upon reliable, not the
-                        // reverse, if any following actor requires reliable transport,
-                        // we must also use reliable transport here.
-                        for k in i..self.actors.len() {
-                            if self.actors[k].udp_transport_type() == UdpTransportType::Stream {
-                                transport_type = UdpTransportType::Stream;
-                            }
-                        }
-
-                        match transport_type {
-                            UdpTransportType::Stream => {
-                                stream = a.handle_tcp(&new_sess, Some(stream)).await?;
-                            }
-                            UdpTransportType::Packet => {
-                                // once a Packet type is encountered, it's guaranteed all
-                                // following actors are Packet type.
-                                if let Some(d) = datagram {
-                                    datagram = Some(
-                                        a.handle_udp(
-                                            &new_sess,
-                                            Some(OutboundTransport::Datagram(d)),
-                                        )
-                                        .await?,
-                                    );
-                                } else {
-                                    datagram = Some(
-                                        a.handle_udp(
-                                            &new_sess,
-                                            Some(OutboundTransport::Stream(stream)),
-                                        )
-                                        .await?,
-                                    );
-                                }
-                                break;
-                            }
-                            UdpTransportType::Unknown => {
-                                return Err(io::Error::new(
-                                    io::ErrorKind::Other,
-                                    "unknown transport type",
-                                ));
-                            }
-                        }
+                // can only transport unreliable upon reliable, not the
+                // reverse, if any following actor requires reliable transport,
+                // we must also use reliable transport here.
+                for k in i..self.actors.len() {
+                    if self.actors[k].udp_transport_type() == UdpTransportType::Stream {
+                        transport_type = UdpTransportType::Stream;
                     }
                 }
 
-                // catch up the last actor index, and treats all the remaining
-                // actors are Packet transports, and they should be
-                for i in (last_index + 1)..self.actors.len() {
-                    let mut new_sess = sess.clone();
-                    for j in (i + 1)..self.actors.len() {
-                        if let Some((connect_addr, port, _)) = self.actors[j].udp_connect_addr() {
-                            if let Ok(addr) =
-                                SocksAddr::try_from(format!("{}:{}", connect_addr, port))
-                            {
-                                new_sess.destination = addr;
-                                break;
-                            }
-                        }
+                match transport_type {
+                    UdpTransportType::Stream => {
+                        stream = a.handle_tcp(&new_sess, Some(stream)).await?;
                     }
-
-                    if i == self.actors.len() - 1 {
-                        return self.actors[i]
-                            .handle_udp(
-                                &new_sess,
-                                Some(OutboundTransport::Datagram(datagram.unwrap())),
-                            )
-                            .await;
-                    } else {
-                        datagram = Some(
-                            self.actors[i]
-                                .handle_udp(
-                                    &new_sess,
-                                    Some(OutboundTransport::Datagram(datagram.unwrap())),
-                                )
-                                .await?,
-                        );
+                    UdpTransportType::Packet => {
+                        // once a Packet type is encountered, it's guaranteed all
+                        // following actors are Packet type.
+                        if let Some(d) = datagram {
+                            datagram = Some(
+                                a.handle_udp(&new_sess, Some(OutboundTransport::Datagram(d)))
+                                    .await?,
+                            );
+                        } else {
+                            datagram = Some(
+                                a.handle_udp(&new_sess, Some(OutboundTransport::Stream(stream)))
+                                    .await?,
+                            );
+                        }
+                        break;
+                    }
+                    UdpTransportType::Unknown => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "unknown transport type",
+                        ));
                     }
                 }
             }
         }
+
+        // catch up the last actor index, and treats all the remaining
+        // actors are Packet transports, and they should be
+        for i in (last_index + 1)..self.actors.len() {
+            let mut new_sess = sess.clone();
+
+            match self.next_udp_connect_addr(i + 1) {
+                Some(OutboundConnect::Proxy(connect_addr, port, _)) => {
+                    if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port)) {
+                        new_sess.destination = addr;
+                    }
+                }
+                _ => (),
+            }
+
+            if i == self.actors.len() - 1 {
+                return self.actors[i]
+                    .handle_udp(
+                        &new_sess,
+                        Some(OutboundTransport::Datagram(datagram.unwrap())),
+                    )
+                    .await;
+            } else {
+                datagram = Some(
+                    self.actors[i]
+                        .handle_udp(
+                            &new_sess,
+                            Some(OutboundTransport::Datagram(datagram.unwrap())),
+                        )
+                        .await?,
+                );
+            }
+        }
+
         Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"))
     }
 }

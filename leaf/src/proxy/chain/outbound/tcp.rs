@@ -6,7 +6,10 @@ use async_trait::async_trait;
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{stream::SimpleProxyStream, OutboundHandler, ProxyStream, TcpOutboundHandler},
+    proxy::{
+        stream::SimpleProxyStream, OutboundConnect, OutboundHandler, ProxyStream,
+        TcpOutboundHandler,
+    },
     session::{Session, SocksAddr},
 };
 
@@ -15,13 +18,24 @@ pub struct Handler {
     pub dns_client: Arc<DnsClient>,
 }
 
+impl Handler {
+    fn next_tcp_connect_addr(&self, start: usize) -> Option<OutboundConnect> {
+        for i in start..self.actors.len() {
+            if let Some(addr) = self.actors[i].tcp_connect_addr() {
+                return Some(addr);
+            }
+        }
+        None
+    }
+}
+
 #[async_trait]
 impl TcpOutboundHandler for Handler {
     fn name(&self) -> &str {
         super::NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
         for a in self.actors.iter() {
             if let Some(addr) = a.tcp_connect_addr() {
                 return Some(addr);
@@ -35,47 +49,41 @@ impl TcpOutboundHandler for Handler {
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>> {
-        if let Some(mut stream) = stream {
-            for (i, a) in self.actors.iter().enumerate() {
-                let mut new_sess = sess.clone();
-                for j in (i + 1)..self.actors.len() {
-                    if let Some((connect_addr, port, _)) = self.actors[j].tcp_connect_addr() {
-                        if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port))
-                        {
-                            new_sess.destination = addr;
-                        }
+        let mut stream = match stream {
+            Some(stream) => stream,
+            None => match self.tcp_connect_addr() {
+                Some(OutboundConnect::Proxy(connect_addr, port, bind_addr)) => {
+                    self.dial_tcp_stream(self.dns_client.clone(), &bind_addr, &connect_addr, &port)
+                        .await?
+                }
+                Some(OutboundConnect::Direct(bind_addr)) => {
+                    self.dial_tcp_stream(
+                        self.dns_client.clone(),
+                        &bind_addr,
+                        &sess.destination.host(),
+                        &sess.destination.port(),
+                    )
+                    .await?
+                }
+                None => {
+                    return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"));
+                }
+            },
+        };
+
+        for (i, a) in self.actors.iter().enumerate() {
+            let mut new_sess = sess.clone();
+            match self.next_tcp_connect_addr(i + 1) {
+                Some(OutboundConnect::Proxy(connect_addr, port, _)) => {
+                    if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port)) {
+                        new_sess.destination = addr;
                     }
                 }
-                stream = a.handle_tcp(&new_sess, Some(stream)).await?;
+                _ => (),
             }
-
-            return Ok(Box::new(SimpleProxyStream(stream)));
+            stream = a.handle_tcp(&new_sess, Some(stream)).await?;
         }
 
-        for a in self.actors.iter() {
-            if let Some((connect_addr, port, bind_addr)) = a.tcp_connect_addr() {
-                let mut stream = self
-                    .dial_tcp_stream(self.dns_client.clone(), &bind_addr, &connect_addr, &port)
-                    .await?;
-
-                for (i, a) in self.actors.iter().enumerate() {
-                    let mut new_sess = sess.clone();
-                    for j in (i + 1)..self.actors.len() {
-                        if let Some((connect_addr, port, _)) = self.actors[j].tcp_connect_addr() {
-                            if let Ok(addr) =
-                                SocksAddr::try_from(format!("{}:{}", connect_addr, port))
-                            {
-                                new_sess.destination = addr;
-                                break;
-                            }
-                        }
-                    }
-                    stream = a.handle_tcp(&new_sess, Some(stream)).await?;
-                }
-
-                return Ok(Box::new(SimpleProxyStream(stream)));
-            }
-        }
-        Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid chain"))
+        return Ok(Box::new(SimpleProxyStream(stream)));
     }
 }

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{ProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -28,8 +28,8 @@ impl TcpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        None
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+        Some(OutboundConnect::Direct(self.bind_addr))
     }
 
     async fn handle_tcp<'a>(

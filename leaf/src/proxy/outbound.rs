@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use crate::session::Session;
 
 use super::{
-    Color, HandlerTyped, OutboundDatagram, OutboundHandler, OutboundTransport, ProxyHandlerType,
-    ProxyStream, Tag, TcpOutboundHandler, UdpOutboundHandler, UdpTransportType,
+    Color, HandlerTyped, OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport,
+    ProxyHandlerType, ProxyStream, Tag, TcpOutboundHandler, UdpOutboundHandler, UdpTransportType,
 };
 
 pub static NAME: &str = "handler";
@@ -72,7 +72,7 @@ impl TcpOutboundHandler for Handler {
         NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
         self.tcp_handler.tcp_connect_addr()
     }
 
@@ -91,7 +91,7 @@ impl UdpOutboundHandler for Handler {
         NAME
     }
 
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         self.udp_handler.udp_connect_addr()
     }
 

@@ -4675,6 +4675,200 @@ impl ::protobuf::reflect::ProtobufValue for FailOverOutboundSettings {
 }
 
 #[derive(PartialEq,Clone,Default)]
+pub struct StatOutboundSettings {
+    // message fields
+    pub address: ::std::string::String,
+    pub port: u32,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a StatOutboundSettings {
+    fn default() -> &'a StatOutboundSettings {
+        <StatOutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl StatOutboundSettings {
+    pub fn new() -> StatOutboundSettings {
+        ::std::default::Default::default()
+    }
+
+    // string address = 1;
+
+
+    pub fn get_address(&self) -> &str {
+        &self.address
+    }
+    pub fn clear_address(&mut self) {
+        self.address.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_address(&mut self, v: ::std::string::String) {
+        self.address = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_address(&mut self) -> &mut ::std::string::String {
+        &mut self.address
+    }
+
+    // Take field
+    pub fn take_address(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.address, ::std::string::String::new())
+    }
+
+    // uint32 port = 2;
+
+
+    pub fn get_port(&self) -> u32 {
+        self.port
+    }
+    pub fn clear_port(&mut self) {
+        self.port = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_port(&mut self, v: u32) {
+        self.port = v;
+    }
+}
+
+impl ::protobuf::Message for StatOutboundSettings {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.address)?;
+                },
+                2 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.port = tmp;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.address.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.address);
+        }
+        if self.port != 0 {
+            my_size += ::protobuf::rt::value_size(2, self.port, ::protobuf::wire_format::WireTypeVarint);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.address.is_empty() {
+            os.write_string(1, &self.address)?;
+        }
+        if self.port != 0 {
+            os.write_uint32(2, self.port)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> StatOutboundSettings {
+        StatOutboundSettings::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "address",
+                |m: &StatOutboundSettings| { &m.address },
+                |m: &mut StatOutboundSettings| { &mut m.address },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "port",
+                |m: &StatOutboundSettings| { &m.port },
+                |m: &mut StatOutboundSettings| { &mut m.port },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<StatOutboundSettings>(
+                "StatOutboundSettings",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static StatOutboundSettings {
+        static instance: ::protobuf::rt::LazyV2<StatOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(StatOutboundSettings::new)
+    }
+}
+
+impl ::protobuf::Clear for StatOutboundSettings {
+    fn clear(&mut self) {
+        self.address.clear();
+        self.port = 0;
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for StatOutboundSettings {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for StatOutboundSettings {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
 pub struct Outbound {
     // message fields
     pub tag: ::std::string::String,
@@ -6132,24 +6326,26 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x18\x04\x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\x18\x05\x20\
     \x01(\x08R\x08failover\x12%\n\x0efallback_cache\x18\x06\x20\x01(\x08R\rf\
     allbackCache\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcacheSize\x12#\n\
-    \rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"h\n\x08Outbound\x12\
-    \x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\
-    \x20\x01(\tR\x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\
-    \x12\x1a\n\x08settings\x18\x04\x20\x01(\x0cR\x08settings\"\xd5\x02\n\x0b\
-    RoutingRule\x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\
-    \x07domains\x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\
-    \x19\n\x08ip_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\
-    \x04\x20\x03(\x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x1au\n\x06Domain\x12,\
-    \n\x04type\x18\x01\x20\x01(\x0e2\x18.RoutingRule.Domain.TypeR\x04type\
-    \x12\x14\n\x05value\x18\x02\x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\
-    \x05PLAIN\x10\0\x12\n\n\x06DOMAIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\
-    \n\x04Mmdb\x12\x12\n\x04file\x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccount\
-    ry_code\x18\x02\x20\x01(\tR\x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\
-    \n\x03log\x18\x01\x20\x01(\x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\
-    \x02\x20\x03(\x0b2\x08.InboundR\x08inbounds\x12'\n\toutbounds\x18\x03\
-    \x20\x03(\x0b2\t.OutboundR\toutbounds\x121\n\rrouting_rules\x18\x04\x20\
-    \x03(\x0b2\x0c.RoutingRuleR\x0croutingRules\x12\x16\n\x03dns\x18\x05\x20\
-    \x01(\x0b2\x04.DNSR\x03dnsb\x06proto3\
+    \rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"D\n\x14StatOutbound\
+    Settings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\
+    \x04port\x18\x02\x20\x01(\rR\x04port\"h\n\x08Outbound\x12\x10\n\x03tag\
+    \x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\
+    \x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08\
+    settings\x18\x04\x20\x01(\x0cR\x08settings\"\xd5\x02\n\x0bRoutingRule\
+    \x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\
+    \x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08i\
+    p_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\
+    \x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x1au\n\x06Domain\x12,\n\x04type\x18\
+    \x01\x20\x01(\x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05val\
+    ue\x18\x02\x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\
+    \n\n\x06DOMAIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\
+    \n\x04file\x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\
+    \x20\x01(\tR\x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\
+    \x01\x20\x01(\x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\
+    \x0b2\x08.InboundR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t\
+    .OutboundR\toutbounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.Ro\
+    utingRuleR\x0croutingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DN\
+    SR\x03dnsb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

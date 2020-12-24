@@ -8,7 +8,7 @@ use sha2::{Digest, Sha224};
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{BufHeadProxyStream, ProxyStream, TcpOutboundHandler},
+    proxy::{BufHeadProxyStream, OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
 
@@ -26,8 +26,12 @@ impl TcpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        Some((self.address.clone(), self.port, self.bind_addr))
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+        Some(OutboundConnect::Proxy(
+            self.address.clone(),
+            self.port,
+            self.bind_addr,
+        ))
     }
 
     async fn handle_tcp<'a>(

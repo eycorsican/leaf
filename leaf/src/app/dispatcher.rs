@@ -6,10 +6,9 @@ use std::time::Duration;
 
 use byteorder::{BigEndian, ByteOrder};
 use bytes::BytesMut;
-use futures::future::{self, try_select, Either, Future, FutureExt};
-use futures::ready;
+use futures::future::{self, Either};
 use log::*;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
@@ -207,81 +206,6 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for SniffingStream<T> {
     }
 }
 
-// The same as tokio::io::copy(), except it takes ownership of the reader and writer.
-struct Transfer<R, W> {
-    reader: R,
-    read_done: bool,
-    writer: W,
-    pos: usize,
-    cap: usize,
-    amt: u64,
-    buf: Box<[u8]>,
-}
-
-fn transfer<R, W>(reader: R, writer: W) -> Transfer<R, W>
-where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
-    Transfer {
-        reader,
-        read_done: false,
-        writer,
-        amt: 0,
-        pos: 0,
-        cap: 0,
-        buf: vec![0; 2048].into_boxed_slice(),
-    }
-}
-
-impl<R, W> Future for Transfer<R, W>
-where
-    R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
-{
-    type Output = io::Result<u64>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-        loop {
-            // If our buffer is empty, then we need to read some data to
-            // continue.
-            if self.pos == self.cap && !self.read_done {
-                let me = &mut *self;
-                let n = ready!(Pin::new(&mut me.reader).poll_read(cx, &mut me.buf))?;
-                if n == 0 {
-                    self.read_done = true;
-                } else {
-                    self.pos = 0;
-                    self.cap = n;
-                }
-            }
-
-            // If our buffer has some data, let's write it out!
-            while self.pos < self.cap {
-                let me = &mut *self;
-                let i = ready!(Pin::new(&mut me.writer).poll_write(cx, &me.buf[me.pos..me.cap]))?;
-                if i == 0 {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::WriteZero,
-                        "write zero byte into writer",
-                    )));
-                } else {
-                    self.pos += i;
-                    self.amt += i as u64;
-                }
-            }
-
-            // If we've written all the data and we've seen EOF, flush out the
-            // data and finish the transfer.
-            if self.pos == self.cap && self.read_done {
-                let me = &mut *self;
-                ready!(Pin::new(&mut me.writer).poll_flush(cx))?;
-                return Poll::Ready(Ok(self.amt));
-            }
-        }
-    }
-}
-
 fn log_tcp(
     inbound_tag: &str,
     outbound_tag: &str,
@@ -372,7 +296,7 @@ impl Dispatcher {
             }
         };
         *self.num_endpoint_tcp.lock().await += 1;
-        debug!(
+        trace!(
             "active proxied tcp connections +1: {}",
             self.num_endpoint_tcp.lock().await
         );
@@ -381,7 +305,7 @@ impl Dispatcher {
     async fn dispatch_endpoint_tcp_done(&self) {
         if self.endpoint_tcp_rx.lock().await.try_recv().is_ok() {
             *self.num_endpoint_tcp.lock().await -= 1;
-            debug!(
+            trace!(
                 "active proxied tcp connections -1: {}",
                 self.num_endpoint_tcp.lock().await
             );
@@ -397,7 +321,7 @@ impl Dispatcher {
             }
         };
         *self.num_direct_tcp.lock().await += 1;
-        debug!(
+        trace!(
             "active direct tcp connections +1: {}",
             self.num_direct_tcp.lock().await
         );
@@ -406,7 +330,7 @@ impl Dispatcher {
     async fn dispatch_direct_tcp_done(&self) {
         if self.direct_tcp_rx.lock().await.try_recv().is_ok() {
             *self.num_direct_tcp.lock().await -= 1;
-            debug!(
+            trace!(
                 "active direct tcp connections -1: {}",
                 self.num_direct_tcp.lock().await
             );
@@ -471,74 +395,14 @@ impl Dispatcher {
                         &sess.destination,
                     );
 
-                    let (lr, lw) = tokio::io::split(lhs);
-                    let (rr, rw) = tokio::io::split(rhs);
+                    let (mut lr, mut lw) = tokio::io::split(lhs);
+                    let (mut rr, mut rw) = tokio::io::split(rhs);
 
-                    let r2l = transfer(rr, lw);
-                    let l2r = transfer(lr, rw);
+                    let l2r = tokio::io::copy(&mut lr, &mut rw);
+                    let r2l = tokio::io::copy(&mut rr, &mut lw);
 
-                    type TransferResult = Box<
-                        dyn Future<Output = io::Result<(io::Result<u64>, io::Result<u64>)>>
-                            + Unpin
-                            + Send,
-                    >;
-                    let transfer = try_select(l2r, r2l).then(|res| -> TransferResult {
-                        match res {
-                            Ok(Either::Left((up_n, r2l))) => {
-                                let timed_r2l =
-                                    timeout(Duration::from_secs(option::TCP_DOWNLINK_TIMEOUT), r2l);
-                                let timed_r2l = timed_r2l.map(move |timed_res| match timed_res {
-                                    Ok(down_res) => match down_res {
-                                        Ok(down_n) => Ok((Ok(up_n), Ok(down_n))),
-                                        Err(down_e) => Ok((Ok(up_n), Err(down_e))),
-                                    },
-                                    // FIXME We should call poll_shutdown() on the writer here,
-                                    // transports such as WebSocket expects a close frame before
-                                    // closing the underlying stream, calling shutdown will do
-                                    // that.
-                                    Err(_to_e) => Ok((
-                                        Ok(up_n),
-                                        Err(io::Error::new(
-                                            io::ErrorKind::TimedOut,
-                                            "downlink timeout",
-                                        )),
-                                    )),
-                                });
-                                Box::new(timed_r2l)
-                            }
-                            Ok(Either::Right((down_n, l2r))) => {
-                                let timed_l2r =
-                                    timeout(Duration::from_secs(option::TCP_UPLINK_TIMEOUT), l2r);
-                                let timed_l2r = timed_l2r.map(move |timed_res| match timed_res {
-                                    Ok(up_res) => match up_res {
-                                        Ok(up_n) => Ok((Ok(up_n), Ok(down_n))),
-                                        Err(up_e) => Ok((Err(up_e), Ok(down_n))),
-                                    },
-                                    Err(_to_e) => Ok((
-                                        Err(io::Error::new(
-                                            io::ErrorKind::TimedOut,
-                                            "uplink timeout",
-                                        )),
-                                        Ok(down_n),
-                                    )),
-                                });
-                                Box::new(timed_l2r)
-                            }
-                            Err(Either::Left((up_e, _))) => Box::new(future::err(io::Error::new(
-                                io::ErrorKind::Interrupted,
-                                format!("uplink error: {}", up_e),
-                            ))),
-                            Err(Either::Right((down_e, _))) => {
-                                Box::new(future::err(io::Error::new(
-                                    io::ErrorKind::Interrupted,
-                                    format!("downlink error: {}", down_e),
-                                )))
-                            }
-                        }
-                    });
-
-                    match transfer.await {
-                        Ok((up_res, down_res)) => {
+                    match future::select(l2r, r2l).await {
+                        Either::Left((up_res, new_r2l)) => {
                             match up_res {
                                 Ok(up_n) => {
                                     debug!(
@@ -549,16 +413,57 @@ impl Dispatcher {
                                         &h.tag(),
                                     );
                                 }
-                                Err(e) => {
+                                Err(up_e) => {
                                     debug!(
                                         "tcp uplink {} -> {} error: {} [{}]",
                                         &sess.source,
                                         &sess.destination,
-                                        e,
+                                        up_e,
                                         &h.tag()
                                     );
                                 }
                             }
+
+                            // FIXME run both shutdown and r2l in parallel?
+                            rw.shutdown().await;
+
+                            let timed_r2l =
+                                timeout(Duration::from_secs(option::TCP_DOWNLINK_TIMEOUT), new_r2l);
+                            match timed_r2l.await {
+                                Ok(down_res) => match down_res {
+                                    Ok(down_n) => {
+                                        debug!(
+                                            "tcp downlink {} <- {} done, {} bytes transfered [{}]",
+                                            &sess.source,
+                                            &sess.destination,
+                                            down_n,
+                                            &h.tag(),
+                                        );
+                                    }
+                                    Err(down_e) => {
+                                        debug!(
+                                            "tcp downlink {} <- {} error: {} [{}]",
+                                            &sess.source,
+                                            &sess.destination,
+                                            down_e,
+                                            &h.tag()
+                                        );
+                                    }
+                                },
+                                Err(timeout_e) => {
+                                    debug!(
+                                        "tcp downlink {} <- {} timeout: {} [{}]",
+                                        &sess.source,
+                                        &sess.destination,
+                                        timeout_e,
+                                        &h.tag()
+                                    );
+                                }
+                            }
+
+                            lw.shutdown().await;
+                        }
+                        Either::Right((down_res, new_l2r)) => {
                             match down_res {
                                 Ok(down_n) => {
                                     debug!(
@@ -569,25 +474,54 @@ impl Dispatcher {
                                         &h.tag(),
                                     );
                                 }
-                                Err(e) => {
+                                Err(down_e) => {
                                     debug!(
                                         "tcp downlink {} <- {} error: {} [{}]",
                                         &sess.source,
                                         &sess.destination,
-                                        e,
+                                        down_e,
                                         &h.tag()
                                     );
                                 }
                             }
-                        }
-                        Err(e) => {
-                            debug!(
-                                "tcp link {} <-> {} interrupted: {} [{}]",
-                                &sess.source,
-                                &sess.destination,
-                                e,
-                                &h.tag()
-                            );
+
+                            lw.shutdown().await;
+
+                            let timed_l2r =
+                                timeout(Duration::from_secs(option::TCP_UPLINK_TIMEOUT), new_l2r);
+                            match timed_l2r.await {
+                                Ok(up_res) => match up_res {
+                                    Ok(up_n) => {
+                                        debug!(
+                                            "tcp uplink {} -> {} done, {} bytes transfered [{}]",
+                                            &sess.source,
+                                            &sess.destination,
+                                            up_n,
+                                            &h.tag(),
+                                        );
+                                    }
+                                    Err(up_e) => {
+                                        debug!(
+                                            "tcp uplink {} -> {} error: {} [{}]",
+                                            &sess.source,
+                                            &sess.destination,
+                                            up_e,
+                                            &h.tag()
+                                        );
+                                    }
+                                },
+                                Err(timeout_e) => {
+                                    debug!(
+                                        "tcp uplink {} -> {} timeout: {} [{}]",
+                                        &sess.source,
+                                        &sess.destination,
+                                        timeout_e,
+                                        &h.tag()
+                                    );
+                                }
+                            }
+
+                            rw.shutdown().await;
                         }
                     }
 
@@ -620,6 +554,7 @@ impl Dispatcher {
                 }
             }
         } else {
+            // FIXME use  the default handler
             debug!("handler not found");
             Err(io::Error::new(ErrorKind::Other, "handler not found"))
         }

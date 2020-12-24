@@ -131,6 +131,11 @@ message FailOverOutboundSettings {
 	uint32 cache_timeout = 8;
 }
 
+message StatOutboundSettings {
+	string address = 1;
+	uint32 port = 2;
+}
+
 message Outbound {
 	string tag = 1;
 	string protocol = 2; // TODO use enum

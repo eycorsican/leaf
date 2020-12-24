@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use async_trait::async_trait;
 
 use crate::{
-    proxy::{ProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -16,7 +16,7 @@ impl TcpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 

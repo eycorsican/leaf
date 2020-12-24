@@ -60,6 +60,9 @@ pub mod random;
 #[cfg(feature = "outbound-tryall")]
 pub mod tryall;
 
+#[cfg(feature = "outbound-stat")]
+pub mod stat;
+
 pub use datagram::{
     SimpleInboundDatagram, SimpleInboundDatagramRecvHalf, SimpleInboundDatagramSendHalf,
     SimpleOutboundDatagram, SimpleOutboundDatagramRecvHalf, SimpleOutboundDatagramSendHalf,
@@ -177,6 +180,11 @@ pub trait OutboundHandler:
 {
 }
 
+pub enum OutboundConnect {
+    Proxy(String, u16, SocketAddr),
+    Direct(SocketAddr),
+}
+
 /// An outbound handler for outgoing TCP conections.
 #[async_trait]
 pub trait TcpOutboundHandler: Send + Sync + Unpin {
@@ -185,7 +193,7 @@ pub trait TcpOutboundHandler: Send + Sync + Unpin {
 
     /// Returns the address which the underlying transport should
     /// communicate with.
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)>;
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect>;
 
     /// Handles a session with the given stream. On success, returns a
     /// stream wraps the incoming stream.
@@ -244,7 +252,7 @@ pub trait UdpOutboundHandler: Send + Sync + Unpin {
 
     /// Returns the address which the underlying transport should
     /// communicate with.
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)>;
+    fn udp_connect_addr(&self) -> Option<OutboundConnect>;
 
     /// Returns the transport type of this handler.
     ///

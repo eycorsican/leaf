@@ -278,7 +278,7 @@ impl NetStackImpl {
     pub fn output(&mut self, pkt: Vec<u8>) -> io::Result<usize> {
         let n = pkt.len();
         if let Err(err) = self.tx.send(pkt) {
-            debug!("output packet failed: {}", err);
+            trace!("output packet failed: {}", err);
             return Ok(0);
         }
         if let Some(waker) = self.waker.as_ref() {

@@ -37,7 +37,7 @@ pub fn setup_logger(loglevel: log::LevelFilter) -> fern::Dispatch {
                 },
             )
         })
-        .level(log::LevelFilter::Info)
+        .level(log::LevelFilter::Warn)
         .level_for("leaf", loglevel)
 }
 

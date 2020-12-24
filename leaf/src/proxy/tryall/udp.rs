@@ -7,7 +7,8 @@ use futures::future::select_ok;
 
 use crate::{
     proxy::{
-        OutboundDatagram, OutboundTransport, OutboundHandler, UdpOutboundHandler, UdpTransportType,
+        OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler,
+        UdpTransportType,
     },
     session::Session,
 };
@@ -23,7 +24,7 @@ impl UdpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 

@@ -10,7 +10,7 @@ use url::Url;
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{ProxyStream, SimpleProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -28,7 +28,7 @@ impl TcpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 

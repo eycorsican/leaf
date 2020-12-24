@@ -4,7 +4,9 @@ use std::net::SocketAddr;
 use async_trait::async_trait;
 
 use crate::{
-    proxy::{OutboundDatagram, OutboundTransport, UdpOutboundHandler, UdpTransportType},
+    proxy::{
+        OutboundConnect, OutboundDatagram, OutboundTransport, UdpOutboundHandler, UdpTransportType,
+    },
     session::Session,
 };
 
@@ -19,7 +21,7 @@ impl UdpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn udp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
+    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 

@@ -155,6 +155,12 @@ pub struct FailOverOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct StatOutboundSettings {
+    pub address: Option<String>,
+    pub port: Option<u16>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Outbound {
     pub protocol: String,
     pub tag: Option<String>,
@@ -641,6 +647,23 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         for ext_actor in ext_actors {
                             settings.actors.push(ext_actor);
                         }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
+                "stat" => {
+                    if ext_outbound.settings.is_none() {
+                        return Err(anyhow!("invalid stat outbound settings"));
+                    }
+                    let mut settings = internal::StatOutboundSettings::new();
+                    let ext_settings: StatOutboundSettings =
+                        serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
+                    if let Some(ext_address) = ext_settings.address {
+                        settings.address = ext_address;
+                    }
+                    if let Some(ext_port) = ext_settings.port {
+                        settings.port = ext_port as u32;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

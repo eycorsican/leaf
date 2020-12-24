@@ -9,7 +9,7 @@ use futures::future::TryFutureExt;
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{ProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
 
@@ -26,8 +26,12 @@ impl TcpOutboundHandler for Handler {
         super::NAME
     }
 
-    fn tcp_connect_addr(&self) -> Option<(String, u16, SocketAddr)> {
-        Some((self.address.clone(), self.port, self.bind_addr))
+    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+        Some(OutboundConnect::Proxy(
+            self.address.clone(),
+            self.port,
+            self.bind_addr,
+        ))
     }
 
     async fn handle_tcp<'a>(
