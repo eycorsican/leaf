@@ -122,7 +122,7 @@ memmap = "0.7.0"
 cidr = { version = "0.1", default-features = false }
 
 # DNS
-trust-dns-proto = "*"
+trust-dns-proto = "0.19"
 lru = "0.6"
 
 # Logging
