@@ -10,13 +10,13 @@ Leaf 是一个轻量且快速的代理工具。
 - [json](#json)
 - [Log](#log)
 - [DNS](#dns)
-- [Inbounds](#inbounds)
+- [inbounds](#inbounds)
   * [http](#http)
   * [socks](#socks)
   * [trojan](#trojan)
   * [ws](#ws)
   * [chain](#chain)
-- [Outbounds](#outbounds)
+- [outbounds](#outbounds)
   * [direct](#direct)
   * [drop](#drop)
   * [tls](#tls)
@@ -40,7 +40,7 @@ Leaf 是一个轻量且快速的代理工具。
     + [mmdb](#mmdb)
     + [site](#site)
 - [Advanced Features](#advanced-features)
-  * [TUN Inbound](#tun-inbound)
+  * [TUN inbound](#tun-inbound)
 
 ## Downloads
 
@@ -300,9 +300,9 @@ level 可以是 trace, debug, info, warn, error
 }
 ```
 
-DNS 用于 `direct` Outbound 请求的域名解析，以及其它 Outbound 中代理服务器地址的解析（如果代理服务器地址是 IP，则不需要解析）。
+DNS 用于 `direct` outbound 请求的域名解析，以及其它 outbound 中代理服务器地址的解析（如果代理服务器地址是 IP，则不需要解析）。
 
-## Inbounds
+## inbounds
 
 ```json
 "inbounds": [
@@ -420,9 +420,9 @@ WebSocket 传输，一般在 `chain` 叠加到其它代理协议上。
 
 注意上面配置示例没有 TLS，一般可以交给 nginx 来处理。
 
-## Outbounds
+## outbounds
 
-支持常见的代理协议比如 Shadowsocks、VMess、Trojan，以及 TLS 和 WebSocket 传输，另外有四个组合类型的 Outbound，其中 `chain` 可以对各种代理和传输协议进行任意组合。
+支持常见的代理协议比如 Shadowsocks、VMess、Trojan，以及 TLS 和 WebSocket 传输，另外有四个组合类型的 outbound，其中 `chain` 可以对各种代理和传输协议进行任意组合。
 
 ```json
 "outbounds": [
@@ -578,7 +578,7 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
 
 ### trojan
 
-`trojan` Outbound 只包含未经 TLS 加密的代理协议，通常还需要利用 `chain` 对其叠加一层 `tls` 才能和正常的 trojan 服务器通讯。
+`trojan` outbound 只包含未经 TLS 加密的代理协议，通常还需要利用 `chain` 对其叠加一层 `tls` 才能和正常的 trojan 服务器通讯。
 
 ```json
 {
@@ -609,7 +609,7 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
 
 ### chain
 
-`chain` Outbound 可以对任意协议进行叠加，主要用途是在某个代理协议上叠加 tls、ws 等传输，以及配置代理链。
+`chain` outbound 可以对任意协议进行叠加，主要用途是在某个代理协议上叠加 tls、ws 等传输，以及配置代理链。
 
 这是一个典型的 TLS + WebSocket + VMess 配置：
 
@@ -701,18 +701,28 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
         "failTimeout": 4,
         "healthCheck": true,
         "checkInterval": 300,
-		"failover": true
+        "failover": true,
+        "fallbackCache": false,
+        "cacheSize": 256,
+        "cacheTimeout": 60
     },
     "tag": "failover_out"
 }
 ```
 
-向列表中的 Outbound 逐个发送请求，直到找到一个可用的 Outbound，可选参数有
+向列表中的 outbound 逐个发送请求，直到找到一个可用的 outbound，可选参数有
 
 - `failTimeout` 握手超时，包括 TCP 握手及相应代理协议握手的时间
-- `healthCheck` 如果为 `true`，则对列表中的 Outbound 定时做健康检查，并按延迟重新排序
+- `healthCheck` 如果为 `true`，则对列表中的 outbound 定时做健康检查，并按延迟重新排序
 - `checkInterval` 健康检查间隔
-- `failover` 如果为 `false`，则只取一个 Outbound 发送请求，失败也不会尝试其它 Outbound
+- `failover` 如果为 `false`，则只取一个 outbound 发送请求，失败也不会尝试其它 outbound
+- `fallbackCache` 如果为 `true`，则对 fallback outbound 的成功请求作记录缓存，后续同样请求直接使用已缓存的 outbound
+- `cacheSize` fallback cache 大小
+- `cacheTimeout` fallback cache 缓存时间，单位分钟
+
+`failover` 的 actors 里面可以包含另一个 `failover` outbound，可以实现非常灵活的多级负载分配机制。
+
+`fallbackCache` 功能的初衷是让 `failover` 能够实现自动检测需要代理请求的机制，把一个 `direct` 和任意数量的其它 outbound 放到 `failover` 中，`direct` 放第一位，并禁用 `healthCheck`，启用 `fallbackCache`，那 `failover` 就会先尝试 `direct`，如果失败，自动切换使用其它 outbound，并且记录缓存下来，下一个同样请求直接跳过 `direct` 使用对应 outbound，但有个缺陷是它只能检测 TCP 连接超时或连接错误的请求。所谓 fallback outbound 就是 `failover` actors 里面第一个 outbound 失败后，所用到的后续任意成功的某个 outbound。
 
 ### tryall
 
@@ -730,9 +740,9 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
 }
 ```
 
-向列表中的所有 Outbound 同时发起代理请求，选取握手成功最快的 Outbound，可选参数有
+向列表中的所有 outbound 同时发起代理请求，选取握手成功最快的 outbound，可选参数有
 
-- `delayBase` 延时基数，如果大于 0，则代理请求会延迟 delayBase * index 毫秒，index 从 0 起，每个 Outbound 递增 1
+- `delayBase` 延时基数，如果大于 0，则代理请求会延迟 delayBase * index 毫秒，index 从 0 起，每个 outbound 递增 1
 
 ### random
 
@@ -749,7 +759,7 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
 }
 ```
 
-从列表中随机选一个 Outbound 发送请求。
+从列表中随机选一个 outbound 发送请求。
 
 ## Rules
 
@@ -875,9 +885,9 @@ V2Ray 的 `dat` 文件格式，可以有如下形式：
 
 ## Advanced Features
 
-### TUN Inbound
+### TUN inbound
 
-在 macOS 和 Linux 上还支持 TUN Inbound
+在 macOS 和 Linux 上还支持 TUN inbound
 
 ```json
 "inbounds": [
@@ -902,8 +912,8 @@ V2Ray 的 `dat` 文件格式，可以有如下形式：
 
 - `name` 在 macOS 上必须是 `utun` 开头后加一个数字，在 Linux 上必须是 `tun` 开头后加一个数字
 - `address` `netmask` `gateway` `mtu` TUN 接口的一些参数
-- `fakeDnsInclude` 使用 TUN Inbound 将默认使用 `FakeDNS` 功能，这个列表可以指定哪些域名会返回伪造 IP，以关键字方式匹配，未指定的域名将不受影响。
-- `fakeDnsExclude` 使用 TUN Inbound 将默认使用 `FakeDNS` 功能，这个列表可以将某些域名排除在外，以关键字方式匹配，未指定的域名将会返回伪造的 IP。
+- `fakeDnsInclude` 使用 TUN inbound 将默认使用 `FakeDNS` 功能，这个列表可以指定哪些域名会返回伪造 IP，以关键字方式匹配，未指定的域名将不受影响。
+- `fakeDnsExclude` 使用 TUN inbound 将默认使用 `FakeDNS` 功能，这个列表可以将某些域名排除在外，以关键字方式匹配，未指定的域名将会返回伪造的 IP。
 
 `fakeDnsInclude` 和 `fakeDnsExclude` 只能二选一，这个配置方式将来大概率会改。
 
@@ -911,7 +921,7 @@ V2Ray 的 `dat` 文件格式，可以有如下形式：
 
 还需要手动配置路由表，具体可以参考 Mellow ：[macOS](https://github.com/mellow-io/mellow/blob/f71f6e54768ded3cfcc46bebb706d46cb8baac08/src/main.js#L702) [Linux](https://github.com/mellow-io/mellow/blob/f71f6e54768ded3cfcc46bebb706d46cb8baac08/src/helper/linux/config_route#L1)
 
-此外所有非组合类型的 Outbound 必须正确配置一个 `bind` 地址，这是连接原网关的网卡的地址，即未连接 VPN 前网卡的 IP 地址：
+此外所有非组合类型的 outbound 必须正确配置一个 `bind` 地址，这是连接原网关的网卡的地址，即未连接 VPN 前网卡的 IP 地址：
 ```json
 "outbounds: [
     {
