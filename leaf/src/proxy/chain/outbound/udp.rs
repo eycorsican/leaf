@@ -204,7 +204,7 @@ impl UdpOutboundHandler for Handler {
                 self.dial_tcp_stream(self.dns_client.clone(), &bind_addr, &connect_addr, &port)
                     .await?
             }
-            Some(OutboundConnect::Direct(bind_addr)) => {
+            Some(OutboundConnect::Direct(_bind_addr)) => {
                 unimplemented!();
                 // self.dial_tcp_stream(
                 //     self.dns_client.clone(),

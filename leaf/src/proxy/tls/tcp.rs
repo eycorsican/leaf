@@ -1,5 +1,4 @@
 use std::io;
-use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use futures::TryFutureExt;

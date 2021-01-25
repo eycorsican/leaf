@@ -1,6 +1,5 @@
 use std::cmp::min;
 use std::io;
-use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 

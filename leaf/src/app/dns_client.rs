@@ -63,13 +63,18 @@ impl DnsClient {
     ) -> Result<Vec<IpAddr>> {
         let mut socket = UdpSocket::bind(bind_addr).await?;
         let mut last_err = None;
-        for _i in 0..4 {
+        for _i in 0..option::MAX_DNS_RETRIES {
             debug!("looking up domain {} on {}", domain, server);
             let start = tokio::time::Instant::now();
             match socket.send_to(&request, server).await {
                 Ok(_) => {
                     let mut buf = vec![0u8; 512];
-                    match timeout(Duration::from_secs(4), socket.recv_from(&mut buf)).await {
+                    match timeout(
+                        Duration::from_secs(option::DNS_TIMEOUT),
+                        socket.recv_from(&mut buf),
+                    )
+                    .await
+                    {
                         Ok(res) => match res {
                             Ok((n, _)) => {
                                 let resp = match Message::from_vec(&buf[..n]) {

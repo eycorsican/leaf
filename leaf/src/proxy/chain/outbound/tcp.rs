@@ -1,5 +1,4 @@
 use std::convert::TryFrom;
-use std::net::SocketAddr;
 use std::{io, sync::Arc};
 
 use async_trait::async_trait;

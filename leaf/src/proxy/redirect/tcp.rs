@@ -1,5 +1,4 @@
 use std::io::Result;
-use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use tokio::net::TcpStream;

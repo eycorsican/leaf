@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::{io, sync::Arc, time};
 
 use async_trait::async_trait;

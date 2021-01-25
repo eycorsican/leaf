@@ -12,6 +12,7 @@ use tokio::net::TcpStream;
 use crate::{
     app::dns_client::DnsClient,
     common::resolver::Resolver,
+    option,
     session::{Session, SocksAddr},
 };
 
@@ -133,13 +134,11 @@ async fn dial_tcp_stream(
 
     let mut last_err = None;
 
-    // TODO make configurable
-    let dial_concurrency = 3;
     let mut done = false;
 
     while !done {
         let mut tasks = Vec::new();
-        for _ in 0..dial_concurrency {
+        for _ in 0..option::OUTBOUND_DIAL_CONCURRENCY {
             let dial_addr = match resolver.next() {
                 Some(a) => a,
                 None => {

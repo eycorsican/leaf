@@ -13,10 +13,8 @@ use tokio::sync::{
 };
 
 use crate::app::dispatcher::Dispatcher;
+use crate::option;
 use crate::session::{Session, SocksAddr};
-
-static UDP_SESSION_TIMEOUT: u64 = 30;
-static UDP_SESSION_TIMEOUT_CHECK_INTERVAL: u64 = 10;
 
 #[derive(Debug)]
 pub struct UdpPacket {
@@ -45,7 +43,7 @@ impl NatManager {
                 let n_total = sessions.len();
                 let now = Instant::now();
                 sessions.retain(|key, sess| {
-                    if now.duration_since(sess.2).as_secs() >= UDP_SESSION_TIMEOUT {
+                    if now.duration_since(sess.2).as_secs() >= option::UDP_SESSION_TIMEOUT {
                         // Abort downlink task, uplink task will end automatically
                         // when we drop the channel's tx side upon session removal.
                         sess.1.abort();
@@ -65,8 +63,10 @@ impl NatManager {
                         n_remaining
                     );
                 }
-                tokio::time::delay_for(Duration::from_secs(UDP_SESSION_TIMEOUT_CHECK_INTERVAL))
-                    .await;
+                tokio::time::delay_for(Duration::from_secs(
+                    option::UDP_SESSION_TIMEOUT_CHECK_INTERVAL,
+                ))
+                .await;
             }
         });
 
@@ -159,7 +159,9 @@ impl NatManager {
                                     // If the destination port is 53, we assume it's a
                                     // DNS query and set a negative timeout so it will
                                     // be removed on next check.
-                                    sess.2.checked_sub(Duration::from_secs(UDP_SESSION_TIMEOUT));
+                                    sess.2.checked_sub(Duration::from_secs(
+                                        option::UDP_SESSION_TIMEOUT,
+                                    ));
                                 } else {
                                     sess.2 = Instant::now();
                                 }
