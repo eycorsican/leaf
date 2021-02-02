@@ -100,14 +100,14 @@ pub trait HandlerTyped {
 async fn tcp_dial_task(
     dial_addr: SocketAddr,
     bind_addr: &SocketAddr,
-) -> io::Result<Box<dyn ProxyStream>> {
+) -> io::Result<(Box<dyn ProxyStream>, SocketAddr)> {
     let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
     socket.bind(&bind_addr.clone().into())?;
     trace!("dialing tcp {}", &dial_addr);
     match TcpStream::connect_std(socket.into_tcp_stream(), &dial_addr).await {
         Ok(stream) => {
             trace!("connected tcp {}", &dial_addr);
-            Ok(Box::new(SimpleProxyStream(stream)))
+            Ok((Box::new(SimpleProxyStream(stream)), dial_addr))
         }
         Err(e) => Err(io::Error::new(
             io::ErrorKind::Other,
@@ -123,7 +123,7 @@ async fn dial_tcp_stream(
     address: &str,
     port: &u16,
 ) -> io::Result<Box<dyn ProxyStream>> {
-    let mut resolver = Resolver::new(dns_client, bind_addr, address, port)
+    let mut resolver = Resolver::new(dns_client.clone(), bind_addr, address, port)
         .map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,
@@ -151,7 +151,12 @@ async fn dial_tcp_stream(
         }
         if !tasks.is_empty() {
             match select_ok(tasks.into_iter()).await {
-                Ok(v) => return Ok(v.0),
+                Ok(v) => {
+                    #[rustfmt::skip]
+                    dns_client.optimize_cache(address.to_owned(), v.0.1.ip()).await;
+                    #[rustfmt::skip]
+                    return Ok(v.0.0);
+                }
                 Err(e) => {
                     last_err = Some(io::Error::new(
                         io::ErrorKind::Other,

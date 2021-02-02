@@ -55,6 +55,34 @@ impl DnsClient {
         }
     }
 
+    /// Updates the cache according to the IP address successfully connected.
+    pub async fn optimize_cache(&self, address: String, connected_ip: IpAddr) {
+        // Nothing to do if the target address is an IP address.
+        if let Ok(_) = address.parse::<IpAddr>() {
+            return;
+        }
+
+        // If the connected IP is not in the first place, we should optimize it.
+        let mut new_ips = if let Some(ips) = self.cache.lock().await.get(&address) {
+            if !ips.starts_with(&[connected_ip]) && ips.contains(&connected_ip) {
+                ips.to_vec()
+            } else {
+                return;
+            }
+        } else {
+            return;
+        };
+
+        // Move failed IPs to the end, the optimized vector starts with the connected IP.
+        if let Ok(idx) = new_ips.binary_search(&connected_ip) {
+            trace!("updates DNS cache item from\n{:#?}", &new_ips);
+            new_ips.rotate_left(idx);
+            trace!("to\n{:#?}", &new_ips);
+            self.cache.lock().await.put(address, new_ips);
+            trace!("updated cache");
+        }
+    }
+
     async fn query_task(
         request: Box<[u8]>,
         domain: &str,
