@@ -164,6 +164,7 @@ message RoutingRule {
 	repeated Domain domains = 2;
 	repeated string ip_cidrs = 3;
 	repeated Mmdb mmdbs = 4;
+	repeated string port_ranges = 5;
 }
 
 message Config {

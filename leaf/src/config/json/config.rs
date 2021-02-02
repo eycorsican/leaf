@@ -178,6 +178,8 @@ pub struct Rule {
     pub domain_suffix: Option<Vec<String>>,
     pub geoip: Option<Vec<String>>,
     pub external: Option<Vec<String>>,
+    #[serde(rename = "portRange")]
+    pub port_range: Option<Vec<String>>,
     pub target: String,
 }
 
@@ -736,6 +738,12 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                             println!("load external rule failed: {}", e);
                         }
                     }
+                }
+            }
+            if let Some(ext_port_ranges) = ext_rule.port_range {
+                for ext_port_range in ext_port_ranges {
+                    // FIXME validate
+                    rule.port_ranges.push(ext_port_range);
                 }
             }
             rules.push(rule);

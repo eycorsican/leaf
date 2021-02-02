@@ -101,6 +101,74 @@ impl Condition for IpCidrMatcher {
     }
 }
 
+struct PortMatcher {
+    condition: Box<dyn Condition>,
+}
+
+impl PortMatcher {
+    fn new(port_ranges: &protobuf::RepeatedField<String>) -> Self {
+        let mut cond_or = ConditionOr::new();
+        for pr in port_ranges.iter() {
+            match PortRangeMatcher::new(pr) {
+                Ok(m) => cond_or.add(Box::new(m)),
+                Err(e) => warn!("failed to add port range matcher: {}", e),
+            }
+        }
+        PortMatcher {
+            condition: Box::new(cond_or),
+        }
+    }
+}
+
+impl Condition for PortMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        self.condition.apply(sess)
+    }
+}
+
+struct PortRangeMatcher {
+    start: u16,
+    end: u16,
+}
+
+impl PortRangeMatcher {
+    fn new(port_range: &str) -> Result<Self> {
+        let parts: Vec<&str> = port_range.split("-").collect();
+        if parts.len() != 2 {
+            return Err(anyhow!("invalid port range"));
+        }
+        let start = if let Ok(v) = parts[0].parse::<u16>() {
+            v
+        } else {
+            return Err(anyhow!("invalid port range"));
+        };
+        let end = if let Ok(v) = parts[1].parse::<u16>() {
+            v
+        } else {
+            return Err(anyhow!("invalid port range"));
+        };
+        if start > end {
+            return Err(anyhow!("invalid port range"));
+        }
+        Ok(PortRangeMatcher { start, end })
+    }
+}
+
+impl Condition for PortRangeMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        let port = sess.destination.port();
+        if port >= self.start && port <= self.end {
+            debug!(
+                "[{}] matches port range [{}-{}]",
+                port, self.start, self.end
+            );
+            true
+        } else {
+            false
+        }
+    }
+}
+
 struct DomainKeywordMatcher {
     value: String,
 }
@@ -153,22 +221,6 @@ fn is_sub_domain(d1: &str, d2: &str) -> bool {
         }
     }
     true
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_sub_domain() {
-        let d1 = "video.google.com".to_string();
-        let d2 = "google.com".to_string();
-        assert!(is_sub_domain(&d1, &d2));
-
-        let d1 = "video.google.com".to_string();
-        let d2 = "gle.com".to_string();
-        assert!(!is_sub_domain(&d1, &d2));
-    }
 }
 
 impl Condition for DomainSuffixMatcher {
@@ -309,12 +361,15 @@ impl Router {
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
         for rr in routing_rules.iter() {
             let mut cond_and = ConditionAnd::new();
+
             if rr.domains.len() > 0 {
                 cond_and.add(Box::new(DomainMatcher::new(&rr.domains)));
             }
+
             if rr.ip_cidrs.len() > 0 {
                 cond_and.add(Box::new(IpCidrMatcher::new(&rr.ip_cidrs)));
             }
+
             if rr.mmdbs.len() > 0 {
                 for mmdb in rr.mmdbs.iter() {
                     let reader = match mmdb_readers.get(&mmdb.file) {
@@ -336,10 +391,16 @@ impl Router {
                     )));
                 }
             }
+
+            if rr.port_ranges.len() > 0 {
+                cond_and.add(Box::new(PortMatcher::new(&rr.port_ranges)));
+            }
+
             if cond_and.is_empty() {
                 warn!("empty rule at target {}", rr.target_tag);
                 continue;
             }
+
             rules.push(Rule::new(rr.target_tag.clone(), Box::new(cond_and)));
         }
         Router { rules }
@@ -352,5 +413,66 @@ impl Router {
             }
         }
         Err(anyhow!("no matching rules"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::session::SocksAddr;
+
+    use super::*;
+
+    #[test]
+    fn test_is_sub_domain() {
+        let d1 = "video.google.com".to_string();
+        let d2 = "google.com".to_string();
+        assert!(is_sub_domain(&d1, &d2));
+
+        let d1 = "video.google.com".to_string();
+        let d2 = "gle.com".to_string();
+        assert!(!is_sub_domain(&d1, &d2));
+    }
+
+    #[test]
+    fn test_port_matcher() {
+        let mut sess = Session {
+            source: "0.0.0.0:0".parse().unwrap(),
+            local_addr: "0.0.0.0:0".parse().unwrap(),
+            destination: SocksAddr::Domain("www.google.com".to_string(), 22),
+            inbound_tag: "".to_string(),
+        };
+
+        // test port range
+        let m = PortMatcher::new(&protobuf::RepeatedField::from_vec(vec![
+            "1024-5000".to_string(),
+            "6000-7000".to_string(),
+        ]));
+        sess.destination = SocksAddr::Domain("www.google.com".to_string(), 2000);
+        assert!(m.apply(&sess));
+        sess.destination = SocksAddr::Domain("www.google.com".to_string(), 5001);
+        assert!(!m.apply(&sess));
+        sess.destination = SocksAddr::Domain("www.google.com".to_string(), 6001);
+        assert!(m.apply(&sess));
+
+        // test single port range
+        let m = PortMatcher::new(&protobuf::RepeatedField::from_vec(
+            vec!["22-22".to_string()],
+        ));
+        sess.destination = SocksAddr::Domain("www.google.com".to_string(), 22);
+        assert!(m.apply(&sess));
+
+        // test invalid port ranges
+        let m = PortRangeMatcher::new("22-21");
+        assert!(m.is_err());
+        let m = PortRangeMatcher::new("22");
+        assert!(m.is_err());
+        let m = PortRangeMatcher::new("22-");
+        assert!(m.is_err());
+        let m = PortRangeMatcher::new("-22");
+        assert!(m.is_err());
+        let m = PortRangeMatcher::new("22-abc");
+        assert!(m.is_err());
+        let m = PortRangeMatcher::new("22-23-24");
+        assert!(m.is_err());
     }
 }

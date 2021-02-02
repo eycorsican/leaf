@@ -531,7 +531,8 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         rule.target = params[2].to_string();
 
         match rule.type_field.as_str() {
-            "IP-CIDR" | "DOMAIN" | "DOMAIN-SUFFIX" | "DOMAIN-KEYWORD" | "GEOIP" | "EXTERNAL" => {
+            "IP-CIDR" | "DOMAIN" | "DOMAIN-SUFFIX" | "DOMAIN-KEYWORD" | "GEOIP" | "EXTERNAL"
+            | "PORT-RANGE" => {
                 rule.filter = Some(params[1].to_string());
             }
             _ => {}
@@ -1074,6 +1075,9 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                             println!("load external rule failed: {}", e);
                         }
                     }
+                }
+                "PORT-RANGE" => {
+                    rule.port_ranges.push(ext_filter);
                 }
                 _ => {}
             }

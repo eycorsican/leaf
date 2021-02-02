@@ -5160,6 +5160,7 @@ pub struct RoutingRule {
     pub domains: ::protobuf::RepeatedField<RoutingRule_Domain>,
     pub ip_cidrs: ::protobuf::RepeatedField<::std::string::String>,
     pub mmdbs: ::protobuf::RepeatedField<RoutingRule_Mmdb>,
+    pub port_ranges: ::protobuf::RepeatedField<::std::string::String>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -5276,6 +5277,31 @@ impl RoutingRule {
     pub fn take_mmdbs(&mut self) -> ::protobuf::RepeatedField<RoutingRule_Mmdb> {
         ::std::mem::replace(&mut self.mmdbs, ::protobuf::RepeatedField::new())
     }
+
+    // repeated string port_ranges = 5;
+
+
+    pub fn get_port_ranges(&self) -> &[::std::string::String] {
+        &self.port_ranges
+    }
+    pub fn clear_port_ranges(&mut self) {
+        self.port_ranges.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_port_ranges(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
+        self.port_ranges = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_port_ranges(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
+        &mut self.port_ranges
+    }
+
+    // Take field
+    pub fn take_port_ranges(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
+        ::std::mem::replace(&mut self.port_ranges, ::protobuf::RepeatedField::new())
+    }
 }
 
 impl ::protobuf::Message for RoutingRule {
@@ -5309,6 +5335,9 @@ impl ::protobuf::Message for RoutingRule {
                 4 => {
                     ::protobuf::rt::read_repeated_message_into(wire_type, is, &mut self.mmdbs)?;
                 },
+                5 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.port_ranges)?;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -5335,6 +5364,9 @@ impl ::protobuf::Message for RoutingRule {
             let len = value.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
         };
+        for value in &self.port_ranges {
+            my_size += ::protobuf::rt::string_size(5, &value);
+        };
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -5356,6 +5388,9 @@ impl ::protobuf::Message for RoutingRule {
             os.write_tag(4, ::protobuf::wire_format::WireTypeLengthDelimited)?;
             os.write_raw_varint32(v.get_cached_size())?;
             v.write_to_with_cached_sizes(os)?;
+        };
+        for v in &self.port_ranges {
+            os.write_string(5, &v)?;
         };
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -5415,6 +5450,11 @@ impl ::protobuf::Message for RoutingRule {
                 |m: &RoutingRule| { &m.mmdbs },
                 |m: &mut RoutingRule| { &mut m.mmdbs },
             ));
+            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "port_ranges",
+                |m: &RoutingRule| { &m.port_ranges },
+                |m: &mut RoutingRule| { &mut m.port_ranges },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<RoutingRule>(
                 "RoutingRule",
                 fields,
@@ -5435,6 +5475,7 @@ impl ::protobuf::Clear for RoutingRule {
         self.domains.clear();
         self.ip_cidrs.clear();
         self.mmdbs.clear();
+        self.port_ranges.clear();
         self.unknown_fields.clear();
     }
 }
@@ -6331,21 +6372,22 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x04port\x18\x02\x20\x01(\rR\x04port\"h\n\x08Outbound\x12\x10\n\x03tag\
     \x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\
     \x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08\
-    settings\x18\x04\x20\x01(\x0cR\x08settings\"\xd5\x02\n\x0bRoutingRule\
+    settings\x18\x04\x20\x01(\x0cR\x08settings\"\xf6\x02\n\x0bRoutingRule\
     \x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\
     \x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08i\
     p_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\
-    \x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x1au\n\x06Domain\x12,\n\x04type\x18\
-    \x01\x20\x01(\x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05val\
-    ue\x18\x02\x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\
-    \n\n\x06DOMAIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\
-    \n\x04file\x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\
-    \x20\x01(\tR\x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\
-    \x01\x20\x01(\x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\
-    \x0b2\x08.InboundR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t\
-    .OutboundR\toutbounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.Ro\
-    utingRuleR\x0croutingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DN\
-    SR\x03dnsb\x06proto3\
+    \x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\
+    \x20\x03(\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01\
+    (\x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\
+    \x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOM\
+    AIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\
+    \x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\
+    \x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\
+    \x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.Inbou\
+    ndR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\tout\
+    bounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0cr\
+    outingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DNSR\x03dnsb\x06p\
+    roto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
