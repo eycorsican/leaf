@@ -5,6 +5,7 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use anyhow::Result;
+use protobuf::Message;
 
 use super::{geosite, internal};
 
@@ -80,13 +81,12 @@ pub fn add_external_rule(
                         return Err(anyhow!("reading dat file {} failed: {}", &file, e));
                     }
                 }
-                let site_group_list =
-                    match protobuf::parse_from_bytes::<geosite::SiteGroupList>(&buf) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            return Err(anyhow!("dat file {} has invalid format: {}", &file, e));
-                        }
-                    };
+                let site_group_list = match geosite::SiteGroupList::parse_from_bytes(&buf) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return Err(anyhow!("dat file {} has invalid format: {}", &file, e));
+                    }
+                };
                 site_group_lists.insert(file.clone(), site_group_list);
                 site_group_lists.get(&file).unwrap()
             }

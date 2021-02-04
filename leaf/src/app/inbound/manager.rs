@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use protobuf::Message;
+
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
 use crate::config::{
@@ -69,8 +71,7 @@ impl InboundManager {
                 #[cfg(feature = "inbound-trojan")]
                 "trojan" => {
                     let settings =
-                        protobuf::parse_from_bytes::<TrojanInboundSettings>(&inbound.settings)
-                            .unwrap();
+                        TrojanInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
                     let tcp = Arc::new(trojan::inbound::TcpHandler::new(&settings.password));
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         inbound.tag.clone(),
@@ -82,8 +83,7 @@ impl InboundManager {
                 #[cfg(feature = "inbound-ws")]
                 "ws" => {
                     let settings =
-                        protobuf::parse_from_bytes::<WebSocketInboundSettings>(&inbound.settings)
-                            .unwrap();
+                        WebSocketInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
                     let tcp = Arc::new(ws::inbound::TcpHandler::new(settings.path.clone()));
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         inbound.tag.clone(),
@@ -102,8 +102,7 @@ impl InboundManager {
                 #[cfg(feature = "inbound-chain")]
                 "chain" => {
                     let settings =
-                        protobuf::parse_from_bytes::<ChainInboundSettings>(&inbound.settings)
-                            .unwrap();
+                        ChainInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
                     let mut actors = Vec::new();
                     for actor in settings.actors.iter() {
                         if let Some(a) = handlers.get(actor) {

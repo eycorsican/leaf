@@ -91,7 +91,7 @@ inbound-chain = []
 # Common
 tokio = { version = "0.2", features = ["macros", "sync", "io-util", "net", "stream"] }
 futures-util = "0.3"
-protobuf = "2.17"
+protobuf = "2.20"
 socket2 = "0.3"
 thiserror = "1.0"
 futures = "0.3"

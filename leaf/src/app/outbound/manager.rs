@@ -7,6 +7,7 @@ use std::{
 };
 
 use log::*;
+use protobuf::Message;
 
 #[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;
@@ -127,10 +128,9 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-redirect")]
                 "redirect" => {
-                    let settings = match protobuf::parse_from_bytes::<
-                        config::RedirectOutboundSettings,
-                    >(&outbound.settings)
-                    {
+                    let settings = match config::RedirectOutboundSettings::parse_from_bytes(
+                        &outbound.settings,
+                    ) {
                         Ok(s) => s,
                         Err(e) => {
                             warn!("invalid [{}] outbound settings: {}", &tag, e);
@@ -156,15 +156,14 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-socks")]
                 "socks" => {
-                    let settings = match protobuf::parse_from_bytes::<config::SocksOutboundSettings>(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        match config::SocksOutboundSettings::parse_from_bytes(&outbound.settings) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
                     let tcp = Box::new(socks::outbound::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
@@ -192,10 +191,9 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-shadowsocks")]
                 "shadowsocks" => {
-                    let settings = match protobuf::parse_from_bytes::<
-                        config::ShadowsocksOutboundSettings,
-                    >(&outbound.settings)
-                    {
+                    let settings = match config::ShadowsocksOutboundSettings::parse_from_bytes(
+                        &outbound.settings,
+                    ) {
                         Ok(s) => s,
                         Err(e) => {
                             warn!("invalid [{}] outbound settings: {}", &tag, e);
@@ -229,7 +227,7 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-trojan")]
                 "trojan" => {
-                    let settings = match protobuf::parse_from_bytes::<config::TrojanOutboundSettings>(
+                    let settings = match config::TrojanOutboundSettings::parse_from_bytes(
                         &outbound.settings,
                     ) {
                         Ok(s) => s,
@@ -263,15 +261,14 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-vmess")]
                 "vmess" => {
-                    let settings = match protobuf::parse_from_bytes::<config::VMessOutboundSettings>(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        match config::VMessOutboundSettings::parse_from_bytes(&outbound.settings) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
 
                     let tcp = Box::new(vmess::TcpHandler {
                         address: settings.address.clone(),
@@ -300,15 +297,14 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-vless")]
                 "vless" => {
-                    let settings = match protobuf::parse_from_bytes::<config::VLessOutboundSettings>(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        match config::VLessOutboundSettings::parse_from_bytes(&outbound.settings) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
 
                     let tcp = Box::new(vless::TcpHandler {
                         address: settings.address.clone(),
@@ -335,15 +331,14 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-tls")]
                 "tls" => {
-                    let settings = match protobuf::parse_from_bytes::<config::TlsOutboundSettings>(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        match config::TlsOutboundSettings::parse_from_bytes(&outbound.settings) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
                     let mut alpns = Vec::new();
                     for alpn in settings.alpn.iter() {
                         alpns.push(alpn.clone());
@@ -371,10 +366,9 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-ws")]
                 "ws" => {
-                    let settings = match protobuf::parse_from_bytes::<
-                        config::WebSocketOutboundSettings,
-                    >(&outbound.settings)
-                    {
+                    let settings = match config::WebSocketOutboundSettings::parse_from_bytes(
+                        &outbound.settings,
+                    ) {
                         Ok(s) => s,
                         Err(e) => {
                             warn!("invalid [{}] outbound settings: {}", &tag, e);
@@ -403,15 +397,14 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-h2")]
                 "h2" => {
-                    let settings = match protobuf::parse_from_bytes::<config::HTTP2OutboundSettings>(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        match config::HTTP2OutboundSettings::parse_from_bytes(&outbound.settings) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
                     let tcp = Box::new(crate::proxy::h2::TcpHandler {
                         path: settings.path.clone(),
                         host: settings.host.clone(),
@@ -435,15 +428,14 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-stat")]
                 "stat" => {
-                    let settings = match protobuf::parse_from_bytes::<config::StatOutboundSettings>(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        match config::StatOutboundSettings::parse_from_bytes(&outbound.settings) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
                     let tcp = Box::new(stat::TcpHandler::new(
                         settings.address,
                         settings.port as u16,
@@ -469,10 +461,9 @@ impl OutboundManager {
                 match outbound.protocol.as_str() {
                     #[cfg(feature = "outbound-tryall")]
                     "tryall" => {
-                        let settings = match protobuf::parse_from_bytes::<
-                            config::TryAllOutboundSettings,
-                        >(&outbound.settings)
-                        {
+                        let settings = match config::TryAllOutboundSettings::parse_from_bytes(
+                            &outbound.settings,
+                        ) {
                             Ok(s) => s,
                             Err(e) => {
                                 warn!("invalid [{}] outbound settings: {}", &tag, e);
@@ -511,10 +502,9 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-random")]
                     "random" => {
-                        let settings = match protobuf::parse_from_bytes::<
-                            config::RandomOutboundSettings,
-                        >(&outbound.settings)
-                        {
+                        let settings = match config::RandomOutboundSettings::parse_from_bytes(
+                            &outbound.settings,
+                        ) {
                             Ok(s) => s,
                             Err(e) => {
                                 warn!("invalid [{}] outbound settings: {}", &tag, e);
@@ -549,10 +539,9 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-failover")]
                     "failover" => {
-                        let settings = match protobuf::parse_from_bytes::<
-                            config::FailOverOutboundSettings,
-                        >(&outbound.settings)
-                        {
+                        let settings = match config::FailOverOutboundSettings::parse_from_bytes(
+                            &outbound.settings,
+                        ) {
                             Ok(s) => s,
                             Err(e) => {
                                 warn!("invalid [{}] outbound settings: {}", &tag, e);
@@ -600,10 +589,9 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-chain")]
                     "chain" => {
-                        let settings = match protobuf::parse_from_bytes::<
-                            config::ChainOutboundSettings,
-                        >(&outbound.settings)
-                        {
+                        let settings = match config::ChainOutboundSettings::parse_from_bytes(
+                            &outbound.settings,
+                        ) {
                             Ok(s) => s,
                             Err(e) => {
                                 warn!("invalid [{}] outbound settings: {}", &tag, e);

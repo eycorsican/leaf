@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use futures::{sink::SinkExt, stream::StreamExt};
 use log::*;
+use protobuf::Message;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex as TokioMutex;
 use tun::{self, Device, TunPacket};
@@ -24,7 +25,7 @@ pub fn new(
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
 ) -> Result<Runner> {
-    let settings = protobuf::parse_from_bytes::<TUNInboundSettings>(&inbound.settings).unwrap();
+    let settings = TUNInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
 
     let cfg = if settings.fd >= 0 {
         let mut cfg = tun::Configuration::default();
