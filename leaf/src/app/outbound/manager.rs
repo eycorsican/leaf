@@ -108,8 +108,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::Green,
                         ProxyHandlerType::Direct,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -121,8 +121,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::Red,
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -149,8 +149,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::BrightYellow,
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -184,8 +184,8 @@ impl OutboundManager {
                             b: 3,
                         },
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -220,8 +220,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::Blue,
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag, handler);
                 }
@@ -254,8 +254,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::Cyan,
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag, handler);
                 }
@@ -290,8 +290,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::Magenta,
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag, handler);
                 }
@@ -324,8 +324,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::Magenta,
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag, handler);
                 }
@@ -347,10 +347,6 @@ impl OutboundManager {
                         server_name: settings.server_name.clone(),
                         alpns: alpns.clone(),
                     });
-                    let udp = Box::new(tls::UdpHandler {
-                        server_name: settings.server_name.clone(),
-                        alpns: alpns.clone(),
-                    });
                     let handler = proxy::outbound::Handler::new(
                         tag.clone(),
                         colored::Color::TrueColor {
@@ -359,8 +355,8 @@ impl OutboundManager {
                             b: 3,
                         },
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        None,
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -379,9 +375,6 @@ impl OutboundManager {
                         path: settings.path.clone(),
                         dns_client: dns_client.clone(),
                     });
-                    let udp = Box::new(ws::outbound::UdpHandler {
-                        path: settings.path.clone(),
-                    });
                     let handler = proxy::outbound::Handler::new(
                         tag.clone(),
                         colored::Color::TrueColor {
@@ -390,8 +383,8 @@ impl OutboundManager {
                             b: 3,
                         },
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        None,
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -409,10 +402,6 @@ impl OutboundManager {
                         path: settings.path.clone(),
                         host: settings.host.clone(),
                     });
-                    let udp = Box::new(crate::proxy::h2::UdpHandler {
-                        path: settings.path.clone(),
-                        host: settings.host.clone(),
-                    });
                     let handler = proxy::outbound::Handler::new(
                         tag.clone(),
                         colored::Color::TrueColor {
@@ -421,8 +410,8 @@ impl OutboundManager {
                             b: 3,
                         },
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        None,
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -445,8 +434,8 @@ impl OutboundManager {
                         tag.clone(),
                         colored::Color::Red,
                         ProxyHandlerType::Endpoint,
-                        tcp,
-                        udp,
+                        Some(tcp),
+                        Some(udp),
                     );
                     handlers.insert(tag.clone(), handler);
                 }
@@ -495,8 +484,8 @@ impl OutboundManager {
                                 b: 250,
                             },
                             ProxyHandlerType::Ensemble,
-                            tcp,
-                            udp,
+                            Some(tcp),
+                            Some(udp),
                         );
                         handlers.insert(tag.clone(), handler);
                     }
@@ -532,8 +521,8 @@ impl OutboundManager {
                                 b: 250,
                             },
                             ProxyHandlerType::Ensemble,
-                            tcp,
-                            udp,
+                            Some(tcp),
+                            Some(udp),
                         );
                         handlers.insert(tag.clone(), handler);
                     }
@@ -582,8 +571,8 @@ impl OutboundManager {
                                 b: 250,
                             },
                             ProxyHandlerType::Ensemble,
-                            tcp,
-                            udp,
+                            Some(tcp),
+                            Some(udp),
                         );
                         handlers.insert(tag.clone(), handler);
                     }
@@ -623,8 +612,8 @@ impl OutboundManager {
                                 b: 245,
                             },
                             ProxyHandlerType::Ensemble,
-                            tcp,
-                            udp,
+                            Some(tcp),
+                            Some(udp),
                         );
                         handlers.insert(tag.clone(), handler);
                     }

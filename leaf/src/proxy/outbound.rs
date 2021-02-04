@@ -1,4 +1,4 @@
-use std::io::Result;
+use std::io::{self, Result};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -18,9 +18,8 @@ pub struct Handler {
     tag: String,
     color: colored::Color,
     handler_type: ProxyHandlerType,
-    // TODO make handlers optional so we can remove those unimplemented outbounds
-    tcp_handler: Box<dyn TcpOutboundHandler>,
-    udp_handler: Box<dyn UdpOutboundHandler>,
+    tcp_handler: Option<Box<dyn TcpOutboundHandler>>,
+    udp_handler: Option<Box<dyn UdpOutboundHandler>>,
 }
 
 impl Handler {
@@ -28,8 +27,8 @@ impl Handler {
         tag: String,
         color: colored::Color,
         handler_type: ProxyHandlerType,
-        tcp: Box<dyn TcpOutboundHandler>,
-        udp: Box<dyn UdpOutboundHandler>,
+        tcp: Option<Box<dyn TcpOutboundHandler>>,
+        udp: Option<Box<dyn UdpOutboundHandler>>,
     ) -> Arc<Self> {
         Arc::new(Handler {
             tag,
@@ -41,7 +40,15 @@ impl Handler {
     }
 }
 
-impl OutboundHandler for Handler {}
+impl OutboundHandler for Handler {
+    fn has_tcp(&self) -> bool {
+        self.tcp_handler.is_some()
+    }
+
+    fn has_udp(&self) -> bool {
+        self.udp_handler.is_some()
+    }
+}
 
 impl Tag for Handler {
     fn tag(&self) -> &String {
@@ -72,7 +79,11 @@ impl TcpOutboundHandler for Handler {
     }
 
     fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
-        self.tcp_handler.tcp_connect_addr()
+        if let Some(handler) = &self.tcp_handler {
+            handler.tcp_connect_addr()
+        } else {
+            None
+        }
     }
 
     async fn handle_tcp<'a>(
@@ -80,7 +91,11 @@ impl TcpOutboundHandler for Handler {
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyStream>> {
-        self.tcp_handler.handle_tcp(sess, stream).await
+        if let Some(handler) = &self.tcp_handler {
+            handler.handle_tcp(sess, stream).await
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "unimplemented"))
+        }
     }
 }
 
@@ -91,11 +106,19 @@ impl UdpOutboundHandler for Handler {
     }
 
     fn udp_connect_addr(&self) -> Option<OutboundConnect> {
-        self.udp_handler.udp_connect_addr()
+        if let Some(handler) = &self.udp_handler {
+            handler.udp_connect_addr()
+        } else {
+            None
+        }
     }
 
     fn udp_transport_type(&self) -> UdpTransportType {
-        self.udp_handler.udp_transport_type()
+        if let Some(handler) = &self.udp_handler {
+            handler.udp_transport_type()
+        } else {
+            UdpTransportType::Unknown
+        }
     }
 
     async fn handle_udp<'a>(
@@ -103,6 +126,10 @@ impl UdpOutboundHandler for Handler {
         sess: &'a Session,
         transport: Option<OutboundTransport>,
     ) -> Result<Box<dyn OutboundDatagram>> {
-        self.udp_handler.handle_udp(sess, transport).await
+        if let Some(handler) = &self.udp_handler {
+            handler.handle_udp(sess, transport).await
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "unimplemented"))
+        }
     }
 }

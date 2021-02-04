@@ -182,6 +182,8 @@ pub trait ProxyStream: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
 pub trait OutboundHandler:
     Tag + Color + HandlerTyped + TcpOutboundHandler + UdpOutboundHandler + Send + Unpin
 {
+    fn has_tcp(&self) -> bool;
+    fn has_udp(&self) -> bool;
 }
 
 pub enum OutboundConnect {
