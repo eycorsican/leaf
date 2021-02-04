@@ -30,7 +30,6 @@ Inbounds are proxy servers and outbounds are clients.
 - Full cone NAT
 - TUN-based transport proxy
 - Fake DNS
-- Domain sniffing from TLS traffic enabled by default
 - Load balancing / high availability through failover/random/tryall outbounds
 
 ### Getting Started
@@ -165,7 +164,7 @@ cat <<EOF > cfg.conf
 loglevel = debug
 dns-server = 223.5.5.5, 1.1.1.1
 dns-interface = $ADDRESS
-always-real-ip = *
+always-fake-ip = *
 tun = $TUN_NAME, $TUN_ADDRESS, 255.255.255.0, $TUN_GATEWAY, 1500
 
 [Proxy]

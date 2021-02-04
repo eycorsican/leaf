@@ -3,7 +3,6 @@ use std::{cmp::min, io, net::SocketAddr, sync::Arc};
 use async_trait::async_trait;
 use bytes::BytesMut;
 use futures::future::TryFutureExt;
-use log::*;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 use uuid::Uuid;
 
@@ -136,14 +135,14 @@ impl UdpOutboundHandler for Handler {
         );
         Ok(Box::new(Datagram {
             stream,
-            target: sess.destination.clone(),
+            destination: sess.destination.clone(),
         }))
     }
 }
 
 pub struct Datagram<S> {
     stream: S,
-    target: SocksAddr,
+    destination: SocksAddr,
 }
 
 impl<S> OutboundDatagram for Datagram<S>
@@ -158,7 +157,7 @@ where
     ) {
         let (r, w) = tokio::io::split(self.stream);
         (
-            Box::new(DatagramRecvHalf(r, self.target)),
+            Box::new(DatagramRecvHalf(r, self.destination)),
             Box::new(DatagramSendHalf(w)),
         )
     }
@@ -171,23 +170,13 @@ impl<T> OutboundDatagramRecvHalf for DatagramRecvHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
         // TODO optimize
         let mut buf2 = vec![0u8; 2 * 1024];
         let n = self.0.read(&mut buf2).await?;
         let to_write = min(n, buf.len());
         buf[..to_write].copy_from_slice(&buf2[..to_write]);
-        let addr = match self.1 {
-            SocksAddr::Ip(addr) => addr,
-            _ => {
-                error!("unexpected domain address");
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "unexpected domain address in vmess udp",
-                ));
-            }
-        };
-        Ok((to_write, addr))
+        Ok((to_write, self.1.clone()))
     }
 }
 
@@ -198,7 +187,7 @@ impl<T> OutboundDatagramSendHalf for DatagramSendHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
-    async fn send_to(&mut self, buf: &[u8], _target: &SocketAddr) -> io::Result<usize> {
+    async fn send_to(&mut self, buf: &[u8], _target: &SocksAddr) -> io::Result<usize> {
         self.0.write_all(&buf).map_ok(|_| buf.len()).await
     }
 }

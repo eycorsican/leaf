@@ -76,7 +76,7 @@ pub fn new(
         let fakedns = Arc::new(TokioMutex::new(FakeDns::new(fake_dns_mode)));
 
         for domain in fake_dns_domains.into_iter() {
-            fakedns.lock().await.add(domain);
+            fakedns.lock().await.add_filter(domain);
         }
 
         let stack = NetStack::new(inbound.tag.clone(), dispatcher, nat_manager, fakedns);

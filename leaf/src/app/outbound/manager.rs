@@ -102,7 +102,7 @@ impl OutboundManager {
                 #[cfg(feature = "outbound-direct")]
                 "direct" => {
                     let tcp = Box::new(direct::TcpHandler::new(bind_addr, dns_client.clone()));
-                    let udp = Box::new(direct::UdpHandler::new(bind_addr));
+                    let udp = Box::new(direct::UdpHandler::new(bind_addr, dns_client.clone()));
                     let handler = proxy::outbound::Handler::new(
                         tag.clone(),
                         colored::Color::Green,

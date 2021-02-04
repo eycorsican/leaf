@@ -1,5 +1,6 @@
 use std::{
     io,
+    net::SocketAddr,
     os::raw,
     pin::Pin,
     sync::{
@@ -149,7 +150,7 @@ impl NetStackImpl {
         tokio::spawn(async move {
             let mut listener = UdpListener::new();
             let nat_manager = nat_manager.clone();
-            let fakedns = fakedns.clone();
+            let fakedns2 = fakedns.clone();
             let pcb = listener.pcb();
 
             let (client_ch_tx, mut client_ch_rx): (
@@ -161,14 +162,8 @@ impl NetStackImpl {
             let lwip_lock2 = lwip_lock.clone();
             tokio::spawn(async move {
                 while let Some(pkt) = client_ch_rx.recv().await {
-                    let src_addr = match pkt.src_addr {
-                        Some(a) => match a {
-                            SocksAddr::Ip(a) => a,
-                            _ => {
-                                warn!("unexpected domain addr");
-                                continue;
-                            }
-                        },
+                    let socks_src_addr = match pkt.src_addr {
+                        Some(a) => a,
                         None => {
                             warn!("unexpected none src addr");
                             continue;
@@ -187,14 +182,28 @@ impl NetStackImpl {
                             continue;
                         }
                     };
+                    let src_addr = match socks_src_addr {
+                        SocksAddr::Ip(a) => a,
+
+                        // If the socket gives us a domain source address,
+                        // we assume there must be a paired fake IP, otherwise
+                        // we have no idea how to deal with it.
+                        SocksAddr::Domain(domain, port) => {
+                            if let Some(ip) = fakedns2.lock().await.query_fake_ip(&domain) {
+                                SocketAddr::new(ip, port)
+                            } else {
+                                warn!("unexpected domain src addr without paired fake IP");
+                                continue;
+                            }
+                        }
+                    };
                     send_udp(lwip_lock2.clone(), &src_addr, &dst_addr, pcb, &pkt.data[..]);
                 }
 
-                // client_ch_tx will not be dropped unless the listener loop
-                // below exit, which should never happen, so the client_ch_rx
-                // loop should never end.
                 error!("unexpected udp downlink ended");
             });
+
+            let fakedns2 = fakedns.clone();
 
             while let Some(pkt) = listener.next().await {
                 let src_addr = match pkt.src_addr {
@@ -225,7 +234,7 @@ impl NetStackImpl {
                 };
 
                 if dst_addr.port() == 53 {
-                    match fakedns.lock().await.generate_fake_response(&pkt.data) {
+                    match fakedns2.lock().await.generate_fake_response(&pkt.data) {
                         Ok(resp) => {
                             send_udp(lwip_lock.clone(), &dst_addr, &src_addr, pcb, resp.as_ref());
                             continue;
@@ -236,11 +245,25 @@ impl NetStackImpl {
                     }
                 }
 
+                // We're sending UDP packets to a fake IP, and there should be a paired domain,
+                // that said, the application connects a UDP socket with a domain address.
+                // It also means the back packets on this UDP session shall only come from a
+                // single source address.
+                let socks_dst_addr = if fakedns2.lock().await.is_fake_ip(&dst_addr.ip()) {
+                    if let Some(domain) = fakedns2.lock().await.query_domain(&dst_addr.ip()) {
+                        SocksAddr::Domain(domain, dst_addr.port())
+                    } else {
+                        SocksAddr::Ip(dst_addr)
+                    }
+                } else {
+                    SocksAddr::Ip(dst_addr)
+                };
+
                 if !nat_manager.contains_key(&src_addr).await {
                     let sess = Session {
                         source: src_addr,
                         local_addr: "0.0.0.0:0".parse().unwrap(),
-                        destination: SocksAddr::Ip(dst_addr),
+                        destination: socks_dst_addr.clone(),
                         inbound_tag: inbound_tag.clone(),
                     };
 
@@ -266,7 +289,7 @@ impl NetStackImpl {
                 let pkt = UdpPacket {
                     data: pkt.data,
                     src_addr: Some(SocksAddr::Ip(src_addr)),
-                    dst_addr: Some(SocksAddr::Ip(dst_addr)),
+                    dst_addr: Some(socks_dst_addr),
                 };
                 nat_manager.send(&src_addr, pkt).await;
             }

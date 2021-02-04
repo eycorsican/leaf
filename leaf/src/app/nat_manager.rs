@@ -141,7 +141,7 @@ impl NatManager {
                     Ok((n, addr)) => {
                         let pkt = UdpPacket {
                             data: (&buf[..n]).to_vec(),
-                            src_addr: Some(SocksAddr::from(addr)),
+                            src_addr: Some(addr.clone()),
                             dst_addr: Some(SocksAddr::from(raddr)),
                         };
                         if let Err(err) = client_ch_tx.try_send(pkt) {
@@ -188,13 +188,7 @@ impl NatManager {
                     continue;
                 }
                 let addr = match pkt.dst_addr {
-                    Some(a) => match a {
-                        SocksAddr::Ip(v) => v,
-                        _ => {
-                            warn!("unexpected domain addr");
-                            continue;
-                        }
-                    },
+                    Some(a) => a,
                     None => {
                         warn!("unexpected none addr");
                         continue;

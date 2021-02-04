@@ -17,37 +17,40 @@ pub enum FakeDnsMode {
 }
 
 pub struct FakeDns {
-    map: HashMap<u32, String>,
+    ip_to_domain: HashMap<u32, String>,
+    domain_to_ip: HashMap<String, u32>,
     cursor: u32,
     min_cursor: u32,
     max_cursor: u32,
     ttl: u32,
-    domains: Vec<String>,
+    filters: Vec<String>,
     mode: FakeDnsMode,
 }
 
 impl FakeDns {
     pub fn new(mode: FakeDnsMode) -> Self {
-        let min_cursor = Self::ip_to_u32(&Ipv4Addr::new(173, 255, 0, 0));
-        let max_cursor = Self::ip_to_u32(&Ipv4Addr::new(173, 255, 4, 255));
+        let min_cursor = Self::ip_to_u32(&Ipv4Addr::new(240, 255, 0, 0));
+        let max_cursor = Self::ip_to_u32(&Ipv4Addr::new(240, 255, 4, 255));
 
         FakeDns {
-            map: HashMap::new(),
+            ip_to_domain: HashMap::new(),
+            domain_to_ip: HashMap::new(),
             cursor: min_cursor,
             min_cursor,
             max_cursor,
             ttl: 1,
-            domains: Vec::new(),
+            filters: Vec::new(),
             mode,
         }
     }
 
-    pub fn add(&mut self, domain: String) {
-        self.domains.push(domain);
+    pub fn add_filter(&mut self, filter: String) {
+        self.filters.push(filter);
     }
 
     fn allocate_ip(&mut self, domain: &str) -> Ipv4Addr {
-        self.map.insert(self.cursor, domain.to_owned());
+        self.ip_to_domain.insert(self.cursor, domain.to_owned());
+        self.domain_to_ip.insert(domain.to_owned(), self.cursor);
         let ip = Self::u32_to_ip(self.cursor);
         self.cursor += 1;
         if self.cursor > self.max_cursor {
@@ -61,8 +64,15 @@ impl FakeDns {
             IpAddr::V4(ip) => ip,
             _ => return None,
         };
-        match self.map.get(&Self::ip_to_u32(ip)) {
+        match self.ip_to_domain.get(&Self::ip_to_u32(ip)) {
             Some(v) => Some(v.clone()),
+            None => None,
+        }
+    }
+
+    pub fn query_fake_ip(&mut self, domain: &str) -> Option<IpAddr> {
+        match self.domain_to_ip.get(domain) {
+            Some(v) => Some(IpAddr::V4(Self::u32_to_ip(v.to_owned()))),
             None => None,
         }
     }
@@ -70,20 +80,20 @@ impl FakeDns {
     fn accept(&self, domain: &str) -> bool {
         match self.mode {
             FakeDnsMode::Exclude => {
-                for d in &self.domains {
+                for d in &self.filters {
                     if domain.contains(d) || d == "*" {
                         return false;
                     }
                 }
-                return true;
+                true
             }
             FakeDnsMode::Include => {
-                for d in &self.domains {
-                    if domain.contains(d) {
+                for d in &self.filters {
+                    if domain.contains(d) || d == "*" {
                         return true;
                     }
                 }
-                return false;
+                false
             }
         }
     }
@@ -122,8 +132,16 @@ impl FakeDns {
             return Err(anyhow!("domain {} not accepted", domain));
         }
 
-        let ip = self.allocate_ip(&domain);
-        debug!("allocate {} for {}", &ip, &domain);
+        let ip = if let Some(ip) = self.query_fake_ip(&domain) {
+            match ip {
+                IpAddr::V4(a) => a,
+                _ => return Err(anyhow!("unexpected Ipv6 fake IP")),
+            }
+        } else {
+            let ip = self.allocate_ip(&domain);
+            debug!("allocate {} for {}", &ip, &domain);
+            ip
+        };
 
         let mut resp = Message::new();
 

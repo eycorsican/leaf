@@ -133,7 +133,7 @@ struct PortRangeMatcher {
 
 impl PortRangeMatcher {
     fn new(port_range: &str) -> Result<Self> {
-        let parts: Vec<&str> = port_range.split("-").collect();
+        let parts: Vec<&str> = port_range.split('-').collect();
         if parts.len() != 2 {
             return Err(anyhow!("invalid port range"));
         }

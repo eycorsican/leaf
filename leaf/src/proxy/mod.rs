@@ -235,7 +235,7 @@ pub trait OutboundDatagram: Send + Unpin {
 pub trait OutboundDatagramRecvHalf: Sync + Send + Unpin {
     /// Receives a message on the socket. On success, returns the number of
     /// bytes read and the origin of the message.
-    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)>;
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)>;
 }
 
 /// The send half.
@@ -245,7 +245,7 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
     /// number of bytes sent.
     ///
     /// `dst_addr` is not the proxy server address.
-    async fn send_to(&mut self, buf: &[u8], dst_addr: &SocketAddr) -> io::Result<usize>;
+    async fn send_to(&mut self, buf: &[u8], dst_addr: &SocksAddr) -> io::Result<usize>;
 }
 
 /// An outbound handler for outgoing UDP connections.

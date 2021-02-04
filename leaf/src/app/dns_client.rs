@@ -58,7 +58,7 @@ impl DnsClient {
     /// Updates the cache according to the IP address successfully connected.
     pub async fn optimize_cache(&self, address: String, connected_ip: IpAddr) {
         // Nothing to do if the target address is an IP address.
-        if let Ok(_) = address.parse::<IpAddr>() {
+        if address.parse::<IpAddr>().is_ok() {
             return;
         }
 

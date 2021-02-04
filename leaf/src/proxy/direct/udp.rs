@@ -1,26 +1,28 @@
-use std::{io, net::SocketAddr};
+use std::{io, net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
-use tokio::net::{
-    udp::{RecvHalf, SendHalf},
-    UdpSocket,
-};
+use tokio::net::UdpSocket;
 
 use crate::{
+    app::dns_client::DnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, UdpOutboundHandler, UdpTransportType,
+        OutboundConnect, OutboundDatagram, OutboundTransport, SimpleOutboundDatagram,
+        UdpOutboundHandler, UdpTransportType,
     },
-    session::Session,
+    session::{Session, SocksAddr},
 };
 
 pub struct Handler {
     bind_addr: SocketAddr,
+    dns_client: Arc<DnsClient>,
 }
 
 impl Handler {
-    pub fn new(bind_addr: SocketAddr) -> Self {
-        Handler { bind_addr }
+    pub fn new(bind_addr: SocketAddr, dns_client: Arc<DnsClient>) -> Self {
+        Handler {
+            bind_addr,
+            dns_client,
+        }
     }
 }
 
@@ -40,51 +42,21 @@ impl UdpOutboundHandler for Handler {
 
     async fn handle_udp<'a>(
         &'a self,
-        _sess: &'a Session,
+        sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
         let socket = UdpSocket::bind(&self.bind_addr).await?;
-        let (rh, sh) = socket.split();
-        Ok(Box::new(Datagram {
-            recv_half: rh,
-            send_half: sh,
-        }))
-    }
-}
-
-pub struct Datagram {
-    pub recv_half: RecvHalf,
-    pub send_half: SendHalf,
-}
-
-impl OutboundDatagram for Datagram {
-    fn split(
-        self: Box<Self>,
-    ) -> (
-        Box<dyn OutboundDatagramRecvHalf>,
-        Box<dyn OutboundDatagramSendHalf>,
-    ) {
-        (
-            Box::new(DatagramRecvHalf(self.recv_half)),
-            Box::new(DatagramSendHalf(self.send_half)),
-        )
-    }
-}
-
-pub struct DatagramRecvHalf(RecvHalf);
-
-#[async_trait]
-impl OutboundDatagramRecvHalf for DatagramRecvHalf {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        self.0.recv_from(buf).await
-    }
-}
-
-pub struct DatagramSendHalf(SendHalf);
-
-#[async_trait]
-impl OutboundDatagramSendHalf for DatagramSendHalf {
-    async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
-        self.0.send_to(buf, target).await
+        let destination = match &sess.destination {
+            SocksAddr::Domain(domain, port) => {
+                Some(SocksAddr::Domain(domain.to_owned(), port.to_owned()))
+            }
+            _ => None,
+        };
+        Ok(Box::new(SimpleOutboundDatagram::new(
+            socket,
+            destination,
+            self.dns_client.clone(),
+            self.bind_addr,
+        )))
     }
 }

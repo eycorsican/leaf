@@ -1,12 +1,13 @@
-use std::{io, net::SocketAddr};
+use std::{io, net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
+use futures::TryFutureExt;
 use tokio::net::{
     udp::{RecvHalf, SendHalf},
     UdpSocket,
 };
 
-use crate::session::SocksAddr;
+use crate::{app::dns_client::DnsClient, session::SocksAddr};
 
 use super::{
     InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, OutboundDatagram,
@@ -14,7 +15,28 @@ use super::{
 };
 
 /// An outbound datagram simply wraps a UDP socket.
-pub struct SimpleOutboundDatagram(pub UdpSocket);
+pub struct SimpleOutboundDatagram {
+    inner: UdpSocket,
+    destination: Option<SocksAddr>,
+    dns_client: Arc<DnsClient>,
+    bind_addr: SocketAddr,
+}
+
+impl SimpleOutboundDatagram {
+    pub fn new(
+        inner: UdpSocket,
+        destination: Option<SocksAddr>,
+        dns_client: Arc<DnsClient>,
+        bind_addr: SocketAddr,
+    ) -> Self {
+        SimpleOutboundDatagram {
+            inner,
+            destination,
+            dns_client,
+            bind_addr,
+        }
+    }
+}
 
 impl OutboundDatagram for SimpleOutboundDatagram {
     fn split(
@@ -23,29 +45,64 @@ impl OutboundDatagram for SimpleOutboundDatagram {
         Box<dyn OutboundDatagramRecvHalf>,
         Box<dyn OutboundDatagramSendHalf>,
     ) {
-        let (r, s) = self.0.split();
+        let (r, s) = self.inner.split();
         (
-            Box::new(SimpleOutboundDatagramRecvHalf(r)),
-            Box::new(SimpleOutboundDatagramSendHalf(s)),
+            Box::new(SimpleOutboundDatagramRecvHalf(r, self.destination)),
+            Box::new(SimpleOutboundDatagramSendHalf(
+                s,
+                self.dns_client,
+                self.bind_addr,
+            )),
         )
     }
 }
 
-pub struct SimpleOutboundDatagramRecvHalf(RecvHalf);
+pub struct SimpleOutboundDatagramRecvHalf(RecvHalf, Option<SocksAddr>);
 
 #[async_trait]
 impl OutboundDatagramRecvHalf for SimpleOutboundDatagramRecvHalf {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
-        self.0.recv_from(buf).await
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
+        match self.0.recv_from(buf).await {
+            Ok((n, a)) => {
+                if self.1.is_some() {
+                    Ok((n, self.1.as_ref().unwrap().clone()))
+                } else {
+                    Ok((n, SocksAddr::Ip(a)))
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
-pub struct SimpleOutboundDatagramSendHalf(SendHalf);
+pub struct SimpleOutboundDatagramSendHalf(SendHalf, Arc<DnsClient>, SocketAddr);
 
 #[async_trait]
 impl OutboundDatagramSendHalf for SimpleOutboundDatagramSendHalf {
-    async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
-        self.0.send_to(buf, target).await
+    async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
+        let addr = match target {
+            SocksAddr::Domain(domain, port) => {
+                let ips = self
+                    .1
+                    .lookup_with_bind(domain.to_owned(), &self.2)
+                    .map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("lookup {} failed: {}", domain, e),
+                        )
+                    })
+                    .await?;
+                if ips.is_empty() {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "could not resolve to any address",
+                    ));
+                }
+                SocketAddr::new(ips[0], port.to_owned())
+            }
+            SocksAddr::Ip(a) => a.to_owned(),
+        };
+        self.0.send_to(buf, &addr).await
     }
 }
 

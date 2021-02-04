@@ -72,8 +72,16 @@ impl UdpOutboundHandler for Handler {
             .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
         buf.put_slice(b"\r\n");
 
+        let destination = match &sess.destination {
+            SocksAddr::Domain(domain, port) => {
+                Some(SocksAddr::Domain(domain.to_owned(), port.to_owned()))
+            }
+            _ => None,
+        };
+
         Ok(Box::new(Datagram {
             stream,
+            destination,
             head: Some(buf),
         }))
     }
@@ -81,6 +89,7 @@ impl UdpOutboundHandler for Handler {
 
 pub struct Datagram<S> {
     stream: S,
+    destination: Option<SocksAddr>,
     head: Option<BytesMut>,
 }
 
@@ -96,20 +105,20 @@ where
     ) {
         let (r, w) = tokio::io::split(self.stream);
         (
-            Box::new(DatagramRecvHalf(r)),
+            Box::new(DatagramRecvHalf(r, self.destination)),
             Box::new(DatagramSendHalf(w, self.head)),
         )
     }
 }
 
-pub struct DatagramRecvHalf<T>(ReadHalf<T>);
+pub struct DatagramRecvHalf<T>(ReadHalf<T>, Option<SocksAddr>);
 
 #[async_trait]
 impl<T> OutboundDatagramRecvHalf for DatagramRecvHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
         let addr = SocksAddr::read_from(&mut self.0, SocksAddrWireType::PortLast).await?;
         let mut buf2 = BytesMut::new();
         buf2.resize(2, 0);
@@ -130,12 +139,15 @@ where
             );
         }
         buf[..to_write].copy_from_slice(&buf2[..to_write]);
-        match addr {
-            SocksAddr::Ip(a) => Ok((to_write, a)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "unexpected domain address",
-            )),
+
+        // If the initial destination is of domain type, we return that
+        // domain address instead of the real source address. That also
+        // means we assume all received packets are comming from a same
+        // address.
+        if self.1.is_some() {
+            Ok((to_write, self.1.as_ref().unwrap().clone()))
+        } else {
+            Ok((to_write, addr))
         }
     }
 }
@@ -147,13 +159,12 @@ impl<T> OutboundDatagramSendHalf for DatagramSendHalf<T>
 where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
-    async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> io::Result<usize> {
+    async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
         // FIXME we should calculate the return size more carefully.
         // max(0, n_written - all_headers_size)
         let payload_size = buf.len();
 
         let mut data = BytesMut::new();
-        let target = SocksAddr::from(target.to_owned());
         target.write_buf(&mut data, SocksAddrWireType::PortLast)?;
         data.put_u16(buf.len() as u16);
         data.put_slice(b"\r\n");

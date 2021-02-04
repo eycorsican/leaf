@@ -16,7 +16,7 @@ use crate::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
         OutboundTransport, UdpOutboundHandler, UdpTransportType,
     },
-    session::Session,
+    session::{Session, SocksAddr},
 };
 
 pub struct Handler {
@@ -90,42 +90,44 @@ where
 
 pub struct DatagramRecvHalf<S>(SocksDatagramRecvHalf<S>);
 
-// unsafe impl<S> Send for DatagramRecvHalf<S> {}
-
 #[async_trait]
 impl<S> OutboundDatagramRecvHalf for DatagramRecvHalf<S>
 where
     S: 'static + AsyncRead + AsyncWrite + Send + Unpin + Sync,
 {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocksAddr)> {
         let (n, addr) = self
             .0
             .recv_from(buf)
             .map_err(|x| Error::new(ErrorKind::Other, x))
             .await?;
         match addr {
-            AddrKind::Ip(addr) => Ok((n, addr)),
-            _ => Err(Error::new(
-                ErrorKind::Other,
-                "udp receiving domain address is not supported",
-            )),
+            AddrKind::Ip(addr) => Ok((n, SocksAddr::Ip(addr))),
+            AddrKind::Domain(domain, port) => Ok((n, SocksAddr::Domain(domain, port))),
         }
     }
 }
 
 pub struct DatagramSendHalf<S>(SocksDatagramSendHalf<S>);
 
-// unsafe impl<S> Send for DatagramSendHalf<S> {}
-
 #[async_trait]
 impl<S> OutboundDatagramSendHalf for DatagramSendHalf<S>
 where
     S: 'static + AsyncRead + AsyncWrite + Send + Unpin + Sync,
 {
-    async fn send_to(&mut self, buf: &[u8], target: &SocketAddr) -> Result<usize> {
-        self.0
-            .send_to(buf, target.to_owned())
-            .map_err(|x| Error::new(ErrorKind::Other, x))
-            .await
+    async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> Result<usize> {
+        match target {
+            SocksAddr::Ip(a) => {
+                self.0
+                    .send_to(buf, a.to_owned())
+                    .map_err(|x| Error::new(ErrorKind::Other, x))
+                    .await
+            }
+            // FIXME for this, we need our own socks5 impl
+            _ => Err(Error::new(
+                ErrorKind::Other,
+                "socks outbound does not support sending UDP packets to domain address",
+            )),
+        }
     }
 }

@@ -1,4 +1,4 @@
-use std::{cmp::min, io, net::SocketAddr, pin::Pin, sync::Arc};
+use std::{cmp::min, io, pin::Pin, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ByteOrder};
@@ -11,11 +11,14 @@ use log::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::common::crypto::{
-    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
-    Cipher, Decryptor, Encryptor, SizedCipher,
+use crate::{
+    common::crypto::{
+        aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
+        Cipher, Decryptor, Encryptor, SizedCipher,
+    },
+    proxy::{OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf},
+    session::SocksAddr,
 };
-use crate::proxy::{OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf};
 
 use super::crypto::{hkdf_sha1, kdf, ShadowsocksNonceSequence};
 
@@ -316,7 +319,7 @@ fn short_packet() -> io::Error {
 pub struct ShadowedDatagramRecvHalf(Half<Box<dyn OutboundDatagramRecvHalf>>);
 
 impl ShadowedDatagramRecvHalf {
-    pub async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+    pub async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
         let salt_size = self.0.inner.cipher.key_len();
         let tag_len = self.0.inner.cipher.tag_len();
         let buffer_size = salt_size + /* addr::MAX_SOCKS_ADDR_SIZE + */ buf.len() + tag_len;
@@ -381,7 +384,7 @@ impl ShadowedDatagramRecvHalf {
 pub struct ShadowedDatagramSendHalf(Half<Box<dyn OutboundDatagramSendHalf>>);
 
 impl ShadowedDatagramSendHalf {
-    pub async fn send_to(&mut self, buf: &[u8], addr: &SocketAddr) -> io::Result<usize> {
+    pub async fn send_to(&mut self, buf: &[u8], addr: &SocksAddr) -> io::Result<usize> {
         if buf.is_empty() {
             return Ok(0);
         }

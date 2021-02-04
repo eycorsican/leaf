@@ -22,7 +22,7 @@ use crate::{
 struct DatagramToStream {
     recv: Box<dyn OutboundDatagramRecvHalf>,
     send: Box<dyn OutboundDatagramSendHalf>,
-    target: SocketAddr,
+    target: SocksAddr,
 }
 
 impl AsyncRead for DatagramToStream {
@@ -113,14 +113,12 @@ impl UdpOutboundHandler for Handler {
             for (i, a) in self.actors.iter().enumerate() {
                 let mut new_sess = sess.clone();
 
-                match self.next_udp_connect_addr(i + 1) {
-                    Some(OutboundConnect::Proxy(connect_addr, port, _)) => {
-                        if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port))
-                        {
-                            new_sess.destination = addr;
-                        }
+                if let Some(OutboundConnect::Proxy(connect_addr, port, _)) =
+                    self.next_udp_connect_addr(i + 1)
+                {
+                    if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port)) {
+                        new_sess.destination = addr;
                     }
-                    _ => (),
                 }
 
                 if i == self.actors.len() - 1 {
@@ -147,7 +145,7 @@ impl UdpOutboundHandler for Handler {
                             stream = Box::new(SimpleProxyStream(DatagramToStream {
                                 recv: r,
                                 send: s,
-                                target: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
+                                target: SocksAddr::empty_ipv4(),
                             }));
                         }
                         UdpTransportType::Unknown => {
@@ -177,7 +175,12 @@ impl UdpOutboundHandler for Handler {
                 }
             }
             let socket = UdpSocket::bind(bind_addr).await?;
-            let mut dgram: Box<dyn OutboundDatagram> = Box::new(SimpleOutboundDatagram(socket));
+            let mut dgram: Box<dyn OutboundDatagram> = Box::new(SimpleOutboundDatagram::new(
+                socket,
+                None,
+                self.dns_client.clone(),
+                bind_addr,
+            ));
 
             for (i, a) in self.actors.iter().enumerate() {
                 let mut new_sess = sess.clone();
