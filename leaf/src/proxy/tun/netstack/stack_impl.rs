@@ -234,6 +234,13 @@ impl NetStackImpl {
                 };
 
                 if dst_addr.port() == 53 {
+                    trace!(
+                        "generating fake response for {}:{} -> {}:{}",
+                        &src_addr.ip(),
+                        &src_addr.port(),
+                        &dst_addr.ip(),
+                        &dst_addr.port(),
+                    );
                     match fakedns2.lock().await.generate_fake_response(&pkt.data) {
                         Ok(resp) => {
                             send_udp(lwip_lock.clone(), &dst_addr, &src_addr, pcb, resp.as_ref());
@@ -250,6 +257,7 @@ impl NetStackImpl {
                 // It also means the back packets on this UDP session shall only come from a
                 // single source address.
                 let socks_dst_addr = if fakedns2.lock().await.is_fake_ip(&dst_addr.ip()) {
+                    trace!("querying domain for fake ip {}", &dst_addr.ip(),);
                     if let Some(domain) = fakedns2.lock().await.query_domain(&dst_addr.ip()) {
                         SocksAddr::Domain(domain, dst_addr.port())
                     } else {
@@ -266,6 +274,14 @@ impl NetStackImpl {
                         destination: socks_dst_addr.clone(),
                         inbound_tag: inbound_tag.clone(),
                     };
+
+                    trace!(
+                        "adding udp session {}:{} -> {}:{}",
+                        &src_addr.ip(),
+                        &src_addr.port(),
+                        &dst_addr.ip(),
+                        &dst_addr.port(),
+                    );
 
                     if nat_manager
                         .add_session(&sess, src_addr, client_ch_tx.clone())

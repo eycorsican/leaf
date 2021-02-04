@@ -65,10 +65,10 @@ pub fn new(
             "fake DNS run in either include mode or exclude mode"
         ));
     }
-    let (fake_dns_mode, fake_dns_domains) = if !fake_dns_exclude.is_empty() {
-        (FakeDnsMode::Exclude, fake_dns_exclude)
-    } else {
+    let (fake_dns_mode, fake_dns_filters) = if !fake_dns_include.is_empty() {
         (FakeDnsMode::Include, fake_dns_include)
+    } else {
+        (FakeDnsMode::Exclude, fake_dns_exclude)
     };
 
     Ok(Box::pin(async move {
@@ -76,8 +76,8 @@ pub fn new(
 
         let fakedns = Arc::new(TokioMutex::new(FakeDns::new(fake_dns_mode)));
 
-        for domain in fake_dns_domains.into_iter() {
-            fakedns.lock().await.add_filter(domain);
+        for filter in fake_dns_filters.into_iter() {
+            fakedns.lock().await.add_filter(filter);
         }
 
         let stack = NetStack::new(inbound.tag.clone(), dispatcher, nat_manager, fakedns);
