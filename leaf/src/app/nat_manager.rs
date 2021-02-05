@@ -52,7 +52,9 @@ impl NatManager {
                         // Sends a signal to abort downlink task, uplink task will
                         // end automatically when we drop the channel's tx side upon
                         // session removal.
-                        sess.1.send(true).unwrap();
+                        if let Err(e) = sess.1.send(true) {
+                            debug!("failed to send abort signal on session {}: {}", key, e);
+                        }
                         debug!("udp session {} ended", key);
                     }
                 }
@@ -193,7 +195,12 @@ impl NatManager {
 
             // Runs a task to receive the abort signal.
             tokio::spawn(async move {
-                downlink_abort_rx.await.unwrap();
+                if let Err(e) = downlink_abort_rx.await {
+                    debug!(
+                        "failed to receive abort signal on session {}: {}",
+                        &raddr, e
+                    );
+                };
                 downlink_task_handle.abort();
             });
 
