@@ -16,6 +16,8 @@ default = [
     "leaf/rustls-tls",
 ]
 
+multi-thread = ["tokio/rt-threaded"]
+
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }

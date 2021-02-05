@@ -189,6 +189,8 @@ impl NetStackImpl {
                         // we assume there must be a paired fake IP, otherwise
                         // we have no idea how to deal with it.
                         SocksAddr::Domain(domain, port) => {
+                            // TODO we're doing this for every packet! optimize needed
+                            // trace!("downlink querying fake ip for domain {}", &domain);
                             if let Some(ip) = fakedns2.lock().await.query_fake_ip(&domain) {
                                 SocketAddr::new(ip, port)
                             } else {
@@ -257,7 +259,8 @@ impl NetStackImpl {
                 // It also means the back packets on this UDP session shall only come from a
                 // single source address.
                 let socks_dst_addr = if fakedns2.lock().await.is_fake_ip(&dst_addr.ip()) {
-                    trace!("querying domain for fake ip {}", &dst_addr.ip(),);
+                    // TODO we're doing this for every packet! optimize needed
+                    // trace!("uplink querying domain for fake ip {}", &dst_addr.ip(),);
                     if let Some(domain) = fakedns2.lock().await.query_domain(&dst_addr.ip()) {
                         SocksAddr::Domain(domain, dst_addr.port())
                     } else {

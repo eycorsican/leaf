@@ -39,11 +39,24 @@ fn main() {
         }
     };
 
-    let mut rt = tokio::runtime::Builder::new()
-        .basic_scheduler()
-        .enable_all()
-        .build()
-        .unwrap();
+    let mut rt = {
+        #[cfg(feature = "multi-thread")]
+        {
+            tokio::runtime::Builder::new()
+                .threaded_scheduler()
+                .enable_all()
+                .build()
+                .unwrap()
+        }
+        #[cfg(not(feature = "multi-thread"))]
+        {
+            tokio::runtime::Builder::new()
+                .basic_scheduler()
+                .enable_all()
+                .build()
+                .unwrap()
+        }
+    };
 
     if let Some(tag) = matches.value_of("test-outbound") {
         rt.block_on(leaf::util::test_outbound(&tag, &config));

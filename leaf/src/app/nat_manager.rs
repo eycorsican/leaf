@@ -146,7 +146,7 @@ impl NatManager {
                         };
                         if let Err(err) = client_ch_tx.try_send(pkt) {
                             debug!(
-                                "send downlink packet failed {} -> {}: {:?}",
+                                "send downlink packet failed {} -> {}: {}",
                                 &addr, &raddr, err
                             );
                         }
