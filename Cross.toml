@@ -1,0 +1,5 @@
+[build.env]
+passthrough = [
+    "CFG_COMMIT_HASH",
+    "CFG_COMMIT_DATE",
+]
