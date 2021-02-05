@@ -81,16 +81,12 @@ async fn handle_inbound_datagram(
                         inbound_tag: inbound_tag.clone(),
                     };
 
-                    if nat_manager
+                    nat_manager
                         .add_session(&sess, src_addr, client_ch_tx.clone())
-                        .await
-                        .is_err()
-                    {
-                        continue; // dispatch failed
-                    }
+                        .await;
 
                     debug!(
-                        "udp session {}:{} -> {} ({})",
+                        "added udp session {}:{} -> {} ({})",
                         &src_addr.ip(),
                         &src_addr.port(),
                         &dst_addr.to_string(),

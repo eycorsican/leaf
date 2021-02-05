@@ -236,13 +236,6 @@ impl NetStackImpl {
                 };
 
                 if dst_addr.port() == 53 {
-                    trace!(
-                        "generating fake response for {}:{} -> {}:{}",
-                        &src_addr.ip(),
-                        &src_addr.port(),
-                        &dst_addr.ip(),
-                        &dst_addr.port(),
-                    );
                     match fakedns2.lock().await.generate_fake_response(&pkt.data) {
                         Ok(resp) => {
                             send_udp(lwip_lock.clone(), &dst_addr, &src_addr, pcb, resp.as_ref());
@@ -278,25 +271,14 @@ impl NetStackImpl {
                         inbound_tag: inbound_tag.clone(),
                     };
 
-                    trace!(
-                        "adding udp session {}:{} -> {}:{}",
-                        &src_addr.ip(),
-                        &src_addr.port(),
-                        &dst_addr.ip(),
-                        &dst_addr.port(),
-                    );
-
-                    if nat_manager
+                    nat_manager
                         .add_session(&sess, src_addr, client_ch_tx.clone())
-                        .await
-                        .is_err()
-                    {
-                        // dispatch err logging was handled in dispatcher
-                        continue; // in case the pkt was sent to drop, err is returned immediately
-                    }
+                        .await;
 
+                    // Note that subsequent packets on this session may have different
+                    // destination addresses.
                     debug!(
-                        "udp session {}:{} -> {}:{} ({})",
+                        "added udp session {}:{} -> {}:{} ({})",
                         &src_addr.ip(),
                         &src_addr.port(),
                         &dst_addr.ip(),
