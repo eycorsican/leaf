@@ -9,14 +9,14 @@ use std::{
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use log::*;
-use tokio::net::UdpSocket;
 
 use super::{ShadowedDatagram, ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf};
 use crate::{
     app::dns_client::DnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, SimpleOutboundDatagram, UdpOutboundHandler, UdpTransportType,
+        OutboundTransport, SimpleOutboundDatagram, UdpConnector, UdpOutboundHandler,
+        UdpTransportType,
     },
     session::{Session, SocksAddr, SocksAddrWireType},
 };
@@ -29,6 +29,8 @@ pub struct Handler {
     pub bind_addr: SocketAddr,
     pub dns_client: Arc<DnsClient>,
 }
+
+impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
@@ -62,7 +64,7 @@ impl UdpOutboundHandler for Handler {
         let socket = if let Some(OutboundTransport::Datagram(socket)) = transport {
             socket
         } else {
-            let socket = UdpSocket::bind(self.bind_addr).await?;
+            let socket = self.create_udp_socket(&self.bind_addr).await?;
             Box::new(SimpleOutboundDatagram::new(
                 socket,
                 None,

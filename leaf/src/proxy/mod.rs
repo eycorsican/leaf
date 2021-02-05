@@ -7,7 +7,7 @@ use futures::TryFutureExt;
 use log::*;
 use socket2::{Domain, Socket, Type};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpStream;
+use tokio::net::{TcpStream, UdpSocket};
 
 use crate::{
     app::dns_client::DnsClient,
@@ -96,6 +96,11 @@ pub trait HandlerTyped {
     fn handler_type(&self) -> ProxyHandlerType;
 }
 
+// New UDP socket.
+async fn create_udp_socket(bind_addr: &SocketAddr) -> io::Result<UdpSocket> {
+    UdpSocket::bind(bind_addr).await
+}
+
 // A single TCP dial.
 async fn tcp_dial_task(
     dial_addr: SocketAddr,
@@ -175,6 +180,30 @@ async fn dial_tcp_stream(
     }))
 }
 
+/// An interface with the ability to dial TCP connections.
+#[async_trait]
+pub trait TcpConnector: Send + Sync + Unpin {
+    /// Dials a TCP connection.
+    async fn dial_tcp_stream(
+        &self,
+        dns_client: Arc<DnsClient>,
+        bind_addr: &SocketAddr,
+        address: &str,
+        port: &u16,
+    ) -> io::Result<Box<dyn ProxyStream>> {
+        dial_tcp_stream(dns_client, bind_addr, address, port).await
+    }
+}
+
+/// An interface with the ability to create UDP sockets.
+#[async_trait]
+pub trait UdpConnector: Send + Sync + Unpin {
+    /// Creates a UDP socket.
+    async fn create_udp_socket(&self, bind_addr: &SocketAddr) -> io::Result<UdpSocket> {
+        create_udp_socket(bind_addr).await
+    }
+}
+
 /// A reliable transport for both inbound and outbound handlers.
 pub trait ProxyStream: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
 
@@ -208,17 +237,6 @@ pub trait TcpOutboundHandler: Send + Sync + Unpin {
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>>;
-
-    /// Dials a TCP connection.
-    async fn dial_tcp_stream(
-        &self,
-        dns_client: Arc<DnsClient>,
-        bind_addr: &SocketAddr,
-        address: &str,
-        port: &u16,
-    ) -> io::Result<Box<dyn ProxyStream>> {
-        dial_tcp_stream(dns_client, bind_addr, address, port).await
-    }
 }
 
 /// An unreliable transport for outbound handlers.
@@ -275,17 +293,6 @@ pub trait UdpOutboundHandler: Send + Sync + Unpin {
         sess: &'a Session,
         transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>>;
-
-    /// Dials a TCP connection.
-    async fn dial_tcp_stream(
-        &self,
-        dns_client: Arc<DnsClient>,
-        bind_addr: &SocketAddr,
-        address: &str,
-        port: &u16,
-    ) -> io::Result<Box<dyn ProxyStream>> {
-        dial_tcp_stream(dns_client, bind_addr, address, port).await
-    }
 }
 
 /// An outbound transport represents either a reliable or unreliable transport.

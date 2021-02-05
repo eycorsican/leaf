@@ -4,7 +4,7 @@ use async_trait::async_trait;
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler},
     session::Session,
 };
 
@@ -21,6 +21,8 @@ impl Handler {
         }
     }
 }
+
+impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {

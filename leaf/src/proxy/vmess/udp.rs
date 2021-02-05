@@ -10,7 +10,7 @@ use crate::{
     app::dns_client::DnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, UdpOutboundHandler, UdpTransportType,
+        OutboundTransport, TcpConnector, UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -27,6 +27,8 @@ pub struct Handler {
     pub bind_addr: SocketAddr,
     pub dns_client: Arc<DnsClient>,
 }
+
+impl TcpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {

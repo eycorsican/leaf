@@ -7,14 +7,13 @@ use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::UdpSocket;
 
 use crate::{
     app::dns_client::DnsClient,
     proxy::{
         stream::SimpleProxyStream, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
         OutboundDatagramSendHalf, OutboundHandler, OutboundTransport, SimpleOutboundDatagram,
-        UdpOutboundHandler, UdpTransportType,
+        TcpConnector, UdpConnector, UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -79,6 +78,9 @@ impl Handler {
         None
     }
 }
+
+impl TcpConnector for Handler {}
+impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
@@ -174,7 +176,7 @@ impl UdpOutboundHandler for Handler {
                     bind_addr = baddr;
                 }
             }
-            let socket = UdpSocket::bind(bind_addr).await?;
+            let socket = self.create_udp_socket(&bind_addr).await?;
             let mut dgram: Box<dyn OutboundDatagram> = Box::new(SimpleOutboundDatagram::new(
                 socket,
                 None,

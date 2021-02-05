@@ -8,7 +8,6 @@ use futures::future::select_ok;
 use log::*;
 use lru::LruCache;
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use tokio::net::UdpSocket;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
 use trust_dns_proto::{
@@ -18,7 +17,7 @@ use trust_dns_proto::{
     rr::{record_data::RData, record_type::RecordType, Name},
 };
 
-use crate::option;
+use crate::{option, proxy::UdpConnector};
 
 pub struct DnsClient {
     bind_addr: SocketAddr,
@@ -84,12 +83,13 @@ impl DnsClient {
     }
 
     async fn query_task(
+        &self,
         request: Box<[u8]>,
         domain: &str,
         server: &SocketAddr,
         bind_addr: &SocketAddr,
     ) -> Result<Vec<IpAddr>> {
-        let mut socket = UdpSocket::bind(bind_addr).await?;
+        let mut socket = self.create_udp_socket(bind_addr).await?;
         let mut last_err = None;
         for _i in 0..option::MAX_DNS_RETRIES {
             debug!("looking up domain {} on {}", domain, server);
@@ -211,7 +211,7 @@ impl DnsClient {
 
         let mut tasks = Vec::new();
         for server in &self.servers {
-            let t = Self::query_task(
+            let t = self.query_task(
                 msg_buf.clone().into_boxed_slice(),
                 &domain,
                 &server,
@@ -228,3 +228,5 @@ impl DnsClient {
         }
     }
 }
+
+impl UdpConnector for DnsClient {}

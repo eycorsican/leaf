@@ -7,7 +7,9 @@ use uuid::Uuid;
 
 use crate::{
     app::dns_client::DnsClient,
-    proxy::{stream::SimpleProxyStream, OutboundConnect, ProxyStream, TcpOutboundHandler},
+    proxy::{
+        stream::SimpleProxyStream, OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler,
+    },
     session::Session,
 };
 
@@ -23,6 +25,8 @@ pub struct Handler {
     pub bind_addr: SocketAddr,
     pub dns_client: Arc<DnsClient>,
 }
+
+impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {

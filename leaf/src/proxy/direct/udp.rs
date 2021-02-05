@@ -1,12 +1,11 @@
 use std::{io, net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
-use tokio::net::UdpSocket;
 
 use crate::{
     app::dns_client::DnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundTransport, SimpleOutboundDatagram,
+        OutboundConnect, OutboundDatagram, OutboundTransport, SimpleOutboundDatagram, UdpConnector,
         UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
@@ -25,6 +24,8 @@ impl Handler {
         }
     }
 }
+
+impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
@@ -45,7 +46,7 @@ impl UdpOutboundHandler for Handler {
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        let socket = UdpSocket::bind(&self.bind_addr).await?;
+        let socket = self.create_udp_socket(&self.bind_addr).await?;
         let destination = match &sess.destination {
             SocksAddr::Domain(domain, port) => {
                 Some(SocksAddr::Domain(domain.to_owned(), port.to_owned()))

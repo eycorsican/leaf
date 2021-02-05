@@ -5,15 +5,12 @@ use std::{
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
-use tokio::net::{
-    udp::{RecvHalf, SendHalf},
-    UdpSocket,
-};
+use tokio::net::udp::{RecvHalf, SendHalf};
 
 use crate::{
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, UdpOutboundHandler, UdpTransportType,
+        OutboundTransport, UdpConnector, UdpOutboundHandler, UdpTransportType,
     },
     session::Session,
 };
@@ -23,6 +20,8 @@ pub struct Handler {
     pub address: String,
     pub port: u16,
 }
+
+impl proxy::UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
@@ -43,7 +42,7 @@ impl UdpOutboundHandler for Handler {
         _sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> Result<Box<dyn OutboundDatagram>> {
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        let socket = self.create_udp_socket("0.0.0.0:0").await?;
         let (rh, sh) = socket.split();
         let addr = SocketAddr::new(self.address.parse::<IpAddr>().unwrap(), self.port);
         Ok(Box::new(Datagram {

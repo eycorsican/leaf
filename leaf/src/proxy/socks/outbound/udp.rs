@@ -8,13 +8,12 @@ use async_socks5::{AddrKind, Auth, SocksDatagram, SocksDatagramRecvHalf, SocksDa
 use async_trait::async_trait;
 use futures::future::TryFutureExt;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::UdpSocket;
 
 use crate::{
     app::dns_client::DnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, UdpOutboundHandler, UdpTransportType,
+        OutboundTransport, TcpConnector, UdpConnector, UdpOutboundHandler, UdpTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -25,6 +24,9 @@ pub struct Handler {
     pub bind_addr: SocketAddr,
     pub dns_client: Arc<DnsClient>,
 }
+
+impl TcpConnector for Handler {}
+impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
@@ -58,7 +60,7 @@ impl UdpOutboundHandler for Handler {
                 &self.port,
             )
             .await?;
-        let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        let socket = self.create_udp_socket(&self.bind_addr).await?;
         let socket = SocksDatagram::associate(stream, socket, None::<Auth>, None::<AddrKind>)
             .map_err(|x| Error::new(ErrorKind::Other, x))
             .await?;
