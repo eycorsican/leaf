@@ -52,6 +52,8 @@ jobs:
 
       - name: build
         run: |
+          export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
+          export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
           ./misc/build_cross.sh ${{ matrix.target }}
 
       - name: rename and compress artifacts
@@ -106,6 +108,8 @@ jobs:
 
       - name: build
         run: |
+          export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
+          export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
           cargo build --release --target ${{ matrix.target }} -p leaf-bin
 
       - name: rename and compress artifacts

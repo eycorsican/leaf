@@ -6,10 +6,20 @@ use log::*;
 use leaf::config;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+const COMMIT_HASH: Option<&'static str> = option_env!("CFG_COMMIT_HASH");
+const COMMIT_DATE: Option<&'static str> = option_env!("CFG_COMMIT_DATE");
+
+fn get_version_string() -> String {
+    match (VERSION, COMMIT_HASH, COMMIT_DATE) {
+        (Some(ver), None, None) => ver.to_string(),
+        (Some(ver), Some(hash), Some(date)) => format!("{} ({} - {})", ver, hash, date),
+        _ => "unknown".to_string(),
+    }
+}
 
 fn main() {
     let matches = App::new("leaf")
-        .version(VERSION.unwrap())
+        .version(get_version_string().as_str())
         .about("A lightweight and fast proxy utility.")
         .arg(
             Arg::new("config")
