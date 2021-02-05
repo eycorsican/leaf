@@ -233,9 +233,25 @@ impl TcpOutboundHandler for Handler {
                         }
                         return Ok(v);
                     }
-                    Err(_) => continue,
+                    Err(e) => {
+                        trace!(
+                            "[{}] failed to handle [{}]: {}",
+                            self.actors[actor_idx].tag(),
+                            sess.destination,
+                            e,
+                        );
+                        continue;
+                    }
                 },
-                Err(_) => continue,
+                Err(e) => {
+                    trace!(
+                        "[{}] failed to handle [{}]: {}",
+                        self.actors[actor_idx].tag(),
+                        sess.destination,
+                        e,
+                    );
+                    continue;
+                }
             }
         }
         Err(io::Error::new(

@@ -118,6 +118,11 @@ message ChainOutboundSettings {
 	repeated string actors = 1;
 }
 
+message RetryOutboundSettings {
+	repeated string actors = 1;
+	uint32 attempts = 2;
+}
+
 message FailOverOutboundSettings {
 	repeated string actors = 1;
 	uint32 fail_timeout = 2;

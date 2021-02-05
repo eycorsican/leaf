@@ -96,6 +96,9 @@ pub struct ProxyGroup {
 
     // tryall
     pub delay_base: Option<i32>,
+
+    // retry
+    pub attempts: Option<i32>,
 }
 
 impl Default for ProxyGroup {
@@ -112,6 +115,7 @@ impl Default for ProxyGroup {
             cache_size: Some(256),
             cache_timeout: Some(60),
             delay_base: Some(0),
+            attempts: Some(2),
         }
     }
 }
@@ -479,6 +483,14 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                             None
                         };
                         group.delay_base = i;
+                    }
+                    "attempts" => {
+                        let i = if let Ok(i) = v.parse::<i32>() {
+                            Some(i)
+                        } else {
+                            None
+                        };
+                        group.attempts = i;
                     }
                     _ => {}
                 }
@@ -994,6 +1006,22 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                         settings.cache_timeout = ext_cache_timeout as u32;
                     } else {
                         settings.cache_timeout = 60; // in minutes
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
+                "retry" => {
+                    let mut settings = internal::RetryOutboundSettings::new();
+                    if let Some(ext_actors) = &ext_proxy_group.actors {
+                        for ext_actor in ext_actors {
+                            settings.actors.push(ext_actor.to_string());
+                        }
+                    }
+                    if let Some(ext_attempts) = ext_proxy_group.attempts {
+                        settings.attempts = ext_attempts as u32;
+                    } else {
+                        settings.attempts = 2;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

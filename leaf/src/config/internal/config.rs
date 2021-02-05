@@ -4272,6 +4272,199 @@ impl ::protobuf::reflect::ProtobufValue for ChainOutboundSettings {
 }
 
 #[derive(PartialEq,Clone,Default)]
+pub struct RetryOutboundSettings {
+    // message fields
+    pub actors: ::protobuf::RepeatedField<::std::string::String>,
+    pub attempts: u32,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a RetryOutboundSettings {
+    fn default() -> &'a RetryOutboundSettings {
+        <RetryOutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl RetryOutboundSettings {
+    pub fn new() -> RetryOutboundSettings {
+        ::std::default::Default::default()
+    }
+
+    // repeated string actors = 1;
+
+
+    pub fn get_actors(&self) -> &[::std::string::String] {
+        &self.actors
+    }
+    pub fn clear_actors(&mut self) {
+        self.actors.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
+        self.actors = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
+        &mut self.actors
+    }
+
+    // Take field
+    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
+        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
+    }
+
+    // uint32 attempts = 2;
+
+
+    pub fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
+    pub fn clear_attempts(&mut self) {
+        self.attempts = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_attempts(&mut self, v: u32) {
+        self.attempts = v;
+    }
+}
+
+impl ::protobuf::Message for RetryOutboundSettings {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.actors)?;
+                },
+                2 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.attempts = tmp;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        for value in &self.actors {
+            my_size += ::protobuf::rt::string_size(1, &value);
+        };
+        if self.attempts != 0 {
+            my_size += ::protobuf::rt::value_size(2, self.attempts, ::protobuf::wire_format::WireTypeVarint);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        for v in &self.actors {
+            os.write_string(1, &v)?;
+        };
+        if self.attempts != 0 {
+            os.write_uint32(2, self.attempts)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> RetryOutboundSettings {
+        RetryOutboundSettings::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "actors",
+                |m: &RetryOutboundSettings| { &m.actors },
+                |m: &mut RetryOutboundSettings| { &mut m.actors },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "attempts",
+                |m: &RetryOutboundSettings| { &m.attempts },
+                |m: &mut RetryOutboundSettings| { &mut m.attempts },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<RetryOutboundSettings>(
+                "RetryOutboundSettings",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static RetryOutboundSettings {
+        static instance: ::protobuf::rt::LazyV2<RetryOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(RetryOutboundSettings::new)
+    }
+}
+
+impl ::protobuf::Clear for RetryOutboundSettings {
+    fn clear(&mut self) {
+        self.actors.clear();
+        self.attempts = 0;
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for RetryOutboundSettings {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for RetryOutboundSettings {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
 pub struct FailOverOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -6360,34 +6553,35 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     tings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1d\n\ndelay\
     _base\x18\x02\x20\x01(\rR\tdelayBase\"0\n\x16RandomOutboundSettings\x12\
     \x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"/\n\x15ChainOutboundSett\
-    ings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\xa6\x02\n\x18Fa\
-    ilOverOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\
-    \x12!\n\x0cfail_timeout\x18\x02\x20\x01(\rR\x0bfailTimeout\x12!\n\x0chea\
-    lth_check\x18\x03\x20\x01(\x08R\x0bhealthCheck\x12%\n\x0echeck_interval\
-    \x18\x04\x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\x18\x05\x20\
-    \x01(\x08R\x08failover\x12%\n\x0efallback_cache\x18\x06\x20\x01(\x08R\rf\
-    allbackCache\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcacheSize\x12#\n\
-    \rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"D\n\x14StatOutbound\
-    Settings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\
-    \x04port\x18\x02\x20\x01(\rR\x04port\"h\n\x08Outbound\x12\x10\n\x03tag\
-    \x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\
-    \x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08\
-    settings\x18\x04\x20\x01(\x0cR\x08settings\"\xf6\x02\n\x0bRoutingRule\
-    \x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\
-    \x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08i\
-    p_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\
-    \x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\
-    \x20\x03(\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01\
-    (\x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\
-    \x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOM\
-    AIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\
-    \x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\
-    \x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\
-    \x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.Inbou\
-    ndR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\tout\
-    bounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0cr\
-    outingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DNSR\x03dnsb\x06p\
-    roto3\
+    ings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"K\n\x15RetryOutb\
+    oundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1a\n\
+    \x08attempts\x18\x02\x20\x01(\rR\x08attempts\"\xa6\x02\n\x18FailOverOutb\
+    oundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12!\n\
+    \x0cfail_timeout\x18\x02\x20\x01(\rR\x0bfailTimeout\x12!\n\x0chealth_che\
+    ck\x18\x03\x20\x01(\x08R\x0bhealthCheck\x12%\n\x0echeck_interval\x18\x04\
+    \x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\x18\x05\x20\x01(\x08R\
+    \x08failover\x12%\n\x0efallback_cache\x18\x06\x20\x01(\x08R\rfallbackCac\
+    he\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcacheSize\x12#\n\rcache_ti\
+    meout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"D\n\x14StatOutboundSettings\
+    \x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\
+    \x18\x02\x20\x01(\rR\x04port\"h\n\x08Outbound\x12\x10\n\x03tag\x18\x01\
+    \x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\x08protoco\
+    l\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08settings\
+    \x18\x04\x20\x01(\x0cR\x08settings\"\xf6\x02\n\x0bRoutingRule\x12\x1d\n\
+    \ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\x18\x02\
+    \x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08ip_cidrs\
+    \x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\x0b2\
+    \x11.RoutingRule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\x20\x03\
+    (\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01(\x0e2\
+    \x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\x20\x01\
+    (\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOMAIN\x10\
+    \x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\x18\x01\
+    \x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\x0bcount\
+    ryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\x0b2\x04.\
+    LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.InboundR\x08inb\
+    ounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\toutbounds\x12\
+    1\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0croutingRule\
+    s\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DNSR\x03dnsb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

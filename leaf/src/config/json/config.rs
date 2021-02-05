@@ -137,6 +137,12 @@ pub struct ChainOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct RetryOutboundSettings {
+    pub actors: Option<Vec<String>>,
+    pub attempts: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FailOverOutboundSettings {
     pub actors: Option<Vec<String>>,
     #[serde(rename = "failTimeout")]
@@ -649,6 +655,27 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         for ext_actor in ext_actors {
                             settings.actors.push(ext_actor);
                         }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
+                "retry" => {
+                    if ext_outbound.settings.is_none() {
+                        return Err(anyhow!("invalid retry outbound settings"));
+                    }
+                    let mut settings = internal::RetryOutboundSettings::new();
+                    let ext_settings: RetryOutboundSettings =
+                        serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
+                    if let Some(ext_actors) = ext_settings.actors {
+                        for ext_actor in ext_actors {
+                            settings.actors.push(ext_actor);
+                        }
+                    }
+                    if let Some(ext_attempts) = ext_settings.attempts {
+                        settings.attempts = ext_attempts;
+                    } else {
+                        settings.attempts = 2;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

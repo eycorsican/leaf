@@ -46,6 +46,7 @@ all-endpoints = [
     "outbound-random",
     "outbound-tryall",
     "outbound-chain",
+    "outbound-retry",
     # "outbound-stat",
 ]
 
@@ -77,6 +78,7 @@ outbound-failover = ["lru_time_cache"]
 outbound-random = []
 outbound-tryall = []
 outbound-chain = []
+outbound-retry = []
 outbound-stat = ["warp"]
 
 # Inbounds

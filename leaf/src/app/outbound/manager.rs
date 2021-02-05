@@ -15,6 +15,8 @@ use crate::proxy::chain;
 use crate::proxy::failover;
 #[cfg(feature = "outbound-random")]
 use crate::proxy::random;
+#[cfg(feature = "outbound-retry")]
+use crate::proxy::retry;
 #[cfg(feature = "outbound-tryall")]
 use crate::proxy::tryall;
 
@@ -610,6 +612,47 @@ impl OutboundManager {
                                 r: 226,
                                 g: 103,
                                 b: 245,
+                            },
+                            ProxyHandlerType::Ensemble,
+                            Some(tcp),
+                            Some(udp),
+                        );
+                        handlers.insert(tag.clone(), handler);
+                    }
+                    #[cfg(feature = "outbound-retry")]
+                    "retry" => {
+                        let settings = match config::RetryOutboundSettings::parse_from_bytes(
+                            &outbound.settings,
+                        ) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
+                        let mut actors = Vec::new();
+                        for actor in settings.actors.iter() {
+                            if let Some(a) = handlers.get(actor) {
+                                actors.push(a.clone());
+                            }
+                        }
+                        if actors.is_empty() {
+                            continue;
+                        }
+                        let tcp = Box::new(retry::TcpHandler {
+                            actors: actors.clone(),
+                            attempts: settings.attempts as usize,
+                        });
+                        let udp = Box::new(retry::UdpHandler {
+                            actors,
+                            attempts: settings.attempts as usize,
+                        });
+                        let handler = proxy::outbound::Handler::new(
+                            tag.clone(),
+                            colored::Color::TrueColor {
+                                r: 182,
+                                g: 235,
+                                b: 250,
                             },
                             ProxyHandlerType::Ensemble,
                             Some(tcp),

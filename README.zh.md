@@ -30,6 +30,7 @@ Leaf 是一个轻量且快速的代理工具。
   * [failover](#failover)
   * [tryall](#tryall)
   * [random](#random)
+  * [retry](#retry)
 - [Rules](#rules)
   * [domain](#domain)
   * [domainSuffix](#domainsuffix)
@@ -760,6 +761,24 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
 ```
 
 从列表中随机选一个 outbound 发送请求。
+
+### retry
+
+```json
+{
+    "protocol": "retry",
+    "settings": {
+        "actors": [
+            "trojan_out",
+            "vmess_out"
+        ],
+        attempts: 2,
+    },
+    "tag": "retry"
+}
+```
+
+可以对 outbound 列表进行多次重试。
 
 ## Rules
 

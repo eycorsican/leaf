@@ -58,6 +58,8 @@ pub mod chain;
 pub mod failover;
 #[cfg(feature = "outbound-random")]
 pub mod random;
+#[cfg(feature = "outbound-retry")]
+pub mod retry;
 #[cfg(feature = "outbound-tryall")]
 pub mod tryall;
 
