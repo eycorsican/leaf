@@ -186,8 +186,13 @@ impl Dispatcher {
                     let l2r = tokio::io::copy(&mut lr, &mut rw);
                     let r2l = tokio::io::copy(&mut rr, &mut lw);
 
+                    // Drives both uplink and downlink to completion, i.e. read till EOF.
                     match future::select(l2r, r2l).await {
+                        // Uplink task returns first, with the result of the completed uplink
+                        // task and the uncompleted downlink task.
                         Either::Left((up_res, new_r2l)) => {
+                            // Logs the uplink result, either successful with bytes transfered
+                            // or an error.
                             match up_res {
                                 Ok(up_n) => {
                                     debug!(
@@ -209,12 +214,35 @@ impl Dispatcher {
                                 }
                             }
 
-                            // FIXME run both shutdown and r2l in parallel?
-                            rw.shutdown().await;
-
+                            // Puts a timeout limit on the uncompleted downlink task, because uplink
+                            // has been completed, and we don't like half-closed connections, the other
+                            // half must complete before timeout.
                             let timed_r2l =
                                 timeout(Duration::from_secs(option::TCP_DOWNLINK_TIMEOUT), new_r2l);
-                            match timed_r2l.await {
+
+                            // Because uplink has been completed, no furture data from the inbound
+                            // connection, we would like to close the write side of the outbound
+                            // connection, so that notifies the close of the pipeline.
+                            let rw_shutdown = rw.shutdown();
+
+                            // Drives both the above tasks to completion simultaneously and get the
+                            // results.
+                            let (shutdown_res, timed_r2l_res) =
+                                future::join(rw_shutdown, timed_r2l).await;
+
+                            // Logs the shutdown result.
+                            if let Err(e) = shutdown_res {
+                                debug!(
+                                    "tcp uplink {} -> {} error: {} [{}]",
+                                    &sess.source,
+                                    &sess.destination,
+                                    e,
+                                    &h.tag()
+                                );
+                            }
+
+                            // Logs the downlink result.
+                            match timed_r2l_res {
                                 Ok(down_res) => match down_res {
                                     Ok(down_n) => {
                                         debug!(
@@ -246,8 +274,20 @@ impl Dispatcher {
                                 }
                             }
 
-                            lw.shutdown().await;
+                            // Finally shuts down the inbound connection.
+                            if let Err(e) = lw.shutdown().await {
+                                debug!(
+                                    "tcp downlink {} <- {} error: {} [{}]",
+                                    &sess.source,
+                                    &sess.destination,
+                                    e,
+                                    &h.tag()
+                                );
+                            }
                         }
+
+                        // In case downlink returns first, the process is similar to the other
+                        // side described above, with the roles of uplink and downlink interchanged.
                         Either::Right((down_res, new_l2r)) => {
                             match down_res {
                                 Ok(down_n) => {
@@ -270,11 +310,23 @@ impl Dispatcher {
                                 }
                             }
 
-                            lw.shutdown().await;
-
                             let timed_l2r =
                                 timeout(Duration::from_secs(option::TCP_UPLINK_TIMEOUT), new_l2r);
-                            match timed_l2r.await {
+
+                            let (shutdown_res, timed_l2r_res) =
+                                future::join(lw.shutdown(), timed_l2r).await;
+
+                            if let Err(e) = shutdown_res {
+                                debug!(
+                                    "tcp downlink {} <- {} error: {} [{}]",
+                                    &sess.source,
+                                    &sess.destination,
+                                    e,
+                                    &h.tag()
+                                );
+                            }
+
+                            match timed_l2r_res {
                                 Ok(up_res) => match up_res {
                                     Ok(up_n) => {
                                         debug!(
@@ -306,7 +358,15 @@ impl Dispatcher {
                                 }
                             }
 
-                            rw.shutdown().await;
+                            if let Err(e) = rw.shutdown().await {
+                                debug!(
+                                    "tcp uplink {} -> {} error: {} [{}]",
+                                    &sess.source,
+                                    &sess.destination,
+                                    e,
+                                    &h.tag()
+                                );
+                            }
                         }
                     }
 
