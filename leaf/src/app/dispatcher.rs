@@ -1,11 +1,11 @@
 use std::io::{self, ErrorKind};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use futures::future::{self, Either};
 use log::*;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tokio::sync::mpsc::{self, Receiver, Sender};
-use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
 #[cfg(not(target_os = "ios"))]
@@ -21,6 +21,7 @@ use crate::{
 use super::outbound::manager::OutboundManager;
 use super::router::Router;
 
+#[inline]
 fn log_tcp(
     inbound_tag: &str,
     outbound_tag: &str,
@@ -48,6 +49,7 @@ fn log_tcp(
     }
 }
 
+#[inline]
 fn log_udp(
     inbound_tag: &str,
     outbound_tag: &str,
@@ -78,78 +80,46 @@ fn log_udp(
 pub struct Dispatcher {
     outbound_manager: OutboundManager,
     router: Router,
-    endpoint_tcp_tx: TokioMutex<Sender<bool>>,
-    endpoint_tcp_rx: TokioMutex<Receiver<bool>>,
-    direct_tcp_tx: TokioMutex<Sender<bool>>,
-    direct_tcp_rx: TokioMutex<Receiver<bool>>,
-    num_endpoint_tcp: TokioMutex<u32>,
-    num_direct_tcp: TokioMutex<u32>,
+    endpoint_tcp_sem: Semaphore,
+    direct_tcp_sem: Semaphore,
+    num_endpoint_tcp: AtomicUsize,
+    num_direct_tcp: AtomicUsize,
 }
 
 impl Dispatcher {
     pub fn new(outbound_manager: OutboundManager, router: Router) -> Self {
-        let (endpoint_tcp_tx, endpoint_tcp_rx) = mpsc::channel(option::ENDPOINT_TCP_CONCURRENCY);
-        let (direct_tcp_tx, direct_tcp_rx) = mpsc::channel(option::DIRECT_TCP_CONCURRENCY);
         Dispatcher {
             outbound_manager,
             router,
-            endpoint_tcp_tx: TokioMutex::new(endpoint_tcp_tx),
-            endpoint_tcp_rx: TokioMutex::new(endpoint_tcp_rx),
-            direct_tcp_tx: TokioMutex::new(direct_tcp_tx),
-            direct_tcp_rx: TokioMutex::new(direct_tcp_rx),
-            num_endpoint_tcp: TokioMutex::new(0),
-            num_direct_tcp: TokioMutex::new(0),
+            endpoint_tcp_sem: Semaphore::new(option::ENDPOINT_TCP_CONCURRENCY),
+            direct_tcp_sem: Semaphore::new(option::DIRECT_TCP_CONCURRENCY),
+            num_endpoint_tcp: AtomicUsize::new(0),
+            num_direct_tcp: AtomicUsize::new(0),
         }
     }
 
     async fn dispatch_endpoint_tcp_start(&self) {
-        match self.endpoint_tcp_tx.lock().await.send(true).await {
-            Ok(_) => (),
-            Err(e) => {
-                warn!("send tcp dispatch placeholder failed: {}", e);
-                return;
-            }
-        };
-        *self.num_endpoint_tcp.lock().await += 1;
-        trace!(
-            "active proxied tcp connections +1: {}",
-            self.num_endpoint_tcp.lock().await
-        );
+        self.endpoint_tcp_sem.acquire().await.forget();
+        let pn = self.num_endpoint_tcp.fetch_add(1, Ordering::SeqCst);
+        trace!("active proxied tcp connections +1: {}", pn + 1);
     }
 
-    async fn dispatch_endpoint_tcp_done(&self) {
-        if self.endpoint_tcp_rx.lock().await.try_recv().is_ok() {
-            *self.num_endpoint_tcp.lock().await -= 1;
-            trace!(
-                "active proxied tcp connections -1: {}",
-                self.num_endpoint_tcp.lock().await
-            );
-        }
+    fn dispatch_endpoint_tcp_done(&self) {
+        self.endpoint_tcp_sem.add_permits(1);
+        let pn = self.num_endpoint_tcp.fetch_sub(1, Ordering::SeqCst);
+        trace!("active proxied tcp connections -1: {}", pn - 1)
     }
 
     async fn dispatch_direct_tcp_start(&self) {
-        match self.direct_tcp_tx.lock().await.send(true).await {
-            Ok(_) => (),
-            Err(e) => {
-                warn!("send tcp dispatch placeholder failed: {}", e);
-                return;
-            }
-        };
-        *self.num_direct_tcp.lock().await += 1;
-        trace!(
-            "active direct tcp connections +1: {}",
-            self.num_direct_tcp.lock().await
-        );
+        self.direct_tcp_sem.acquire().await.forget();
+        let pn = self.num_direct_tcp.fetch_add(1, Ordering::SeqCst);
+        trace!("active direct tcp connections +1: {}", pn + 1);
     }
 
-    async fn dispatch_direct_tcp_done(&self) {
-        if self.direct_tcp_rx.lock().await.try_recv().is_ok() {
-            *self.num_direct_tcp.lock().await -= 1;
-            trace!(
-                "active direct tcp connections -1: {}",
-                self.num_direct_tcp.lock().await
-            );
-        }
+    fn dispatch_direct_tcp_done(&self) {
+        self.direct_tcp_sem.add_permits(1);
+        let pn = self.num_direct_tcp.fetch_sub(1, Ordering::SeqCst);
+        trace!("active direct tcp connections -1: {}", pn - 1)
     }
 
     pub async fn dispatch_tcp<T>(&self, sess: &mut Session, lhs: T) -> io::Result<()>
@@ -341,9 +311,9 @@ impl Dispatcher {
                     }
 
                     match h.handler_type() {
-                        ProxyHandlerType::Direct => self.dispatch_direct_tcp_done().await,
+                        ProxyHandlerType::Direct => self.dispatch_direct_tcp_done(),
                         ProxyHandlerType::Endpoint | ProxyHandlerType::Ensemble => {
-                            self.dispatch_endpoint_tcp_done().await
+                            self.dispatch_endpoint_tcp_done()
                         }
                     }
 
@@ -359,9 +329,9 @@ impl Dispatcher {
                     );
 
                     match h.handler_type() {
-                        ProxyHandlerType::Direct => self.dispatch_direct_tcp_done().await,
+                        ProxyHandlerType::Direct => self.dispatch_direct_tcp_done(),
                         ProxyHandlerType::Endpoint | ProxyHandlerType::Ensemble => {
-                            self.dispatch_endpoint_tcp_done().await
+                            self.dispatch_endpoint_tcp_done()
                         }
                     }
 
