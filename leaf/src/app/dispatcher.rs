@@ -122,7 +122,7 @@ impl Dispatcher {
         trace!("active direct tcp connections -1: {}", pn - 1)
     }
 
-    pub async fn dispatch_tcp<T>(&self, sess: &mut Session, lhs: T) -> io::Result<()>
+    pub async fn dispatch_tcp<T>(&self, sess: &mut Session, lhs: T)
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
@@ -155,7 +155,8 @@ impl Dispatcher {
                     );
                     tag
                 } else {
-                    return Err(io::Error::new(ErrorKind::Other, "no available handler"));
+                    warn!("can not find any handlers");
+                    return;
                 }
             }
         };
@@ -376,8 +377,6 @@ impl Dispatcher {
                             self.dispatch_endpoint_tcp_done()
                         }
                     }
-
-                    Ok(())
                 }
                 Err(e) => {
                     debug!(
@@ -394,14 +393,11 @@ impl Dispatcher {
                             self.dispatch_endpoint_tcp_done()
                         }
                     }
-
-                    Err(e)
                 }
             }
         } else {
             // FIXME use  the default handler
             debug!("handler not found");
-            Err(io::Error::new(ErrorKind::Other, "handler not found"))
         }
     }
 

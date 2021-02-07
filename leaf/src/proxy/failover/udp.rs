@@ -58,15 +58,11 @@ impl Handler {
                     for (i, a) in (&actors2).iter().enumerate() {
                         debug!("health checking udp for [{}] index [{}]", a.tag(), i);
                         let single_measure = async move {
-                            let sess = Session {
-                                source: "0.0.0.0:0".parse().unwrap(),
-                                local_addr: "0.0.0.0:0".parse().unwrap(),
-                                destination: SocksAddr::Ip(SocketAddr::new(
-                                    IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
-                                    53,
-                                )),
-                                inbound_tag: "".to_string(),
-                            };
+                            let mut sess = Session::default();
+                            sess.destination = SocksAddr::Ip(SocketAddr::new(
+                                IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
+                                53,
+                            ));
                             let start = tokio::time::Instant::now();
                             match a.handle_udp(&sess, None).await {
                                 Ok(socket) => {

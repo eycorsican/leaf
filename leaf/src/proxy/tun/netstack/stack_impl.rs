@@ -108,36 +108,24 @@ impl NetStackImpl {
                 let inbound_tag_1 = inbound_tag_1.clone();
 
                 tokio::spawn(async move {
-                    let mut sess = if fakedns.lock().await.is_fake_ip(&stream.remote_addr().ip()) {
-                        match fakedns
+                    let mut sess = Session::default();
+                    sess.source = stream.local_addr().to_owned();
+                    sess.local_addr = stream.remote_addr().to_owned();
+                    sess.destination = SocksAddr::Ip(*stream.remote_addr());
+                    sess.inbound_tag = inbound_tag_1.clone();
+
+                    if fakedns.lock().await.is_fake_ip(&stream.remote_addr().ip()) {
+                        if let Some(domain) = fakedns
                             .lock()
                             .await
                             .query_domain(&stream.remote_addr().ip())
                         {
-                            Some(domain) => Session {
-                                source: stream.local_addr().to_owned(),
-                                local_addr: stream.remote_addr().to_owned(),
-                                destination: SocksAddr::Domain(domain, stream.remote_addr().port()),
-                                inbound_tag: inbound_tag_1.clone(),
-                            },
-                            None => Session {
-                                source: stream.local_addr().to_owned(),
-                                local_addr: stream.remote_addr().to_owned(),
-                                destination: SocksAddr::Ip(*stream.remote_addr()),
-                                inbound_tag: inbound_tag_1.clone(),
-                            },
+                            sess.destination =
+                                SocksAddr::Domain(domain, stream.remote_addr().port());
                         }
-                    } else {
-                        Session {
-                            source: stream.local_addr().to_owned(),
-                            local_addr: stream.remote_addr().to_owned(),
-                            destination: SocksAddr::Ip(*stream.remote_addr()),
-                            inbound_tag: inbound_tag_1.clone(),
-                        }
-                    };
+                    }
 
-                    // dispatch err logging was handled in dispatcher
-                    let _ = dispatcher
+                    dispatcher
                         .dispatch_tcp(&mut sess, TcpStream::new(stream))
                         .await;
                 });
@@ -194,7 +182,10 @@ impl NetStackImpl {
                             if let Some(ip) = fakedns2.lock().await.query_fake_ip(&domain) {
                                 SocketAddr::new(ip, port)
                             } else {
-                                warn!("unexpected domain src addr without paired fake IP");
+                                warn!(
+                                    "unexpected domain src addr {}:{} without paired fake IP",
+                                    &domain, &port
+                                );
                                 continue;
                             }
                         }
@@ -264,12 +255,10 @@ impl NetStackImpl {
                 };
 
                 if !nat_manager.contains_key(&src_addr).await {
-                    let sess = Session {
-                        source: src_addr,
-                        local_addr: "0.0.0.0:0".parse().unwrap(),
-                        destination: socks_dst_addr.clone(),
-                        inbound_tag: inbound_tag.clone(),
-                    };
+                    let mut sess = Session::default();
+                    sess.source = src_addr;
+                    sess.destination = socks_dst_addr.clone();
+                    sess.inbound_tag = inbound_tag.clone();
 
                     nat_manager
                         .add_session(&sess, src_addr, client_ch_tx.clone())

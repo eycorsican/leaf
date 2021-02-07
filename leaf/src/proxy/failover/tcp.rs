@@ -50,12 +50,8 @@ impl Handler {
                     for (i, a) in (&actors2).iter().enumerate() {
                         debug!("health checking tcp for [{}] index [{}]", a.tag(), i);
                         let single_measure = async move {
-                            let sess = Session {
-                                source: "0.0.0.0:0".parse().unwrap(),
-                                local_addr: "0.0.0.0:0".parse().unwrap(),
-                                destination: SocksAddr::Domain("www.google.com".to_string(), 80),
-                                inbound_tag: "".to_string(),
-                            };
+                            let mut sess = Session::default();
+                            sess.destination = SocksAddr::Domain("www.google.com".to_string(), 80);
                             let start = tokio::time::Instant::now();
                             match a.handle_tcp(&sess, None).await {
                                 Ok(mut stream) => {

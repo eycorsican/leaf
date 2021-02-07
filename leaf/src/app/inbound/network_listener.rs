@@ -74,12 +74,10 @@ async fn handle_inbound_datagram(
                     continue;
                 };
                 if !nat_manager.contains_key(&src_addr).await {
-                    let sess = Session {
-                        source: src_addr,
-                        local_addr: "0.0.0.0:0".parse().unwrap(),
-                        destination: dst_addr.clone(),
-                        inbound_tag: inbound_tag.clone(),
-                    };
+                    let mut sess = Session::default();
+                    sess.source = src_addr;
+                    sess.destination = dst_addr.clone();
+                    sess.inbound_tag = inbound_tag.clone();
 
                     nat_manager
                         .add_session(&sess, src_addr, client_ch_tx.clone())
@@ -117,12 +115,10 @@ async fn handle_inbound_stream(
     let local_addr = stream
         .local_addr()
         .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
-    let sess = Session {
-        source,
-        local_addr,
-        destination: SocksAddr::empty_ipv4(),
-        inbound_tag: handler.tag().clone(),
-    };
+    let mut sess = Session::default();
+    sess.source = source;
+    sess.local_addr = local_addr;
+    sess.inbound_tag = handler.tag().clone();
 
     match handler
         .handle_tcp(InboundTransport::Stream(

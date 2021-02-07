@@ -33,6 +33,17 @@ impl Clone for Session {
     }
 }
 
+impl Default for Session {
+    fn default() -> Self {
+        Session {
+            source: "0.0.0.0:0".parse().unwrap(),
+            local_addr: "0.0.0.0:0".parse().unwrap(),
+            destination: SocksAddr::empty_ipv4(),
+            inbound_tag: "".to_string(),
+        }
+    }
+}
+
 struct SocksAddrPortLastType;
 
 impl SocksAddrPortLastType {
