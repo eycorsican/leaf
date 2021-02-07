@@ -58,6 +58,7 @@ impl NatManager {
                         debug!("udp session {} ended", key);
                     }
                 }
+                drop(to_be_remove); // drop explicitly
                 let n_remaining = sessions.len();
                 let n_removed = n_total - n_remaining;
                 drop(sessions); // release the lock
@@ -90,7 +91,7 @@ impl NatManager {
         let mut sessions = self.sessions.lock().await;
         if let Some(sess) = sessions.get_mut(key) {
             if let Err(err) = sess.0.try_send(pkt) {
-                debug!("send uplink packet failed {:?}", err);
+                debug!("send uplink packet failed {}", err);
             }
             sess.2 = Instant::now(); // activity update
         } else {
@@ -115,7 +116,7 @@ impl NatManager {
             }
         }
 
-        let (target_ch_tx, mut target_ch_rx) = mpsc::channel(100);
+        let (target_ch_tx, mut target_ch_rx) = mpsc::channel(64);
         let (downlink_abort_tx, downlink_abort_rx) = oneshot::channel();
 
         self.sessions.lock().await.insert(
@@ -134,7 +135,10 @@ impl NatManager {
             // new socket to communicate with the target.
             let socket = match dispatcher.dispatch_udp(&sess).await {
                 Ok(s) => s,
-                Err(_) => return,
+                Err(_) => {
+                    sessions.lock().await.remove(&raddr);
+                    return;
+                }
             };
 
             let (mut target_sock_recv, mut target_sock_send) = socket.split();
