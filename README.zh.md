@@ -20,7 +20,7 @@ Leaf 是一个轻量且快速的代理工具。
   * [direct](#direct)
   * [drop](#drop)
   * [tls](#tls)
-  * [ws](#ws)
+  * [ws](#ws-1)
   * [h2](#h2)
   * [shadowsocks](#shadowsocks)
   * [vmess](#vmess)
@@ -487,7 +487,7 @@ WebSocket 传输，一般用来叠加到其它代理或传输协议上。
     "settings": {
         "path": "/v2",
         "headers": {
-            "Host": "server.com",
+            "Host": "server.com"
         }
     },
     "tag": "ws_out"
@@ -775,7 +775,7 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
             "trojan_out",
             "vmess_out"
         ],
-        attempts: 2,
+        "attempts": 2,
     },
     "tag": "retry"
 }

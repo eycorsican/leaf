@@ -71,7 +71,7 @@ outbound-socks = ["async-socks5"]
 outbound-trojan = ["sha2", "hex"]
 outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5"]
 outbound-tls = []
-outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "httparse"]
+outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 outbound-h2 = ["h2", "http", "url"]
 outbound-vless = ["uuid"]
 outbound-failover = ["lru_time_cache"]
@@ -144,7 +144,6 @@ tokio-openssl = { version = "0.4", optional = true }
 # WebSocket
 tungstenite = { version = "0.11", default-features = false, optional = true }
 tokio-tungstenite = { version = "0.11", optional = true }
-httparse = { version = "1.3", optional = true }
 
 # WebSocket/HTTP/2
 url = { version = "2.1", optional = true }
