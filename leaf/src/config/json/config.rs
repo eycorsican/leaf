@@ -123,6 +123,7 @@ pub struct TlsOutboundSettings {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WebSocketOutboundSettings {
     pub path: Option<String>,
+    pub headers: Option<HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -533,6 +534,9 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
                     if let Some(ext_path) = ext_settings.path {
                         settings.path = ext_path; // TODO checks
+                    }
+                    if let Some(ext_headers) = ext_settings.headers {
+                        settings.headers = ext_headers;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

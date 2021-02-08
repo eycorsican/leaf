@@ -485,13 +485,16 @@ WebSocket 传输，一般用来叠加到其它代理或传输协议上。
 {
     "protocol": "ws",
     "settings": {
-        "path": "/v2"
+        "path": "/v2",
+        "headers": {
+            "Host": "server.com",
+        }
     },
     "tag": "ws_out"
 }
 ```
 
-还未支持自定义 Headers，Host 会尝试从下层协议获取。
+`headers` 是一个字典，可以包含任意数量的 KV 对。`Host` 不指定的话会尝试从下层协议获取。
 
 ### h2
 

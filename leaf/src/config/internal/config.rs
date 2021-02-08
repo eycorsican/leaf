@@ -3406,6 +3406,7 @@ impl ::protobuf::reflect::ProtobufValue for TlsOutboundSettings {
 pub struct WebSocketOutboundSettings {
     // message fields
     pub path: ::std::string::String,
+    pub headers: ::std::collections::HashMap<::std::string::String, ::std::string::String>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -3447,6 +3448,31 @@ impl WebSocketOutboundSettings {
     pub fn take_path(&mut self) -> ::std::string::String {
         ::std::mem::replace(&mut self.path, ::std::string::String::new())
     }
+
+    // repeated .WebSocketOutboundSettings.HeadersEntry headers = 2;
+
+
+    pub fn get_headers(&self) -> &::std::collections::HashMap<::std::string::String, ::std::string::String> {
+        &self.headers
+    }
+    pub fn clear_headers(&mut self) {
+        self.headers.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_headers(&mut self, v: ::std::collections::HashMap<::std::string::String, ::std::string::String>) {
+        self.headers = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_headers(&mut self) -> &mut ::std::collections::HashMap<::std::string::String, ::std::string::String> {
+        &mut self.headers
+    }
+
+    // Take field
+    pub fn take_headers(&mut self) -> ::std::collections::HashMap<::std::string::String, ::std::string::String> {
+        ::std::mem::replace(&mut self.headers, ::std::collections::HashMap::new())
+    }
 }
 
 impl ::protobuf::Message for WebSocketOutboundSettings {
@@ -3460,6 +3486,9 @@ impl ::protobuf::Message for WebSocketOutboundSettings {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.path)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_map_into::<::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeString>(wire_type, is, &mut self.headers)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -3476,6 +3505,7 @@ impl ::protobuf::Message for WebSocketOutboundSettings {
         if !self.path.is_empty() {
             my_size += ::protobuf::rt::string_size(1, &self.path);
         }
+        my_size += ::protobuf::rt::compute_map_size::<::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeString>(2, &self.headers);
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -3485,6 +3515,7 @@ impl ::protobuf::Message for WebSocketOutboundSettings {
         if !self.path.is_empty() {
             os.write_string(1, &self.path)?;
         }
+        ::protobuf::rt::write_map_with_cached_sizes::<::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeString>(2, &self.headers, os)?;
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -3528,6 +3559,11 @@ impl ::protobuf::Message for WebSocketOutboundSettings {
                 |m: &WebSocketOutboundSettings| { &m.path },
                 |m: &mut WebSocketOutboundSettings| { &mut m.path },
             ));
+            fields.push(::protobuf::reflect::accessor::make_map_accessor::<_, ::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeString>(
+                "headers",
+                |m: &WebSocketOutboundSettings| { &m.headers },
+                |m: &mut WebSocketOutboundSettings| { &mut m.headers },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<WebSocketOutboundSettings>(
                 "WebSocketOutboundSettings",
                 fields,
@@ -3545,6 +3581,7 @@ impl ::protobuf::Message for WebSocketOutboundSettings {
 impl ::protobuf::Clear for WebSocketOutboundSettings {
     fn clear(&mut self) {
         self.path.clear();
+        self.headers.clear();
         self.unknown_fields.clear();
     }
 }
@@ -6546,42 +6583,46 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\x18\
     \x02\x20\x01(\rR\x04port\x12\x12\n\x04uuid\x18\x03\x20\x01(\tR\x04uuid\"\
     J\n\x13TlsOutboundSettings\x12\x1f\n\x0bserver_name\x18\x01\x20\x01(\tR\
-    \nserverName\x12\x12\n\x04alpn\x18\x02\x20\x03(\tR\x04alpn\"/\n\x19WebSo\
-    cketOutboundSettings\x12\x12\n\x04path\x18\x01\x20\x01(\tR\x04path\"?\n\
-    \x15HTTP2OutboundSettings\x12\x12\n\x04path\x18\x01\x20\x01(\tR\x04path\
-    \x12\x12\n\x04host\x18\x02\x20\x01(\tR\x04host\"O\n\x16TryAllOutboundSet\
-    tings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1d\n\ndelay\
-    _base\x18\x02\x20\x01(\rR\tdelayBase\"0\n\x16RandomOutboundSettings\x12\
-    \x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"/\n\x15ChainOutboundSett\
-    ings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"K\n\x15RetryOutb\
-    oundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1a\n\
-    \x08attempts\x18\x02\x20\x01(\rR\x08attempts\"\xa6\x02\n\x18FailOverOutb\
-    oundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12!\n\
-    \x0cfail_timeout\x18\x02\x20\x01(\rR\x0bfailTimeout\x12!\n\x0chealth_che\
-    ck\x18\x03\x20\x01(\x08R\x0bhealthCheck\x12%\n\x0echeck_interval\x18\x04\
-    \x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\x18\x05\x20\x01(\x08R\
-    \x08failover\x12%\n\x0efallback_cache\x18\x06\x20\x01(\x08R\rfallbackCac\
-    he\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcacheSize\x12#\n\rcache_ti\
-    meout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"D\n\x14StatOutboundSettings\
-    \x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\
-    \x18\x02\x20\x01(\rR\x04port\"h\n\x08Outbound\x12\x10\n\x03tag\x18\x01\
-    \x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\x08protoco\
-    l\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08settings\
-    \x18\x04\x20\x01(\x0cR\x08settings\"\xf6\x02\n\x0bRoutingRule\x12\x1d\n\
-    \ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\x18\x02\
-    \x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08ip_cidrs\
-    \x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\x0b2\
-    \x11.RoutingRule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\x20\x03\
-    (\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01(\x0e2\
-    \x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\x20\x01\
-    (\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOMAIN\x10\
-    \x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\x18\x01\
-    \x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\x0bcount\
-    ryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\x0b2\x04.\
-    LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.InboundR\x08inb\
-    ounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\toutbounds\x12\
-    1\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0croutingRule\
-    s\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DNSR\x03dnsb\x06proto3\
+    \nserverName\x12\x12\n\x04alpn\x18\x02\x20\x03(\tR\x04alpn\"\xae\x01\n\
+    \x19WebSocketOutboundSettings\x12\x12\n\x04path\x18\x01\x20\x01(\tR\x04p\
+    ath\x12A\n\x07headers\x18\x02\x20\x03(\x0b2'.WebSocketOutboundSettings.H\
+    eadersEntryR\x07headers\x1a:\n\x0cHeadersEntry\x12\x10\n\x03key\x18\x01\
+    \x20\x01(\tR\x03key\x12\x14\n\x05value\x18\x02\x20\x01(\tR\x05value:\x02\
+    8\x01\"?\n\x15HTTP2OutboundSettings\x12\x12\n\x04path\x18\x01\x20\x01(\t\
+    R\x04path\x12\x12\n\x04host\x18\x02\x20\x01(\tR\x04host\"O\n\x16TryAllOu\
+    tboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1d\
+    \n\ndelay_base\x18\x02\x20\x01(\rR\tdelayBase\"0\n\x16RandomOutboundSett\
+    ings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"/\n\x15ChainOutb\
+    oundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"K\n\x15R\
+    etryOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\
+    \x12\x1a\n\x08attempts\x18\x02\x20\x01(\rR\x08attempts\"\xa6\x02\n\x18Fa\
+    ilOverOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\
+    \x12!\n\x0cfail_timeout\x18\x02\x20\x01(\rR\x0bfailTimeout\x12!\n\x0chea\
+    lth_check\x18\x03\x20\x01(\x08R\x0bhealthCheck\x12%\n\x0echeck_interval\
+    \x18\x04\x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\x18\x05\x20\
+    \x01(\x08R\x08failover\x12%\n\x0efallback_cache\x18\x06\x20\x01(\x08R\rf\
+    allbackCache\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcacheSize\x12#\n\
+    \rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"D\n\x14StatOutbound\
+    Settings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\
+    \x04port\x18\x02\x20\x01(\rR\x04port\"h\n\x08Outbound\x12\x10\n\x03tag\
+    \x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\
+    \x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08\
+    settings\x18\x04\x20\x01(\x0cR\x08settings\"\xf6\x02\n\x0bRoutingRule\
+    \x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\
+    \x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08i\
+    p_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\
+    \x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\
+    \x20\x03(\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01\
+    (\x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\
+    \x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOM\
+    AIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\
+    \x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\
+    \x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\
+    \x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.Inbou\
+    ndR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\tout\
+    bounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0cr\
+    outingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DNSR\x03dnsb\x06p\
+    roto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

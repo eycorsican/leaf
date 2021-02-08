@@ -98,6 +98,7 @@ message TlsOutboundSettings {
 
 message WebSocketOutboundSettings {
 	string path = 1;
+	map<string, string> headers = 2;
 }
 
 message HTTP2OutboundSettings {

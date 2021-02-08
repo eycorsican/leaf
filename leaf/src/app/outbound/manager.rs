@@ -375,6 +375,7 @@ impl OutboundManager {
                     };
                     let tcp = Box::new(ws::outbound::TcpHandler {
                         path: settings.path.clone(),
+                        headers: settings.headers.clone(),
                         dns_client: dns_client.clone(),
                     });
                     let handler = proxy::outbound::Handler::new(
