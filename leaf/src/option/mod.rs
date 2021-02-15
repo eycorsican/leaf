@@ -1,3 +1,8 @@
+use std::env;
+use std::str::FromStr;
+
+use lazy_static::lazy_static;
+
 #[cfg(target_os = "ios")]
 mod ios;
 
@@ -16,11 +21,29 @@ mod windows;
 #[cfg(target_os = "windows")]
 pub use windows::*;
 
-/// Uplink timeout after downlink EOF.
-pub static TCP_UPLINK_TIMEOUT: u64 = 2;
+fn get_env_var<T>(key: &str, default: T) -> T
+where
+    T: FromStr,
+{
+    if let Ok(v) = env::var(key) {
+        if let Ok(v) = v.parse::<T>() {
+            return v;
+        }
+    }
+    default
+}
 
-/// Downlink timeout after uplink EOF.
-pub static TCP_DOWNLINK_TIMEOUT: u64 = 4;
+lazy_static! {
+    /// Uplink timeout after downlink EOF.
+    pub static ref TCP_UPLINK_TIMEOUT: u64 = {
+        get_env_var("TCP_UPLINK_TIMEOUT", 2)
+    };
+
+    /// Downlink timeout after uplink EOF.
+    pub static ref TCP_DOWNLINK_TIMEOUT: u64 = {
+        get_env_var("TCP_DOWNLINK_TIMEOUT", 4)
+    };
+}
 
 /// Maximum outbound dial concurrency.
 pub static OUTBOUND_DIAL_CONCURRENCY: usize = 1;

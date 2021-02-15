@@ -218,8 +218,17 @@ impl Dispatcher {
                             // Puts a timeout limit on the uncompleted downlink task, because uplink
                             // has been completed, and we don't like half-closed connections, the other
                             // half must complete before timeout.
-                            let timed_r2l =
-                                timeout(Duration::from_secs(option::TCP_DOWNLINK_TIMEOUT), new_r2l);
+                            let timed_r2l = timeout(
+                                Duration::from_secs(*option::TCP_DOWNLINK_TIMEOUT),
+                                new_r2l,
+                            );
+
+                            trace!(
+                                "applied {}s downlink timeout to {} <- {}",
+                                *option::TCP_DOWNLINK_TIMEOUT,
+                                &sess.source,
+                                &sess.destination
+                            );
 
                             // Because uplink has been completed, no furture data from the inbound
                             // connection, we would like to close the write side of the outbound
@@ -312,7 +321,14 @@ impl Dispatcher {
                             }
 
                             let timed_l2r =
-                                timeout(Duration::from_secs(option::TCP_UPLINK_TIMEOUT), new_l2r);
+                                timeout(Duration::from_secs(*option::TCP_UPLINK_TIMEOUT), new_l2r);
+
+                            trace!(
+                                "applied {}s uplink timeout to {} -> {}",
+                                *option::TCP_UPLINK_TIMEOUT,
+                                &sess.source,
+                                &sess.destination
+                            );
 
                             let (shutdown_res, timed_l2r_res) =
                                 future::join(lw.shutdown(), timed_l2r).await;
