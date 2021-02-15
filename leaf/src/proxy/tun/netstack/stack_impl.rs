@@ -141,10 +141,11 @@ impl NetStackImpl {
             let fakedns2 = fakedns.clone();
             let pcb = listener.pcb();
 
+            // Sending packets to TUN should be very fast.
             let (client_ch_tx, mut client_ch_rx): (
                 TokioSender<UdpPacket>,
                 TokioReceiver<UdpPacket>,
-            ) = tokio_channel(100);
+            ) = tokio_channel(32);
 
             // downlink
             let lwip_lock2 = lwip_lock.clone();

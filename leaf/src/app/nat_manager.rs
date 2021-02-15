@@ -166,11 +166,13 @@ impl NatManager {
                                 src_addr: Some(addr.clone()),
                                 dst_addr: Some(SocksAddr::from(raddr)),
                             };
-                            if let Err(err) = client_ch_tx.try_send(pkt) {
+                            if let Err(err) = client_ch_tx.send(pkt).await {
                                 debug!(
                                     "send downlink packet failed {} -> {}: {}",
                                     &addr, &raddr, err
                                 );
+                                sessions.lock().await.remove(&raddr);
+                                break;
                             }
 
                             // activity update
