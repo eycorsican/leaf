@@ -148,6 +148,9 @@ Running as transparent proxy on OpenWrt:
 # Install the TUN package.
 opkg update && opkg install kmod-tun
 
+# Install certificates if you use TLS outbounds.
+opkg update && opkg install ca-certificates
+
 # Get the default interface address.
 ADDRESS=`ip route get 1 | awk '{print $7;exit}'`
 
