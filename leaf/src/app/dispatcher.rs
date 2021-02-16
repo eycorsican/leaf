@@ -122,7 +122,7 @@ impl Dispatcher {
         trace!("active direct tcp connections -1: {}", pn - 1)
     }
 
-    pub async fn dispatch_tcp<T>(&self, sess: &mut Session, lhs: T)
+    pub async fn dispatch_tcp<T>(&self, sess: &mut Session, mut lhs: T)
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
@@ -156,6 +156,12 @@ impl Dispatcher {
                     tag
                 } else {
                     warn!("can not find any handlers");
+                    if let Err(e) = lhs.shutdown().await {
+                        debug!(
+                            "tcp downlink {} <- {} error: {}",
+                            &sess.source, &sess.destination, e,
+                        );
+                    }
                     return;
                 }
             }
@@ -403,6 +409,16 @@ impl Dispatcher {
                         e
                     );
 
+                    if let Err(e) = lhs.shutdown().await {
+                        debug!(
+                            "tcp downlink {} <- {} error: {} [{}]",
+                            &sess.source,
+                            &sess.destination,
+                            e,
+                            &h.tag()
+                        );
+                    }
+
                     match h.handler_type() {
                         ProxyHandlerType::Direct => self.dispatch_direct_tcp_done(),
                         ProxyHandlerType::Endpoint | ProxyHandlerType::Ensemble => {
@@ -414,6 +430,12 @@ impl Dispatcher {
         } else {
             // FIXME use  the default handler
             debug!("handler not found");
+            if let Err(e) = lhs.shutdown().await {
+                debug!(
+                    "tcp downlink {} <- {} error: {}",
+                    &sess.source, &sess.destination, e,
+                );
+            }
         }
     }
 
