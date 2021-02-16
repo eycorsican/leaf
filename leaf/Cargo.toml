@@ -149,7 +149,7 @@ tokio-tungstenite = { version = "0.11", optional = true }
 url = { version = "2.1", optional = true }
 
 # HTTP inbound
-hyper = { version = "0.13", default-features = false, features = [], optional = true }
+hyper = { version = "0.13.9", default-features = false, features = [], optional = true }
 
 # HTTP/2
 h2 = { version = "0.2.6", features = ["stream"], optional = true }
