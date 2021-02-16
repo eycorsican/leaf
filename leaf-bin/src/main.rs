@@ -32,6 +32,7 @@ fn main() {
         )
         .arg(
             Arg::new("test-outbound")
+                .short('t')
                 .long("test-outbound")
                 .value_name("TAG")
                 .about("Tests the availability of a specified outbound")
