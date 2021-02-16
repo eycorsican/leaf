@@ -188,7 +188,7 @@ warp = { version = "0.2", optional = true }
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
-tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fix", features = ["async"], optional = true }
+tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fix-endianness", features = ["async"], optional = true }
 
 [build-dependencies]
 cc = "1.0"
