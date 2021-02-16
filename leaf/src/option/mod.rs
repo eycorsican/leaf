@@ -43,6 +43,11 @@ lazy_static! {
     pub static ref TCP_DOWNLINK_TIMEOUT: u64 = {
         get_env_var("TCP_DOWNLINK_TIMEOUT", 4)
     };
+
+    /// Buffer size for uplink and downlink connections, in KB.
+    pub static ref LINK_BUFFER_SIZE: usize = {
+        get_env_var("LINK_BUFFER_SIZE", 2)
+    };
 }
 
 /// Maximum outbound dial concurrency.
