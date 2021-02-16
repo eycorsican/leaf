@@ -10,10 +10,21 @@ path = "src/main.rs"
 
 [features]
 default = [
+    "default-ring",
+]
+
+default-ring = [
     "leaf/all-configs",
     "leaf/all-endpoints",
     "leaf/ring-aead",
     "leaf/rustls-tls",
+]
+
+default-openssl = [
+    "leaf/all-configs",
+    "leaf/all-endpoints",
+    "leaf/openssl-aead",
+    "leaf/openssl-tls",
 ]
 
 multi-thread = ["tokio/rt-threaded"]
