@@ -119,6 +119,20 @@ EXTERNAL, mmdb:us, Fallback
 FINAL, Direct
 ```
 
+在 [AppStore](https://apps.apple.com/us/app/leaf-lightweight-proxy/id1534109007) 或 [TestFlight](https://testflight.apple.com/join/std0FFCS) （都可以免费下载到）上的 Leaf 中，版本 `1.1 (8)` 及以上，`conf` 格式除了以上设置以外还支持一个 `[On Demand]` 配置，这是完全是一个 iOS 方面的功能，跟本 leaf 项目关系不大，它不涉及任何 Rust 代码，但为了方便查看也在这写下。
+
+下面规则表示连接 `OpenWrt` WiFi 信号时断开 VPN，其它任何情况都连着 VPN，典型的使用场景是 OpenWrt 是一个有透明代理的无线信号：
+
+```ini
+[On Demand]
+# 表示如果当前连接到 wifi 且 ssid 名为 OpenWrt，则断开 VPN
+DISCONNECT, ssid=OpenWrt, interface-type=wifi
+# 无条件地连接 VPN
+CONNECT
+```
+
+规则有两种 `CONNECT` 和 `DISCONNECT` ，匹配条件支持两种 `ssid` 和 `interface-type`，`ssid` 可以是以 `:` 分隔的 ssid 名称列表，`interface-type` 只能是以下 3 个值中的一个：`wifi`, `cellular`, `any`。规则不带任何匹配条件表示无条件执行。
+
 ## json
 
 JSON 配置文件目前不考虑兼容性，每个版本都可能会变。
