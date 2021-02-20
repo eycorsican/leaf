@@ -1,8 +1,13 @@
 syntax = "proto3";
 
 message DNS {
+	message IPs {
+		repeated string values = 1;
+	}
+
 	repeated string servers = 1;
 	string bind = 2;
+	map<string, IPs> hosts = 3;
 }
 
 message Log {

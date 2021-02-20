@@ -60,10 +60,14 @@ impl OutboundManager {
         let mut handlers: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
         let mut default_handler: Option<String> = None;
         let mut dns_servers = Vec::new();
+        let mut dns_hosts = HashMap::new();
         for dns_server in dns.servers.iter() {
             if let Ok(ip) = dns_server.parse::<IpAddr>() {
                 dns_servers.push(SocketAddr::new(ip, 53));
             }
+        }
+        for (name, ips) in dns.hosts.iter() {
+            dns_hosts.insert(name.to_owned(), ips.values.to_vec());
         }
         if dns_servers.is_empty() {
             panic!("no dns servers");
@@ -79,7 +83,7 @@ impl OutboundManager {
             };
             SocketAddr::from(addr)
         };
-        let dns_client = Arc::new(DnsClient::new(dns_servers, dns_bind_addr));
+        let dns_client = Arc::new(DnsClient::new(dns_servers, dns_hosts, dns_bind_addr));
 
         for outbound in outbounds.iter() {
             let tag = String::from(&outbound.tag);

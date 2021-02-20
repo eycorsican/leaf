@@ -13,6 +13,7 @@ use crate::config::{external_rule, geosite, internal};
 pub struct DNS {
     pub servers: Option<Vec<String>>,
     pub bind: Option<String>,
+    pub hosts: Option<HashMap<String, Vec<String>>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -784,6 +785,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
 
     let mut dns = internal::DNS::new();
     let mut servers = protobuf::RepeatedField::new();
+    let mut hosts = HashMap::new();
     if let Some(ext_dns) = json.dns {
         if let Some(ext_bind) = ext_dns.bind {
             dns.bind = ext_bind;
@@ -791,6 +793,17 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
         if let Some(ext_servers) = ext_dns.servers {
             for ext_server in ext_servers {
                 servers.push(ext_server);
+            }
+        }
+        if let Some(ext_hosts) = ext_dns.hosts {
+            for (name, static_ips) in ext_hosts.iter() {
+                let mut ips = internal::DNS_IPs::new();
+                let mut ip_vals = protobuf::RepeatedField::new();
+                for ip in static_ips {
+                    ip_vals.push(ip.to_owned());
+                }
+                ips.values = ip_vals;
+                hosts.insert(name.to_owned(), ips);
             }
         }
     }
@@ -802,6 +815,9 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
         servers.push("8.8.8.8".to_string());
     }
     dns.servers = servers;
+    if hosts.len() > 0 {
+        dns.hosts = hosts;
+    }
 
     let mut config = internal::Config::new();
     config.log = protobuf::SingularPtrField::some(log);

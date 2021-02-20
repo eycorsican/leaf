@@ -117,6 +117,10 @@ EXTERNAL, site:geolocation-!cn, Fallback
 EXTERNAL, mmdb:us, Fallback
 
 FINAL, Direct
+
+[Host]
+# 对指定域名返回一个或多个静态 IP
+example.com = 192.168.0.1, 192.168.0.2
 ```
 
 在 [AppStore](https://apps.apple.com/us/app/leaf-lightweight-proxy/id1534109007) 或 [TestFlight](https://testflight.apple.com/join/std0FFCS) （都可以免费下载到）上的 Leaf 中，版本 `1.1 (8)` 及以上，`conf` 格式除了以上设置以外还支持一个 `[On Demand]` 配置，这是完全是一个 iOS 方面的功能，跟本 leaf 项目关系不大，它不涉及任何 Rust 代码，但为了方便查看也在这写下。
@@ -146,7 +150,16 @@ JSON 配置文件目前不考虑兼容性，每个版本都可能会变。
         "servers": [
             "1.1.1.1",
             "8.8.8.8"
-        ]
+        ],
+        "hosts": {
+            "example.com": [
+                "192.168.0.1",
+                "192.168.0.2
+            ],
+            "server.com": [
+                "192.168.0.3"
+            ]
+        }
     },
     "inbounds": [
         {
@@ -311,11 +324,42 @@ level 可以是 trace, debug, info, warn, error
     "servers": [
         "114.114.114.114",
         "1.1.1.1"
-    ]
+    ],
+    "hosts": {
+        "example.com": [
+            "192.168.0.1",
+            "192.168.0.2
+        ],
+        "server.com": [
+            "192.168.0.3"
+        ]
+    }
 }
 ```
 
-DNS 用于 `direct` outbound 请求的域名解析，以及其它 outbound 中代理服务器地址的解析（如果代理服务器地址是 IP，则不需要解析）。
+DNS 用于 `direct` outbound 请求的域名解析，以及其它 outbound 中代理服务器地址的解析（如果代理服务器地址是 IP，则不需要解析）。`servers` 是 DNS 服务器列表，`hosts` 是静态 IP。
+
+
+作为 `hosts` 的使用例子，以下两个配置在效果上是相同的（因为用 json 配置会很长，这里用 conf 表达）：
+
+```ini
+[Proxy]
+Proxy = trojan, www.domain.com, 443, password=123456, ws=true, ws-path=/abc
+[Host]
+www.domain.com = 1.2.3.4
+```
+
+```ini
+[Proxy]
+Proxy = trojan, 1.2.3.4, 443, password=123456, ws=true, ws-path=/abc, sni=www.domain.com
+```
+
+而 `hosts` 还可以指定多个 IP：
+
+```ini
+[Host]
+www.domain.com = 1.2.3.4, 5.6.7.8
+```
 
 ## inbounds
 

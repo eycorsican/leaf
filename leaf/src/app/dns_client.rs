@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -22,34 +23,51 @@ use crate::{option, proxy::UdpConnector};
 pub struct DnsClient {
     bind_addr: SocketAddr,
     servers: Vec<SocketAddr>,
+    hosts: HashMap<String, Vec<IpAddr>>,
     cache: Arc<TokioMutex<LruCache<String, Vec<IpAddr>>>>,
 }
 
 impl Default for DnsClient {
     fn default() -> Self {
-        let mut dns_servers = Vec::new();
-        dns_servers.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
-        dns_servers.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 4, 4)), 53));
+        let mut servers = Vec::new();
+        servers.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
+        servers.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 4, 4)), 53));
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0);
-        let cache = Arc::new(TokioMutex::new(LruCache::<String, Vec<IpAddr>>::new(
-            option::DNS_CACHE_SIZE,
-        )));
-        DnsClient {
-            servers: dns_servers,
-            bind_addr,
-            cache,
-        }
-    }
-}
-
-impl DnsClient {
-    pub fn new(servers: Vec<SocketAddr>, bind_addr: SocketAddr) -> Self {
         let cache = Arc::new(TokioMutex::new(LruCache::<String, Vec<IpAddr>>::new(
             option::DNS_CACHE_SIZE,
         )));
         DnsClient {
             servers,
             bind_addr,
+            hosts: HashMap::new(),
+            cache,
+        }
+    }
+}
+
+impl DnsClient {
+    pub fn new(
+        servers: Vec<SocketAddr>,
+        hosts: HashMap<String, Vec<String>>,
+        bind_addr: SocketAddr,
+    ) -> Self {
+        let cache = Arc::new(TokioMutex::new(LruCache::<String, Vec<IpAddr>>::new(
+            option::DNS_CACHE_SIZE,
+        )));
+        let mut parsed_hosts = HashMap::new();
+        for (name, static_ips) in hosts.iter() {
+            let mut ips = Vec::new();
+            for ip in static_ips {
+                if let Ok(parsed_ip) = ip.parse::<IpAddr>() {
+                    ips.push(parsed_ip);
+                }
+            }
+            parsed_hosts.insert(name.to_owned(), ips);
+        }
+        DnsClient {
+            servers,
+            bind_addr,
+            hosts: parsed_hosts,
             cache,
         }
     }
@@ -183,6 +201,20 @@ impl DnsClient {
 
         if let Some(ips) = self.cache.lock().await.get(&domain) {
             return Ok(ips.to_vec());
+        }
+
+        // Making cache lookup a priority rather than static hosts lookup
+        // and insert the static IPs to the cache because there's a chance
+        // for the IPs in the cache to be re-ordered.
+        if !self.hosts.is_empty() {
+            if let Some(ips) = self.hosts.get(&domain) {
+                if !ips.is_empty() {
+                    if ips.len() > 1 {
+                        self.cache.lock().await.put(domain.to_owned(), ips.to_vec());
+                    }
+                    return Ok(ips.to_vec());
+                }
+            }
         }
 
         let mut msg = Message::new();
