@@ -56,6 +56,7 @@ pub struct Proxy {
     pub ws: Option<bool>,
     pub tls: Option<bool>,
     pub ws_path: Option<String>,
+    pub ws_host: Option<String>,
 
     // trojan
     pub sni: Option<String>,
@@ -75,6 +76,7 @@ impl Default for Proxy {
             ws: Some(false),
             tls: Some(false),
             ws_path: None,
+            ws_host: None,
             sni: None,
         }
     }
@@ -326,6 +328,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 "tls" => proxy.tls = if v == "true" { Some(true) } else { Some(false) },
                 "ws-path" => {
                     proxy.ws_path = Some(v.to_string());
+                }
+                "ws-host" => {
+                    proxy.ws_host = Some(v.to_string());
                 }
                 "sni" => {
                     proxy.sni = Some(v.to_string());
@@ -747,6 +752,11 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     } else {
                         ws_settings.path = "/".to_string();
                     }
+                    if let Some(ext_ws_host) = &ext_proxy.ws_host {
+                        let mut headers = HashMap::new();
+                        headers.insert("Host".to_string(), ext_ws_host.clone());
+                        ws_settings.headers = headers;
+                    }
                     let ws_settings = ws_settings.write_to_bytes().unwrap();
                     ws_outbound.settings = ws_settings;
                     ws_outbound.tag = format!("{}_ws_xxx", ext_proxy.tag.clone());
@@ -811,6 +821,11 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                         ws_settings.path = ext_ws_path.clone();
                     } else {
                         ws_settings.path = "/".to_string();
+                    }
+                    if let Some(ext_ws_host) = &ext_proxy.ws_host {
+                        let mut headers = HashMap::new();
+                        headers.insert("Host".to_string(), ext_ws_host.clone());
+                        ws_settings.headers = headers;
                     }
                     let ws_settings = ws_settings.write_to_bytes().unwrap();
                     ws_outbound.settings = ws_settings;
@@ -891,6 +906,11 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                         ws_settings.path = ext_ws_path.clone();
                     } else {
                         ws_settings.path = "/".to_string();
+                    }
+                    if let Some(ext_ws_host) = &ext_proxy.ws_host {
+                        let mut headers = HashMap::new();
+                        headers.insert("Host".to_string(), ext_ws_host.clone());
+                        ws_settings.headers = headers;
                     }
                     let ws_settings = ws_settings.write_to_bytes().unwrap();
                     ws_outbound.settings = ws_settings;
