@@ -908,8 +908,8 @@ HTTP2 传输，一般需要配合 tls 一起使用，tls 需要配置 h2 作为 
 MaxMind 的 mmdb 格式，可以有如下形式：
 
 - `mmdb:TAG` 假设 mmdb 文件存在于可执行文件目录，并且文件名为 `geo.mmdb`
-- `mmdb:FILENAME:TAG` 假设 mmdb 文件存在于可执行文件目录，文件名为 `FILENAME`
-- `mmdb:PATH:TAG` 指写 mmdb 文件的绝对路径为 `PATH`
+- `mmdb:FILENAME:TAG` 假设 mmdb 文件存在于可执行文件目录，文件名为 `FILENAME`，文件名包含后缀。
+- `mmdb:PATH:TAG` 指写 mmdb 文件的绝对路径为 `PATH`，文件名包含后缀。
 
 #### site
 
