@@ -55,15 +55,7 @@ impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRe
                                 }
                                 Poll::Ready(Ok(to_read))
                             }
-                            Message::Close(_) => {
-                                // FIXME should we send close here?
-                                Pin::new(&mut self.inner)
-                                    .poll_close(cx)
-                                    .map_ok(|_| 0)
-                                    .map_err(|_| {
-                                        io::Error::new(io::ErrorKind::Other, "error closing")
-                                    })
-                            }
+                            Message::Close(_) => Poll::Ready(Ok(0)),
                             _ => {
                                 // FIXME
                                 Poll::Ready(Err(io::Error::new(
@@ -118,9 +110,12 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
-        match Pin::new(&mut self.inner).poll_close(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(_) => Poll::Ready(Ok(())),
-        }
+        // We're using WebSocket as a transport, a shutdown on the write side
+        // means a half close of the stream, it seems that WebSocket lacks this
+        // half closing capability, sending a close frame means closing the
+        // whole socket. In order to support half close connections, we do not
+        // call poll_close() and instead wait for downlink timeout to cancel
+        // the underlying connection.
+        Poll::Ready(Ok(()))
     }
 }
