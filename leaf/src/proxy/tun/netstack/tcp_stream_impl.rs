@@ -210,9 +210,6 @@ impl AsyncRead for TcpStreamImpl {
                 "read on broken pipe",
             )));
         }
-        if self.local_closed {
-            return Poll::Ready(Ok(0));
-        }
         match self.rx.try_recv() {
             Ok(data) => {
                 let to_read = min(buf.len(), data.len());
@@ -227,6 +224,9 @@ impl AsyncRead for TcpStreamImpl {
                 Poll::Ready(Ok(to_read))
             }
             Err(_) => {
+                if self.local_closed {
+                    return Poll::Ready(Ok(0));
+                }
                 if let Ok(mut waker) = self.waker.lock() {
                     if let Some(waker_ref) = waker.as_ref() {
                         if !waker_ref.will_wake(cx.waker()) {
