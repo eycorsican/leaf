@@ -109,7 +109,7 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
         }
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
         // We're using WebSocket as a transport, a shutdown on the write side
         // means a half close of the stream, it seems that WebSocket lacks this
         // half closing capability, sending a close frame means closing the

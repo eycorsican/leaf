@@ -17,9 +17,9 @@ use tokio::time::timeout;
 use colored::Colorize;
 
 use crate::{
-    // common::stream,
+    common::sniff,
     option,
-    proxy::{OutboundDatagram, ProxyHandlerType},
+    proxy::{OutboundDatagram, ProxyHandlerType, ProxyStream, SimpleProxyStream},
     session::{Session, SocksAddr},
 };
 
@@ -201,21 +201,38 @@ impl Dispatcher {
         trace!("active direct tcp connections -1: {}", pn - 1)
     }
 
-    pub async fn dispatch_tcp<T>(&self, sess: &mut Session, mut lhs: T)
+    pub async fn dispatch_tcp<T>(&self, sess: &mut Session, lhs: T)
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
-        // let lhs: Box<dyn ProxyStream> =
-        //     if sess.destination.is_domain() && sess.destination.port() == 443 {
-        //         Box::new(SimpleProxyStream(lhs))
-        //     } else {
-        //         let mut lhs = stream::SniffingStream::new(lhs);
-        //         if let Some(domain) = lhs.sniff().await? {
-        //             debug!("sniffed domain {}", &domain);
-        //             sess.destination = SocksAddr::from((domain, sess.destination.port()));
-        //         }
-        //         Box::new(SimpleProxyStream(lhs))
-        //     };
+        let mut lhs: Box<dyn ProxyStream> = if !sess.destination.is_domain()
+            && (sess.destination.port() == 443 || sess.destination.port() == 80)
+        {
+            let mut lhs = sniff::SniffingStream::new(lhs);
+            match lhs.sniff().await {
+                Ok(res) => {
+                    if let Some(domain) = res {
+                        debug!(
+                            "sniffed domain {} for tcp link {} <-> {}",
+                            &domain, &sess.source, &sess.destination,
+                        );
+                        sess.destination = SocksAddr::from((domain, sess.destination.port()));
+                    }
+                }
+                Err(e) => {
+                    trace!(
+                        "sniff tcp uplink {} -> {} failed: {}",
+                        &sess.source,
+                        &sess.destination,
+                        e,
+                    );
+                    return;
+                }
+            }
+            Box::new(SimpleProxyStream(lhs))
+        } else {
+            Box::new(SimpleProxyStream(lhs))
+        };
 
         let outbound = match self.router.pick_route(&sess) {
             Ok(tag) => {

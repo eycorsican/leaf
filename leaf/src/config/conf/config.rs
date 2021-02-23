@@ -1183,7 +1183,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
             hosts.insert(name.to_owned(), ips);
         }
     }
-    if hosts.len() > 0 {
+    if !hosts.is_empty() {
         dns.hosts = hosts;
     }
 

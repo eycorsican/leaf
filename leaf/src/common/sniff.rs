@@ -1,12 +1,12 @@
 use std::cmp::min;
-use std::io::{self, ErrorKind};
+use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
 use byteorder::{BigEndian, ByteOrder};
 use bytes::BytesMut;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio::time::timeout;
 
 pub struct SniffingStream<T> {

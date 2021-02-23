@@ -815,7 +815,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
         servers.push("8.8.8.8".to_string());
     }
     dns.servers = servers;
-    if hosts.len() > 0 {
+    if !hosts.is_empty() {
         dns.hosts = hosts;
     }
 

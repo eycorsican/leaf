@@ -119,10 +119,10 @@ impl NatManager {
         let (target_ch_tx, mut target_ch_rx) = mpsc::channel(64);
         let (downlink_abort_tx, downlink_abort_rx) = oneshot::channel();
 
-        self.sessions.lock().await.insert(
-            raddr.clone(),
-            (target_ch_tx, downlink_abort_tx, Instant::now()),
-        );
+        self.sessions
+            .lock()
+            .await
+            .insert(raddr, (target_ch_tx, downlink_abort_tx, Instant::now()));
 
         let dispatcher = self.dispatcher.clone();
         let sessions = self.sessions.clone();
