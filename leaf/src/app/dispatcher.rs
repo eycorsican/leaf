@@ -290,6 +290,7 @@ impl Dispatcher {
                                     );
                                 }
                                 Err(up_e) => {
+                                    // FIXME Perhaps we should terminate the pipe immediately.
                                     debug!(
                                         "tcp uplink {} -> {} error: {} [{}]",
                                         &sess.source,
@@ -318,6 +319,10 @@ impl Dispatcher {
                             // Because uplink has been completed, no furture data from the inbound
                             // connection, we would like to close the write side of the outbound
                             // connection, so that notifies the close of the pipeline.
+                            //
+                            // TODO Perhaps we should not send FIN in order to compatible with some
+                            // of the improperly implemented server programs, e.g. a server closes
+                            // the write side after reading EOF on read side.
                             let rw_shutdown = rw.shutdown();
 
                             // Drives both the above tasks to completion simultaneously and get the
