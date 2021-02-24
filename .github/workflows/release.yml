@@ -191,6 +191,7 @@ jobs:
     strategy:
       matrix:
         target:
+          - x86_64-apple-darwin
           - mips-unknown-linux-musl
             #- mips-unknown-linux-gnu
             #- mips64-unknown-linux-gnuabi64
