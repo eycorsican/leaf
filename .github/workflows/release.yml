@@ -8,7 +8,6 @@ on:
 jobs:
   build-bin-cross:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         target:
@@ -30,7 +29,6 @@ jobs:
             #- armv7-unknown-linux-gnueabihf
             #- i686-pc-windows-gnu
           - x86_64-pc-windows-gnu
-
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -87,9 +85,7 @@ jobs:
         include:
           - os: macos-latest
             target: x86_64-apple-darwin
-
     runs-on: ${{ matrix.os }}
-
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -124,7 +120,6 @@ jobs:
 
   build-lib-ios:
     runs-on: macos-latest
-
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -163,7 +158,6 @@ jobs:
   create-release:
     needs: [build-bin-cross, build-bin-local, build-lib-ios]
     runs-on: macos-latest
-
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -215,7 +209,6 @@ jobs:
             #- armv7-unknown-linux-gnueabihf
             #- i686-pc-windows-gnu
           - x86_64-pc-windows-gnu
-
     steps:
       - name: download upload url
         uses: actions/download-artifact@v2
@@ -263,7 +256,6 @@ jobs:
   release-lib:
     needs: [create-release]
     runs-on: macos-latest
-
     steps:
       - name: download upload url
         uses: actions/download-artifact@v2

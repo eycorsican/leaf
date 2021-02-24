@@ -27,6 +27,7 @@ jobs:
 
   build-bin-cross:
     needs: [test]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
