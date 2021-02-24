@@ -1,11 +1,32 @@
-name: build
+name: ci
 
 on: [push, pull_request]
 
 jobs:
-  build-bin-cross:
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
 
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      - name: test leaf
+        run: cargo test -p leaf
+
+  build-bin-cross:
+    needs: [test]
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +49,6 @@ jobs:
             #- armv7-unknown-linux-gnueabihf
             #- i686-pc-windows-gnu
           - x86_64-pc-windows-gnu
-
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -79,15 +99,14 @@ jobs:
           path: leaf-${{ matrix.target }}
 
   build-bin-local:
+    needs: [test]
     strategy:
       matrix:
         os: [macos-latest]
         include:
           - os: macos-latest
             target: x86_64-apple-darwin
-
     runs-on: ${{ matrix.os }}
-
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -125,8 +144,8 @@ jobs:
           path: leaf-${{ matrix.target }}
 
   build-lib-ios:
+    needs: [test]
     runs-on: macos-latest
-
     steps:
       - name: checkout
         uses: actions/checkout@v2

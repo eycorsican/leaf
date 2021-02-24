@@ -1,11 +1,10 @@
 ![releases](https://github.com/eycorsican/leaf/workflows/releases/badge.svg)
-![build](https://github.com/eycorsican/leaf/workflows/build/badge.svg)
-![tun2socks-build](https://github.com/eycorsican/leaf/workflows/tun2socks-build/badge.svg)
+![ci](https://github.com/eycorsican/leaf/workflows/ci/badge.svg)
 
-### Leaf
+# Leaf
 A lightweight and fast proxy utility tries to include any useful features.
 
-### Features
+## Features
 Inbounds are proxy servers and outbounds are clients.
 
 - HTTP inbound supports CONNECT method
@@ -32,7 +31,7 @@ Inbounds are proxy servers and outbounds are clients.
 - Fake DNS
 - Load balancing / high availability through failover/random/tryall outbounds
 
-### Getting Started
+## Getting Started
 A local HTTP server redirects accepted requests to a SOCKS 5 server:
 
 ```json
@@ -87,10 +86,10 @@ Tests the setup:
 https_proxy=127.0.0.1:1087 curl "https://example.org"
 ```
 
-### Usage
+## Usage
 You may find some configuration samples [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md), it also serves as a reference for the JSON config format.
 
-### Build
+## Build
 Install Rust: https://www.rust-lang.org/tools/install
 
 Install nightly toolchain:
@@ -120,7 +119,7 @@ Run:
 ./target/debug/leaf -h
 ```
 
-### Customizing Build
+## Customizing Build
 You may build leaf with a selected set of features.
 
 By including only the demanded features, you will get an optimized artifact with smaller binary size and lower runtime memory footprint.
@@ -135,14 +134,14 @@ Note that for proxy protocols with AEAD crypto functions, one of the `leaf/ring-
 
 Refer to `leaf/Cargo.toml` for a full list of available features.
 
-### iOS
+## iOS
 App Store: https://apps.apple.com/us/app/leaf-lightweight-proxy/id1534109007
 
 TestFlight: https://testflight.apple.com/join/std0FFCS
 
 Demo for Developer: https://github.com/eycorsican/ileaf
 
-### OpenWrt
+## OpenWrt
 Running as transparent proxy on OpenWrt:
 ```sh
 # Install the TUN package.
