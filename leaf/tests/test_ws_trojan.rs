@@ -1,0 +1,84 @@
+mod common;
+
+// app(socks) -> (socks)client(ws+trojan) -> (ws+trojan)server(direct) -> echo
+#[test]
+fn test_ws_trojan() {
+    let config1 = r#"
+    {
+        "inbounds": [
+            {
+                "protocol": "socks",
+                "address": "127.0.0.1",
+                "port": 1086
+            }
+        ],
+        "outbounds": [
+            {
+                "protocol": "chain",
+                "settings": {
+                    "actors": [
+                        "ws",
+                        "trojan"
+                    ]
+                }
+            },
+            {
+                "protocol": "ws",
+                "tag": "ws",
+                "settings": {
+                    "path": "/leaf"
+                }
+            },
+            {
+                "protocol": "trojan",
+                "tag": "trojan",
+                "settings": {
+                    "address": "127.0.0.1",
+                    "port": 3001,
+                    "password": "password"
+                }
+            }
+        ]
+    }
+    "#;
+
+    let config2 = r#"
+    {
+        "inbounds": [
+            {
+                "protocol": "chain",
+                "address": "127.0.0.1",
+                "port": 3001,
+                "settings": {
+                    "actors": [
+                        "ws",
+                        "trojan"
+                    ]
+                }
+            },
+            {
+                "protocol": "ws",
+                "tag": "ws",
+                "settings": {
+                    "path": "/leaf"
+                }
+            },
+            {
+                "protocol": "trojan",
+                "tag": "trojan",
+                "settings": {
+                    "password": "password"
+                }
+            }
+        ],
+        "outbounds": [
+            {
+                "protocol": "direct"
+            }
+        ]
+    }
+    "#;
+
+    let configs = vec![config1.to_string(), config2.to_string()];
+    common::test_configs(configs, "127.0.0.1", 1086);
+}
