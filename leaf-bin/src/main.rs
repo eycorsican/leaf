@@ -34,9 +34,17 @@ fn main() {
             Arg::new("threads")
                 .long("threads")
                 .value_name("N")
-                .about("Specifies the number of runtime threads. Note that the default Tokio runtime worker thread stack size is 2MB.")
+                .about("Sets the number of runtime threads.")
                 .takes_value(true)
                 .default_value("auto"),
+        )
+        .arg(
+            Arg::new("thread-stack-size")
+                .long("thread-stack-size")
+                .value_name("BYTES")
+                .about("Sets the stack size of runtime threads.")
+                .takes_value(true)
+                .default_value("2097152"),
         )
         .arg(
             Arg::new("test-outbound")
@@ -60,9 +68,15 @@ fn main() {
 
     let mut rt = {
         let threads = matches.value_of("threads").unwrap();
+        let stack_size = matches
+            .value_of("thread-stack-size")
+            .unwrap()
+            .parse::<usize>()
+            .unwrap();
         if threads == "auto" {
             tokio::runtime::Builder::new()
                 .threaded_scheduler()
+                .thread_stack_size(stack_size)
                 .enable_all()
                 .build()
                 .unwrap()
@@ -72,12 +86,14 @@ fn main() {
                     tokio::runtime::Builder::new()
                         .threaded_scheduler()
                         .core_threads(n)
+                        .thread_stack_size(stack_size)
                         .enable_all()
                         .build()
                         .unwrap()
                 } else {
                     tokio::runtime::Builder::new()
                         .basic_scheduler()
+                        .thread_stack_size(stack_size)
                         .enable_all()
                         .build()
                         .unwrap()
