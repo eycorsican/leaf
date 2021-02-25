@@ -52,7 +52,14 @@ pub extern "C" fn tcp_recv_cb(
         buf.set_len(pbuflen as usize);
 
         if let Err(err) = stream.tx.try_send((&buf[..buflen]).to_vec()) {
-            trace!("send recv data failed: {}", err);
+            // TODO remove this message
+            trace!(
+                "recv {} bytes data on {} -> {} failed: {}",
+                pbuflen,
+                stream.local_addr(),
+                stream.remote_addr(),
+                err
+            );
             if let Ok(waker) = stream.waker.lock() {
                 if let Some(waker) = waker.as_ref() {
                     waker.wake_by_ref();
@@ -125,7 +132,7 @@ pub struct TcpStreamImpl {
 impl TcpStreamImpl {
     pub fn new(lwip_lock: Arc<AtomicMutex>, pcb: *mut tcp_pcb) -> Result<Box<Self>> {
         unsafe {
-            let (tx, rx): (SyncSender<Vec<u8>>, Receiver<Vec<u8>>) = sync_channel(100);
+            let (tx, rx): (SyncSender<Vec<u8>>, Receiver<Vec<u8>>) = sync_channel(10);
             let src_addr = util::to_socket_addr(&(*pcb).remote_ip, (*pcb).remote_port)?;
             let dest_addr = util::to_socket_addr(&(*pcb).local_ip, (*pcb).local_port)?;
             let stream = Box::new(TcpStreamImpl {
@@ -139,7 +146,7 @@ impl TcpStreamImpl {
                 rx,
                 errored: false,
                 local_closed: false,
-                write_buf: BytesMut::with_capacity(4 * 1024),
+                write_buf: BytesMut::new(),
             });
             let arg = &*stream as *const TcpStreamImpl as *mut raw::c_void;
             tcp_arg(pcb, arg);
@@ -202,6 +209,10 @@ impl AsyncRead for TcpStreamImpl {
             let to_read = min(buf.len(), self.write_buf.len());
             let piece = self.write_buf.split_to(to_read);
             (&mut buf[..to_read]).copy_from_slice(&piece[..to_read]);
+            unsafe {
+                let _g = self.lwip_lock.lock();
+                tcp_recved(self.pcb, to_read as u16_t);
+            }
             return Poll::Ready(Ok(to_read));
         }
         if self.errored {
@@ -214,7 +225,7 @@ impl AsyncRead for TcpStreamImpl {
             Ok(data) => {
                 let to_read = min(buf.len(), data.len());
                 (&mut buf[..to_read]).copy_from_slice(&data[..to_read]);
-                if buf.len() < to_read {
+                if to_read < data.len() {
                     self.write_buf.extend_from_slice(&data[to_read..]);
                 }
                 unsafe {
