@@ -31,6 +31,14 @@ fn main() {
                 .default_value("config.conf"),
         )
         .arg(
+            Arg::new("threads")
+                .long("threads")
+                .value_name("N")
+                .about("Specifies the number of runtime threads. Note that the default Tokio runtime worker thread stack size is 2MB.")
+                .takes_value(true)
+                .default_value("auto"),
+        )
+        .arg(
             Arg::new("test-outbound")
                 .short('t')
                 .long("test-outbound")
@@ -51,21 +59,33 @@ fn main() {
     };
 
     let mut rt = {
-        #[cfg(feature = "multi-thread")]
-        {
+        let threads = matches.value_of("threads").unwrap();
+        if threads == "auto" {
             tokio::runtime::Builder::new()
                 .threaded_scheduler()
                 .enable_all()
                 .build()
                 .unwrap()
-        }
-        #[cfg(not(feature = "multi-thread"))]
-        {
-            tokio::runtime::Builder::new()
-                .basic_scheduler()
-                .enable_all()
-                .build()
-                .unwrap()
+        } else {
+            if let Ok(n) = threads.parse::<usize>() {
+                if n > 1 {
+                    tokio::runtime::Builder::new()
+                        .threaded_scheduler()
+                        .core_threads(n)
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                } else {
+                    tokio::runtime::Builder::new()
+                        .basic_scheduler()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                }
+            } else {
+                println!("invalid number of threads");
+                exit(1);
+            }
         }
     };
 

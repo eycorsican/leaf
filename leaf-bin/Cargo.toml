@@ -27,12 +27,10 @@ default-openssl = [
     "leaf/openssl-tls",
 ]
 
-multi-thread = ["tokio/rt-threaded"]
-
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }
 log = { version = "0.4", features = ["std"] }
 fern = { version = "0.5", features = ["colored"] }
-tokio = { version = "0.2", features = ["signal"] }
+tokio = { version = "0.2", features = ["signal", "rt-threaded"] }
 futures = "0.3"
