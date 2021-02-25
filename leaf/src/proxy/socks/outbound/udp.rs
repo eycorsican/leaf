@@ -122,6 +122,7 @@ where
             SocksAddr::Ip(a) => {
                 self.0
                     .send_to(buf, a.to_owned())
+                    .map_ok(|_| buf.len())
                     .map_err(|x| Error::new(ErrorKind::Other, x))
                     .await
             }

@@ -1,26 +1,8 @@
 use futures::future::abortable;
 use futures::FutureExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, ToSocketAddrs};
-use tokio::stream::StreamExt;
 
-async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
-    let mut listener = TcpListener::bind(addr).await.unwrap();
-    let mut incoming = listener.incoming();
-    while let Some(stream) = incoming.next().await {
-        match stream {
-            Ok(mut stream) => {
-                tokio::spawn(async move {
-                    let (mut r, mut w) = stream.split();
-                    let _ = tokio::io::copy(&mut r, &mut w).await;
-                });
-            }
-            Err(e) => {
-                panic!("accept tcp failed: {}", e);
-            }
-        }
-    }
-}
+mod common;
 
 // App -> Client -> Server -> Echo Server
 #[test]
@@ -90,9 +72,13 @@ fn test_leaf() {
 
     let mut all_tasks: Vec<leaf::Runner> = Vec::new();
 
-    // An echo server.
-    let (echo_server_task, echo_server_task_handle) =
-        abortable(run_tcp_echo_server("127.0.0.1:3000"));
+    // A TCP echo server.
+    let (tcp_echo_server_task, tcp_echo_server_task_handle) =
+        abortable(common::run_tcp_echo_server("127.0.0.1:3000"));
+
+    // A UDP echo server.
+    let (udp_echo_server_task, udp_echo_server_task_handle) =
+        abortable(common::run_udp_echo_server("127.0.0.1:3000"));
 
     // Proxy server.
     let config = leaf::config::json::from_string(server_config.to_string()).unwrap();
@@ -124,18 +110,34 @@ fn test_leaf() {
         let handler = outbound_manager.get("socks").unwrap();
         let mut sess = leaf::session::Session::default();
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
+
+        // Test TCP
         let mut s = handler.handle_tcp(&sess, None).await.unwrap();
         s.write_all(b"abc").await.unwrap();
         let mut buf = Vec::new();
         let n = s.read_buf(&mut buf).await.unwrap();
         assert_eq!("abc".to_string(), String::from_utf8_lossy(&buf[..n]));
+
+        // Test UDP
+        let dgram = handler.handle_udp(&sess, None).await.unwrap();
+        let (mut r, mut s) = dgram.split();
+        let msg = b"def";
+        let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
+        assert_eq!(msg.len(), n);
+        let mut buf = vec![0u8; 2 * 1024];
+        let (n, raddr) = r.recv_from(&mut buf).await.unwrap();
+        assert_eq!(msg, &buf[..n]);
+        assert_eq!(&raddr, &sess.destination);
+
         // Cancel all other tasks and exit.
-        echo_server_task_handle.abort();
+        tcp_echo_server_task_handle.abort();
+        udp_echo_server_task_handle.abort();
         server_task_handle.abort();
         client_task_handle.abort();
     };
 
-    all_tasks.push(Box::pin(echo_server_task.map(|_| ())));
+    all_tasks.push(Box::pin(tcp_echo_server_task.map(|_| ())));
+    all_tasks.push(Box::pin(udp_echo_server_task.map(|_| ())));
     all_tasks.push(Box::pin(server_task.map(|_| ())));
     all_tasks.push(Box::pin(client_task.map(|_| ())));
     all_tasks.push(Box::pin(app_task));

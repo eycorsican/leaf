@@ -65,7 +65,7 @@ pub enum SocksAddrWireType {
     PortLast,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SocksAddr {
     Ip(SocketAddr),
     Domain(String, u16),
