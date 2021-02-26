@@ -1,6 +1,6 @@
 mod common;
 
-// app(socks) -> (socks)client(ws+trojan+ws+trojan) -> (ws+trojan)server1(direct) -> (ws+trojan)server2(direct) -> echo
+// app(socks) -> (socks)client(ws+trojan->shadowsocks) -> (ws+trojan)server1(direct) -> (shadowsocks)server2(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
@@ -8,10 +8,12 @@ mod common;
     feature = "outbound-trojan",
     feature = "inbound-ws",
     feature = "inbound-trojan",
+    feature = "outbound-shadowsocks",
+    feature = "inbound-shadowsocks",
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_proxy_chain() {
+fn test_proxy_chain_3() {
     let config1 = r#"
     {
         "inbounds": [
@@ -59,28 +61,12 @@ fn test_proxy_chain() {
                 }
             },
             {
-                "protocol": "chain",
+                "protocol": "shadowsocks",
                 "tag": "server2",
-                "settings": {
-                    "actors": [
-                        "server2-ws",
-                        "server2-trojan"
-                    ]
-                }
-            },
-            {
-                "protocol": "ws",
-                "tag": "server2-ws",
-                "settings": {
-                    "path": "/leaf2"
-                }
-            },
-            {
-                "protocol": "trojan",
-                "tag": "server2-trojan",
                 "settings": {
                     "address": "127.0.0.1",
                     "port": 3002,
+                    "method": "aes-128-gcm",
                     "password": "password"
                 }
             }
@@ -130,28 +116,11 @@ fn test_proxy_chain() {
     {
         "inbounds": [
             {
-                "protocol": "chain",
-                "tag": "server2",
+                "protocol": "shadowsocks",
                 "address": "127.0.0.1",
                 "port": 3002,
                 "settings": {
-                    "actors": [
-                        "ws",
-                        "trojan"
-                    ]
-                }
-            },
-            {
-                "protocol": "ws",
-                "tag": "ws",
-                "settings": {
-                    "path": "/leaf2"
-                }
-            },
-            {
-                "protocol": "trojan",
-                "tag": "trojan",
-                "settings": {
+                    "method": "aes-128-gcm",
                     "password": "password"
                 }
             }
