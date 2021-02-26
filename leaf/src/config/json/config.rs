@@ -23,6 +23,12 @@ pub struct Log {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct ShadowsocksInboundSettings {
+    pub method: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TrojanInboundSettings {
     pub password: Option<String>,
 }
@@ -310,6 +316,22 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                 "socks" => {
                     inbounds.push(inbound);
                 }
+                "shadowsocks" => {
+                    let mut settings = internal::ShadowsocksInboundSettings::new();
+                    let ext_settings: ShadowsocksInboundSettings =
+                        serde_json::from_str(ext_inbound.settings.unwrap().get()).unwrap();
+                    if let Some(ext_method) = ext_settings.method {
+                        settings.method = ext_method;
+                    } else {
+                        settings.method = "chacha20-ietf-poly1305".to_string();
+                    }
+                    if let Some(ext_password) = ext_settings.password {
+                        settings.password = ext_password;
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    inbound.settings = settings;
+                    inbounds.push(inbound);
+                }
                 "trojan" => {
                     let mut settings = internal::TrojanInboundSettings::new();
                     let ext_settings: TrojanInboundSettings =
@@ -318,7 +340,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         settings.password = ext_password;
                     } else {
                         settings.password = "".to_string(); // FIXME warns?
-                    };
+                    }
                     let settings = settings.write_to_bytes().unwrap();
                     inbound.settings = settings;
                     inbounds.push(inbound);

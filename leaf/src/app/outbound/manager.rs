@@ -206,7 +206,7 @@ impl OutboundManager {
                             continue;
                         }
                     };
-                    let tcp = Box::new(shadowsocks::TcpHandler {
+                    let tcp = Box::new(shadowsocks::outbound::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
                         cipher: settings.method.clone(),
@@ -214,7 +214,7 @@ impl OutboundManager {
                         bind_addr,
                         dns_client: dns_client.clone(),
                     });
-                    let udp = Box::new(shadowsocks::UdpHandler {
+                    let udp = Box::new(shadowsocks::outbound::UdpHandler {
                         address: settings.address,
                         port: settings.port as u16,
                         cipher: settings.method,

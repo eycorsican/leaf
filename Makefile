@@ -12,6 +12,9 @@ local:
 local-dev:
 	cargo build -p leaf-bin
 
+test:
+	cargo test -p leaf
+
 # Force a re-generation of protobuf files.
 proto-gen:
 	touch leaf/build.rs

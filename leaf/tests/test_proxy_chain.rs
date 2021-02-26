@@ -1,6 +1,15 @@
 mod common;
 
 // app(socks) -> (socks)client(ws+trojan+ws+trojan) -> (ws+trojan)server1(direct) -> (ws+trojan)server2(direct) -> echo
+#[cfg(all(
+    feature = "outbound-socks",
+    feature = "inbound-socks",
+    feature = "outbound-ws",
+    feature = "outbound-trojan",
+    feature = "inbound-ws",
+    feature = "inbound-trojan",
+    feature = "outbound-direct",
+))]
 #[test]
 fn test_proxy_chain() {
     let config1 = r#"

@@ -1,15 +1,15 @@
 mod common;
 
-// app(socks) -> (socks)client(trojan) -> (trojan)server(direct) -> echo
+// app(socks) -> (socks)client(shadowsocks) -> (shadowsocks)server(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
-    feature = "outbound-trojan",
-    feature = "inbound-trojan",
+    feature = "outbound-shadowsocks",
+    feature = "inbound-shadowsocks",
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_trojan() {
+fn test_shadowsocks() {
     let config1 = r#"
     {
         "inbounds": [
@@ -21,10 +21,11 @@ fn test_trojan() {
         ],
         "outbounds": [
             {
-                "protocol": "trojan",
+                "protocol": "shadowsocks",
                 "settings": {
                     "address": "127.0.0.1",
                     "port": 3001,
+                    "method": "chacha20-ietf-poly1305",
                     "password": "password"
                 }
             }
@@ -36,10 +37,11 @@ fn test_trojan() {
     {
         "inbounds": [
             {
-                "protocol": "trojan",
+                "protocol": "shadowsocks",
                 "address": "127.0.0.1",
                 "port": 3001,
                 "settings": {
+                    "method": "chacha20-ietf-poly1305",
                     "password": "password"
                 }
             }

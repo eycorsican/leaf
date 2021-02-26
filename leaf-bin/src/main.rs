@@ -80,28 +80,26 @@ fn main() {
                 .enable_all()
                 .build()
                 .unwrap()
-        } else {
-            if let Ok(n) = threads.parse::<usize>() {
-                if n > 1 {
-                    tokio::runtime::Builder::new()
-                        .threaded_scheduler()
-                        .core_threads(n)
-                        .thread_stack_size(stack_size)
-                        .enable_all()
-                        .build()
-                        .unwrap()
-                } else {
-                    tokio::runtime::Builder::new()
-                        .basic_scheduler()
-                        .thread_stack_size(stack_size)
-                        .enable_all()
-                        .build()
-                        .unwrap()
-                }
+        } else if let Ok(n) = threads.parse::<usize>() {
+            if n > 1 {
+                tokio::runtime::Builder::new()
+                    .threaded_scheduler()
+                    .core_threads(n)
+                    .thread_stack_size(stack_size)
+                    .enable_all()
+                    .build()
+                    .unwrap()
             } else {
-                println!("invalid number of threads");
-                exit(1);
+                tokio::runtime::Builder::new()
+                    .basic_scheduler()
+                    .thread_stack_size(stack_size)
+                    .enable_all()
+                    .build()
+                    .unwrap()
             }
+        } else {
+            println!("invalid number of threads");
+            exit(1);
         }
     };
 

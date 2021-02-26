@@ -6,7 +6,8 @@ use protobuf::Message;
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
 use crate::config::{
-    ChainInboundSettings, Inbound, TrojanInboundSettings, WebSocketInboundSettings,
+    ChainInboundSettings, Inbound, ShadowsocksInboundSettings, TrojanInboundSettings,
+    WebSocketInboundSettings,
 };
 use crate::proxy;
 use crate::proxy::InboundHandler;
@@ -14,6 +15,8 @@ use crate::Runner;
 
 #[cfg(feature = "inbound-http")]
 use crate::proxy::http;
+#[cfg(feature = "inbound-shadowsocks")]
+use crate::proxy::shadowsocks;
 #[cfg(feature = "inbound-socks")]
 use crate::proxy::socks;
 #[cfg(feature = "inbound-trojan")]
@@ -65,6 +68,25 @@ impl InboundManager {
                         inbound.tag.clone(),
                         Some(tcp),
                         None,
+                    ));
+                    handlers.insert(inbound.tag.clone(), handler);
+                }
+                #[cfg(feature = "inbound-shadowsocks")]
+                "shadowsocks" => {
+                    let settings =
+                        ShadowsocksInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                    let tcp = Arc::new(shadowsocks::inbound::TcpHandler {
+                        cipher: settings.method.clone(),
+                        password: settings.password.clone(),
+                    });
+                    let udp = Arc::new(shadowsocks::inbound::UdpHandler {
+                        cipher: settings.method.clone(),
+                        password: settings.password.clone(),
+                    });
+                    let handler = Arc::new(proxy::inbound::Handler::new(
+                        inbound.tag.clone(),
+                        Some(tcp),
+                        Some(udp),
                     ));
                     handlers.insert(inbound.tag.clone(), handler);
                 }

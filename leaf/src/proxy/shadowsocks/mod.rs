@@ -1,14 +1,9 @@
 mod crypto;
 mod shadow;
 
-pub use shadow::{
-    ShadowedDatagram, ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf, ShadowedStream,
-};
-
-pub mod tcp;
-pub mod udp;
-
-pub use tcp::Handler as TcpHandler;
-pub use udp::Handler as UdpHandler;
+#[cfg(feature = "inbound-shadowsocks")]
+pub mod inbound;
+#[cfg(feature = "outbound-shadowsocks")]
+pub mod outbound;
 
 pub static NAME: &str = "shadowsocks";

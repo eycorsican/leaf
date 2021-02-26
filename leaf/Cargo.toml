@@ -28,6 +28,7 @@ all-endpoints = [
     "inbound-ws",
     "inbound-trojan",
     "inbound-http",
+    "inbound-shadowsocks",
     "inbound-socks",
     "inbound-tun",
     # outbounds
@@ -83,6 +84,7 @@ outbound-stat = ["warp"]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
+inbound-shadowsocks = ["hkdf", "sha-1", "md-5"]
 inbound-socks = []
 inbound-http = ["hyper"]
 inbound-tun = ["tun"]

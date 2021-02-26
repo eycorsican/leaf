@@ -1,6 +1,15 @@
 mod common;
 
 // app(socks) -> (socks)client(ws+trojan) -> (ws+trojan)server(direct) -> echo
+#[cfg(all(
+    feature = "outbound-socks",
+    feature = "inbound-socks",
+    feature = "outbound-ws",
+    feature = "outbound-trojan",
+    feature = "inbound-ws",
+    feature = "inbound-trojan",
+    feature = "outbound-direct",
+))]
 #[test]
 fn test_ws_trojan() {
     let config1 = r#"

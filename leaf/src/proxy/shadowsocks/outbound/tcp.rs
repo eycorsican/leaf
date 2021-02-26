@@ -2,7 +2,7 @@ use std::{io, net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
 
-use super::ShadowedStream;
+use super::shadow::ShadowedStream;
 use crate::{
     app::dns_client::DnsClient,
     proxy::{

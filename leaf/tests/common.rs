@@ -1,8 +1,11 @@
+use std::time::Duration;
+
 use futures::future::abortable;
 use futures::FutureExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, ToSocketAddrs, UdpSocket};
 use tokio::stream::StreamExt;
+use tokio::time::timeout;
 
 pub async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
     let mut listener = TcpListener::bind(addr).await.unwrap();
@@ -113,7 +116,10 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
         assert_eq!(msg.len(), n);
         let mut buf = vec![0u8; 2 * 1024];
-        let (n, raddr) = r.recv_from(&mut buf).await.unwrap();
+        let (n, raddr) = timeout(Duration::from_secs(1), r.recv_from(&mut buf))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(msg, &buf[..n]);
         assert_eq!(&raddr, &sess.destination);
 

@@ -21,50 +21,47 @@ pub mod inbound;
 pub mod outbound;
 pub mod stream;
 
+#[cfg(any(feature = "inbound-chain", feature = "outbound-chain"))]
+pub mod chain;
+#[cfg(feature = "outbound-direct")]
+pub mod direct;
+#[cfg(feature = "outbound-drop")]
+pub mod drop;
+#[cfg(feature = "outbound-failover")]
+pub mod failover;
+#[cfg(feature = "outbound-h2")]
+pub mod h2;
 #[cfg(feature = "inbound-http")]
 pub mod http;
+#[cfg(feature = "outbound-random")]
+pub mod random;
+#[cfg(feature = "outbound-redirect")]
+pub mod redirect;
+#[cfg(feature = "outbound-retry")]
+pub mod retry;
+#[cfg(any(feature = "inbound-shadowsocks", feature = "outbound-shadowsocks"))]
+pub mod shadowsocks;
+#[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
+pub mod socks;
+#[cfg(feature = "outbound-stat")]
+pub mod stat;
+#[cfg(feature = "outbound-tls")]
+pub mod tls;
+#[cfg(any(feature = "inbound-trojan", feature = "outbound-trojan"))]
+pub mod trojan;
+#[cfg(feature = "outbound-tryall")]
+pub mod tryall;
 #[cfg(all(
     feature = "inbound-tun",
     any(target_os = "ios", target_os = "macos", target_os = "linux")
 ))]
 pub mod tun;
-
-#[cfg(feature = "outbound-direct")]
-pub mod direct;
-#[cfg(feature = "outbound-drop")]
-pub mod drop;
-#[cfg(feature = "outbound-h2")]
-pub mod h2;
-#[cfg(feature = "outbound-redirect")]
-pub mod redirect;
-#[cfg(feature = "outbound-shadowsocks")]
-pub mod shadowsocks;
-#[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
-pub mod socks;
-#[cfg(feature = "outbound-tls")]
-pub mod tls;
-#[cfg(any(feature = "inbound-trojan", feature = "outbound-trojan"))]
-pub mod trojan;
 #[cfg(feature = "outbound-vless")]
 pub mod vless;
 #[cfg(feature = "outbound-vmess")]
 pub mod vmess;
 #[cfg(any(feature = "inbound-ws", feature = "outbound-ws"))]
 pub mod ws;
-
-#[cfg(any(feature = "inbound-chain", feature = "outbound-chain"))]
-pub mod chain;
-#[cfg(feature = "outbound-failover")]
-pub mod failover;
-#[cfg(feature = "outbound-random")]
-pub mod random;
-#[cfg(feature = "outbound-retry")]
-pub mod retry;
-#[cfg(feature = "outbound-tryall")]
-pub mod tryall;
-
-#[cfg(feature = "outbound-stat")]
-pub mod stat;
 
 pub use datagram::{
     SimpleInboundDatagram, SimpleInboundDatagramRecvHalf, SimpleInboundDatagramSendHalf,

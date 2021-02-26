@@ -1186,6 +1186,207 @@ impl ::protobuf::reflect::ProtobufValue for TUNInboundSettings {
 }
 
 #[derive(PartialEq,Clone,Default)]
+pub struct ShadowsocksInboundSettings {
+    // message fields
+    pub method: ::std::string::String,
+    pub password: ::std::string::String,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a ShadowsocksInboundSettings {
+    fn default() -> &'a ShadowsocksInboundSettings {
+        <ShadowsocksInboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl ShadowsocksInboundSettings {
+    pub fn new() -> ShadowsocksInboundSettings {
+        ::std::default::Default::default()
+    }
+
+    // string method = 1;
+
+
+    pub fn get_method(&self) -> &str {
+        &self.method
+    }
+    pub fn clear_method(&mut self) {
+        self.method.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_method(&mut self, v: ::std::string::String) {
+        self.method = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_method(&mut self) -> &mut ::std::string::String {
+        &mut self.method
+    }
+
+    // Take field
+    pub fn take_method(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.method, ::std::string::String::new())
+    }
+
+    // string password = 2;
+
+
+    pub fn get_password(&self) -> &str {
+        &self.password
+    }
+    pub fn clear_password(&mut self) {
+        self.password.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_password(&mut self, v: ::std::string::String) {
+        self.password = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_password(&mut self) -> &mut ::std::string::String {
+        &mut self.password
+    }
+
+    // Take field
+    pub fn take_password(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.password, ::std::string::String::new())
+    }
+}
+
+impl ::protobuf::Message for ShadowsocksInboundSettings {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.method)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.password)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.method.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.method);
+        }
+        if !self.password.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.password);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.method.is_empty() {
+            os.write_string(1, &self.method)?;
+        }
+        if !self.password.is_empty() {
+            os.write_string(2, &self.password)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> ShadowsocksInboundSettings {
+        ShadowsocksInboundSettings::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "method",
+                |m: &ShadowsocksInboundSettings| { &m.method },
+                |m: &mut ShadowsocksInboundSettings| { &mut m.method },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "password",
+                |m: &ShadowsocksInboundSettings| { &m.password },
+                |m: &mut ShadowsocksInboundSettings| { &mut m.password },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ShadowsocksInboundSettings>(
+                "ShadowsocksInboundSettings",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static ShadowsocksInboundSettings {
+        static instance: ::protobuf::rt::LazyV2<ShadowsocksInboundSettings> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(ShadowsocksInboundSettings::new)
+    }
+}
+
+impl ::protobuf::Clear for ShadowsocksInboundSettings {
+    fn clear(&mut self) {
+        self.method.clear();
+        self.password.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for ShadowsocksInboundSettings {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for ShadowsocksInboundSettings {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
 pub struct TrojanInboundSettings {
     // message fields
     pub password: ::std::string::String,
@@ -6758,11 +6959,13 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x12\x18\n\x07netmask\x18\x05\x20\x01(\tR\x07netmask\x12\x10\n\x03mtu\
     \x18\x06\x20\x01(\x05R\x03mtu\x12(\n\x10fake_dns_exclude\x18\x07\x20\x03\
     (\tR\x0efakeDnsExclude\x12(\n\x10fake_dns_include\x18\x08\x20\x03(\tR\
-    \x0efakeDnsInclude\"3\n\x15TrojanInboundSettings\x12\x1a\n\x08password\
-    \x18\x03\x20\x01(\tR\x08password\".\n\x18WebSocketInboundSettings\x12\
-    \x12\n\x04path\x18\x01\x20\x01(\tR\x04path\".\n\x14ChainInboundSettings\
-    \x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\x81\x01\n\x07Inboun\
-    d\x12\x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\
+    \x0efakeDnsInclude\"P\n\x1aShadowsocksInboundSettings\x12\x16\n\x06metho\
+    d\x18\x01\x20\x01(\tR\x06method\x12\x1a\n\x08password\x18\x02\x20\x01(\t\
+    R\x08password\"3\n\x15TrojanInboundSettings\x12\x1a\n\x08password\x18\
+    \x03\x20\x01(\tR\x08password\".\n\x18WebSocketInboundSettings\x12\x12\n\
+    \x04path\x18\x01\x20\x01(\tR\x04path\".\n\x14ChainInboundSettings\x12\
+    \x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\x81\x01\n\x07Inbound\
+    \x12\x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\
     \x02\x20\x01(\tR\x08protocol\x12\x18\n\x07address\x18\x03\x20\x01(\tR\
     \x07address\x12\x12\n\x04port\x18\x04\x20\x01(\rR\x04port\x12\x1a\n\x08s\
     ettings\x18\x05\x20\x01(\x0cR\x08settings\"H\n\x18RedirectOutboundSettin\

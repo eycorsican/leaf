@@ -1,8 +1,8 @@
-use std::{cmp::min, io, pin::Pin, sync::Arc};
+use std::{cmp::min, io, pin::Pin};
 
 use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ByteOrder};
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use futures::{
     ready,
     task::{Context, Poll},
@@ -11,13 +11,9 @@ use log::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::{
-    common::crypto::{
-        aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
-        Cipher, Decryptor, Encryptor, SizedCipher,
-    },
-    proxy::{OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf},
-    session::SocksAddr,
+use crate::common::crypto::{
+    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
+    Cipher, Decryptor, Encryptor, SizedCipher,
 };
 
 use super::crypto::{hkdf_sha1, kdf, ShadowsocksNonceSequence};
@@ -104,7 +100,7 @@ fn eof() -> io::Error {
     io::Error::new(io::ErrorKind::UnexpectedEof, "early eof")
 }
 
-fn crypto_err() -> io::Error {
+pub fn crypto_err() -> io::Error {
     io::Error::new(io::ErrorKind::Other, "crypto error")
 }
 
@@ -301,198 +297,95 @@ where
     }
 }
 
-struct InnerHalf {
-    cipher: AeadCipher,
-    psk: Vec<u8>,
-}
-
-struct Half<T> {
-    half: T,
-    buffer: BytesMut,
-    inner: Arc<InnerHalf>,
-}
-
 fn short_packet() -> io::Error {
     io::Error::new(io::ErrorKind::Other, "short packet")
 }
 
-pub struct ShadowedDatagramRecvHalf(Half<Box<dyn OutboundDatagramRecvHalf>>);
+pub struct ShadowedDatagram {
+    cipher: AeadCipher,
+    psk: Vec<u8>,
+}
 
-impl ShadowedDatagramRecvHalf {
-    pub async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
-        let salt_size = self.0.inner.cipher.key_len();
-        let tag_len = self.0.inner.cipher.tag_len();
-        let buffer_size = salt_size + /* addr::MAX_SOCKS_ADDR_SIZE + */ buf.len() + tag_len;
+impl ShadowedDatagram {
+    pub fn new(cipher: &str, password: &str) -> Result<Self> {
+        let cipher =
+            AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
+        let psk =
+            kdf(password, cipher.key_len()).map_err(|e| anyhow!("derive key failed: {}", e))?;
+        Ok(ShadowedDatagram { cipher, psk })
+    }
 
-        // prepare buffer
-        self.0.buffer.reserve(buffer_size);
-        unsafe { self.0.buffer.set_len(buffer_size) };
+    /// Decrypts a message. On success, returns the plaintext.
+    pub fn decrypt(&self, mut buf: BytesMut) -> io::Result<Bytes> {
+        let salt_size = self.cipher.key_len();
+        let tag_len = self.cipher.tag_len();
+        let buf_len = buf.len();
 
-        // recv data
-        let (n, addr) = self.0.half.recv_from(&mut self.0.buffer).await?;
-        if n < salt_size {
-            debug!("salt size {}", n);
+        if buf.len() < salt_size {
             return Err(short_packet());
         }
 
-        let _ = self.0.buffer.split_off(n);
-
-        // buffer: |salt|ciphertext(addr+payload)|tag|
-
-        let salt = self.0.buffer.split_to(salt_size);
-
-        // buffer: |ciphertext(addr+payload)|tag|
+        let salt = buf.split_to(salt_size);
 
         let key = hkdf_sha1(
-            &self.0.inner.psk,
+            &self.psk,
             &salt,
             String::from("ss-subkey").as_bytes().to_vec(),
-            self.0.inner.cipher.key_len(),
+            self.cipher.key_len(),
         )
         .map_err(|_| crypto_err())?;
-        let nonce = ShadowsocksNonceSequence::new(self.0.inner.cipher.nonce_len());
+        let nonce = ShadowsocksNonceSequence::new(self.cipher.nonce_len());
         let mut dec = self
-            .0
-            .inner
             .cipher
             .decryptor(&key, nonce)
             .map_err(|_| crypto_err())?;
 
-        if self.0.buffer.len() < tag_len {
-            debug!("buffer size {}", self.0.buffer.len());
+        if buf.len() < tag_len {
+            debug!("buffer size {}", buf.len());
             return Err(short_packet());
         }
 
-        dec.decrypt(&mut self.0.buffer).map_err(|_| crypto_err())?;
+        dec.decrypt(&mut buf).map_err(|_| crypto_err())?;
 
-        // buffer: |plaintext(addr+payload)|tag|
+        let _ = buf.split_off(buf_len - salt_size - tag_len);
 
-        let _ = self.0.buffer.split_off(n - salt_size - tag_len);
-
-        // buffer: |plaintext(addr+payload)|
-
-        // let addr = SocksAddr::try_from(&mut self.0.buffer).map_err(|_| invalid_addr())?;
-
-        // buffer: |plaintext(payload)|
-
-        let to_recv = min(buf.len(), self.0.buffer.len());
-        (&mut buf[..to_recv]).copy_from_slice(&self.0.buffer[..to_recv]);
-        Ok((to_recv, addr))
+        Ok(buf.freeze())
     }
-}
 
-pub struct ShadowedDatagramSendHalf(Half<Box<dyn OutboundDatagramSendHalf>>);
-
-impl ShadowedDatagramSendHalf {
-    pub async fn send_to(&mut self, buf: &[u8], addr: &SocksAddr) -> io::Result<usize> {
+    /// Encrypts a message. On success, returns the ciphertext.
+    pub fn encrypt(&self, mut buf: BytesMut) -> io::Result<Bytes> {
         if buf.is_empty() {
-            return Ok(0);
+            return Ok(Bytes::new());
         }
 
-        let salt_size = self.0.inner.cipher.key_len();
-        let tag_len = self.0.inner.cipher.tag_len();
-        let buffer_size = salt_size + /* target.size() + */ buf.len() + tag_len;
+        let salt_size = self.cipher.key_len();
 
-        // prepare buffer
-        self.0.buffer.reserve(buffer_size);
-        unsafe { self.0.buffer.set_len(salt_size) };
+        let mut buffer = BytesMut::new(); // TODO optimize
+        buffer.resize(salt_size, 0);
 
         // generate random salt
         let mut rng = StdRng::from_entropy();
         for i in 0..salt_size {
-            self.0.buffer[i] = rng.gen();
+            buffer[i] = rng.gen();
         }
 
         let key = hkdf_sha1(
-            &self.0.inner.psk,
-            &self.0.buffer[..salt_size],
+            &self.psk,
+            &buffer[..salt_size],
             String::from("ss-subkey").as_bytes().to_vec(),
-            self.0.inner.cipher.key_len(),
+            self.cipher.key_len(),
         )
         .map_err(|_| crypto_err())?;
-        let nonce = ShadowsocksNonceSequence::new(self.0.inner.cipher.nonce_len());
+        let nonce = ShadowsocksNonceSequence::new(self.cipher.nonce_len());
         let mut enc = self
-            .0
-            .inner
             .cipher
             .encryptor(&key, nonce)
             .map_err(|_| crypto_err())?;
 
-        let mut piece = self.0.buffer.split_off(salt_size);
+        enc.encrypt(&mut buf).map_err(|_| crypto_err())?;
 
-        piece.put_slice(buf);
+        buffer.extend_from_slice(&buf[..]);
 
-        enc.encrypt(&mut piece).map_err(|_| crypto_err())?;
-
-        self.0.buffer.unsplit(piece);
-
-        self.0.half.send_to(&self.0.buffer, addr).await?;
-        Ok(buf.len())
-    }
-}
-
-pub struct ShadowedDatagram {
-    inner: Box<dyn OutboundDatagram>,
-    cipher: AeadCipher,
-    psk: Vec<u8>,
-    recv_buf: BytesMut,
-    send_buf: BytesMut,
-}
-
-impl ShadowedDatagram {
-    pub fn new(socket: Box<dyn OutboundDatagram>, cipher: &str, password: &str) -> Result<Self> {
-        let cipher =
-            AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
-        let psk =
-            kdf(password, cipher.key_len()).map_err(|e| anyhow!("derive key failed: {}", e))?;
-        Ok(ShadowedDatagram {
-            inner: socket,
-            cipher,
-            psk,
-            recv_buf: BytesMut::with_capacity(65507),
-            send_buf: BytesMut::with_capacity(65507),
-        })
-    }
-
-    /// Creates a shadowed datagram with a given initial buffer size. This buffer size is
-    /// only used for the buffer's initialization, the buffer actually used will reserve
-    /// (allocate extra memory when need) enough space each time sending or receiving packets.
-    pub fn with_initial_buffer_size(
-        socket: Box<dyn OutboundDatagram>,
-        cipher: &str,
-        password: &str,
-        buf_size: usize,
-    ) -> Result<Self> {
-        let cipher =
-            AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
-        let psk =
-            kdf(password, cipher.key_len()).map_err(|e| anyhow!("derive key failed: {}", e))?;
-        Ok(ShadowedDatagram {
-            inner: socket,
-            cipher,
-            psk,
-            recv_buf: BytesMut::with_capacity(buf_size),
-            send_buf: BytesMut::with_capacity(buf_size),
-        })
-    }
-
-    pub fn split(self) -> (ShadowedDatagramRecvHalf, ShadowedDatagramSendHalf) {
-        let (r, s) = self.inner.split();
-        let hi = Arc::new(InnerHalf {
-            cipher: self.cipher,
-            psk: self.psk,
-        });
-        (
-            ShadowedDatagramRecvHalf(Half {
-                half: r,
-                buffer: self.recv_buf,
-                inner: hi.clone(),
-            }),
-            ShadowedDatagramSendHalf(Half {
-                half: s,
-                buffer: self.send_buf,
-                inner: hi,
-            }),
-        )
+        Ok(buffer.freeze())
     }
 }

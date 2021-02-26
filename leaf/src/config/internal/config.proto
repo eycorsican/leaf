@@ -40,6 +40,11 @@ message TUNInboundSettings {
 	repeated string fake_dns_include = 8;
 }
 
+message ShadowsocksInboundSettings {
+	string method = 1;
+	string password = 2;
+}
+
 message TrojanInboundSettings {
 	string password = 3;
 }
