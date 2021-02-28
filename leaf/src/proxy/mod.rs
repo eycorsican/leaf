@@ -76,7 +76,7 @@ pub enum ProxyHandlerType {
     Ensemble,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum UdpTransportType {
     Stream,
     Packet,
@@ -214,6 +214,7 @@ pub trait OutboundHandler:
     fn has_udp(&self) -> bool;
 }
 
+#[derive(Debug)]
 pub enum OutboundConnect {
     Proxy(String, u16, SocketAddr),
     Direct(SocketAddr),
