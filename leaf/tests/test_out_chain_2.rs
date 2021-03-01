@@ -1,19 +1,15 @@
 mod common;
 
-// app(socks) -> (socks)client(shadowsocks+ws+trojan) -> (shadowsocks)server2(direct) -> (ws+trojan)server1(direct) -> echo
+// app(socks) -> (socks)client(shadowsocks->shadowsocks) -> (shadowsocks)server1(direct) -> (shadowsocks)server2(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
-    feature = "outbound-ws",
-    feature = "outbound-trojan",
-    feature = "inbound-ws",
-    feature = "inbound-trojan",
     feature = "outbound-shadowsocks",
     feature = "inbound-shadowsocks",
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_proxy_chain_5() {
+fn test_out_chain_2() {
     let config1 = r#"
     {
         "inbounds": [
@@ -26,28 +22,20 @@ fn test_proxy_chain_5() {
         "outbounds": [
             {
                 "protocol": "chain",
-                "tag": "chain",
                 "settings": {
                     "actors": [
-                        "server2",
-                        "server1-ws",
-                        "server1-trojan"
+                        "server1",
+                        "server2"
                     ]
                 }
             },
             {
-                "protocol": "ws",
-                "tag": "server1-ws",
-                "settings": {
-                    "path": "/leaf"
-                }
-            },
-            {
-                "protocol": "trojan",
-                "tag": "server1-trojan",
+                "protocol": "shadowsocks",
+                "tag": "server1",
                 "settings": {
                     "address": "127.0.0.1",
                     "port": 3001,
+                    "method": "chacha20-ietf-poly1305",
                     "password": "password"
                 }
             },
@@ -69,28 +57,11 @@ fn test_proxy_chain_5() {
     {
         "inbounds": [
             {
-                "protocol": "chain",
-                "tag": "server1",
+                "protocol": "shadowsocks",
                 "address": "127.0.0.1",
                 "port": 3001,
                 "settings": {
-                    "actors": [
-                        "ws",
-                        "trojan"
-                    ]
-                }
-            },
-            {
-                "protocol": "ws",
-                "tag": "ws",
-                "settings": {
-                    "path": "/leaf"
-                }
-            },
-            {
-                "protocol": "trojan",
-                "tag": "trojan",
-                "settings": {
+                    "method": "chacha20-ietf-poly1305",
                     "password": "password"
                 }
             }

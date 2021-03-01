@@ -121,10 +121,7 @@ async fn handle_inbound_stream(
     sess.inbound_tag = handler.tag().clone();
 
     match handler
-        .handle_tcp(InboundTransport::Stream(
-            Box::new(SimpleProxyStream(stream)),
-            sess,
-        ))
+        .handle_tcp(sess, Box::new(SimpleProxyStream(stream)))
         .await
     {
         Ok(res) => match res {
@@ -196,7 +193,7 @@ impl InboundListener for NetworkInboundListener {
                 info!("inbound listening udp {}:{}", address, port);
 
                 match handler
-                    .handle_udp(Some(Box::new(SimpleInboundDatagram(socket))))
+                    .handle_udp(Box::new(SimpleInboundDatagram(socket)))
                     .await
                 {
                     Ok(socket) => {

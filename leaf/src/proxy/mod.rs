@@ -311,18 +311,22 @@ pub trait InboundHandler: Tag + TcpInboundHandler + UdpInboundHandler + Send + U
 /// An inbound handler for incoming TCP connections.
 #[async_trait]
 pub trait TcpInboundHandler: Send + Sync + Unpin {
+    // TODO Returns an iterator to support multiplexing transports.
     async fn handle_tcp<'a>(
         &'a self,
-        transport: InboundTransport,
+        sess: Session,
+        stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport>;
 }
 
 /// An inbound handler for incoming UDP connections.
 #[async_trait]
 pub trait UdpInboundHandler: Send + Sync + Unpin {
+    // TODO Returns an InboundTransport to support UDP-based reliable transports
+    // such as QUIC.
     async fn handle_udp<'a>(
         &'a self,
-        socket: Option<Box<dyn InboundDatagram>>,
+        socket: Box<dyn InboundDatagram>,
     ) -> io::Result<Box<dyn InboundDatagram>>;
 }
 

@@ -134,11 +134,14 @@ impl InboundManager {
                     if actors.is_empty() {
                         continue;
                     }
-                    let tcp = Arc::new(chain::inbound::TcpHandler { actors });
+                    let tcp = Arc::new(chain::inbound::TcpHandler {
+                        actors: actors.clone(),
+                    });
+                    let udp = Arc::new(chain::inbound::UdpHandler { actors });
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         inbound.tag.clone(),
                         Some(tcp),
-                        None, // FIXME implement udp
+                        Some(udp),
                     ));
                     handlers.insert(inbound.tag.clone(), handler);
                 }

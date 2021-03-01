@@ -13,7 +13,7 @@ mod common;
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_proxy_chain_8() {
+fn test_out_chain_8() {
     let config1 = r#"
     {
         "inbounds": [

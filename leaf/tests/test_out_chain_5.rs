@@ -1,6 +1,6 @@
 mod common;
 
-// app(socks) -> (socks)client(ws+trojan+shadowsocks) -> (ws+trojan)server1(direct) -> (shadowsocks)server2(direct) -> echo
+// app(socks) -> (socks)client(shadowsocks+ws+trojan) -> (shadowsocks)server2(direct) -> (ws+trojan)server1(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
@@ -13,7 +13,7 @@ mod common;
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_proxy_chain_6() {
+fn test_out_chain_5() {
     let config1 = r#"
     {
         "inbounds": [
@@ -29,9 +29,9 @@ fn test_proxy_chain_6() {
                 "tag": "chain",
                 "settings": {
                     "actors": [
+                        "server2",
                         "server1-ws",
-                        "server1-trojan",
-                        "server2"
+                        "server1-trojan"
                     ]
                 }
             },

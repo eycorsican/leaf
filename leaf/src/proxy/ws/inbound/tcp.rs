@@ -6,8 +6,8 @@ use tokio_tungstenite::accept_hdr_async;
 use tungstenite::handshake::server::{Callback, ErrorResponse, Request, Response};
 
 use crate::{
-    proxy::TcpInboundHandler,
-    proxy::{InboundTransport, SimpleProxyStream},
+    proxy::{InboundTransport, ProxyStream, SimpleProxyStream, TcpInboundHandler},
+    session::Session,
 };
 
 use super::stream;
@@ -42,27 +42,19 @@ impl Handler {
 impl TcpInboundHandler for Handler {
     async fn handle_tcp<'a>(
         &'a self,
-        transport: InboundTransport,
+        sess: Session,
+        stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport> {
-        match transport {
-            InboundTransport::Stream(stream, sess) => {
-                let cb = SimpleCallback {
-                    path: self.path.clone(), // TODO optimize the copy
-                };
-                let socket = accept_hdr_async(stream, cb)
-                    .map_err(|e| {
-                        io::Error::new(io::ErrorKind::Other, format!("accept ws failed: {}", e))
-                    })
-                    .await?;
-                let ws_stream = stream::WebSocketToStream::new(socket);
-                Ok(InboundTransport::Stream(
-                    Box::new(SimpleProxyStream(ws_stream)),
-                    sess,
-                ))
-            }
-            _ => {
-                return Err(io::Error::new(io::ErrorKind::Other, "invalid transport"));
-            }
-        }
+        let cb = SimpleCallback {
+            path: self.path.clone(), // TODO optimize the copy
+        };
+        let socket = accept_hdr_async(stream, cb)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("accept ws failed: {}", e)))
+            .await?;
+        let ws_stream = stream::WebSocketToStream::new(socket);
+        Ok(InboundTransport::Stream(
+            Box::new(SimpleProxyStream(ws_stream)),
+            sess,
+        ))
     }
 }

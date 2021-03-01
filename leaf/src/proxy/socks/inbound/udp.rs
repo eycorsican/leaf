@@ -18,13 +18,9 @@ pub struct Handler;
 impl UdpInboundHandler for Handler {
     async fn handle_udp<'a>(
         &'a self,
-        socket: Option<Box<dyn InboundDatagram>>,
+        socket: Box<dyn InboundDatagram>,
     ) -> io::Result<Box<dyn InboundDatagram>> {
-        if let Some(socket) = socket {
-            Ok(Box::new(Datagram { socket }))
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, "invalid input"))
-        }
+        Ok(Box::new(Datagram { socket }))
     }
 }
 

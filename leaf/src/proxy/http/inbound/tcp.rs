@@ -9,8 +9,8 @@ use hyper::{server::conn::Http, service::Service, Body, Request, Response};
 use log::*;
 
 use crate::{
-    proxy::{InboundTransport, SimpleProxyStream, TcpInboundHandler},
-    session::SocksAddr,
+    proxy::{InboundTransport, ProxyStream, SimpleProxyStream, TcpInboundHandler},
+    session::{Session, SocksAddr},
 };
 
 struct ProxyService {
@@ -57,54 +57,51 @@ pub struct Handler;
 impl TcpInboundHandler for Handler {
     async fn handle_tcp<'a>(
         &'a self,
-        transport: InboundTransport,
+        mut sess: Session,
+        stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport> {
-        if let InboundTransport::Stream(stream, mut sess) = transport {
-            let http = Http::new();
-            let proxy_service = ProxyService::new();
-            let conn = http
-                .serve_connection(stream, proxy_service)
-                .without_shutdown();
-            let parts = match conn.await {
-                Ok(v) => v,
-                Err(err) => {
-                    debug!("accept conn failed: {}", err);
-                    return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-                }
-            };
-
-            let uri = parts.service.get_uri();
-            let host_port: Vec<&str> = uri.split(':').collect();
-            if host_port.len() != 2 {
-                debug!("invalid target {:?}", uri);
+        let http = Http::new();
+        let proxy_service = ProxyService::new();
+        let conn = http
+            .serve_connection(stream, proxy_service)
+            .without_shutdown();
+        let parts = match conn.await {
+            Ok(v) => v,
+            Err(err) => {
+                debug!("accept conn failed: {}", err);
                 return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
             }
+        };
 
-            let destination = if let Ok(port) = host_port[1].parse::<u16>() {
-                if let Ok(ip) = host_port[0].parse::<IpAddr>() {
-                    SocksAddr::from((ip, port))
-                } else {
-                    match SocksAddr::try_from((host_port[0], port)) {
-                        Ok(v) => v,
-                        Err(err) => {
-                            debug!("invalid target {:?}: {}", uri, err);
-                            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-                        }
+        let uri = parts.service.get_uri();
+        let host_port: Vec<&str> = uri.split(':').collect();
+        if host_port.len() != 2 {
+            debug!("invalid target {:?}", uri);
+            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
+        }
+
+        let destination = if let Ok(port) = host_port[1].parse::<u16>() {
+            if let Ok(ip) = host_port[0].parse::<IpAddr>() {
+                SocksAddr::from((ip, port))
+            } else {
+                match SocksAddr::try_from((host_port[0], port)) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        debug!("invalid target {:?}: {}", uri, err);
+                        return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
                     }
                 }
-            } else {
-                debug!("invalid target {:?}", uri);
-                return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-            };
-
-            sess.destination = destination;
-
-            Ok(InboundTransport::Stream(
-                Box::new(SimpleProxyStream(parts.io)),
-                sess,
-            ))
+            }
         } else {
-            Err(io::Error::new(io::ErrorKind::Other, "invalid transport"))
-        }
+            debug!("invalid target {:?}", uri);
+            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
+        };
+
+        sess.destination = destination;
+
+        Ok(InboundTransport::Stream(
+            Box::new(SimpleProxyStream(parts.io)),
+            sess,
+        ))
     }
 }

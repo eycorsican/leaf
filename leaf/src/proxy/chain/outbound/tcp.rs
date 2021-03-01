@@ -26,6 +26,18 @@ impl Handler {
         }
         None
     }
+
+    fn next_session(&self, mut sess: Session, start: usize) -> Session {
+        match self.next_tcp_connect_addr(start) {
+            Some(OutboundConnect::Proxy(address, port, _)) => {
+                if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", address, port)) {
+                    sess.destination = addr;
+                }
+            }
+            _ => (),
+        }
+        sess
+    }
 }
 
 impl TcpConnector for Handler {}
@@ -73,14 +85,7 @@ impl TcpOutboundHandler for Handler {
         };
 
         for (i, a) in self.actors.iter().enumerate() {
-            let mut new_sess = sess.clone();
-            if let Some(OutboundConnect::Proxy(connect_addr, port, _)) =
-                self.next_tcp_connect_addr(i + 1)
-            {
-                if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", connect_addr, port)) {
-                    new_sess.destination = addr;
-                }
-            }
+            let new_sess = self.next_session(sess.clone(), i + 1);
             stream = a.handle_tcp(&new_sess, Some(stream)).await?;
         }
 

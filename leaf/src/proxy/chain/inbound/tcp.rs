@@ -3,8 +3,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::proxy::InboundHandler;
-use crate::proxy::{InboundTransport, TcpInboundHandler};
+use crate::{
+    proxy::{InboundHandler, InboundTransport, ProxyStream, TcpInboundHandler},
+    session::Session,
+};
 
 pub struct Handler {
     pub actors: Vec<Arc<dyn InboundHandler>>,
@@ -14,32 +16,26 @@ pub struct Handler {
 impl TcpInboundHandler for Handler {
     async fn handle_tcp<'a>(
         &'a self,
-        transport: InboundTransport,
+        mut sess: Session,
+        mut stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport> {
-        match transport {
-            InboundTransport::Stream(mut stream, mut sess) => {
-                for (_, a) in self.actors.iter().enumerate() {
-                    let transport = a.handle_tcp(InboundTransport::Stream(stream, sess)).await?;
-                    match transport {
-                        InboundTransport::Stream(new_stream, new_sess) => {
-                            stream = new_stream;
-                            sess = new_sess;
-                        }
-                        InboundTransport::Datagram(socket) => {
-                            // FIXME here assumes it's the last actor, it's definitly a wrong assumption,
-                            // it's only used for testing the ws+trojan setup
-                            return Ok(InboundTransport::Datagram(socket));
-                        }
-                        _ => {
-                            return Err(io::Error::new(io::ErrorKind::Other, "invalid transport"));
-                        }
-                    }
+        for (_, a) in self.actors.iter().enumerate() {
+            let transport = a.handle_tcp(sess, stream).await?;
+            match transport {
+                InboundTransport::Stream(new_stream, new_sess) => {
+                    stream = new_stream;
+                    sess = new_sess;
                 }
-                Ok(InboundTransport::Stream(stream, sess))
-            }
-            _ => {
-                return Err(io::Error::new(io::ErrorKind::Other, "invalid transport"));
+                InboundTransport::Datagram(socket) => {
+                    // If the input stream has been converted to a datagram,
+                    // we assume it's the last actor.
+                    return Ok(InboundTransport::Datagram(socket));
+                }
+                _ => {
+                    return Err(io::Error::new(io::ErrorKind::Other, "invalid transport"));
+                }
             }
         }
+        Ok(InboundTransport::Stream(stream, sess))
     }
 }

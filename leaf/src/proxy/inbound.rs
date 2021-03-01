@@ -4,7 +4,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::InboundHandler;
-use super::{InboundDatagram, InboundTransport, Tag, TcpInboundHandler, UdpInboundHandler};
+use super::{
+    InboundDatagram, InboundTransport, ProxyStream, Tag, TcpInboundHandler, UdpInboundHandler,
+};
+
+use crate::session::Session;
 
 /// An inbound handler groups a TCP inbound handler and a UDP inbound
 /// handler.
@@ -48,10 +52,11 @@ impl InboundHandler for Handler {
 impl TcpInboundHandler for Handler {
     async fn handle_tcp<'a>(
         &'a self,
-        transport: InboundTransport,
+        sess: Session,
+        stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport> {
         if let Some(handler) = &self.tcp_handler {
-            handler.handle_tcp(transport).await
+            handler.handle_tcp(sess, stream).await
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "unimplemented"))
         }
@@ -62,7 +67,7 @@ impl TcpInboundHandler for Handler {
 impl UdpInboundHandler for Handler {
     async fn handle_udp<'a>(
         &'a self,
-        socket: Option<Box<dyn InboundDatagram>>,
+        socket: Box<dyn InboundDatagram>,
     ) -> io::Result<Box<dyn InboundDatagram>> {
         if let Some(handler) = &self.udp_handler {
             handler.handle_udp(socket).await

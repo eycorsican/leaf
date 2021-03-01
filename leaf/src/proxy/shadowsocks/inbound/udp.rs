@@ -24,19 +24,15 @@ pub struct Handler {
 impl UdpInboundHandler for Handler {
     async fn handle_udp<'a>(
         &'a self,
-        socket: Option<Box<dyn InboundDatagram>>,
+        socket: Box<dyn InboundDatagram>,
     ) -> io::Result<Box<dyn InboundDatagram>> {
-        if let Some(socket) = socket {
-            let dgram = ShadowedDatagram::new(&self.cipher, &self.password).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("new shadowed datagram failed: {}", e),
-                )
-            })?;
-            Ok(Box::new(Datagram { dgram, socket }))
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, "invalid input"))
-        }
+        let dgram = ShadowedDatagram::new(&self.cipher, &self.password).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("new shadowed datagram failed: {}", e),
+            )
+        })?;
+        Ok(Box::new(Datagram { dgram, socket }))
     }
 }
 

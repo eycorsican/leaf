@@ -29,11 +29,15 @@ impl TcpOutboundHandler for Handler {
     }
 
     fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(
-            self.address.clone(),
-            self.port,
-            self.bind_addr,
-        ))
+        if !self.address.is_empty() && self.port != 0 {
+            Some(OutboundConnect::Proxy(
+                self.address.clone(),
+                self.port,
+                self.bind_addr,
+            ))
+        } else {
+            None
+        }
     }
 
     async fn handle_tcp<'a>(

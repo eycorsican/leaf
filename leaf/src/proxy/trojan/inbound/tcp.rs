@@ -16,7 +16,7 @@ use crate::{
         InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, InboundTransport,
         ProxyStream,
     },
-    session::{SocksAddr, SocksAddrWireType},
+    session::{Session, SocksAddr, SocksAddrWireType},
 };
 
 struct StreamToDatagram {
@@ -123,59 +123,53 @@ impl Handler {
 impl TcpInboundHandler for Handler {
     async fn handle_tcp<'a>(
         &'a self,
-        transport: InboundTransport,
+        mut sess: Session,
+        mut stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport> {
-        match transport {
-            InboundTransport::Stream(mut stream, mut sess) => {
-                let mut buf = BytesMut::new();
-                // read key
-                buf.resize(56, 0);
-                stream.read_exact(&mut buf).await?;
-                if self.key[..] != buf[..] {
-                    return Err(io::Error::new(io::ErrorKind::Other, "invalid key"));
-                }
+        let mut buf = BytesMut::new();
+        // read key
+        buf.resize(56, 0);
+        stream.read_exact(&mut buf).await?;
+        if self.key[..] != buf[..] {
+            return Err(io::Error::new(io::ErrorKind::Other, "invalid key"));
+        }
+        // read crlf
+        buf.resize(2, 0);
+        stream.read_exact(&mut buf).await?;
+        // read cmd
+        buf.resize(1, 0);
+        stream.read_exact(&mut buf).await?;
+        match buf[0] {
+            // tcp
+            0x01 => {
+                // read addr
+                let dst_addr =
+                    SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
+                sess.destination = dst_addr;
                 // read crlf
                 buf.resize(2, 0);
                 stream.read_exact(&mut buf).await?;
-                // read cmd
-                buf.resize(1, 0);
+                return Ok(InboundTransport::Stream(stream, sess));
+            }
+            // udp
+            0x03 => {
+                // read addr
+                let dst_addr =
+                    SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
+                sess.destination = dst_addr;
+                // read crlf
+                buf.resize(2, 0);
                 stream.read_exact(&mut buf).await?;
-                match buf[0] {
-                    // tcp
-                    0x01 => {
-                        // read addr
-                        let dst_addr =
-                            SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
-                        sess.destination = dst_addr;
-                        // read crlf
-                        buf.resize(2, 0);
-                        stream.read_exact(&mut buf).await?;
-                        return Ok(InboundTransport::Stream(stream, sess));
-                    }
-                    // udp
-                    0x03 => {
-                        // read addr
-                        let dst_addr =
-                            SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
-                        sess.destination = dst_addr;
-                        // read crlf
-                        buf.resize(2, 0);
-                        stream.read_exact(&mut buf).await?;
 
-                        // FIXME we're using the peer TCP socket address as the source, this
-                        // address is currently used as the NAT key for the UDP session.
-                        return Ok(InboundTransport::Datagram(Box::new(StreamToDatagram {
-                            stream,
-                            source: sess.source,
-                        })));
-                    }
-                    _ => {
-                        return Err(io::Error::new(io::ErrorKind::Other, "invalid command"));
-                    }
-                }
+                // FIXME we're using the peer TCP socket address as the source, this
+                // address is currently used as the NAT key for the UDP session.
+                return Ok(InboundTransport::Datagram(Box::new(StreamToDatagram {
+                    stream,
+                    source: sess.source,
+                })));
             }
             _ => {
-                return Err(io::Error::new(io::ErrorKind::Other, "invalid transport"));
+                return Err(io::Error::new(io::ErrorKind::Other, "invalid command"));
             }
         }
     }

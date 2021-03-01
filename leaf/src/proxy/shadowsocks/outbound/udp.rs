@@ -40,11 +40,15 @@ impl UdpOutboundHandler for Handler {
     }
 
     fn udp_connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(
-            self.address.clone(),
-            self.port,
-            self.bind_addr,
-        ))
+        if !self.address.is_empty() && self.port != 0 {
+            Some(OutboundConnect::Proxy(
+                self.address.clone(),
+                self.port,
+                self.bind_addr,
+            ))
+        } else {
+            None
+        }
     }
 
     fn udp_transport_type(&self) -> UdpTransportType {

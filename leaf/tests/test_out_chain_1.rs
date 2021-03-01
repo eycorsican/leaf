@@ -1,6 +1,6 @@
 mod common;
 
-// app(socks) -> (socks)client(ws+trojan->shadowsocks->ws+trojan) -> (ws+trojan)server1(direct) -> (shadowsocks)server2(direct) -> (ws+trojan)server3(direct) -> echo
+// app(socks) -> (socks)client(ws+trojan->ws+trojan) -> (ws+trojan)server1(direct) -> (ws+trojan)server2(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
@@ -8,12 +8,10 @@ mod common;
     feature = "outbound-trojan",
     feature = "inbound-ws",
     feature = "inbound-trojan",
-    feature = "outbound-shadowsocks",
-    feature = "inbound-shadowsocks",
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_proxy_chain_7() {
+fn test_out_chain_1() {
     let config1 = r#"
     {
         "inbounds": [
@@ -30,8 +28,7 @@ fn test_proxy_chain_7() {
                 "settings": {
                     "actors": [
                         "server1",
-                        "server2",
-                        "server3"
+                        "server2"
                     ]
                 }
             },
@@ -62,38 +59,28 @@ fn test_proxy_chain_7() {
                 }
             },
             {
-                "protocol": "shadowsocks",
+                "protocol": "chain",
                 "tag": "server2",
                 "settings": {
-                    "address": "127.0.0.1",
-                    "port": 3002,
-                    "method": "aes-128-gcm",
-                    "password": "password"
-                }
-            },
-            {
-                "protocol": "chain",
-                "tag": "server3",
-                "settings": {
                     "actors": [
-                        "server3-ws",
-                        "server3-trojan"
+                        "server2-ws",
+                        "server2-trojan"
                     ]
                 }
             },
             {
                 "protocol": "ws",
-                "tag": "server3-ws",
+                "tag": "server2-ws",
                 "settings": {
-                    "path": "/leaf"
+                    "path": "/leaf2"
                 }
             },
             {
                 "protocol": "trojan",
-                "tag": "server3-trojan",
+                "tag": "server2-trojan",
                 "settings": {
                     "address": "127.0.0.1",
-                    "port": 3003,
+                    "port": 3002,
                     "password": "password"
                 }
             }
@@ -143,31 +130,10 @@ fn test_proxy_chain_7() {
     {
         "inbounds": [
             {
-                "protocol": "shadowsocks",
+                "protocol": "chain",
+                "tag": "server2",
                 "address": "127.0.0.1",
                 "port": 3002,
-                "settings": {
-                    "method": "aes-128-gcm",
-                    "password": "password"
-                }
-            }
-        ],
-        "outbounds": [
-            {
-                "protocol": "direct"
-            }
-        ]
-    }
-    "#;
-
-    let config4 = r#"
-    {
-        "inbounds": [
-            {
-                "protocol": "chain",
-                "tag": "server1",
-                "address": "127.0.0.1",
-                "port": 3003,
                 "settings": {
                     "actors": [
                         "ws",
@@ -179,7 +145,7 @@ fn test_proxy_chain_7() {
                 "protocol": "ws",
                 "tag": "ws",
                 "settings": {
-                    "path": "/leaf"
+                    "path": "/leaf2"
                 }
             },
             {
@@ -202,7 +168,6 @@ fn test_proxy_chain_7() {
         config1.to_string(),
         config2.to_string(),
         config3.to_string(),
-        config4.to_string(),
     ];
     common::test_configs(configs, "127.0.0.1", 1086);
 }
