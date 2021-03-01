@@ -1,10 +1,14 @@
 use std::io::Result;
+use std::net::SocketAddr;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::net::TcpStream;
 
 use crate::{
-    proxy::{stream::SimpleProxyStream, OutboundConnect, ProxyStream, TcpOutboundHandler},
+    app::dns_client::DnsClient,
+    proxy::{
+        stream::SimpleProxyStream, OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler,
+    },
     session::Session,
 };
 
@@ -12,7 +16,11 @@ use crate::{
 pub struct Handler {
     pub address: String,
     pub port: u16,
+    pub bind_addr: SocketAddr,
+    pub dns_client: Arc<DnsClient>,
 }
+
+impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
@@ -29,7 +37,14 @@ impl TcpOutboundHandler for Handler {
         _sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyStream>> {
-        let stream = TcpStream::connect(format!("{}:{}", self.address, self.port)).await?;
-        Ok(Box::new(SimpleProxyStream(stream)))
+        Ok(Box::new(SimpleProxyStream(
+            self.dial_tcp_stream(
+                self.dns_client.clone(),
+                &self.bind_addr,
+                &self.address,
+                &self.port,
+            )
+            .await?,
+        )))
     }
 }

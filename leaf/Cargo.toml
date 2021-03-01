@@ -34,7 +34,7 @@ all-endpoints = [
     # outbounds
     "outbound-direct",
     "outbound-drop",
-    # "outbound-redirect",
+    "outbound-redirect",
     "outbound-shadowsocks",
     "outbound-socks",
     "outbound-trojan",

@@ -146,10 +146,14 @@ impl OutboundManager {
                     let tcp = Box::new(redirect::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
+                        bind_addr,
+                        dns_client: dns_client.clone(),
                     });
                     let udp = Box::new(redirect::UdpHandler {
                         address: settings.address,
                         port: settings.port as u16,
+                        bind_addr,
+                        dns_client: dns_client.clone(),
                     });
                     let handler = proxy::outbound::Handler::new(
                         tag.clone(),

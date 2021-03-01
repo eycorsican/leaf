@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{
     io::Result,
     net::{IpAddr, SocketAddr},
@@ -5,23 +6,26 @@ use std::{
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
-use tokio::net::udp::{RecvHalf, SendHalf};
 
 use crate::{
+    app::dns_client::DnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, UdpConnector, UdpOutboundHandler, UdpTransportType,
+        OutboundTransport, SimpleOutboundDatagram, UdpConnector, UdpOutboundHandler,
+        UdpTransportType,
     },
-    session::Session,
+    session::{Session, SocksAddr},
 };
 
 /// Handler with a redirect target address.
 pub struct Handler {
     pub address: String,
     pub port: u16,
+    pub bind_addr: SocketAddr,
+    pub dns_client: Arc<DnsClient>,
 }
 
-impl proxy::UdpConnector for Handler {}
+impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
@@ -39,24 +43,31 @@ impl UdpOutboundHandler for Handler {
 
     async fn handle_udp<'a>(
         &'a self,
-        _sess: &'a Session,
+        sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> Result<Box<dyn OutboundDatagram>> {
-        let socket = self.create_udp_socket("0.0.0.0:0").await?;
-        let (rh, sh) = socket.split();
-        let addr = SocketAddr::new(self.address.parse::<IpAddr>().unwrap(), self.port);
+        let socket = self.create_udp_socket(&self.bind_addr).await?;
+        let socket = Box::new(SimpleOutboundDatagram::new(
+            socket,
+            None,
+            self.dns_client.clone(),
+            self.bind_addr,
+        ));
+        let target = SocksAddr::from((self.address.parse::<IpAddr>().unwrap(), self.port));
         Ok(Box::new(Datagram {
-            recv_half: rh,
-            send_half: sh,
-            target: addr,
+            socket,
+            destination: sess.destination.clone(),
+            target,
         }))
     }
 }
 
 pub struct Datagram {
-    pub recv_half: RecvHalf,
-    pub send_half: SendHalf,
-    pub target: SocketAddr,
+    pub socket: Box<dyn OutboundDatagram>,
+    // The destination application datagrams send to.
+    pub destination: SocksAddr,
+    // The target we would like to redirect to.
+    pub target: SocksAddr,
 }
 
 impl OutboundDatagram for Datagram {
@@ -66,28 +77,30 @@ impl OutboundDatagram for Datagram {
         Box<dyn OutboundDatagramRecvHalf>,
         Box<dyn OutboundDatagramSendHalf>,
     ) {
+        let (r, s) = self.socket.split();
         (
-            Box::new(DatagramRecvHalf(self.recv_half, self.target)),
-            Box::new(DatagramSendHalf(self.send_half, self.target)),
+            Box::new(DatagramRecvHalf(r, self.destination)),
+            Box::new(DatagramSendHalf(s, self.target)),
         )
     }
 }
 
-pub struct DatagramRecvHalf(RecvHalf, SocketAddr);
+pub struct DatagramRecvHalf(Box<dyn OutboundDatagramRecvHalf>, SocksAddr);
 
 #[async_trait]
 impl OutboundDatagramRecvHalf for DatagramRecvHalf {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocketAddr)> {
-        let addr = self.1;
-        self.0.recv_from(buf).map_ok(|(n, _)| (n, addr)).await
+    async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocksAddr)> {
+        // Always rewrite the address, thus would allow only symmetric NAT sessions.
+        let dest = self.1.clone();
+        self.0.recv_from(buf).map_ok(|(n, _)| (n, dest)).await
     }
 }
 
-pub struct DatagramSendHalf(SendHalf, SocketAddr);
+pub struct DatagramSendHalf(Box<dyn OutboundDatagramSendHalf>, SocksAddr);
 
 #[async_trait]
 impl OutboundDatagramSendHalf for DatagramSendHalf {
-    async fn send_to(&mut self, buf: &[u8], _target: &SocketAddr) -> Result<usize> {
+    async fn send_to(&mut self, buf: &[u8], _target: &SocksAddr) -> Result<usize> {
         self.0.send_to(buf, &self.1).await
     }
 }
