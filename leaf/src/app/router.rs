@@ -436,10 +436,8 @@ mod tests {
     #[test]
     fn test_port_matcher() {
         let mut sess = Session {
-            source: "0.0.0.0:0".parse().unwrap(),
-            local_addr: "0.0.0.0:0".parse().unwrap(),
             destination: SocksAddr::Domain("www.google.com".to_string(), 22),
-            inbound_tag: "".to_string(),
+            ..Default::default()
         };
 
         // test port range

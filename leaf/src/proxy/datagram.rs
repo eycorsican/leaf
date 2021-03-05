@@ -7,7 +7,10 @@ use tokio::net::{
     UdpSocket,
 };
 
-use crate::{app::dns_client::DnsClient, session::SocksAddr};
+use crate::{
+    app::dns_client::DnsClient,
+    session::{DatagramSource, SocksAddr},
+};
 
 use super::{
     InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, OutboundDatagram,
@@ -131,9 +134,9 @@ impl InboundDatagramRecvHalf for SimpleInboundDatagramRecvHalf {
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, SocketAddr, Option<SocksAddr>)> {
+    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)> {
         let (n, src_addr) = self.0.recv_from(buf).await?;
-        Ok((n, src_addr, None))
+        Ok((n, DatagramSource::new(src_addr, None), None))
     }
 }
 

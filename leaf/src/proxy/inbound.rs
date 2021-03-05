@@ -58,7 +58,7 @@ impl TcpInboundHandler for Handler {
         if let Some(handler) = &self.tcp_handler {
             handler.handle_tcp(sess, stream).await
         } else {
-            Err(io::Error::new(io::ErrorKind::Other, "unimplemented"))
+            Err(io::Error::new(io::ErrorKind::Other, "no TCP handler"))
         }
     }
 }
@@ -72,7 +72,7 @@ impl UdpInboundHandler for Handler {
         if let Some(handler) = &self.udp_handler {
             handler.handle_udp(socket).await
         } else {
-            Err(io::Error::new(io::ErrorKind::Other, "unimplemented"))
+            Err(io::Error::new(io::ErrorKind::Other, "no UDP handler"))
         }
     }
 }

@@ -29,9 +29,10 @@ pub struct DnsClient {
 
 impl Default for DnsClient {
     fn default() -> Self {
-        let mut servers = Vec::new();
-        servers.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
-        servers.push(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 4, 4)), 53));
+        let servers = vec![
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 4, 4)), 53),
+        ];
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0);
         let cache = Arc::new(TokioMutex::new(LruCache::<String, Vec<IpAddr>>::new(
             option::DNS_CACHE_SIZE,

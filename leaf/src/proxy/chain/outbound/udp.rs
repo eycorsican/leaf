@@ -36,13 +36,10 @@ impl Handler {
     }
 
     fn next_session(&self, mut sess: Session, start: usize) -> Session {
-        match self.next_udp_connect_addr(start) {
-            Some(OutboundConnect::Proxy(address, port, _)) => {
-                if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", address, port)) {
-                    sess.destination = addr;
-                }
+        if let Some(OutboundConnect::Proxy(address, port, _)) = self.next_udp_connect_addr(start) {
+            if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", address, port)) {
+                sess.destination = addr;
             }
-            _ => (),
         }
         sess
     }
@@ -99,7 +96,8 @@ impl Handler {
                         .await?,
                 );
             } else {
-                return Err(invalid_chain("neither stream nor datagram exists"));
+                // NoConnect handlers such as amux.
+                stream.replace(a.handle_tcp(&new_sess, None).await?);
             }
         }
         unreachable!();
@@ -180,8 +178,9 @@ impl UdpOutboundHandler for Handler {
                         }
                     }
                     Some(OutboundConnect::Direct(_)) => {
-                        unimplemented!();
+                        unimplemented!("chain outbound direct connect addr");
                     }
+                    Some(OutboundConnect::NoConnect) => self.handle(sess, None, None).await,
                     None => Err(invalid_chain("none initial connect address")),
                 }
             }

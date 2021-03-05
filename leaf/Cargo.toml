@@ -25,6 +25,7 @@ all-configs = [
 all-endpoints = [
     # inbounds
     "inbound-chain",
+    "inbound-amux",
     "inbound-ws",
     "inbound-trojan",
     "inbound-http",
@@ -41,6 +42,7 @@ all-endpoints = [
     "outbound-vmess",
     "outbound-tls",
     "outbound-ws",
+    "outbound-amux",
     # "outbound-vless",
     "outbound-h2",
     "outbound-failover",
@@ -81,6 +83,7 @@ outbound-tryall = []
 outbound-chain = []
 outbound-retry = []
 outbound-stat = ["warp"]
+outbound-amux= []
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
@@ -89,6 +92,7 @@ inbound-socks = []
 inbound-http = ["hyper"]
 inbound-tun = ["tun"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
+inbound-amux = []
 inbound-chain = []
 
 [dependencies]

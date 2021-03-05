@@ -107,10 +107,11 @@ impl UdpOutboundHandler for Handler {
 
     fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         if let Some(handler) = &self.udp_handler {
-            handler.udp_connect_addr()
-        } else {
-            None
+            return handler.udp_connect_addr();
+        } else if let Some(handler) = &self.tcp_handler {
+            return handler.tcp_connect_addr();
         }
+        None
     }
 
     fn udp_transport_type(&self) -> UdpTransportType {

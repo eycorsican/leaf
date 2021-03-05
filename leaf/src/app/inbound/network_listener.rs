@@ -1,15 +1,18 @@
 use std::sync::Arc;
 
+use futures::stream::StreamExt;
 use log::*;
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
-use tokio::stream::StreamExt;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::{NatManager, UdpPacket};
 use crate::proxy::InboundHandler;
-use crate::proxy::{InboundDatagram, InboundTransport, SimpleInboundDatagram, SimpleProxyStream};
+use crate::proxy::{
+    InboundDatagram, InboundTransport, SimpleInboundDatagram, SimpleProxyStream,
+    SingleInboundTransport,
+};
 use crate::session::{Session, SocksAddr};
 use crate::Runner;
 
@@ -66,27 +69,28 @@ async fn handle_inbound_datagram(
                 debug!("udp recv error: {}", e);
                 break;
             }
-            Ok((n, src_addr, dst_addr)) => {
+            Ok((n, dgram_src, dst_addr)) => {
                 let dst_addr = if let Some(dst_addr) = dst_addr {
                     dst_addr
                 } else {
                     warn!("inbound datagram receives message without destination");
                     continue;
                 };
-                if !nat_manager.contains_key(&src_addr).await {
-                    let mut sess = Session::default();
-                    sess.source = src_addr;
-                    sess.destination = dst_addr.clone();
-                    sess.inbound_tag = inbound_tag.clone();
+                if !nat_manager.contains_key(&dgram_src).await {
+                    let sess = Session {
+                        source: dgram_src.address,
+                        destination: dst_addr.clone(),
+                        inbound_tag: inbound_tag.clone(),
+                        ..Default::default()
+                    };
 
                     nat_manager
-                        .add_session(&sess, src_addr, client_ch_tx.clone())
+                        .add_session(&sess, dgram_src, client_ch_tx.clone())
                         .await;
 
                     debug!(
-                        "added udp session {}:{} -> {} ({})",
-                        &src_addr.ip(),
-                        &src_addr.port(),
+                        "added udp session {} -> {} ({})",
+                        &dgram_src,
                         &dst_addr.to_string(),
                         nat_manager.size().await,
                     );
@@ -94,10 +98,10 @@ async fn handle_inbound_datagram(
 
                 let pkt = UdpPacket {
                     data: (&buf[..n]).to_vec(),
-                    src_addr: Some(SocksAddr::from(src_addr)),
+                    src_addr: Some(SocksAddr::from(dgram_src.address)),
                     dst_addr: Some(dst_addr),
                 };
-                nat_manager.send(&src_addr, pkt).await;
+                nat_manager.send(&dgram_src, pkt).await;
             }
         }
     }
@@ -115,10 +119,12 @@ async fn handle_inbound_stream(
     let local_addr = stream
         .local_addr()
         .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
-    let mut sess = Session::default();
-    sess.source = source;
-    sess.local_addr = local_addr;
-    sess.inbound_tag = handler.tag().clone();
+    let sess = Session {
+        source,
+        local_addr,
+        inbound_tag: handler.tag().clone(),
+        ..Default::default()
+    };
 
     match handler
         .handle_tcp(sess, Box::new(SimpleProxyStream(stream)))
@@ -126,10 +132,30 @@ async fn handle_inbound_stream(
     {
         Ok(res) => match res {
             InboundTransport::Stream(stream, mut sess) => {
-                let _ = dispatcher.dispatch_tcp(&mut sess, stream).await;
+                dispatcher.dispatch_tcp(&mut sess, stream).await;
             }
             InboundTransport::Datagram(socket) => {
                 handle_inbound_datagram(handler.tag().clone(), socket, nat_manager).await;
+            }
+            InboundTransport::Incoming(mut incoming) => {
+                while let Some(transport) = incoming.next().await {
+                    match transport {
+                        SingleInboundTransport::Stream(stream, mut sess) => {
+                            let dispatcher2 = dispatcher.clone();
+                            tokio::spawn(async move {
+                                dispatcher2.dispatch_tcp(&mut sess, stream).await;
+                            });
+                        }
+                        SingleInboundTransport::Datagram(socket) => {
+                            let nat_manager2 = nat_manager.clone();
+                            let tag = handler.tag().clone();
+                            tokio::spawn(async move {
+                                handle_inbound_datagram(tag, socket, nat_manager2).await;
+                            });
+                        }
+                        SingleInboundTransport::Empty => (),
+                    }
+                }
             }
             InboundTransport::Empty => (),
         },

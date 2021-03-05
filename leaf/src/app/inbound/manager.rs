@@ -6,13 +6,15 @@ use protobuf::Message;
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
 use crate::config::{
-    ChainInboundSettings, Inbound, ShadowsocksInboundSettings, TrojanInboundSettings,
-    WebSocketInboundSettings,
+    AMuxInboundSettings, ChainInboundSettings, Inbound, ShadowsocksInboundSettings,
+    TrojanInboundSettings, WebSocketInboundSettings,
 };
 use crate::proxy;
 use crate::proxy::InboundHandler;
 use crate::Runner;
 
+#[cfg(feature = "inbound-amux")]
+use crate::proxy::amux;
 #[cfg(feature = "inbound-http")]
 use crate::proxy::http;
 #[cfg(feature = "inbound-shadowsocks")]
@@ -118,34 +120,58 @@ impl InboundManager {
             }
         }
 
-        for inbound in inbounds.iter() {
-            #[allow(clippy::single_match)]
-            match inbound.protocol.as_str() {
-                #[cfg(feature = "inbound-chain")]
-                "chain" => {
-                    let settings =
-                        ChainInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
-                    let mut actors = Vec::new();
-                    for actor in settings.actors.iter() {
-                        if let Some(a) = handlers.get(actor) {
-                            actors.push(a.clone());
+        for _i in 0..4 {
+            for inbound in inbounds.iter() {
+                #[allow(clippy::single_match)]
+                match inbound.protocol.as_str() {
+                    #[cfg(feature = "inbound-amux")]
+                    "amux" => {
+                        let mut actors = Vec::new();
+                        if let Ok(settings) =
+                            AMuxInboundSettings::parse_from_bytes(&inbound.settings)
+                        {
+                            for actor in settings.actors.iter() {
+                                if let Some(a) = handlers.get(actor) {
+                                    actors.push(a.clone());
+                                }
+                            }
                         }
+                        let tcp = Arc::new(amux::inbound::TcpHandler {
+                            actors: actors.clone(),
+                        });
+                        let handler = Arc::new(proxy::inbound::Handler::new(
+                            inbound.tag.clone(),
+                            Some(tcp),
+                            None,
+                        ));
+                        handlers.insert(inbound.tag.clone(), handler);
                     }
-                    if actors.is_empty() {
-                        continue;
+                    #[cfg(feature = "inbound-chain")]
+                    "chain" => {
+                        let settings =
+                            ChainInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                        let mut actors = Vec::new();
+                        for actor in settings.actors.iter() {
+                            if let Some(a) = handlers.get(actor) {
+                                actors.push(a.clone());
+                            }
+                        }
+                        if actors.is_empty() {
+                            continue;
+                        }
+                        let tcp = Arc::new(chain::inbound::TcpHandler {
+                            actors: actors.clone(),
+                        });
+                        let udp = Arc::new(chain::inbound::UdpHandler { actors });
+                        let handler = Arc::new(proxy::inbound::Handler::new(
+                            inbound.tag.clone(),
+                            Some(tcp),
+                            Some(udp),
+                        ));
+                        handlers.insert(inbound.tag.clone(), handler);
                     }
-                    let tcp = Arc::new(chain::inbound::TcpHandler {
-                        actors: actors.clone(),
-                    });
-                    let udp = Arc::new(chain::inbound::UdpHandler { actors });
-                    let handler = Arc::new(proxy::inbound::Handler::new(
-                        inbound.tag.clone(),
-                        Some(tcp),
-                        Some(udp),
-                    ));
-                    handlers.insert(inbound.tag.clone(), handler);
+                    _ => (),
                 }
-                _ => (),
             }
         }
 

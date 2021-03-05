@@ -25,6 +25,7 @@ pub struct Handler {
 struct Measure(usize, u128); // (index, duration in millis)
 
 impl Handler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         actors: Vec<Arc<dyn OutboundHandler>>,
         fail_timeout: u32, // in secs
@@ -50,8 +51,10 @@ impl Handler {
                     for (i, a) in (&actors2).iter().enumerate() {
                         debug!("health checking tcp for [{}] index [{}]", a.tag(), i);
                         let single_measure = async move {
-                            let mut sess = Session::default();
-                            sess.destination = SocksAddr::Domain("www.google.com".to_string(), 80);
+                            let sess = Session {
+                                destination: SocksAddr::Domain("www.google.com".to_string(), 80),
+                                ..Default::default()
+                            };
                             let start = tokio::time::Instant::now();
                             match a.handle_tcp(&sess, None).await {
                                 Ok(mut stream) => {
@@ -179,17 +182,12 @@ impl TcpOutboundHandler for Handler {
                     self.actors[*idx].tag()
                 );
                 // TODO Remove the entry immediately if timeout or fail?
-                match timeout(
+                let task = timeout(
                     time::Duration::from_secs(self.fail_timeout as u64),
                     (&self.actors[*idx]).handle_tcp(sess, None),
-                )
-                .await
-                {
-                    Ok(t) => match t {
-                        Ok(v) => return Ok(v),
-                        Err(_) => (),
-                    },
-                    Err(_) => (),
+                );
+                if let Ok(Ok(v)) = task.await {
+                    return Ok(v);
                 }
             };
         }

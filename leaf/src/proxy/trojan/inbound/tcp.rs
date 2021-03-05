@@ -16,12 +16,12 @@ use crate::{
         InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, InboundTransport,
         ProxyStream,
     },
-    session::{Session, SocksAddr, SocksAddrWireType},
+    session::{DatagramSource, Session, SocksAddr, SocksAddrWireType},
 };
 
 struct StreamToDatagram {
     stream: Box<dyn ProxyStream>,
-    source: SocketAddr,
+    source: DatagramSource,
 }
 
 impl InboundDatagram for StreamToDatagram {
@@ -39,7 +39,7 @@ impl InboundDatagram for StreamToDatagram {
     }
 }
 
-struct StreamToDatagramRecvHalf<T>(T, SocketAddr);
+struct StreamToDatagramRecvHalf<T>(T, DatagramSource);
 
 #[async_trait]
 impl<T> InboundDatagramRecvHalf for StreamToDatagramRecvHalf<T>
@@ -49,7 +49,7 @@ where
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, SocketAddr, Option<SocksAddr>)> {
+    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)> {
         let dst_addr = SocksAddr::read_from(&mut self.0, SocksAddrWireType::PortLast).await?;
         let mut buf2 = BytesMut::new();
         buf2.resize(2, 0);
@@ -57,7 +57,7 @@ where
         let payload_len = BigEndian::read_u16(&buf2);
         let _ = self.0.read_exact(&mut buf2).await?;
         if &buf2[..2] != b"\r\n" {
-            return Err(io::Error::new(io::ErrorKind::Other, "expected CLRF"));
+            return Err(io::Error::new(io::ErrorKind::Other, "expected CRLF"));
         }
         buf2.resize(payload_len as usize, 0);
         let _ = self.0.read_exact(&mut buf2).await?;
@@ -114,7 +114,7 @@ impl Handler {
     pub fn new(password: &str) -> Self {
         let key = Sha224::digest(password.as_bytes());
         let key = hex::encode(&key[..]);
-        let key = &key.as_bytes()[..];
+        let key = key.as_bytes();
         Handler { key: key.to_vec() }
     }
 }
@@ -161,11 +161,9 @@ impl TcpInboundHandler for Handler {
                 buf.resize(2, 0);
                 stream.read_exact(&mut buf).await?;
 
-                // FIXME we're using the peer TCP socket address as the source, this
-                // address is currently used as the NAT key for the UDP session.
                 return Ok(InboundTransport::Datagram(Box::new(StreamToDatagram {
                     stream,
-                    source: sess.source,
+                    source: DatagramSource::new(sess.source, sess.stream_id),
                 })));
             }
             _ => {

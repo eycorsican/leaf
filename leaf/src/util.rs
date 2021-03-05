@@ -43,8 +43,10 @@ pub async fn test_outbound(tag: &str, config: &Config) {
         println!("outbound {} not found", tag);
         return;
     };
-    let mut sess = Session::default();
-    sess.destination = SocksAddr::Domain("www.google.com".to_string(), 80);
+    let sess = Session {
+        destination: SocksAddr::Domain("www.google.com".to_string(), 80),
+        ..Default::default()
+    };
     println!("testing outbound {}", &handler.tag());
     let start = tokio::time::Instant::now();
     match handler.handle_tcp(&sess, None).await {

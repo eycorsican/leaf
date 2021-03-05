@@ -12,7 +12,7 @@ use regex::Regex;
 use crate::config::{external_rule, geosite, internal};
 
 #[derive(Debug, Default)]
-pub struct TUN {
+pub struct Tun {
     pub name: Option<String>,
     pub address: Option<String>,
     pub netmask: Option<String>,
@@ -22,7 +22,7 @@ pub struct TUN {
 
 #[derive(Debug, Default)]
 pub struct General {
-    pub tun: Option<TUN>,
+    pub tun: Option<Tun>,
     pub tun_fd: Option<i32>,
     pub loglevel: Option<String>,
     pub dns_server: Option<Vec<String>>,
@@ -164,18 +164,16 @@ where
 {
     let mut new_lines = Vec::new();
     let mut curr_sect: String = "".to_string();
-    for line in lines {
-        if let Ok(line) = line {
-            let line = remove_comments(line);
-            if let Some(s) = get_section(line.as_ref()) {
-                curr_sect = s.to_string();
-                continue;
-            }
-            if curr_sect.as_str() == section {
-                let line = line.trim();
-                if !line.is_empty() {
-                    new_lines.push(line.to_string());
-                }
+    for line in lines.flatten() {
+        let line = remove_comments(line);
+        if let Some(s) = get_section(line.as_ref()) {
+            curr_sect = s.to_string();
+            continue;
+        }
+        if curr_sect.as_str() == section {
+            let line = line.trim();
+            if !line.is_empty() {
+                new_lines.push(line.to_string());
             }
         }
     }
@@ -237,12 +235,13 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                     if items.len() != 5 {
                         continue;
                     }
-                    let mut tun = TUN::default();
-                    tun.name = Some(items[0].clone());
-                    tun.address = Some(items[1].clone());
-                    tun.netmask = Some(items[2].clone());
-                    tun.gateway = Some(items[3].clone());
-                    tun.mtu = get_value::<i32>(&items[4]);
+                    let tun = Tun {
+                        name: Some(items[0].clone()),
+                        address: Some(items[1].clone()),
+                        netmask: Some(items[2].clone()),
+                        gateway: Some(items[3].clone()),
+                        mtu: get_value::<i32>(&items[4]),
+                    };
                     general.tun = Some(tun);
                 }
             }
@@ -531,8 +530,10 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         if params.len() < 2 {
             continue; // at lease 2 params
         }
-        let mut rule = Rule::default();
-        rule.type_field = params[0].to_string();
+        let mut rule = Rule {
+            type_field: params[0].to_string(),
+            ..Default::default()
+        };
 
         // handle the FINAL rule first
         if rule.type_field == "FINAL" {
@@ -575,14 +576,13 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         hosts.insert(name.to_owned(), ips);
     }
 
-    let mut config = Config::default();
-    config.general = Some(general);
-    config.proxy = Some(proxies);
-    config.proxy_group = Some(proxy_groups);
-    config.rule = Some(rules);
-    config.host = Some(hosts);
-
-    Ok(config)
+    Ok(Config {
+        general: Some(general),
+        proxy: Some(proxies),
+        proxy_group: Some(proxy_groups),
+        rule: Some(rules),
+        host: Some(hosts),
+    })
 }
 
 pub fn to_internal(conf: Config) -> Result<internal::Config> {
@@ -628,7 +628,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "tun".to_string();
             inbound.tag = "tun".to_string();
-            let mut settings = internal::TUNInboundSettings::new();
+            let mut settings = internal::TunInboundSettings::new();
 
             let mut fake_dns_exclude = protobuf::RepeatedField::new();
             if let Some(ext_always_real_ip) = &ext_general.always_real_ip {
@@ -1152,7 +1152,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         drop(site_group_lists); // make sure it's released
     }
 
-    let mut dns = internal::DNS::new();
+    let mut dns = internal::Dns::new();
     let mut servers = protobuf::RepeatedField::new();
     let mut hosts = HashMap::new();
     if let Some(ext_general) = &conf.general {
@@ -1174,7 +1174,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
     }
     if let Some(ext_hosts) = &conf.host {
         for (name, static_ips) in ext_hosts.iter() {
-            let mut ips = internal::DNS_IPs::new();
+            let mut ips = internal::Dns_Ips::new();
             let mut ip_vals = protobuf::RepeatedField::new();
             for ip in static_ips {
                 ip_vals.push(ip.to_owned());

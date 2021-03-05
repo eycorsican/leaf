@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -12,7 +11,7 @@ use tokio::sync::{
 
 use crate::app::dispatcher::Dispatcher;
 use crate::option;
-use crate::session::{Session, SocksAddr};
+use crate::session::{DatagramSource, Session, SocksAddr};
 
 #[derive(Debug)]
 pub struct UdpPacket {
@@ -22,7 +21,7 @@ pub struct UdpPacket {
 }
 
 type SessionMap =
-    Arc<TokioMutex<HashMap<SocketAddr, (Sender<UdpPacket>, oneshot::Sender<bool>, Instant)>>>;
+    Arc<TokioMutex<HashMap<DatagramSource, (Sender<UdpPacket>, oneshot::Sender<bool>, Instant)>>>;
 
 pub struct NatManager {
     sessions: SessionMap,
@@ -83,11 +82,11 @@ impl NatManager {
         }
     }
 
-    pub async fn contains_key(&self, key: &SocketAddr) -> bool {
+    pub async fn contains_key(&self, key: &DatagramSource) -> bool {
         self.sessions.lock().await.contains_key(key)
     }
 
-    pub async fn send(&self, key: &SocketAddr, pkt: UdpPacket) {
+    pub async fn send(&self, key: &DatagramSource, pkt: UdpPacket) {
         let mut sessions = self.sessions.lock().await;
         if let Some(sess) = sessions.get_mut(key) {
             if let Err(err) = sess.0.try_send(pkt) {
@@ -106,7 +105,7 @@ impl NatManager {
     pub async fn add_session(
         &self,
         sess: &Session,
-        raddr: SocketAddr,
+        raddr: DatagramSource,
         client_ch_tx: Sender<UdpPacket>,
     ) {
         // Runs the lazy task for session cleanup job, this task will run only once.
@@ -164,7 +163,7 @@ impl NatManager {
                             let pkt = UdpPacket {
                                 data: (&buf[..n]).to_vec(),
                                 src_addr: Some(addr.clone()),
-                                dst_addr: Some(SocksAddr::from(raddr)),
+                                dst_addr: Some(SocksAddr::from(raddr.address)),
                             };
                             if let Err(err) = client_ch_tx.send(pkt).await {
                                 debug!(

@@ -64,17 +64,13 @@ impl FakeDns {
             IpAddr::V4(ip) => ip,
             _ => return None,
         };
-        match self.ip_to_domain.get(&Self::ip_to_u32(ip)) {
-            Some(v) => Some(v.clone()),
-            None => None,
-        }
+        self.ip_to_domain.get(&Self::ip_to_u32(ip)).cloned()
     }
 
     pub fn query_fake_ip(&mut self, domain: &str) -> Option<IpAddr> {
-        match self.domain_to_ip.get(domain) {
-            Some(v) => Some(IpAddr::V4(Self::u32_to_ip(v.to_owned()))),
-            None => None,
-        }
+        self.domain_to_ip
+            .get(domain)
+            .map(|v| IpAddr::V4(Self::u32_to_ip(v.to_owned())))
     }
 
     fn accept(&self, domain: &str) -> bool {

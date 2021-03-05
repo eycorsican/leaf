@@ -3,6 +3,7 @@ use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
 use futures::future::select_ok;
+use futures::stream::Stream;
 use futures::TryFutureExt;
 use log::*;
 use socket2::{Domain, Socket, Type};
@@ -13,7 +14,7 @@ use crate::{
     app::dns_client::DnsClient,
     common::resolver::Resolver,
     option,
-    session::{Session, SocksAddr},
+    session::{DatagramSource, Session, SocksAddr},
 };
 
 pub mod datagram;
@@ -21,6 +22,8 @@ pub mod inbound;
 pub mod outbound;
 pub mod stream;
 
+#[cfg(any(feature = "inbound-amux", feature = "outbound-amux"))]
+pub mod amux;
 #[cfg(any(feature = "inbound-chain", feature = "outbound-chain"))]
 pub mod chain;
 #[cfg(feature = "outbound-direct")]
@@ -121,7 +124,7 @@ async fn tcp_dial_task(
 }
 
 // Dials a TCP stream.
-async fn dial_tcp_stream(
+pub async fn dial_tcp_stream(
     dns_client: Arc<DnsClient>,
     bind_addr: &SocketAddr,
     address: &str,
@@ -218,6 +221,7 @@ pub trait OutboundHandler:
 pub enum OutboundConnect {
     Proxy(String, u16, SocketAddr),
     Direct(SocketAddr),
+    NoConnect,
 }
 
 /// An outbound handler for outgoing TCP conections.
@@ -345,7 +349,7 @@ pub trait InboundDatagram: Send + Unpin {
 #[async_trait]
 pub trait InboundDatagramRecvHalf: Sync + Send + Unpin {
     /// Receives a single datagram message on the socket. On success, returns
-    /// the number of bytes read, the source address where this message
+    /// the number of bytes read, the source where this message
     /// originated and the destination this message shall be sent to.
     ///
     /// This should be implemented by a proxy inbound handler, the destination
@@ -354,7 +358,7 @@ pub trait InboundDatagramRecvHalf: Sync + Send + Unpin {
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, SocketAddr, Option<SocksAddr>)>;
+    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)>;
 }
 
 /// The send half.
@@ -375,12 +379,24 @@ pub trait InboundDatagramSendHalf: Sync + Send + Unpin {
     ) -> io::Result<usize>;
 }
 
+pub enum SingleInboundTransport {
+    /// The reliable transport.
+    Stream(Box<dyn ProxyStream>, Session),
+    /// The unreliable transport.
+    Datagram(Box<dyn InboundDatagram>),
+    /// None.
+    Empty,
+}
+
+pub type IncomingTransport = Box<dyn Stream<Item = SingleInboundTransport> + Sync + Send + Unpin>;
+
 /// An inbound transport represents either a reliable or unreliable transport.
 pub enum InboundTransport {
     /// The reliable transport.
     Stream(Box<dyn ProxyStream>, Session),
     /// The unreliable transport.
     Datagram(Box<dyn InboundDatagram>),
+    Incoming(IncomingTransport),
     /// None.
     Empty,
 }

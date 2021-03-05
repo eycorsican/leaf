@@ -9,7 +9,7 @@ use log::*;
 
 use crate::{
     proxy::{InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, UdpInboundHandler},
-    session::{SocksAddr, SocksAddrWireType},
+    session::{DatagramSource, SocksAddr, SocksAddrWireType},
 };
 
 pub struct Handler;
@@ -50,7 +50,7 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, SocketAddr, Option<SocksAddr>)> {
+    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)> {
         let mut recv_buf = [0u8; 2 * 1024];
         let (n, src_addr, _) = self.0.recv_from(&mut recv_buf).await?;
         if n < 3 {

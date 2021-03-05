@@ -29,7 +29,7 @@ use crate::{
     app::nat_manager::NatManager,
     app::nat_manager::UdpPacket,
     common::mutex::AtomicMutex,
-    session::{Session, SocksAddr},
+    session::{DatagramSource, Session, SocksAddr},
 };
 
 use super::lwip::*;
@@ -105,11 +105,13 @@ impl NetStackImpl {
                 let inbound_tag_1 = inbound_tag_1.clone();
 
                 tokio::spawn(async move {
-                    let mut sess = Session::default();
-                    sess.source = stream.local_addr().to_owned();
-                    sess.local_addr = stream.remote_addr().to_owned();
-                    sess.destination = SocksAddr::Ip(*stream.remote_addr());
-                    sess.inbound_tag = inbound_tag_1.clone();
+                    let mut sess = Session {
+                        source: stream.local_addr().to_owned(),
+                        local_addr: stream.remote_addr().to_owned(),
+                        destination: SocksAddr::Ip(*stream.remote_addr()),
+                        inbound_tag: inbound_tag_1.clone(),
+                        ..Default::default()
+                    };
 
                     if fakedns.lock().await.is_fake_ip(&stream.remote_addr().ip()) {
                         if let Some(domain) = fakedns
@@ -252,22 +254,25 @@ impl NetStackImpl {
                     SocksAddr::Ip(dst_addr)
                 };
 
-                if !nat_manager.contains_key(&src_addr).await {
-                    let mut sess = Session::default();
-                    sess.source = src_addr;
-                    sess.destination = socks_dst_addr.clone();
-                    sess.inbound_tag = inbound_tag.clone();
+                let dgram_src = DatagramSource::new(src_addr, None);
+
+                if !nat_manager.contains_key(&dgram_src).await {
+                    let sess = Session {
+                        source: dgram_src.address,
+                        destination: socks_dst_addr.clone(),
+                        inbound_tag: inbound_tag.clone(),
+                        ..Default::default()
+                    };
 
                     nat_manager
-                        .add_session(&sess, src_addr, client_ch_tx.clone())
+                        .add_session(&sess, dgram_src, client_ch_tx.clone())
                         .await;
 
                     // Note that subsequent packets on this session may have different
                     // destination addresses.
                     debug!(
-                        "added udp session {}:{} -> {}:{} ({})",
-                        &src_addr.ip(),
-                        &src_addr.port(),
+                        "added udp session {} -> {}:{} ({})",
+                        &dgram_src,
                         &dst_addr.ip(),
                         &dst_addr.port(),
                         nat_manager.size().await,
@@ -276,10 +281,10 @@ impl NetStackImpl {
 
                 let pkt = UdpPacket {
                     data: pkt.data,
-                    src_addr: Some(SocksAddr::Ip(src_addr)),
+                    src_addr: Some(SocksAddr::Ip(dgram_src.address)),
                     dst_addr: Some(socks_dst_addr),
                 };
-                nat_manager.send(&src_addr, pkt).await;
+                nat_manager.send(&dgram_src, pkt).await;
             }
         });
 

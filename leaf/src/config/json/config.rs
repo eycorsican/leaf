@@ -10,7 +10,7 @@ use serde_json::value::RawValue;
 use crate::config::{external_rule, geosite, internal};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct DNS {
+pub struct Dns {
     pub servers: Option<Vec<String>>,
     pub bind: Option<String>,
     pub hosts: Option<HashMap<String, Vec<String>>>,
@@ -39,12 +39,17 @@ pub struct WebSocketInboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct AMuxInboundSettings {
+    pub actors: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ChainInboundSettings {
     pub actors: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TUNInboundSettings {
+pub struct TunInboundSettings {
     pub fd: Option<i32>,
     pub name: Option<String>,
     pub address: Option<String>,
@@ -140,6 +145,13 @@ pub struct HTTP2OutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct AMuxOutboundSettings {
+    pub address: Option<String>,
+    pub port: Option<u16>,
+    pub actors: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ChainOutboundSettings {
     pub actors: Option<Vec<String>>,
 }
@@ -203,7 +215,7 @@ pub struct Config {
     pub inbounds: Option<Vec<Inbound>>,
     pub outbounds: Option<Vec<Outbound>>,
     pub rules: Option<Vec<Rule>>,
-    pub dns: Option<DNS>,
+    pub dns: Option<Dns>,
 }
 
 pub fn to_internal(json: Config) -> Result<internal::Config> {
@@ -260,8 +272,8 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                     if ext_inbound.settings.is_none() {
                         return Err(anyhow!("invalid tun inbound settings"));
                     }
-                    let mut settings = internal::TUNInboundSettings::new();
-                    let ext_settings: TUNInboundSettings =
+                    let mut settings = internal::TunInboundSettings::new();
+                    let ext_settings: TunInboundSettings =
                         serde_json::from_str(ext_inbound.settings.unwrap().get()).unwrap();
 
                     let mut fake_dns_exclude = protobuf::RepeatedField::new();
@@ -357,6 +369,23 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                             settings.path = "/".to_string();
                         }
                     };
+                    let settings = settings.write_to_bytes().unwrap();
+                    inbound.settings = settings;
+                    inbounds.push(inbound);
+                }
+                "amux" => {
+                    let mut settings = internal::AMuxInboundSettings::new();
+                    if let Some(ext_settings) = ext_inbound.settings {
+                        if let Ok(ext_settings) =
+                            serde_json::from_str::<AMuxInboundSettings>(ext_settings.get())
+                        {
+                            if let Some(ext_actors) = ext_settings.actors {
+                                for ext_actor in ext_actors {
+                                    settings.actors.push(ext_actor);
+                                }
+                            }
+                        }
+                    }
                     let settings = settings.write_to_bytes().unwrap();
                     inbound.settings = settings;
                     inbounds.push(inbound);
@@ -671,6 +700,28 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                     outbound.settings = settings;
                     outbounds.push(outbound);
                 }
+                "amux" => {
+                    if ext_outbound.settings.is_none() {
+                        return Err(anyhow!("invalid amux outbound settings"));
+                    }
+                    let mut settings = internal::AMuxOutboundSettings::new();
+                    let ext_settings: AMuxOutboundSettings =
+                        serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
+                    if let Some(ext_address) = ext_settings.address {
+                        settings.address = ext_address;
+                    }
+                    if let Some(ext_port) = ext_settings.port {
+                        settings.port = ext_port as u32;
+                    }
+                    if let Some(ext_actors) = ext_settings.actors {
+                        for ext_actor in ext_actors {
+                            settings.actors.push(ext_actor);
+                        }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
                 "chain" => {
                     if ext_outbound.settings.is_none() {
                         return Err(anyhow!("invalid chain outbound settings"));
@@ -805,7 +856,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
         drop(site_group_lists); // make sure it's released
     }
 
-    let mut dns = internal::DNS::new();
+    let mut dns = internal::Dns::new();
     let mut servers = protobuf::RepeatedField::new();
     let mut hosts = HashMap::new();
     if let Some(ext_dns) = json.dns {
@@ -819,7 +870,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
         }
         if let Some(ext_hosts) = ext_dns.hosts {
             for (name, static_ips) in ext_hosts.iter() {
-                let mut ips = internal::DNS_IPs::new();
+                let mut ips = internal::Dns_Ips::new();
                 let mut ip_vals = protobuf::RepeatedField::new();
                 for ip in static_ips {
                     ip_vals.push(ip.to_owned());

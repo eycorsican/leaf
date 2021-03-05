@@ -12,7 +12,7 @@ use crate::{
     app::dispatcher::Dispatcher,
     app::fake_dns::{FakeDns, FakeDnsMode},
     app::nat_manager::NatManager,
-    config::{Inbound, TUNInboundSettings},
+    config::{Inbound, TunInboundSettings},
     Runner,
 };
 
@@ -25,7 +25,7 @@ pub fn new(
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
 ) -> Result<Runner> {
-    let settings = TUNInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+    let settings = TunInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
 
     let cfg = if settings.fd >= 0 {
         let mut cfg = tun::Configuration::default();

@@ -5,7 +5,10 @@ use std::pin::Pin;
 use bytes::BytesMut;
 use futures::sink::Sink;
 use futures::stream::Stream;
-use futures::task::{Context, Poll};
+use futures::{
+    ready,
+    task::{Context, Poll},
+};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tungstenite::error::Error as WsError;
 use tungstenite::Message;
@@ -88,9 +91,9 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
         cx: &mut Context,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        if let Poll::Pending = Pin::new(&mut self.inner).poll_ready(cx) {
-            return Poll::Pending;
-        }
+        ready!(Pin::new(&mut self.inner)
+            .poll_ready(cx)
+            .map_err(|_| io::Error::new(io::ErrorKind::Interrupted, "ws send error")))?;
 
         let msg = Message::Binary(Vec::from(buf));
         match Pin::new(&mut self.inner).start_send(msg) {
