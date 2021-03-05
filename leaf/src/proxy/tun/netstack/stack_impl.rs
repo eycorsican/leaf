@@ -50,9 +50,6 @@ pub struct NetStackImpl {
     fakedns: Arc<TokioMutex<FakeDns>>,
 }
 
-unsafe impl Sync for NetStackImpl {}
-unsafe impl Send for NetStackImpl {}
-
 impl NetStackImpl {
     pub fn new(
         inbound_tag: String,
@@ -346,6 +343,7 @@ impl AsyncWrite for NetStackImpl {
             if let Some(input_fn) = (*netif_list).input {
                 let err = input_fn(pbuf, netif_list);
                 if err == err_enum_t_ERR_OK as err_t {
+                    trace!("Input packet {}", buf.len());
                     Poll::Ready(Ok(buf.len()))
                 } else {
                     pbuf_free(pbuf);
