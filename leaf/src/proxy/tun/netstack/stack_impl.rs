@@ -50,9 +50,6 @@ pub struct NetStackImpl {
     fakedns: Arc<TokioMutex<FakeDns>>,
 }
 
-unsafe impl Sync for NetStackImpl {}
-unsafe impl Send for NetStackImpl {}
-
 impl NetStackImpl {
     pub fn new(
         inbound_tag: String,
