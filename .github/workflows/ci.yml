@@ -33,22 +33,12 @@ jobs:
       matrix:
         target:
           - mips-unknown-linux-musl
-            #- mips-unknown-linux-gnu
-            #- mips64-unknown-linux-gnuabi64
           - mipsel-unknown-linux-musl
-            #- mipsel-unknown-linux-gnu
-            #- mipsel64-unknown-linux-gnuabi64
           - x86_64-unknown-linux-musl
-            #- x86_64-unknown-linux-gnu
           - i686-unknown-linux-musl
-            #- i686-unknown-linux-gnu
           - aarch64-unknown-linux-musl
-            #- aarch64-unknown-linux-gnu
           - arm-unknown-linux-musleabi
-            #- arm-unknown-linux-gnueabi
           - armv7-unknown-linux-musleabihf
-            #- armv7-unknown-linux-gnueabihf
-            #- i686-pc-windows-gnu
           - x86_64-pc-windows-gnu
     steps:
       - name: checkout
@@ -73,6 +63,7 @@ jobs:
         run: |
           export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
           export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
+          export RUSTFLAGS="-Z strip=symbols"
           ./misc/build_cross.sh ${{ matrix.target }}
 
       - name: rename and compress artifacts
@@ -132,6 +123,7 @@ jobs:
         run: |
           export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
           export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
+          export RUSTFLAGS="-Z strip=symbols"
           cargo build --release --target ${{ matrix.target }} -p leaf-bin
 
       - name: rename and compress artifacts
@@ -167,7 +159,7 @@ jobs:
 
       - name: build
         run: |
-          # OPENSSL_DIR=/tmp/openssl-ios64 cargo lipo --release -p leaf-mobile --targets aarch64-apple-ios
+          export RUSTFLAGS="-Z strip=symbols"
           make ios
 
       - name: zip artifacts
