@@ -105,7 +105,10 @@ impl MuxStream {
         frame_write_tx: Sender<MuxFrame>,
     ) -> (Self, Sender<Vec<u8>>) {
         trace!("new mux stream {} (session {})", stream_id, session_id);
-        let (stream_read_tx, stream_read_rx) = mpsc::channel::<Vec<u8>>(1);
+        // FIXME It seems using a channel with small capacity could result in
+        // out of order data reading from the stream, no idea what's the root
+        // cause.
+        let (stream_read_tx, stream_read_rx) = mpsc::channel::<Vec<u8>>(1024);
         (
             MuxStream {
                 session_id,
