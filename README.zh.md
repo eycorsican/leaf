@@ -15,12 +15,14 @@ Leaf 是一个轻量且快速的代理工具。
   * [socks](#socks)
   * [trojan](#trojan)
   * [ws](#ws)
+  * [amux](#amux)
   * [chain](#chain)
 - [outbounds](#outbounds)
   * [direct](#direct)
   * [drop](#drop)
   * [tls](#tls)
   * [ws](#ws-1)
+  * [amux](#amux-1)
   * [h2](#h2)
   * [shadowsocks](#shadowsocks)
   * [vmess](#vmess)
@@ -154,7 +156,7 @@ JSON 配置文件目前不考虑兼容性，每个版本都可能会变。
         "hosts": {
             "example.com": [
                 "192.168.0.1",
-                "192.168.0.2
+                "192.168.0.2"
             ],
             "server.com": [
                 "192.168.0.3"
@@ -426,6 +428,26 @@ WebSocket 传输，一般在 `chain` 叠加到其它代理协议上。
 }
 ```
 
+### amux
+
+`amux` 多路复用传输，可以在一个可靠的连接上建立多个可靠流传输。
+
+**`amux` 目前不提供版本间兼容。**
+
+```json
+{
+    "protocol": "amux",
+    "settings": {
+        "actors": [
+             "tls",
+             "ws"
+        ]
+    }
+}
+```
+
+- `actors` 指定底层传输，空值表示用 TCP
+
 ### chain
 
 `chain` 可以对多个协议进行叠加。
@@ -553,6 +575,36 @@ WebSocket 传输，一般用来叠加到其它代理或传输协议上。
 ```
 
 `headers` 是一个字典，可以包含任意数量的 KV 对。`Host` 不指定的话会尝试从下层协议获取。
+
+### amux
+
+`amux` 多路复用传输，可以在一个可靠的连接上建立多个可靠流传输。
+
+**`amux` 目前不提供版本间兼容。**
+
+```json
+{
+    "protocol": "amux",
+    "settings": {
+        "actors": [
+             "tls",
+             "ws"
+        ],
+        "address": "tls.server.com",
+        "port": 443,
+        "maxAccepts": 8,
+        "concurrency": 2
+    }
+}
+```
+
+- `actors` 指定底层传输，空值表示用 TCP
+- `address` 底层传输的连接地址
+- `port` 端口
+- `maxAccepts` 指定单个底层连接最多可建立流的数量
+- `concurrency` 指定单个底层连接并发流数量
+
+`amux` 是一个非常简单的多路复用传输协议，所有流数量的传输都是以 FIFO 方式进行，设计上依赖 `maxAccepts` 和 `concurrency` 两个参数对传输性能进行控制。
 
 ### h2
 

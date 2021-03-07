@@ -624,6 +624,8 @@ impl OutboundManager {
                             settings.address.clone(),
                             settings.port as u16,
                             actors.clone(),
+                            settings.max_accepts as usize,
+                            settings.concurrency as usize,
                             bind_addr,
                             dns_client.clone(),
                         ));
@@ -670,11 +672,7 @@ impl OutboundManager {
                         });
                         let handler = proxy::outbound::Handler::new(
                             tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 226,
-                                g: 103,
-                                b: 245,
-                            },
+                            colored::Color::Blue,
                             ProxyHandlerType::Ensemble,
                             Some(tcp),
                             Some(udp),

@@ -41,7 +41,9 @@ fn test_ws_amux_trojan() {
                         "ws"
                     ],
                     "address": "127.0.0.1",
-                    "port": 3001
+                    "port": 3001,
+                    "maxAccepts": 16,
+                    "concurrency": 1
                 }
             },
             {

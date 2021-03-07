@@ -226,7 +226,7 @@ impl InboundListener for NetworkInboundListener {
                         handle_inbound_datagram(handler.tag().clone(), socket, nat_manager).await;
                     }
                     Err(e) => {
-                        error!("handle inbound socket failed: {}", e);
+                        debug!("handle inbound socket failed: {}", e);
                     }
                 }
             };

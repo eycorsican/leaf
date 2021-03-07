@@ -5,10 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use futures::TryFutureExt;
-use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex as TokioMutex;
-use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     app::dns_client::DnsClient,
@@ -19,13 +16,20 @@ use crate::{
     session::{Session, SocksAddr},
 };
 
-use super::MuxClientConnection;
+use super::MuxConnector;
+use super::MuxSession;
 use super::MuxStream;
 
 pub struct MuxManager {
-    pub connections: Arc<TokioMutex<Vec<MuxClientConnection>>>,
-    pub new_stream_req_tx: Sender<(Session, oneshot::Sender<MuxStream>)>,
-    pub new_stream_req_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
+    pub address: String,
+    pub port: u16,
+    pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub max_accepts: usize,
+    pub concurrency: usize,
+    pub bind_addr: SocketAddr,
+    pub dns_client: Arc<DnsClient>,
+    pub connectors: Arc<TokioMutex<Vec<MuxConnector>>>,
+    pub monitor_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
 }
 
 impl MuxManager {
@@ -33,97 +37,70 @@ impl MuxManager {
         address: String,
         port: u16,
         actors: Vec<Arc<dyn OutboundHandler>>,
+        max_accepts: usize,
+        concurrency: usize,
         bind_addr: SocketAddr,
         dns_client: Arc<DnsClient>,
     ) -> Self {
-        let (new_stream_req_tx, mut new_stream_req_rx) =
-            mpsc::channel::<(Session, oneshot::Sender<MuxStream>)>(64);
-        let connections: Arc<TokioMutex<Vec<MuxClientConnection>>> =
-            Arc::new(TokioMutex::new(Vec::new()));
-        let connections2 = connections.clone();
-        let new_stream_req_task = Box::pin(async move {
-            'req_recv: while let Some((mut sess, new_stream_send_tx)) =
-                new_stream_req_rx.recv().await
-            {
-                for _ in 0..4 {
-                    let mut connections = connections2.lock().await;
-                    let mut to_remove = Vec::new();
-                    for (i, conn) in connections.iter().enumerate() {
-                        if conn.should_remove().await {
-                            to_remove.push(i);
-                        }
-                    }
-                    for i in to_remove.into_iter() {
-                        connections.remove(i);
-                    }
-                    // TODO more efficient way?
-                    for conn in connections.iter_mut() {
-                        if let Ok(s) = conn.new_stream().await {
-                            if let Err(_) = new_stream_send_tx.send(s) {
-                                log::warn!("send new mux stream failed");
-                            }
-                            continue 'req_recv;
-                        }
-                    }
-                    drop(connections);
-
-                    let mut conn = match crate::proxy::dial_tcp_stream(
-                        dns_client.clone(),
-                        &bind_addr,
-                        &address,
-                        &port,
-                    )
-                    .await
-                    {
-                        Ok(c) => c,
-                        Err(e) => {
-                            log::warn!("dial tcp failed: {}", e);
-                            continue 'req_recv;
-                        }
-                    };
-
-                    if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", &address, &port)) {
-                        sess.destination = addr;
-                    }
-                    for (_, a) in actors.iter().enumerate() {
-                        match a.handle_tcp(&sess, Some(conn)).await {
-                            Ok(c) => {
-                                conn = c;
-                            }
-                            Err(e) => {
-                                log::warn!("handle tcp failed: {}", e);
-                                continue 'req_recv;
-                            }
-                        }
-                    }
-                    let mux_conn = MuxClientConnection::new(conn);
-
-                    connections2.lock().await.push(mux_conn);
-                }
+        let connectors: Arc<TokioMutex<Vec<MuxConnector>>> = Arc::new(TokioMutex::new(Vec::new()));
+        let connectors2 = connectors.clone();
+        // A task to monitor and remove completed connectors.
+        // TODO passive detection
+        let monitor_task = Box::pin(async move {
+            loop {
+                connectors2.lock().await.retain(|c| !c.is_done());
+                log::trace!("active connectors {}", connectors2.lock().await.len());
+                use std::time::Duration;
+                tokio::time::delay_for(Duration::from_secs(10)).await;
             }
         });
         MuxManager {
-            connections,
-            new_stream_req_tx,
-            new_stream_req_task: TokioMutex::new(Some(new_stream_req_task)),
+            address,
+            port,
+            actors,
+            max_accepts,
+            concurrency,
+            bind_addr,
+            dns_client,
+            connectors,
+            monitor_task: TokioMutex::new(Some(monitor_task)),
         }
     }
 
     pub async fn new_stream(&self, sess: &Session) -> io::Result<MuxStream> {
-        if self.new_stream_req_task.lock().await.is_some() {
-            if let Some(task) = self.new_stream_req_task.lock().await.take() {
+        if self.monitor_task.lock().await.is_some() {
+            if let Some(task) = self.monitor_task.lock().await.take() {
                 tokio::spawn(task);
             }
         }
 
-        let (new_stream_send_tx, new_stream_send_rx) = oneshot::channel();
-        let mut tx = (&self.new_stream_req_tx).clone();
-        if let Err(_) = tx.send((sess.clone(), new_stream_send_tx)).await {
-            log::warn!("send new stream req failed");
+        for c in self.connectors.lock().await.iter_mut() {
+            if let Some(s) = c.new_stream().await {
+                return Ok(s);
+            }
         }
-        new_stream_send_rx
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("new stream failed: {}", e)))
-            .await
+        let mut conn = self
+            .dial_tcp_stream(
+                self.dns_client.clone(),
+                &self.bind_addr,
+                &self.address,
+                &self.port,
+            )
+            .await?;
+        let mut sess = sess.clone();
+        if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", &self.address, &self.port)) {
+            sess.destination = addr;
+        }
+        for (_, a) in self.actors.iter().enumerate() {
+            conn = a.handle_tcp(&sess, Some(conn)).await?;
+        }
+        let mut connector = MuxSession::connector(conn, self.max_accepts, self.concurrency);
+        let s = match connector.new_stream().await {
+            Some(s) => s,
+            None => return Err(io::Error::new(io::ErrorKind::Other, "new stream failed")),
+        };
+        self.connectors.lock().await.push(connector);
+        Ok(s)
     }
 }
 
@@ -138,11 +115,21 @@ impl Handler {
         address: String,
         port: u16,
         actors: Vec<Arc<dyn OutboundHandler>>,
+        max_accepts: usize,
+        concurrency: usize,
         bind_addr: SocketAddr,
         dns_client: Arc<DnsClient>,
     ) -> Self {
         Handler {
-            manager: MuxManager::new(address, port, actors, bind_addr, dns_client),
+            manager: MuxManager::new(
+                address,
+                port,
+                actors,
+                max_accepts,
+                concurrency,
+                bind_addr,
+                dns_client,
+            ),
         }
     }
 }

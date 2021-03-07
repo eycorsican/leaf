@@ -145,7 +145,7 @@ pub async fn dial_tcp_stream(
 
     while !done {
         let mut tasks = Vec::new();
-        for _ in 0..option::OUTBOUND_DIAL_CONCURRENCY {
+        for _ in 0..*option::OUTBOUND_DIAL_CONCURRENCY {
             let dial_addr = match resolver.next() {
                 Some(a) => a,
                 None => {
@@ -315,7 +315,6 @@ pub trait InboundHandler: Tag + TcpInboundHandler + UdpInboundHandler + Send + U
 /// An inbound handler for incoming TCP connections.
 #[async_trait]
 pub trait TcpInboundHandler: Send + Sync + Unpin {
-    // TODO Returns an iterator to support multiplexing transports.
     async fn handle_tcp<'a>(
         &'a self,
         sess: Session,

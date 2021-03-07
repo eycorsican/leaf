@@ -134,6 +134,8 @@ message AMuxOutboundSettings {
 	string address = 1;
 	uint32 port = 2;
 	repeated string actors = 3;
+	uint32 max_accepts = 4;
+	uint32 concurrency = 5;
 }
 
 message ChainOutboundSettings {

@@ -2,4 +2,5 @@ mod tcp;
 
 pub use tcp::Handler as TcpHandler;
 
-use super::MuxServerConnection;
+use super::MuxAcceptor;
+use super::MuxSession;

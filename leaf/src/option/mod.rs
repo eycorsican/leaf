@@ -48,10 +48,12 @@ lazy_static! {
     pub static ref LINK_BUFFER_SIZE: usize = {
         get_env_var("LINK_BUFFER_SIZE", 2)
     };
-}
 
-/// Maximum outbound dial concurrency.
-pub static OUTBOUND_DIAL_CONCURRENCY: usize = 1;
+    /// Maximum outbound dial concurrency.
+    pub static ref OUTBOUND_DIAL_CONCURRENCY: usize = {
+        get_env_var("OUTBOUND_DIAL_CONCURRENCY", 1)
+    };
+}
 
 /// UDP session timeout. A UDP session shall be terminated if there are no
 /// activities in this period. The timeouts are observed only when a check

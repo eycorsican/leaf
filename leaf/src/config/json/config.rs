@@ -149,6 +149,9 @@ pub struct AMuxOutboundSettings {
     pub address: Option<String>,
     pub port: Option<u16>,
     pub actors: Option<Vec<String>>,
+    #[serde(rename = "maxAccepts")]
+    pub max_accepts: Option<u32>,
+    pub concurrency: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -717,6 +720,16 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         for ext_actor in ext_actors {
                             settings.actors.push(ext_actor);
                         }
+                    }
+                    if let Some(ext_max_accepts) = ext_settings.max_accepts {
+                        settings.max_accepts = ext_max_accepts as u32;
+                    } else {
+                        settings.max_accepts = 8;
+                    }
+                    if let Some(ext_concurrency) = ext_settings.concurrency {
+                        settings.concurrency = ext_concurrency as u32;
+                    } else {
+                        settings.concurrency = 2;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

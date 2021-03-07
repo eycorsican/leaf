@@ -4710,6 +4710,8 @@ pub struct AMuxOutboundSettings {
     pub address: ::std::string::String,
     pub port: u32,
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
+    pub max_accepts: u32,
+    pub concurrency: u32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -4791,6 +4793,36 @@ impl AMuxOutboundSettings {
     pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
         ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
     }
+
+    // uint32 max_accepts = 4;
+
+
+    pub fn get_max_accepts(&self) -> u32 {
+        self.max_accepts
+    }
+    pub fn clear_max_accepts(&mut self) {
+        self.max_accepts = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_max_accepts(&mut self, v: u32) {
+        self.max_accepts = v;
+    }
+
+    // uint32 concurrency = 5;
+
+
+    pub fn get_concurrency(&self) -> u32 {
+        self.concurrency
+    }
+    pub fn clear_concurrency(&mut self) {
+        self.concurrency = 0;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_concurrency(&mut self, v: u32) {
+        self.concurrency = v;
+    }
 }
 
 impl ::protobuf::Message for AMuxOutboundSettings {
@@ -4815,6 +4847,20 @@ impl ::protobuf::Message for AMuxOutboundSettings {
                 3 => {
                     ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.actors)?;
                 },
+                4 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.max_accepts = tmp;
+                },
+                5 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.concurrency = tmp;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -4836,6 +4882,12 @@ impl ::protobuf::Message for AMuxOutboundSettings {
         for value in &self.actors {
             my_size += ::protobuf::rt::string_size(3, &value);
         };
+        if self.max_accepts != 0 {
+            my_size += ::protobuf::rt::value_size(4, self.max_accepts, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if self.concurrency != 0 {
+            my_size += ::protobuf::rt::value_size(5, self.concurrency, ::protobuf::wire_format::WireTypeVarint);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -4851,6 +4903,12 @@ impl ::protobuf::Message for AMuxOutboundSettings {
         for v in &self.actors {
             os.write_string(3, &v)?;
         };
+        if self.max_accepts != 0 {
+            os.write_uint32(4, self.max_accepts)?;
+        }
+        if self.concurrency != 0 {
+            os.write_uint32(5, self.concurrency)?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -4904,6 +4962,16 @@ impl ::protobuf::Message for AMuxOutboundSettings {
                 |m: &AMuxOutboundSettings| { &m.actors },
                 |m: &mut AMuxOutboundSettings| { &mut m.actors },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "max_accepts",
+                |m: &AMuxOutboundSettings| { &m.max_accepts },
+                |m: &mut AMuxOutboundSettings| { &mut m.max_accepts },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
+                "concurrency",
+                |m: &AMuxOutboundSettings| { &m.concurrency },
+                |m: &mut AMuxOutboundSettings| { &mut m.concurrency },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<AMuxOutboundSettings>(
                 "AMuxOutboundSettings",
                 fields,
@@ -4923,6 +4991,8 @@ impl ::protobuf::Clear for AMuxOutboundSettings {
         self.address.clear();
         self.port = 0;
         self.actors.clear();
+        self.max_accepts = 0;
+        self.concurrency = 0;
         self.unknown_fields.clear();
     }
 }
@@ -7388,39 +7458,41 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x12\x12\n\x04host\x18\x02\x20\x01(\tR\x04host\"O\n\x16TryAllOutboundSet\
     tings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1d\n\ndelay\
     _base\x18\x02\x20\x01(\rR\tdelayBase\"0\n\x16RandomOutboundSettings\x12\
-    \x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\\\n\x14AMuxOutboundSett\
-    ings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04po\
-    rt\x18\x02\x20\x01(\rR\x04port\x12\x16\n\x06actors\x18\x03\x20\x03(\tR\
-    \x06actors\"/\n\x15ChainOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\
-    \x03(\tR\x06actors\"K\n\x15RetryOutboundSettings\x12\x16\n\x06actors\x18\
-    \x01\x20\x03(\tR\x06actors\x12\x1a\n\x08attempts\x18\x02\x20\x01(\rR\x08\
-    attempts\"\xa6\x02\n\x18FailOverOutboundSettings\x12\x16\n\x06actors\x18\
-    \x01\x20\x03(\tR\x06actors\x12!\n\x0cfail_timeout\x18\x02\x20\x01(\rR\
-    \x0bfailTimeout\x12!\n\x0chealth_check\x18\x03\x20\x01(\x08R\x0bhealthCh\
-    eck\x12%\n\x0echeck_interval\x18\x04\x20\x01(\rR\rcheckInterval\x12\x1a\
-    \n\x08failover\x18\x05\x20\x01(\x08R\x08failover\x12%\n\x0efallback_cach\
-    e\x18\x06\x20\x01(\x08R\rfallbackCache\x12\x1d\n\ncache_size\x18\x07\x20\
-    \x01(\rR\tcacheSize\x12#\n\rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTi\
-    meout\"D\n\x14StatOutboundSettings\x12\x18\n\x07address\x18\x01\x20\x01(\
-    \tR\x07address\x12\x12\n\x04port\x18\x02\x20\x01(\rR\x04port\"h\n\x08Out\
-    bound\x12\x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\
-    \x18\x02\x20\x01(\tR\x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\
-    \x04bind\x12\x1a\n\x08settings\x18\x04\x20\x01(\x0cR\x08settings\"\xf6\
-    \x02\n\x0bRoutingRule\x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetT\
-    ag\x12-\n\x07domains\x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07do\
-    mains\x12\x19\n\x08ip_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmd\
-    bs\x18\x04\x20\x03(\x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x12\x1f\n\x0bpor\
-    t_ranges\x18\x05\x20\x03(\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\
-    \x18\x01\x20\x01(\x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\
-    \x05value\x18\x02\x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\
-    \0\x12\n\n\x06DOMAIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\
-    \x12\x12\n\x04file\x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\
-    \x18\x02\x20\x01(\tR\x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03l\
-    og\x18\x01\x20\x01(\x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\
-    \x03(\x0b2\x08.InboundR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\
-    \x0b2\t.OutboundR\toutbounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\
-    \x0c.RoutingRuleR\x0croutingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\
-    \x04.DnsR\x03dnsb\x06proto3\
+    \x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\x9f\x01\n\x14AMuxOutbou\
+    ndSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\
+    \x04port\x18\x02\x20\x01(\rR\x04port\x12\x16\n\x06actors\x18\x03\x20\x03\
+    (\tR\x06actors\x12\x1f\n\x0bmax_accepts\x18\x04\x20\x01(\rR\nmaxAccepts\
+    \x12\x20\n\x0bconcurrency\x18\x05\x20\x01(\rR\x0bconcurrency\"/\n\x15Cha\
+    inOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"K\
+    \n\x15RetryOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06a\
+    ctors\x12\x1a\n\x08attempts\x18\x02\x20\x01(\rR\x08attempts\"\xa6\x02\n\
+    \x18FailOverOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06\
+    actors\x12!\n\x0cfail_timeout\x18\x02\x20\x01(\rR\x0bfailTimeout\x12!\n\
+    \x0chealth_check\x18\x03\x20\x01(\x08R\x0bhealthCheck\x12%\n\x0echeck_in\
+    terval\x18\x04\x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\x18\x05\
+    \x20\x01(\x08R\x08failover\x12%\n\x0efallback_cache\x18\x06\x20\x01(\x08\
+    R\rfallbackCache\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcacheSize\
+    \x12#\n\rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"D\n\x14StatO\
+    utboundSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\
+    \x12\n\x04port\x18\x02\x20\x01(\rR\x04port\"h\n\x08Outbound\x12\x10\n\
+    \x03tag\x18\x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01\
+    (\tR\x08protocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\
+    \x08settings\x18\x04\x20\x01(\x0cR\x08settings\"\xf6\x02\n\x0bRoutingRul\
+    e\x12\x1d\n\ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\
+    \x18\x02\x20\x03(\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08i\
+    p_cidrs\x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\
+    \x0b2\x11.RoutingRule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\
+    \x20\x03(\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01\
+    (\x0e2\x18.RoutingRule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\
+    \x20\x01(\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOM\
+    AIN\x10\x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\
+    \x18\x01\x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\
+    \x0bcountryCode\"\xba\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\
+    \x0b2\x04.LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.Inbou\
+    ndR\x08inbounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\tout\
+    bounds\x121\n\rrouting_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0cr\
+    outingRules\x12\x16\n\x03dns\x18\x05\x20\x01(\x0b2\x04.DnsR\x03dnsb\x06p\
+    roto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

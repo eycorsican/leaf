@@ -16,17 +16,20 @@ use crate::{
     session::Session,
 };
 
-use super::MuxServerConnection;
+use super::MuxAcceptor;
+use super::MuxSession;
 
 pub struct Incoming {
     sess: Session,
-    mux_conn: MuxServerConnection,
+    acceptor: MuxAcceptor,
 }
 
 impl Incoming {
     pub fn new(sess: Session, conn: Box<dyn ProxyStream>) -> Self {
-        let mux_conn = MuxServerConnection::new(conn);
-        Incoming { sess, mux_conn }
+        Incoming {
+            sess,
+            acceptor: MuxSession::acceptor(conn),
+        }
     }
 }
 
@@ -35,7 +38,7 @@ impl Stream for Incoming {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(
-            ready!(Pin::new(&mut self.mux_conn).poll_next(cx)).map(|stream| {
+            ready!(Pin::new(&mut self.acceptor).poll_next(cx)).map(|stream| {
                 let mut sess = self.sess.clone();
                 sess.stream_id = Some(stream.id());
                 SingleInboundTransport::Stream(Box::new(SimpleProxyStream(stream)), sess)
