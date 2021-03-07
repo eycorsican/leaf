@@ -1,5 +1,6 @@
 use std::cmp::min;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,7 +22,7 @@ use futures::{
 use log::trace;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::mpsc::{self, Receiver, Sender};
-use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::Mutex;
 use tokio::time::delay_for;
 
 use crate::proxy::ProxyStream;
@@ -87,7 +88,7 @@ impl std::fmt::Display for MuxFrame {
     }
 }
 
-pub type Streams = Arc<TokioMutex<HashMap<StreamId, Sender<Vec<u8>>>>>;
+pub type Streams = Arc<Mutex<HashMap<StreamId, Sender<Vec<u8>>>>>;
 
 pub struct MuxStream {
     session_id: SessionId,
@@ -148,7 +149,6 @@ impl AsyncRead for MuxStream {
             buf[..to_read].copy_from_slice(&for_read[..to_read]);
             return Poll::Ready(Ok(to_read));
         }
-
         Poll::Ready(
             ready!(self.stream_read_rx.poll_recv(cx)).map_or(Err(broken_pipe()), |data| {
                 if data.len() == 0 {
@@ -196,12 +196,15 @@ impl AsyncWrite for MuxStream {
 
 pub struct MuxConnection<S> {
     inner: S,
-    item: Option<Bytes>,
+    items: VecDeque<Bytes>,
 }
 
 impl<S> MuxConnection<S> {
     pub fn new(inner: S) -> Self {
-        MuxConnection { inner, item: None }
+        MuxConnection {
+            inner,
+            items: VecDeque::with_capacity(1),
+        }
     }
 }
 
@@ -211,26 +214,22 @@ impl<S: AsyncRead + Unpin> Stream for MuxConnection<S> {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let me = &mut *self;
         let mut ftype = [0u8; 1];
-        ready!(Pin::new(&mut AsyncReadExt::read_exact(&mut me.inner, &mut ftype)).poll(cx))?;
+        ready!(Pin::new(&mut me.inner.read_exact(&mut ftype)).poll(cx))?;
         match ftype[0] {
             FRAME_STREAM => {
                 let mut stream_id = [0u8; 2];
-                ready!(
-                    Pin::new(&mut AsyncReadExt::read_exact(&mut me.inner, &mut stream_id)).poll(cx)
-                )?;
+                ready!(Pin::new(&mut me.inner.read_exact(&mut stream_id)).poll(cx))?;
                 let stream_id = u16::from_be_bytes(stream_id);
                 let mut len = [0u8; 2];
-                ready!(Pin::new(&mut AsyncReadExt::read_exact(&mut me.inner, &mut len)).poll(cx))?;
+                ready!(Pin::new(&mut me.inner.read_exact(&mut len)).poll(cx))?;
                 let len = u16::from_be_bytes(len) as usize;
                 let mut data = vec![0u8; len];
-                ready!(Pin::new(&mut AsyncReadExt::read_exact(&mut me.inner, &mut data)).poll(cx))?;
+                ready!(Pin::new(&mut me.inner.read_exact(&mut data)).poll(cx))?;
                 Poll::Ready(Some(Ok(MuxFrame::Stream(stream_id, data))))
             }
             FRAME_STREAM_FIN => {
                 let mut stream_id = [0u8; 2];
-                ready!(
-                    Pin::new(&mut AsyncReadExt::read_exact(&mut me.inner, &mut stream_id)).poll(cx)
-                )?;
+                ready!(Pin::new(&mut me.inner.read_exact(&mut stream_id)).poll(cx))?;
                 let stream_id = u16::from_be_bytes(stream_id);
                 Poll::Ready(Some(Ok(MuxFrame::StreamFin(stream_id))))
             }
@@ -242,39 +241,33 @@ impl<S: AsyncRead + Unpin> Stream for MuxConnection<S> {
 impl<S: AsyncWrite + Unpin> Sink<MuxFrame> for MuxConnection<S> {
     type Error = io::Error;
 
-    fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        if self.item.is_none() {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let me = &mut *self;
+        if let Some(item) = me.items.pop_front() {
+            ready!(Pin::new(&mut me.inner.write_all(&item)).poll(cx))?;
         }
+        Poll::Ready(Ok(()))
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: MuxFrame) -> Result<(), Self::Error> {
-        // TODO perhaps store multiple items in VecDeque?
-        self.item.replace(item.to_bytes());
+        self.items.push_back(item.to_bytes());
         Ok(())
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let me = &mut *self;
-        if let Some(item) = me.item.take() {
-            ready!(Pin::new(&mut AsyncWriteExt::write_all(&mut me.inner, &item)).poll(cx))?;
+        while let Some(item) = me.items.pop_front() {
+            ready!(Pin::new(&mut me.inner.write_all(&item)).poll(cx))?;
         }
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        // TODO manual flush?
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let me = &mut *self;
-        if me.item.is_none() {
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
+        while let Some(item) = me.items.pop_front() {
+            ready!(Pin::new(&mut me.inner.write_all(&item)).poll(cx))?;
         }
+        Poll::Ready(Ok(()))
     }
 }
 
@@ -294,7 +287,7 @@ impl MuxSession {
     fn run_frame_receive_loop(
         streams: Streams,
         mut frame_stream: SplitStream<MuxConnection<Box<dyn ProxyStream>>>,
-        recv_end: Option<Arc<TokioMutex<bool>>>,
+        recv_end: Option<Arc<Mutex<bool>>>,
         mut accept: Option<Accept>,
     ) -> AbortHandle {
         let task = async move {
@@ -370,7 +363,7 @@ impl MuxSession {
         streams: Streams,
         mut frame_sink: SplitSink<MuxConnection<Box<dyn ProxyStream>>, MuxFrame>,
         mut frame_write_rx: Receiver<MuxFrame>,
-        send_end: Option<Arc<TokioMutex<bool>>>,
+        send_end: Option<Arc<Mutex<bool>>>,
     ) -> AbortHandle {
         let task = async move {
             while let Some(frame) = frame_write_rx.recv().await {
@@ -408,11 +401,8 @@ impl MuxSession {
     ) -> MuxConnector {
         let (frame_sink, frame_stream) = MuxConnection::new(conn).split();
         let (frame_write_tx, frame_write_rx) = mpsc::channel::<MuxFrame>(1);
-        let (recv_end, send_end) = (
-            Arc::new(TokioMutex::new(false)),
-            Arc::new(TokioMutex::new(false)),
-        );
-        let streams: Streams = Arc::new(TokioMutex::new(HashMap::new()));
+        let (recv_end, send_end) = (Arc::new(Mutex::new(false)), Arc::new(Mutex::new(false)));
+        let streams: Streams = Arc::new(Mutex::new(HashMap::new()));
         let recv_handle = Self::run_frame_receive_loop(
             streams.clone(),
             frame_stream,
@@ -442,7 +432,7 @@ impl MuxSession {
     pub fn acceptor(conn: Box<dyn ProxyStream>) -> MuxAcceptor {
         let (frame_sink, frame_stream) = MuxConnection::new(conn).split();
         let (frame_write_tx, frame_write_rx) = mpsc::channel::<MuxFrame>(1);
-        let streams: Streams = Arc::new(TokioMutex::new(HashMap::new()));
+        let streams: Streams = Arc::new(Mutex::new(HashMap::new()));
         let (stream_accept_tx, stream_accept_rx) = mpsc::channel(1);
         let session_id = random_u16();
         let recv_handle = Self::run_frame_receive_loop(
@@ -475,9 +465,9 @@ pub struct MuxConnector {
     // Sender for sending frames from streams to the send loop.
     frame_write_tx: Sender<MuxFrame>,
     // Flag the end of the receive loop.
-    recv_end: Arc<TokioMutex<bool>>,
+    recv_end: Arc<Mutex<bool>>,
     // Flag the end of the send loop.
-    send_end: Arc<TokioMutex<bool>>,
+    send_end: Arc<Mutex<bool>>,
     // Handle to abort the receive loop.
     recv_handle: AbortHandle,
     // Handle to abort the send loop.
@@ -494,8 +484,8 @@ impl MuxConnector {
         session_id: SessionId,
         streams: Streams,
         frame_write_tx: Sender<MuxFrame>,
-        recv_end: Arc<TokioMutex<bool>>,
-        send_end: Arc<TokioMutex<bool>>,
+        recv_end: Arc<Mutex<bool>>,
+        send_end: Arc<Mutex<bool>>,
         recv_handle: AbortHandle,
         send_handle: AbortHandle,
     ) -> Self {

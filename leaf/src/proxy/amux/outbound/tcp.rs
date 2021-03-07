@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::Mutex;
 
 use crate::{
     app::dns_client::DnsClient,
@@ -28,8 +28,8 @@ pub struct MuxManager {
     pub concurrency: usize,
     pub bind_addr: SocketAddr,
     pub dns_client: Arc<DnsClient>,
-    pub connectors: Arc<TokioMutex<Vec<MuxConnector>>>,
-    pub monitor_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
+    pub connectors: Arc<Mutex<Vec<MuxConnector>>>,
+    pub monitor_task: Mutex<Option<BoxFuture<'static, ()>>>,
 }
 
 impl MuxManager {
@@ -42,7 +42,7 @@ impl MuxManager {
         bind_addr: SocketAddr,
         dns_client: Arc<DnsClient>,
     ) -> Self {
-        let connectors: Arc<TokioMutex<Vec<MuxConnector>>> = Arc::new(TokioMutex::new(Vec::new()));
+        let connectors: Arc<Mutex<Vec<MuxConnector>>> = Arc::new(Mutex::new(Vec::new()));
         let connectors2 = connectors.clone();
         // A task to monitor and remove completed connectors.
         // TODO passive detection
@@ -63,7 +63,7 @@ impl MuxManager {
             bind_addr,
             dns_client,
             connectors,
-            monitor_task: TokioMutex::new(Some(monitor_task)),
+            monitor_task: Mutex::new(Some(monitor_task)),
         }
     }
 
