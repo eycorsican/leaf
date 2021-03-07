@@ -44,7 +44,7 @@ fn main() {
                 .value_name("BYTES")
                 .about("Sets the stack size of runtime threads.")
                 .takes_value(true)
-                .default_value("2097152"),
+                .default_value("24576"),
         )
         .arg(
             Arg::new("test-outbound")
