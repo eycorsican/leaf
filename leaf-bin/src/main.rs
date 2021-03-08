@@ -17,6 +17,16 @@ fn get_version_string() -> String {
     }
 }
 
+#[cfg(debug_assertions)]
+fn default_thread_stack_size() -> usize {
+    2097152
+}
+
+#[cfg(not(debug_assertions))]
+fn default_thread_stack_size() -> usize {
+    24576
+}
+
 fn main() {
     let matches = App::new("leaf")
         .version(get_version_string().as_str())
@@ -44,7 +54,7 @@ fn main() {
                 .value_name("BYTES")
                 .about("Sets the stack size of runtime threads.")
                 .takes_value(true)
-                .default_value("24576"),
+                .default_value(&default_thread_stack_size().to_string()),
         )
         .arg(
             Arg::new("test-outbound")
