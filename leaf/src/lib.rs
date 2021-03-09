@@ -6,4 +6,4 @@ pub mod proxy;
 pub mod session;
 pub mod util;
 
-pub type Runner = std::pin::Pin<Box<dyn std::future::Future<Output = ()>>>;
+pub type Runner = futures::future::BoxFuture<'static, ()>;

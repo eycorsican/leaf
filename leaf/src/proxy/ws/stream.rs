@@ -27,6 +27,14 @@ impl<S> WebSocketToStream<S> {
     }
 }
 
+fn broken_pipe() -> io::Error {
+    io::Error::new(io::ErrorKind::Interrupted, "broken pipe")
+}
+
+fn invalid_frame() -> io::Error {
+    io::Error::new(io::ErrorKind::Interrupted, "invalid frame")
+}
+
 impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRead
     for WebSocketToStream<S>
 {
@@ -38,50 +46,26 @@ impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRe
         if !self.buf.is_empty() {
             let to_read = min(buf.len(), self.buf.len());
             let for_read = self.buf.split_to(to_read);
-            (&mut buf[..to_read]).copy_from_slice(&for_read[..to_read]);
+            buf[..to_read].copy_from_slice(&for_read[..to_read]);
             return Poll::Ready(Ok(to_read));
         }
-        let item = match Pin::new(&mut self.inner).poll_next(cx) {
-            Poll::Ready(item) => item,
-            Poll::Pending => return Poll::Pending,
-        };
-        match item {
-            Some(item) => {
-                match item {
-                    Ok(msg) => {
-                        match msg {
-                            Message::Binary(data) => {
-                                let to_read = min(buf.len(), data.len());
-                                (&mut buf[..to_read]).copy_from_slice(&data[..to_read]);
-                                if data.len() > to_read {
-                                    self.buf.extend_from_slice(&data[to_read..]);
-                                }
-                                Poll::Ready(Ok(to_read))
-                            }
-                            Message::Close(_) => Poll::Ready(Ok(0)),
-                            _ => {
-                                // FIXME
-                                Poll::Ready(Err(io::Error::new(
-                                    io::ErrorKind::Interrupted,
-                                    "unexpected ws msg",
-                                )))
-                            }
+        Poll::Ready(ready!(Pin::new(&mut self.inner).poll_next(cx)).map_or(
+            Err(broken_pipe()),
+            |item| {
+                item.map_or(Err(broken_pipe()), |msg| match msg {
+                    Message::Binary(data) => {
+                        let to_read = min(buf.len(), data.len());
+                        (&mut buf[..to_read]).copy_from_slice(&data[..to_read]);
+                        if data.len() > to_read {
+                            self.buf.extend_from_slice(&data[to_read..]);
                         }
+                        Ok(to_read)
                     }
-                    Err(err) => {
-                        // FIXME
-                        Poll::Ready(Err(io::Error::new(
-                            io::ErrorKind::Interrupted,
-                            format!("ws error: {}", err),
-                        )))
-                    }
-                }
-            }
-            None => {
-                // FIXME
-                Poll::Ready(Err(io::Error::new(io::ErrorKind::Interrupted, "none msg")))
-            }
-        }
+                    Message::Close(_) => Ok(0),
+                    _ => Err(invalid_frame()),
+                })
+            },
+        ))
     }
 }
 
@@ -93,23 +77,20 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
     ) -> Poll<io::Result<usize>> {
         ready!(Pin::new(&mut self.inner)
             .poll_ready(cx)
-            .map_err(|_| io::Error::new(io::ErrorKind::Interrupted, "ws send error")))?;
+            .map_err(|_| broken_pipe()))?;
 
-        let msg = Message::Binary(Vec::from(buf));
-        match Pin::new(&mut self.inner).start_send(msg) {
-            Err(_) => Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::Interrupted,
-                "ws send error",
-            ))),
-            Ok(()) => Poll::Ready(Ok(buf.len())),
-        }
+        let msg = Message::Binary(buf.to_vec());
+        Pin::new(&mut self.inner)
+            .start_send(msg)
+            .map_err(|_| broken_pipe())?;
+
+        Poll::Ready(Ok(buf.len()))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
-        match Pin::new(&mut self.inner).poll_flush(cx) {
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(_) => Poll::Ready(Ok(())),
-        }
+        Pin::new(&mut self.inner)
+            .poll_flush(cx)
+            .map_err(|_| broken_pipe())
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {

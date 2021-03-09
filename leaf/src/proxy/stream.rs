@@ -77,7 +77,7 @@ where
             if let Some(mut head) = self.head.take() {
                 let payload_size = buf.len();
                 head.extend_from_slice(buf);
-                ready!(Pin::new(&mut self.get_mut().inner.write_all(&head)).poll(cx))?;
+                ready!(Pin::new(&mut self.inner.write_all(&head)).poll(cx))?;
                 return Poll::Ready(Ok(payload_size));
             }
         }

@@ -34,7 +34,6 @@ impl std::fmt::Display for DatagramSource {
     }
 }
 
-// TODO use references
 pub struct Session {
     /// The socket address of the remote peer of an inbound connection.
     pub source: SocketAddr,

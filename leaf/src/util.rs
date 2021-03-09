@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::runtime;
 
 use crate::{
     app::{
@@ -22,17 +21,6 @@ pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
     let inbound_manager = InboundManager::new(&config.inbounds, dispatcher, nat_manager);
     let runners = inbound_manager.get_runners();
     Ok(runners)
-}
-
-pub fn run_with_config(config: Config) -> Result<()> {
-    let mut rt = runtime::Builder::new()
-        .basic_scheduler()
-        .enable_all()
-        .build()
-        .unwrap();
-    let runners = create_runners(config)?;
-    rt.block_on(futures::future::join_all(runners));
-    Ok(())
 }
 
 pub async fn test_outbound(tag: &str, config: &Config) {
