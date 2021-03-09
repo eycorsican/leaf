@@ -19,12 +19,12 @@ fn get_version_string() -> String {
 
 #[cfg(debug_assertions)]
 fn default_thread_stack_size() -> usize {
-    2097152
+    2 * 1024 * 1024
 }
 
 #[cfg(not(debug_assertions))]
 fn default_thread_stack_size() -> usize {
-    24576
+    128 * 1024
 }
 
 fn main() {
