@@ -87,6 +87,10 @@ Trojan = trojan, 4.3.2.1, 443, password=123456, sni=www.domain.com
 # Trojan over WebSocket over TLS (TLS + WebSocket + Trojan)
 TrojanWS = trojan, 4.3.2.1, 443, password=123456, sni=www.domain.com, ws=true, ws-path=/abc
 
+# Trojan over amux streams which use WebSocket over TLS as the underlying connection (TLS + WebSocket + amux + Trojan)
+tls-ws-amux-trojan = trojan, www.domain.com, 443, password=112358, tls=true, ws=true, ws-path=/amux, amux=true
+tls-ws-amux-trojan2 = trojan, 1.0.0.1, 443, password=123456, sni=www.domain.com, ws=true, ws-path=/amux, ws-host=www.domain.com, amux=true, amux-max=16, amux-con=1
+
 [Proxy Group]
 # fallback 等效于 failover
 Fallback = fallback, Trojan, VMessWSS, SS, interval=600, timeout=5

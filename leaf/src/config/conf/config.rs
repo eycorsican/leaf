@@ -60,6 +60,10 @@ pub struct Proxy {
 
     // trojan
     pub sni: Option<String>,
+
+    pub amux: Option<bool>,
+    pub amux_max: Option<i32>,
+    pub amux_con: Option<i32>,
 }
 
 impl Default for Proxy {
@@ -78,6 +82,9 @@ impl Default for Proxy {
             ws_path: None,
             ws_host: None,
             sni: None,
+            amux: Some(false),
+            amux_max: Some(8),
+            amux_con: Some(2),
         }
     }
 }
@@ -333,6 +340,23 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 }
                 "sni" => {
                     proxy.sni = Some(v.to_string());
+                }
+                "amux" => proxy.amux = if v == "true" { Some(true) } else { Some(false) },
+                "amux-max" => {
+                    let i = if let Ok(i) = v.parse::<i32>() {
+                        Some(i)
+                    } else {
+                        None
+                    };
+                    proxy.amux_max = i;
+                }
+                "amux-con" => {
+                    let i = if let Ok(i) = v.parse::<i32>() {
+                        Some(i)
+                    } else {
+                        None
+                    };
+                    proxy.amux_con = i;
                 }
                 "interface" => {
                     proxy.interface = v.to_string();
@@ -761,13 +785,42 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     ws_outbound.settings = ws_settings;
                     ws_outbound.tag = format!("{}_ws_xxx", ext_proxy.tag.clone());
 
-                    // plain trojan
-                    let mut settings = internal::TrojanOutboundSettings::new();
+                    // amux
+                    let mut amux_outbound = internal::Outbound::new();
+                    amux_outbound.tag = ext_proxy.tag.clone();
+                    let mut amux_settings = internal::AMuxOutboundSettings::new();
+                    // always enable tls for trojan
+                    amux_settings.actors.push(tls_outbound.tag.clone());
+                    if ext_proxy.ws.unwrap() {
+                        amux_settings.actors.push(ws_outbound.tag.clone());
+                    }
                     if let Some(ext_address) = &ext_proxy.address {
-                        settings.address = ext_address.clone();
+                        amux_settings.address = ext_address.clone();
                     }
                     if let Some(ext_port) = &ext_proxy.port {
-                        settings.port = *ext_port as u32;
+                        amux_settings.port = *ext_port as u32;
+                    }
+                    if let Some(ext_max_accepts) = &ext_proxy.amux_max {
+                        amux_settings.max_accepts = *ext_max_accepts as u32;
+                    }
+                    if let Some(ext_concurrency) = &ext_proxy.amux_con {
+                        amux_settings.concurrency = *ext_concurrency as u32;
+                    }
+                    let amux_settings = amux_settings.write_to_bytes().unwrap();
+                    amux_outbound.settings = amux_settings;
+                    amux_outbound.bind = ext_proxy.interface.clone();
+                    amux_outbound.protocol = "amux".to_string();
+                    amux_outbound.tag = format!("{}_amux_xxx", ext_proxy.tag.clone());
+
+                    // plain trojan
+                    let mut settings = internal::TrojanOutboundSettings::new();
+                    if !ext_proxy.amux.unwrap() {
+                        if let Some(ext_address) = &ext_proxy.address {
+                            settings.address = ext_address.clone();
+                        }
+                        if let Some(ext_port) = &ext_proxy.port {
+                            settings.port = *ext_port as u32;
+                        }
                     }
                     if let Some(ext_password) = &ext_proxy.password {
                         settings.password = ext_password.clone();
@@ -780,9 +833,13 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     let mut chain_outbound = internal::Outbound::new();
                     chain_outbound.tag = ext_proxy.tag.clone();
                     let mut chain_settings = internal::ChainOutboundSettings::new();
-                    chain_settings.actors.push(tls_outbound.tag.clone());
-                    if ext_proxy.ws.unwrap() {
-                        chain_settings.actors.push(ws_outbound.tag.clone());
+                    if ext_proxy.amux.unwrap() {
+                        chain_settings.actors.push(amux_outbound.tag.clone());
+                    } else {
+                        chain_settings.actors.push(tls_outbound.tag.clone());
+                        if ext_proxy.ws.unwrap() {
+                            chain_settings.actors.push(ws_outbound.tag.clone());
+                        }
                     }
                     chain_settings.actors.push(outbound.tag.clone());
                     let chain_settings = chain_settings.write_to_bytes().unwrap();
@@ -793,6 +850,9 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     // always push chain first, in case there isn't final rule,
                     // the chain outbound will be the default one to use
                     outbounds.push(chain_outbound);
+                    if ext_proxy.amux.unwrap() {
+                        outbounds.push(amux_outbound);
+                    }
                     outbounds.push(tls_outbound);
                     if ext_proxy.ws.unwrap() {
                         outbounds.push(ws_outbound);
