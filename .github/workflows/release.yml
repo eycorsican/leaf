@@ -42,7 +42,7 @@ jobs:
         run: |
           export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
           export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
-          RUSTFLAGS="-Z strip=symbols"
+          export RUSTFLAGS="-Z strip=symbols"
           ./misc/build_cross.sh ${{ matrix.target }}
 
       - name: rename and compress artifacts
@@ -97,7 +97,7 @@ jobs:
         run: |
           export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
           export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
-          RUSTFLAGS="-Z strip=symbols"
+          export RUSTFLAGS="-Z strip=symbols"
           cargo build --release --target ${{ matrix.target }} -p leaf-bin
 
       - name: rename and compress artifacts
@@ -132,7 +132,7 @@ jobs:
 
       - name: build
         run: |
-          RUSTFLAGS="-Z strip=symbols"
+          export RUSTFLAGS="-Z strip=symbols"
           make ios
 
       - name: zip artifacts
@@ -218,7 +218,7 @@ jobs:
       - name: zip artifacts
         if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
         run: |
-          zip -9 leaf-${{ matrix.target }}.zip leaf-${{ matrix.target }}
+          gzip leaf-${{ matrix.target }}
 
       - name: zip artifacts
         if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
@@ -226,7 +226,18 @@ jobs:
           zip -9 leaf-${{ matrix.target }}.zip leaf-${{ matrix.target }}.exe
 
       - name: upload asset
-        id: upload-release-asset
+        if: ${{ matrix.target != 'x86_64-pc-windows-gnu' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ env.uploadurl }}
+          asset_path: ./leaf-${{ matrix.target }}.gz
+          asset_name: leaf-${{ matrix.target }}.gz
+          asset_content_type: application/octet-stream
+
+      - name: upload asset
+        if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -260,7 +271,6 @@ jobs:
           name: libleaf-ios.zip
 
       - name: upload asset
-        id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
