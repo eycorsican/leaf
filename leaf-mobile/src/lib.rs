@@ -15,9 +15,10 @@ use logger::ConsoleWriter;
 
 #[no_mangle]
 pub extern "C" fn run_leaf(path: *const c_char) {
-    if let Ok(path) = unsafe { CStr::from_ptr(path).to_str() } {
-        let config = leaf::config::from_file(path).expect("read config failed");
-
+    if let Ok(config) = unsafe { CStr::from_ptr(path).to_str() }
+        .map_err(Into::into)
+        .and_then(leaf::config::from_file)
+    {
         let loglevel = if let Some(log) = config.log.as_ref() {
             match log.level {
                 config::Log_Level::TRACE => log::LevelFilter::Trace,
@@ -75,7 +76,7 @@ pub extern "C" fn run_leaf(path: *const c_char) {
             }
         });
     } else {
-        error!("invalid config path");
+        error!("invalid config path or config file");
         return;
     }
 }
