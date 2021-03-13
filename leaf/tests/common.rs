@@ -97,7 +97,8 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         let outbound_manager = leaf::app::outbound::manager::OutboundManager::new(
             &config.outbounds,
             config.dns.as_ref().unwrap(),
-        );
+        )
+        .unwrap();
         let handler = outbound_manager.get("socks").unwrap();
         let mut sess = leaf::session::Session::default();
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());

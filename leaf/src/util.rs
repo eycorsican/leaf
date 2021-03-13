@@ -14,7 +14,7 @@ use crate::{
 };
 
 pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
-    let outbound_manager = OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap());
+    let outbound_manager = OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap())?;
     let router = Router::new(&config.routing_rules);
     let dispatcher = Arc::new(Dispatcher::new(outbound_manager, router));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
@@ -24,7 +24,8 @@ pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
 }
 
 pub async fn test_outbound(tag: &str, config: &Config) {
-    let outbound_manager = OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap());
+    let outbound_manager =
+        OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap()).unwrap();
     let handler = if let Some(v) = outbound_manager.get(tag) {
         v
     } else {

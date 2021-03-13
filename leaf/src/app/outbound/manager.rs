@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::{anyhow, Result};
 use log::*;
 use protobuf::Message;
 
@@ -58,7 +59,7 @@ pub struct OutboundManager {
 }
 
 impl OutboundManager {
-    pub fn new(outbounds: &protobuf::RepeatedField<Outbound>, dns: &Dns) -> Self {
+    pub fn new(outbounds: &protobuf::RepeatedField<Outbound>, dns: &Dns) -> Result<Self> {
         let mut handlers: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
         let mut default_handler: Option<String> = None;
         let mut dns_servers = Vec::new();
@@ -72,17 +73,12 @@ impl OutboundManager {
             dns_hosts.insert(name.to_owned(), ips.values.to_vec());
         }
         if dns_servers.is_empty() {
-            panic!("no dns servers");
+            Err(anyhow!("no dns servers"))?;
         }
         let dns_bind_addr = {
             let addr = format!("{}:0", &dns.bind);
-            let addr = match SocketAddrV4::from_str(&addr) {
-                Ok(a) => a,
-                Err(e) => {
-                    error!("invalid bind addr [{}] in dns: {}", &dns.bind, e);
-                    panic!("");
-                }
-            };
+            let addr = SocketAddrV4::from_str(&addr)
+                .map_err(|e| anyhow!("invalid bind addr [{}] in dns: {}", &dns.bind, e))?;
             SocketAddr::from(addr)
         };
         let dns_client = Arc::new(DnsClient::new(dns_servers, dns_hosts, dns_bind_addr));
@@ -95,16 +91,14 @@ impl OutboundManager {
             }
             let bind_addr = {
                 let addr = format!("{}:0", &outbound.bind);
-                let addr = match SocketAddrV4::from_str(&addr) {
-                    Ok(a) => a,
-                    Err(e) => {
-                        error!(
-                            "invalid bind addr [{}] in outbound {}: {}",
-                            &outbound.bind, &outbound.tag, e
-                        );
-                        panic!("");
-                    }
-                };
+                let addr = SocketAddrV4::from_str(&addr).map_err(|e| {
+                    anyhow!(
+                        "invalid bind addr [{}] in outbound {}: {}",
+                        &outbound.bind,
+                        &outbound.tag,
+                        e
+                    )
+                })?;
                 SocketAddr::from(addr)
             };
             match outbound.protocol.as_str() {
@@ -462,16 +456,14 @@ impl OutboundManager {
                 let tag = String::from(&outbound.tag);
                 let bind_addr = {
                     let addr = format!("{}:0", &outbound.bind);
-                    let addr = match SocketAddrV4::from_str(&addr) {
-                        Ok(a) => a,
-                        Err(e) => {
-                            error!(
-                                "invalid bind addr [{}] in outbound {}: {}",
-                                &outbound.bind, &outbound.tag, e
-                            );
-                            panic!("");
-                        }
-                    };
+                    let addr = SocketAddrV4::from_str(&addr).map_err(|e| {
+                        anyhow!(
+                            "invalid bind addr [{}] in outbound {}: {}",
+                            &outbound.bind,
+                            &outbound.tag,
+                            e
+                        )
+                    })?;
                     SocketAddr::from(addr)
                 };
                 match outbound.protocol.as_str() {
@@ -725,10 +717,10 @@ impl OutboundManager {
             }
         }
 
-        OutboundManager {
+        Ok(OutboundManager {
             handlers,
             default_handler,
-        }
+        })
     }
 
     pub fn add(&mut self, tag: String, handler: Arc<dyn OutboundHandler>) {
