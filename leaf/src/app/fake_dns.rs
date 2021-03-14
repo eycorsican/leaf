@@ -29,8 +29,8 @@ pub struct FakeDns {
 
 impl FakeDns {
     pub fn new(mode: FakeDnsMode) -> Self {
-        let min_cursor = Self::ip_to_u32(&Ipv4Addr::new(240, 255, 0, 0));
-        let max_cursor = Self::ip_to_u32(&Ipv4Addr::new(240, 255, 4, 255));
+        let min_cursor = Self::ip_to_u32(&Ipv4Addr::new(198, 18, 0, 0));
+        let max_cursor = Self::ip_to_u32(&Ipv4Addr::new(198, 18, 4, 255));
 
         FakeDns {
             ip_to_domain: HashMap::new(),
