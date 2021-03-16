@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::{
     self,
-    io::{AsyncRead, AsyncWrite},
+    io::{AsyncRead, AsyncWrite, ReadBuf},
 };
 
 use crate::{
@@ -88,7 +88,7 @@ impl NetStackImpl {
                     let _g = lwip_lock.lock();
                     unsafe { sys_check_timeouts() };
                 }
-                tokio::time::delay_for(time::Duration::from_millis(250)).await;
+                tokio::time::sleep(time::Duration::from_millis(250)).await;
             }
         });
 
@@ -309,15 +309,15 @@ impl AsyncRead for NetStackImpl {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         match self.rx.try_recv() {
             Ok(pkt) => {
-                if pkt.len() > buf.len() {
+                if pkt.len() > buf.remaining() {
                     warn!("truncated pkt, short buf");
                 }
-                (&mut buf[..pkt.len()]).copy_from_slice(&pkt);
-                Poll::Ready(Ok(pkt.len()))
+                buf.put_slice(&pkt);
+                Poll::Ready(Ok(()))
             }
             Err(_) => {
                 if let Some(waker) = self.waker.as_ref() {

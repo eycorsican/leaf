@@ -9,7 +9,7 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tungstenite::error::Error as WsError;
 use tungstenite::Message;
 
@@ -41,27 +41,27 @@ impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRe
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         if !self.buf.is_empty() {
-            let to_read = min(buf.len(), self.buf.len());
+            let to_read = min(buf.remaining(), self.buf.len());
             let for_read = self.buf.split_to(to_read);
-            buf[..to_read].copy_from_slice(&for_read[..to_read]);
-            return Poll::Ready(Ok(to_read));
+            buf.put_slice(&for_read[..to_read]);
+            return Poll::Ready(Ok(()));
         }
         Poll::Ready(ready!(Pin::new(&mut self.inner).poll_next(cx)).map_or(
             Err(broken_pipe()),
             |item| {
                 item.map_or(Err(broken_pipe()), |msg| match msg {
                     Message::Binary(data) => {
-                        let to_read = min(buf.len(), data.len());
-                        (&mut buf[..to_read]).copy_from_slice(&data[..to_read]);
+                        let to_read = min(buf.remaining(), data.len());
+                        buf.put_slice(&data[..to_read]);
                         if data.len() > to_read {
                             self.buf.extend_from_slice(&data[to_read..]);
                         }
-                        Ok(to_read)
+                        Ok(())
                     }
-                    Message::Close(_) => Ok(0),
+                    Message::Close(_) => Ok(()),
                     _ => Err(invalid_frame()),
                 })
             },

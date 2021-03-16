@@ -37,7 +37,7 @@ impl UdpOutboundHandler for Handler {
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
         let mut rng = StdRng::from_entropy();
-        let i: usize = rng.gen_range(0, self.actors.len());
+        let i: usize = rng.gen_range(0..self.actors.len());
         debug!(
             "random handles udp [{}] to [{}]",
             sess.destination,

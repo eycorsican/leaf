@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use async_socks5::{AddrKind, Auth, SocksDatagram, SocksDatagramRecvHalf, SocksDatagramSendHalf};
+use async_socks5::{AddrKind, Auth, SocksDatagram};
 use async_trait::async_trait;
 use futures::future::TryFutureExt;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -82,7 +82,8 @@ where
         Box<dyn OutboundDatagramRecvHalf>,
         Box<dyn OutboundDatagramSendHalf>,
     ) {
-        let (rh, sh) = self.socket.split();
+        let rh = Arc::new(self.socket);
+        let sh = rh.clone();
         (
             Box::new(DatagramRecvHalf(rh)),
             Box::new(DatagramSendHalf(sh)),
@@ -90,7 +91,7 @@ where
     }
 }
 
-pub struct DatagramRecvHalf<S>(SocksDatagramRecvHalf<S>);
+pub struct DatagramRecvHalf<S>(Arc<SocksDatagram<S>>);
 
 #[async_trait]
 impl<S> OutboundDatagramRecvHalf for DatagramRecvHalf<S>
@@ -110,7 +111,7 @@ where
     }
 }
 
-pub struct DatagramSendHalf<S>(SocksDatagramSendHalf<S>);
+pub struct DatagramSendHalf<S>(Arc<SocksDatagram<S>>);
 
 #[async_trait]
 impl<S> OutboundDatagramSendHalf for DatagramSendHalf<S>

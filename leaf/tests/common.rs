@@ -4,15 +4,13 @@ use futures::future::abortable;
 use futures::FutureExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, ToSocketAddrs, UdpSocket};
-use tokio::stream::StreamExt;
 use tokio::time::timeout;
 
 pub async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
-    let mut listener = TcpListener::bind(addr).await.unwrap();
-    let mut incoming = listener.incoming();
-    while let Some(stream) = incoming.next().await {
-        match stream {
-            Ok(mut stream) => {
+    let listener = TcpListener::bind(addr).await.unwrap();
+    loop {
+        match listener.accept().await {
+            Ok((mut stream, _)) => {
                 tokio::spawn(async move {
                     let (mut r, mut w) = stream.split();
                     let _ = tokio::io::copy(&mut r, &mut w).await;
@@ -26,7 +24,7 @@ pub async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
 }
 
 pub async fn run_udp_echo_server<A: ToSocketAddrs>(addr: A) {
-    let mut socket = UdpSocket::bind(addr).await.unwrap();
+    let socket = UdpSocket::bind(addr).await.unwrap();
     let mut buf = vec![0u8; 2 * 1024];
     loop {
         let (n, raddr) = socket.recv_from(&mut buf).await.unwrap();
@@ -128,8 +126,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         bg_task_handle.abort();
     };
 
-    let mut rt = tokio::runtime::Builder::new()
-        .basic_scheduler()
+    let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap();

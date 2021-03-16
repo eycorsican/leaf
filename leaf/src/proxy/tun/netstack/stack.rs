@@ -1,7 +1,7 @@
 use std::{io, pin::Pin, sync::Arc};
 
 use futures::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::Mutex as TokioMutex;
 
 use crate::app::dispatcher::Dispatcher;
@@ -32,8 +32,8 @@ impl AsyncRead for NetStack {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         AsyncRead::poll_read(Pin::new(&mut self.0), cx, buf)
     }
 }

@@ -63,9 +63,11 @@ pub mod wrapper {
 
 #[cfg(feature = "openssl-tls")]
 pub mod wrapper {
+    use std::pin::Pin;
     use std::sync::Once;
 
-    use openssl::ssl::{SslConnector, SslMethod};
+    use openssl::ssl::{Ssl, SslConnector, SslMethod};
+    use tokio_openssl::SslStream;
 
     use super::*;
 
@@ -97,12 +99,19 @@ pub mod wrapper {
                 .map_err(|e| anyhow!(format!("set alpn failed: {}", e)))?;
         }
 
-        let config = builder
-            .build()
-            .configure()
-            .map_err(|e| anyhow!(format!("configure tls failed: {}", e)))?;
-        let stream = tokio_openssl::connect(config, domain, stream)
-            .map_err(|_| anyhow!(format!("connect tls failed")))
+        let connector = builder.build();
+        let mut ssl =
+            Ssl::new(connector.context()).map_err(|_| anyhow!(format!("new tls stream failed")))?;
+        ssl.set_hostname(domain)
+            .map_err(|_| anyhow!(format!("set tls hostname failed")))?;
+        let mut stream =
+            SslStream::new(ssl, stream).map_err(|_| anyhow!(format!("new tls stream failed")))?;
+        Pin::new(&mut stream)
+            .connect()
+            .map_err(|e| {
+                println!("{}", e);
+                anyhow!(format!("connect tls stream failed"))
+            })
             .await?;
         Ok(Box::new(SimpleProxyStream(stream)))
     }

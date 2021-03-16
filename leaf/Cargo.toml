@@ -69,10 +69,10 @@ config-json = ["serde", "serde_derive", "serde_json"]
 outbound-direct = []
 outbound-drop = []
 outbound-redirect = []
-outbound-shadowsocks = ["hkdf", "sha-1", "md-5"]
+outbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 outbound-socks = ["async-socks5"]
 outbound-trojan = ["sha2", "hex"]
-outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5"]
+outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util"]
 outbound-tls = []
 outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 outbound-h2 = ["h2", "http", "url"]
@@ -83,32 +83,31 @@ outbound-tryall = []
 outbound-chain = []
 outbound-retry = []
 outbound-stat = ["warp"]
-outbound-amux= []
+outbound-amux= ["tokio-util"]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
-inbound-shadowsocks = ["hkdf", "sha-1", "md-5"]
+inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["hyper"]
 inbound-tun = ["tun"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
-inbound-amux = []
+inbound-amux = ["tokio-util"]
 inbound-chain = []
 
 [dependencies]
 # Common
-tokio = { version = "0.2", features = ["macros", "sync", "io-util", "net", "stream"] }
+tokio = { version = "1", features = ["macros", "sync", "io-util", "net", "time"] }
 futures-util = "0.3"
-protobuf = "2.20"
-socket2 = "0.3"
+protobuf = "2"
 thiserror = "1.0"
 futures = "0.3"
 async-trait = "0.1"
-byteorder = "1.3"
-bytes = "0.5"
+byteorder = "1"
+bytes = "1"
 lazy_static = "1.4.0"
 anyhow = "1.0"
-rand = "0.7"
+rand = "0.8"
 
 # config-json
 serde_json = { version = "1.0", features = ["raw_value"], optional = true }
@@ -116,7 +115,7 @@ serde_derive = { version = "1.0", optional = true }
 serde = { version = "1.0", optional = true }
 
 # config-conf
-regex = { version = "1.3", default-features=false, features=["std", "perf"], optional = true }
+regex = { version = "1", default-features=false, features=["std", "perf"], optional = true }
 
 # Openssl
 openssl = { version = "0.10", features = ["vendored"], optional = true }
@@ -125,50 +124,50 @@ openssl = { version = "0.10", features = ["vendored"], optional = true }
 ring = { version = "0.16", optional = true }
 
 # Router
-maxminddb = { version = "0.15.0", features = ["mmap"] }
-memmap = "0.7.0"
+maxminddb = { version = "0.17", features = ["mmap"] }
+memmap = "0.7"
 cidr = { version = "0.1", default-features = false }
 
 # DNS
-trust-dns-proto = "0.19"
+trust-dns-proto = "0.20"
 lru = "0.6"
 
 # Logging
 log = { version = "0.4", features = ["std"] }
-fern = { version = "0.5", features = ["colored"] }
+fern = { version = "0.6", features = ["colored"] }
 chrono = "0.4"
 colored = "2.0"
 
 # TLS/rustls
-tokio-rustls = { version = "0.14", optional = true }
-webpki-roots = { version = "0.20", optional = true }
+tokio-rustls = { version = "0.22", optional = true }
+webpki-roots = { version = "0.21", optional = true }
 
 # TLS/openssl
-openssl-probe = { version = "0.1.2", optional = true }
-tokio-openssl = { version = "0.4", optional = true }
+openssl-probe = { version = "0.1", optional = true }
+tokio-openssl = { version = "0.6", optional = true }
 
 # WebSocket
-tungstenite = { version = "0.11", default-features = false, optional = true }
-tokio-tungstenite = { version = "0.11", optional = true }
+tungstenite = { version = "0.13", default-features = false, optional = true }
+tokio-tungstenite = { version = "0.14", optional = true }
 
 # WebSocket/HTTP/2
-url = { version = "2.1", optional = true }
+url = { version = "2.2", optional = true }
 
 # HTTP inbound
-hyper = { version = "0.13.9", default-features = false, features = [], optional = true }
+hyper = { version = "0.14", default-features = false, features = ["server", "http1"], optional = true }
 
 # HTTP/2
-h2 = { version = "0.2.6", features = ["stream"], optional = true }
+h2 = { version = "0.3", features = ["stream"], optional = true }
 http = { version = "0.2", optional = true }
 
 # SOCKS outbound
-async-socks5 = { version = "0.3", optional = true }
+async-socks5 = { version = "0.5", optional = true }
 
 # VMess
 lz_fnv = { version = "0.1", optional = true }
-cfb-mode = { version = "0.5", optional = true }
-hmac = { version = "0.9", optional = true }
-aes = { version = "0.5", optional = true }
+cfb-mode = { version = "0.6", optional = true }
+hmac = { version = "0.10", optional = true }
+aes = { version = "0.6", optional = true }
 sha3 = { version = "0.9", optional = true }
 digest = { version = "0.9", optional = true }
 
@@ -179,7 +178,7 @@ uuid = { version = "0.8", optional = true }
 md-5 = { version = "0.9", optional = true }
 
 # Shadowsocks
-hkdf = { version = "0.9", optional = true }
+hkdf = { version = "0.10", optional = true }
 sha-1 = { version = "0.9", optional = true }
 
 # Trojan
@@ -190,13 +189,16 @@ hex = { version = "0.4", optional = true }
 lru_time_cache = { version = "0.11", optional = true }
 
 # Stat
-warp = { version = "0.2", optional = true }
+warp = { version = "0.3", optional = true }
+
+# amux
+tokio-util = { version = "0.6", default-features = false, features = ["io"], optional = true }
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
-tun = { version = "0.5.1", features = ["async"], optional = true }
+tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.55"
-protoc-rust = "2.0"
+bindgen = "0.57"
+protoc-rust = "2"

@@ -29,7 +29,7 @@ impl TcpOutboundHandler for Handler {
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>> {
         let mut rng = StdRng::from_entropy();
-        let i: usize = rng.gen_range(0, self.actors.len());
+        let i: usize = rng.gen_range(0..self.actors.len());
         debug!(
             "random handles tcp [{}] to [{}]",
             sess.destination,

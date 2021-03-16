@@ -62,9 +62,6 @@ impl TcpOutboundHandler for Handler {
             .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
         buf.put_slice(b"\r\n");
         // FIXME receive-only conns
-        Ok(Box::new(BufHeadProxyStream {
-            inner: stream,
-            head: Some(buf),
-        }))
+        Ok(Box::new(BufHeadProxyStream::new(stream, buf.freeze())))
     }
 }

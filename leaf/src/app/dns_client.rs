@@ -108,7 +108,7 @@ impl DnsClient {
         server: &SocketAddr,
         bind_addr: &SocketAddr,
     ) -> Result<Vec<IpAddr>> {
-        let mut socket = self.create_udp_socket(bind_addr).await?;
+        let socket = self.create_udp_socket(bind_addr).await?;
         let mut last_err = None;
         for _i in 0..option::MAX_DNS_RETRIES {
             debug!("looking up domain {} on {}", domain, server);

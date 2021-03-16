@@ -4,7 +4,7 @@ use aes::Aes128;
 use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
-use cfb_mode::stream_cipher::{NewStreamCipher, StreamCipher};
+use cfb_mode::cipher::{NewStreamCipher, StreamCipher};
 use cfb_mode::Cfb;
 use hmac::{Hmac, Mac, NewMac};
 use lz_fnv::{Fnv1a, FnvHasher};
@@ -51,7 +51,7 @@ impl RequestHeader {
             Err(_) => return Err(anyhow!("invalid system time")),
         };
         let mut rng = StdRng::from_entropy();
-        let delta: i32 = rng.gen_range(0, 30 * 2) - 30;
+        let delta: i32 = rng.gen_range(0..30 * 2) - 30;
         timestamp = timestamp.wrapping_add(delta as u64);
         let mut mac =
             Hmac::<Md5>::new_varkey(self.uuid.as_bytes()).map_err(|_| anyhow!("md5 failed"))?;
@@ -68,7 +68,7 @@ impl RequestHeader {
         buf.put_u8(sess.response_header);
         buf.put_u8(self.option);
 
-        let padding_len = StdRng::from_entropy().gen_range(0, 16) as u8;
+        let padding_len = StdRng::from_entropy().gen_range(0..16) as u8;
         let security = (padding_len << 4) | self.security as u8;
 
         buf.put_u8(security);

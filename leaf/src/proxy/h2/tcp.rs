@@ -8,7 +8,7 @@ use bytes::{Bytes, BytesMut};
 use futures::stream::Stream;
 use futures::TryFutureExt;
 use log::*;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use url::Url;
 
 use crate::{
@@ -26,16 +26,16 @@ impl AsyncRead for Adapter {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         if !self.recv_buf.is_empty() {
-            let to_read = min(buf.len(), self.recv_buf.len());
+            let to_read = min(buf.remaining(), self.recv_buf.len());
             let for_read = self.recv_buf.split_to(to_read);
-            (&mut buf[..to_read]).copy_from_slice(&for_read[..to_read]);
-            return Poll::Ready(Ok(to_read));
+            buf.put_slice(&for_read[..to_read]);
+            return Poll::Ready(Ok(()));
         }
         if self.recv_stream.is_end_stream() {
-            return Poll::Ready(Ok(0));
+            return Poll::Ready(Ok(()));
         }
         let item = match Pin::new(&mut self.recv_stream).poll_next(cx) {
             Poll::Ready(item) => item,
@@ -44,12 +44,12 @@ impl AsyncRead for Adapter {
         match item {
             Some(res) => match res {
                 Ok(data) => {
-                    let to_read = min(buf.len(), data.len());
-                    (&mut buf[..to_read]).copy_from_slice(&data[..to_read]);
+                    let to_read = min(buf.remaining(), data.len());
+                    buf.put_slice(&data[..to_read]);
                     if data.len() > to_read {
                         self.recv_buf.extend_from_slice(&data[to_read..]);
                     }
-                    Poll::Ready(Ok(to_read))
+                    Poll::Ready(Ok(()))
                 }
                 Err(e) => Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::Other,

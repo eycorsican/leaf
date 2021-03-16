@@ -1,7 +1,7 @@
 use std::{io, pin::Pin};
 
 use futures::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use super::tcp_stream_impl::TcpStreamImpl;
 
@@ -19,8 +19,8 @@ impl AsyncRead for TcpStream {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         AsyncRead::poll_read(Pin::new(&mut self.inner), cx, buf)
     }
 }

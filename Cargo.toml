@@ -8,7 +8,7 @@ members = [
 default-members = ["leaf-bin"]
 
 [profile.release]
-opt-level = "z"
+opt-level = 3
 lto = true
 # codegen-units = 1
 panic = "abort"

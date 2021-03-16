@@ -1,7 +1,7 @@
 use std::{pin::Pin, sync::Arc};
 
+use futures::stream::Stream;
 use futures::task::{Context, Poll};
-use tokio::stream::Stream;
 
 use crate::common::mutex::AtomicMutex;
 

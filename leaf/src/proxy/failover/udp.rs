@@ -161,7 +161,7 @@ impl Handler {
 
                     drop(schedule); // drop the guard, to release the lock
 
-                    tokio::time::delay_for(time::Duration::from_secs(check_interval as u64)).await;
+                    tokio::time::sleep(time::Duration::from_secs(check_interval as u64)).await;
                 }
             });
             Some(health_check_task)

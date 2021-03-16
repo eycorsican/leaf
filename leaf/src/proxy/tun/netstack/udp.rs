@@ -6,9 +6,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use futures::stream::Stream;
 use futures::task::{Context, Poll, Waker};
 use log::*;
-use tokio::stream::Stream;
 
 use crate::app::nat_manager::UdpPacket;
 use crate::common::mutex::AtomicMutex;

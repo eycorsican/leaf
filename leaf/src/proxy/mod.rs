@@ -6,9 +6,8 @@ use futures::future::select_ok;
 use futures::stream::Stream;
 use futures::TryFutureExt;
 use log::*;
-use socket2::{Domain, Socket, Type};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::net::{TcpSocket, UdpSocket};
 
 use crate::{
     app::dns_client::DnsClient,
@@ -108,19 +107,12 @@ async fn tcp_dial_task(
     dial_addr: SocketAddr,
     bind_addr: &SocketAddr,
 ) -> io::Result<(Box<dyn ProxyStream>, SocketAddr)> {
-    let socket = Socket::new(Domain::ipv4(), Type::stream(), None)?;
-    socket.bind(&bind_addr.clone().into())?;
+    let socket = TcpSocket::new_v4()?;
+    socket.bind(*bind_addr)?;
     trace!("dialing tcp {}", &dial_addr);
-    match TcpStream::connect_std(socket.into_tcp_stream(), &dial_addr).await {
-        Ok(stream) => {
-            trace!("connected tcp {}", &dial_addr);
-            Ok((Box::new(SimpleProxyStream(stream)), dial_addr))
-        }
-        Err(e) => Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("connect failed: {}", e),
-        )),
-    }
+    let stream = socket.connect(dial_addr).await?;
+    trace!("connected tcp {}", &dial_addr);
+    Ok((Box::new(SimpleProxyStream(stream)), dial_addr))
 }
 
 // Dials a TCP stream.

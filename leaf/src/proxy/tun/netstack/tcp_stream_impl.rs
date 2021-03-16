@@ -8,7 +8,7 @@ use futures::{
 };
 use log::*;
 use tokio::{
-    io::{AsyncRead, AsyncWrite},
+    io::{AsyncRead, AsyncWrite, ReadBuf},
     sync::mpsc::{unbounded_channel, UnboundedReceiver},
 };
 
@@ -181,17 +181,17 @@ impl AsyncRead for TcpStreamImpl {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         if !self.write_buf.is_empty() {
-            let to_read = min(buf.len(), self.write_buf.len());
+            let to_read = min(buf.remaining(), self.write_buf.len());
             let piece = self.write_buf.split_to(to_read);
-            buf[..to_read].copy_from_slice(&piece[..to_read]);
+            buf.put_slice(&piece[..to_read]);
             unsafe {
                 let _g = self.lwip_lock.lock();
                 tcp_recved(self.pcb, to_read as u16_t);
             }
-            return Poll::Ready(Ok(to_read));
+            return Poll::Ready(Ok(()));
         }
         if {
             let guard = self.lwip_lock.lock();
@@ -205,8 +205,8 @@ impl AsyncRead for TcpStreamImpl {
         }
         match ready!(self.rx.poll_recv(cx)) {
             Some(data) => {
-                let to_read = min(buf.len(), data.len());
-                buf[..to_read].copy_from_slice(&data[..to_read]);
+                let to_read = min(buf.remaining(), data.len());
+                buf.put_slice(&data[..to_read]);
                 if to_read < data.len() {
                     self.write_buf.extend_from_slice(&data[to_read..]);
                 }
@@ -214,9 +214,9 @@ impl AsyncRead for TcpStreamImpl {
                     let _g = self.lwip_lock.lock();
                     tcp_recved(self.pcb, to_read as u16_t);
                 }
-                Poll::Ready(Ok(to_read))
+                Poll::Ready(Ok(()))
             }
-            None => Poll::Ready(Ok(0)),
+            None => Poll::Ready(Ok(())),
         }
     }
 }

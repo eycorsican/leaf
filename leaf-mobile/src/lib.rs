@@ -47,8 +47,7 @@ pub extern "C" fn run_leaf(path: *const c_char) {
         }
         leaf::common::log::apply_logger(logger);
 
-        let mut rt = tokio::runtime::Builder::new()
-            .basic_scheduler()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();

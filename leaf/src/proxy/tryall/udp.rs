@@ -40,7 +40,7 @@ impl UdpOutboundHandler for Handler {
         for (i, a) in self.actors.iter().enumerate() {
             let t = async move {
                 if self.delay_base > 0 {
-                    tokio::time::delay_for(std::time::Duration::from_millis(
+                    tokio::time::sleep(std::time::Duration::from_millis(
                         (self.delay_base * i as u32) as u64,
                     ))
                     .await;

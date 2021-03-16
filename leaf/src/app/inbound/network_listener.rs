@@ -184,13 +184,13 @@ impl InboundListener for NetworkInboundListener {
 
         if self.handler.has_tcp() {
             let tcp_task = async move {
-                let mut listener = TcpListener::bind(format!("{}:{}", address, port).as_str())
+                let listener = TcpListener::bind(format!("{}:{}", address, port).as_str())
                     .await
                     .unwrap();
                 info!("inbound listening tcp {}:{}", address, port);
-                while let Some(stream) = listener.next().await {
-                    match stream {
-                        Ok(stream) => {
+                loop {
+                    match listener.accept().await {
+                        Ok((stream, _)) => {
                             tokio::spawn(handle_inbound_stream(
                                 stream,
                                 handler.clone(),
@@ -199,7 +199,8 @@ impl InboundListener for NetworkInboundListener {
                             ));
                         }
                         Err(e) => {
-                            warn!("accept connection failed: {}", e);
+                            error!("accept connection failed: {}", e);
+                            break;
                         }
                     }
                 }

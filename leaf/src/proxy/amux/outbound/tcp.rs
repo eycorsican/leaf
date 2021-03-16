@@ -51,7 +51,7 @@ impl MuxManager {
                 connectors2.lock().await.retain(|c| !c.is_done());
                 log::trace!("active connectors {}", connectors2.lock().await.len());
                 use std::time::Duration;
-                tokio::time::delay_for(Duration::from_secs(10)).await;
+                tokio::time::sleep(Duration::from_secs(10)).await;
             }
         });
         MuxManager {

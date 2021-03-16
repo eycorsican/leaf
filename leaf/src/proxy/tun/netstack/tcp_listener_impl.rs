@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, os::raw, pin::Pin, sync::Arc};
 
+use futures::stream::Stream;
 use futures::task::{Context, Poll, Waker};
 use log::*;
-use tokio::stream::Stream;
 
 use crate::common::mutex::AtomicMutex;
 

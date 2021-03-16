@@ -17,13 +17,13 @@ use futures::StreamExt;
 use futures::{
     ready,
     task::{Context, Poll},
-    Future,
+    Future, TryFutureExt,
 };
 use log::trace;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 
 #[cfg(feature = "inbound-amux")]
 pub mod inbound;
@@ -88,12 +88,21 @@ impl std::fmt::Display for MuxFrame {
 
 pub type Streams = Arc<Mutex<HashMap<StreamId, Sender<Vec<u8>>>>>;
 
+enum TaskState {
+    Idle,
+    Pending,
+}
+
 pub struct MuxStream {
     session_id: SessionId,
     stream_id: StreamId,
     stream_read_rx: Receiver<Vec<u8>>,
     frame_write_tx: Sender<MuxFrame>,
     buf: BytesMut,
+    write_state: TaskState,
+    write_task: Option<Pin<Box<dyn Future<Output = io::Result<()>> + 'static + Sync + Send>>>,
+    shutdown_state: TaskState,
+    shutdown_task: Option<Pin<Box<dyn Future<Output = io::Result<()>> + 'static + Sync + Send>>>,
 }
 
 impl MuxStream {
@@ -111,6 +120,10 @@ impl MuxStream {
                 stream_read_rx,
                 frame_write_tx,
                 buf: BytesMut::new(),
+                write_state: TaskState::Idle,
+                write_task: None,
+                shutdown_state: TaskState::Idle,
+                shutdown_task: None,
             },
             stream_read_tx,
         )
@@ -139,30 +152,27 @@ impl AsyncRead for MuxStream {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        buf: &mut ReadBuf,
+    ) -> Poll<io::Result<()>> {
         if !self.buf.is_empty() {
-            let to_read = min(buf.len(), self.buf.len());
+            let to_read = min(buf.remaining(), self.buf.len());
             let for_read = self.buf.split_to(to_read);
-            buf[..to_read].copy_from_slice(&for_read[..to_read]);
-            return Poll::Ready(Ok(to_read));
+            buf.put_slice(&for_read[..to_read]);
+            return Poll::Ready(Ok(()));
         }
         Poll::Ready(
-            ready!(Pin::new(&mut self.stream_read_rx).poll_next(cx)).map_or(
-                Err(broken_pipe()),
-                |data| {
-                    if data.len() == 0 {
-                        Ok(0) // EOF
-                    } else {
-                        let to_read = min(buf.len(), data.len());
-                        buf[..to_read].copy_from_slice(&data[..to_read]);
-                        if data.len() > to_read {
-                            self.buf.extend_from_slice(&data[to_read..]);
-                        }
-                        Ok(to_read)
+            ready!(self.stream_read_rx.poll_recv(cx)).map_or(Err(broken_pipe()), |data| {
+                if data.len() == 0 {
+                    Ok(()) // EOF
+                } else {
+                    let to_read = min(buf.remaining(), data.len());
+                    buf.put_slice(&data[..to_read]);
+                    if data.len() > to_read {
+                        self.buf.extend_from_slice(&data[to_read..]);
                     }
-                },
-            ),
+                    Ok(())
+                }
+            }),
         )
     }
 }
@@ -173,12 +183,39 @@ impl AsyncWrite for MuxStream {
         cx: &mut Context,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        let frame = MuxFrame::Stream(self.stream_id, buf.to_vec());
-        Poll::Ready(ready!(Box::pin(self.frame_write_tx.send(frame))
-            .as_mut()
-            .poll(cx)
-            .map_ok(|_| buf.len())
-            .map_err(|_| broken_pipe())))
+        loop {
+            match self.write_state {
+                TaskState::Idle => {
+                    let frame = MuxFrame::Stream(self.stream_id, buf.to_vec());
+                    let tx = self.frame_write_tx.clone();
+                    let task =
+                        Box::pin(async move { tx.send(frame).map_err(|_| broken_pipe()).await });
+                    self.write_task.replace(task);
+                    self.write_state = TaskState::Pending;
+                }
+                TaskState::Pending => {
+                    if let Some(mut task) = self.write_task.take() {
+                        match task.as_mut().poll(cx) {
+                            Poll::Ready(res) => {
+                                self.write_state = TaskState::Idle;
+                                match res {
+                                    Ok(_) => {
+                                        return Poll::Ready(Ok(buf.len()));
+                                    }
+                                    Err(e) => {
+                                        return Poll::Ready(Err(e));
+                                    }
+                                }
+                            }
+                            Poll::Pending => {
+                                self.write_task.replace(task);
+                                return Poll::Pending;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
@@ -186,12 +223,39 @@ impl AsyncWrite for MuxStream {
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
-        let frame = MuxFrame::StreamFin(self.stream_id);
-        Poll::Ready(ready!(Box::pin(self.frame_write_tx.send(frame))
-            .as_mut()
-            .poll(cx)
-            .map_ok(|_| ())
-            .map_err(|_| broken_pipe())))
+        loop {
+            match self.shutdown_state {
+                TaskState::Idle => {
+                    let frame = MuxFrame::StreamFin(self.stream_id);
+                    let tx = self.frame_write_tx.clone();
+                    let task =
+                        Box::pin(async move { tx.send(frame).map_err(|_| broken_pipe()).await });
+                    self.shutdown_task.replace(task);
+                    self.shutdown_state = TaskState::Pending;
+                }
+                TaskState::Pending => {
+                    if let Some(mut task) = self.shutdown_task.take() {
+                        match task.as_mut().poll(cx) {
+                            Poll::Ready(res) => {
+                                self.shutdown_state = TaskState::Idle;
+                                match res {
+                                    Ok(_) => {
+                                        return Poll::Ready(Ok(()));
+                                    }
+                                    Err(e) => {
+                                        return Poll::Ready(Err(e));
+                                    }
+                                }
+                            }
+                            Poll::Pending => {
+                                self.shutdown_task.replace(task);
+                                return Poll::Pending;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -283,6 +347,7 @@ impl<S: AsyncRead + Unpin> Stream for MuxConnection<S> {
     type Item = io::Result<MuxFrame>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        use tokio_util::io::poll_read_buf;
         let me = &mut *self;
         loop {
             // Upon `None` return, the `read_buf` must have properly reserved
@@ -291,8 +356,11 @@ impl<S: AsyncRead + Unpin> Stream for MuxConnection<S> {
                 return Poll::Ready(Some(Ok(frame)));
             }
             me.read_buf.reserve(1); // avoid spurious EOF
-            let n = ready!(Pin::new(&mut me.inner).poll_read_buf(cx, &mut me.read_buf))?;
-            if n == 0 {
+            let bytect = match poll_read_buf(Pin::new(&mut me.inner), cx, &mut me.read_buf)? {
+                Poll::Ready(ct) => ct,
+                Poll::Pending => return Poll::Pending,
+            };
+            if bytect == 0 {
                 return Poll::Ready(Some(Err(broken_pipe())));
             }
         }
@@ -391,7 +459,7 @@ impl MuxSession {
                                     }
                                 }
                                 // Sends data to the stream.
-                                if let Some(mut stream_read_tx) =
+                                if let Some(stream_read_tx) =
                                     streams.lock().await.get(&stream_id).cloned()
                                 {
                                     // FIXME error
@@ -400,7 +468,7 @@ impl MuxSession {
                             }
                             MuxFrame::StreamFin(stream_id) => {
                                 // Send an empty buffer to indicate EOF.
-                                if let Some(mut stream_read_tx) =
+                                if let Some(stream_read_tx) =
                                     streams.lock().await.get(&stream_id).cloned()
                                 {
                                     // FIXME error
@@ -408,7 +476,7 @@ impl MuxSession {
                                 }
                                 let streams2 = streams.clone();
                                 tokio::spawn(async move {
-                                    delay_for(Duration::from_secs(4)).await;
+                                    sleep(Duration::from_secs(4)).await;
                                     streams2.lock().await.remove(&stream_id);
                                 });
                             }
@@ -448,7 +516,7 @@ impl MuxSession {
                         let streams2 = streams.clone();
                         let stream_id2 = *stream_id;
                         tokio::spawn(async move {
-                            delay_for(Duration::from_secs(4)).await;
+                            sleep(Duration::from_secs(4)).await;
                             streams2.lock().await.remove(&stream_id2);
                         });
                     }
@@ -674,6 +742,6 @@ impl Stream for MuxAcceptor {
     type Item = MuxStream;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.stream_accept_rx).poll_next(cx)
+        self.stream_accept_rx.poll_recv(cx)
     }
 }

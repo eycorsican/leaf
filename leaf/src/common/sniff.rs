@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use byteorder::{BigEndian, ByteOrder};
 use bytes::BytesMut;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 use tokio::time::timeout;
 
 pub struct SniffingStream<T> {
@@ -158,14 +158,14 @@ where
 impl<T: AsyncRead + Unpin> AsyncRead for SniffingStream<T> {
     fn poll_read(
         mut self: Pin<&mut Self>,
-        cx: &mut Context,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
         if !self.buf.is_empty() {
-            let to_read = min(buf.len(), self.buf.len());
+            let to_read = min(buf.remaining(), self.buf.len());
             let for_read = self.buf.split_to(to_read);
-            (&mut buf[..to_read]).copy_from_slice(&for_read[..to_read]);
-            Poll::Ready(Ok(to_read))
+            buf.put_slice(&for_read[..to_read]);
+            Poll::Ready(Ok(()))
         } else {
             AsyncRead::poll_read(Pin::new(&mut self.inner), cx, buf)
         }

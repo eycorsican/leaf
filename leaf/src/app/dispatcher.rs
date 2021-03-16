@@ -1,15 +1,10 @@
 use std::io::{self, ErrorKind};
-use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::{Context, Poll};
 use std::time::Duration;
 
-use futures::{
-    future::{self, Either},
-    ready, Future,
-};
+use futures::future::{self, Either};
 use log::*;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
@@ -82,80 +77,6 @@ fn log_udp(
     }
 }
 
-pub struct Transfer<'a, R: ?Sized, W: ?Sized> {
-    reader: &'a mut R,
-    read_done: bool,
-    writer: &'a mut W,
-    pos: usize,
-    cap: usize,
-    amt: u64,
-    buf: Box<[u8]>,
-}
-
-pub fn transfer<'a, R, W>(reader: &'a mut R, writer: &'a mut W) -> Transfer<'a, R, W>
-where
-    R: AsyncRead + Unpin + ?Sized,
-    W: AsyncWrite + Unpin + ?Sized,
-{
-    Transfer {
-        reader,
-        read_done: false,
-        writer,
-        amt: 0,
-        pos: 0,
-        cap: 0,
-        buf: vec![0; *option::LINK_BUFFER_SIZE * 1024].into_boxed_slice(),
-    }
-}
-
-impl<R, W> Future for Transfer<'_, R, W>
-where
-    R: AsyncRead + Unpin + ?Sized,
-    W: AsyncWrite + Unpin + ?Sized,
-{
-    type Output = io::Result<u64>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<u64>> {
-        loop {
-            // If our buffer is empty, then we need to read some data to
-            // continue.
-            if self.pos == self.cap && !self.read_done {
-                let me = &mut *self;
-                let n = ready!(Pin::new(&mut *me.reader).poll_read(cx, &mut me.buf))?;
-                if n == 0 {
-                    self.read_done = true;
-                } else {
-                    self.pos = 0;
-                    self.cap = n;
-                }
-            }
-
-            // If our buffer has some data, let's write it out!
-            while self.pos < self.cap {
-                let me = &mut *self;
-                let i = ready!(Pin::new(&mut *me.writer).poll_write(cx, &me.buf[me.pos..me.cap]))?;
-                if i == 0 {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::WriteZero,
-                        "write zero byte into writer",
-                    )));
-                } else {
-                    self.pos += i;
-                    self.amt += i as u64;
-                }
-            }
-
-            // If we've written all the data and we've seen EOF, flush out the
-            // data and finish the transfer.
-            if self.pos == self.cap && self.read_done {
-                let me = &mut *self;
-                ready!(Pin::new(&mut *me.writer).poll_flush(cx))?;
-                return Poll::Ready(Ok(self.amt));
-            }
-        }
-    }
-}
-
 pub struct Dispatcher {
     outbound_manager: OutboundManager,
     router: Router,
@@ -178,7 +99,8 @@ impl Dispatcher {
     }
 
     async fn dispatch_endpoint_tcp_start(&self) {
-        self.endpoint_tcp_sem.acquire().await.forget();
+        // FIXME panic
+        self.endpoint_tcp_sem.acquire().await.unwrap().forget();
         let pn = self.num_endpoint_tcp.fetch_add(1, Ordering::SeqCst);
         trace!("active proxied tcp connections +1: {}", pn + 1);
     }
@@ -190,7 +112,8 @@ impl Dispatcher {
     }
 
     async fn dispatch_direct_tcp_start(&self) {
-        self.direct_tcp_sem.acquire().await.forget();
+        // FIXME panic
+        self.direct_tcp_sem.acquire().await.unwrap().forget();
         let pn = self.num_direct_tcp.fetch_add(1, Ordering::SeqCst);
         trace!("active direct tcp connections +1: {}", pn + 1);
     }
@@ -283,11 +206,16 @@ impl Dispatcher {
                         &sess.destination,
                     );
 
-                    let (mut lr, mut lw) = tokio::io::split(lhs);
-                    let (mut rr, mut rw) = tokio::io::split(rhs);
+                    let (lr, mut lw) = tokio::io::split(lhs);
+                    let (rr, mut rw) = tokio::io::split(rhs);
 
-                    let l2r = transfer(&mut lr, &mut rw);
-                    let r2l = transfer(&mut rr, &mut lw);
+                    let mut lr = BufReader::with_capacity(*option::LINK_BUFFER_SIZE * 1024, lr);
+                    let mut rr = BufReader::with_capacity(*option::LINK_BUFFER_SIZE * 1024, rr);
+
+                    let l2r = Box::pin(tokio::io::copy_buf(&mut lr, &mut rw));
+                    let r2l = Box::pin(tokio::io::copy_buf(&mut rr, &mut lw));
+
+                    // TODO Propagate EOF signal.
 
                     // Drives both uplink and downlink to completion, i.e. read till EOF.
                     match future::select(l2r, r2l).await {
@@ -340,23 +268,25 @@ impl Dispatcher {
                             // TODO Perhaps we should not send FIN in order to compatible with some
                             // of the improperly implemented server programs, e.g. a server closes
                             // the write side after reading EOF on read side.
-                            let rw_shutdown = rw.shutdown();
+                            // let rw_shutdown = rw.shutdown();
 
                             // Drives both the above tasks to completion simultaneously and get the
                             // results.
-                            let (shutdown_res, timed_r2l_res) =
-                                future::join(rw_shutdown, timed_r2l).await;
+                            // let (shutdown_res, timed_r2l_res) =
+                            //     future::join(rw_shutdown, timed_r2l).await;
+
+                            let timed_r2l_res = timed_r2l.await;
 
                             // Logs the shutdown result.
-                            if let Err(e) = shutdown_res {
-                                debug!(
-                                    "tcp uplink {} -> {} error: {} [{}]",
-                                    &sess.source,
-                                    &sess.destination,
-                                    e,
-                                    &h.tag()
-                                );
-                            }
+                            // if let Err(e) = shutdown_res {
+                            //     debug!(
+                            //         "tcp uplink {} -> {} error: {} [{}]",
+                            //         &sess.source,
+                            //         &sess.destination,
+                            //         e,
+                            //         &h.tag()
+                            //     );
+                            // }
 
                             // Logs the downlink result.
                             match timed_r2l_res {
@@ -392,15 +322,15 @@ impl Dispatcher {
                             }
 
                             // Finally shuts down the inbound connection.
-                            if let Err(e) = lw.shutdown().await {
-                                debug!(
-                                    "tcp downlink {} <- {} error: {} [{}]",
-                                    &sess.source,
-                                    &sess.destination,
-                                    e,
-                                    &h.tag()
-                                );
-                            }
+                            // if let Err(e) = lw.shutdown().await {
+                            //     debug!(
+                            //         "tcp downlink {} <- {} error: {} [{}]",
+                            //         &sess.source,
+                            //         &sess.destination,
+                            //         e,
+                            //         &h.tag()
+                            //     );
+                            // }
                         }
 
                         // In case downlink returns first, the process is similar to the other
@@ -437,18 +367,20 @@ impl Dispatcher {
                                 &sess.destination
                             );
 
-                            let (shutdown_res, timed_l2r_res) =
-                                future::join(lw.shutdown(), timed_l2r).await;
+                            // let (shutdown_res, timed_l2r_res) =
+                            //     future::join(lw.shutdown(), timed_l2r).await;
 
-                            if let Err(e) = shutdown_res {
-                                debug!(
-                                    "tcp downlink {} <- {} error: {} [{}]",
-                                    &sess.source,
-                                    &sess.destination,
-                                    e,
-                                    &h.tag()
-                                );
-                            }
+                            let timed_l2r_res = timed_l2r.await;
+
+                            // if let Err(e) = shutdown_res {
+                            //     debug!(
+                            //         "tcp downlink {} <- {} error: {} [{}]",
+                            //         &sess.source,
+                            //         &sess.destination,
+                            //         e,
+                            //         &h.tag()
+                            //     );
+                            // }
 
                             match timed_l2r_res {
                                 Ok(up_res) => match up_res {
@@ -482,16 +414,36 @@ impl Dispatcher {
                                 }
                             }
 
-                            if let Err(e) = rw.shutdown().await {
-                                debug!(
-                                    "tcp uplink {} -> {} error: {} [{}]",
-                                    &sess.source,
-                                    &sess.destination,
-                                    e,
-                                    &h.tag()
-                                );
-                            }
+                            // if let Err(e) = rw.shutdown().await {
+                            //     debug!(
+                            //         "tcp uplink {} -> {} error: {} [{}]",
+                            //         &sess.source,
+                            //         &sess.destination,
+                            //         e,
+                            //         &h.tag()
+                            //     );
+                            // }
                         }
+                    }
+
+                    if let Err(e) = rw.shutdown().await {
+                        debug!(
+                            "tcp uplink {} -> {} error: {} [{}]",
+                            &sess.source,
+                            &sess.destination,
+                            e,
+                            &h.tag()
+                        );
+                    }
+
+                    if let Err(e) = lw.shutdown().await {
+                        debug!(
+                            "tcp downlink {} <- {} error: {} [{}]",
+                            &sess.source,
+                            &sess.destination,
+                            e,
+                            &h.tag()
+                        );
                     }
 
                     match h.handler_type() {

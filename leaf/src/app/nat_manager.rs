@@ -68,7 +68,7 @@ impl NatManager {
                         n_remaining
                     );
                 }
-                tokio::time::delay_for(Duration::from_secs(
+                tokio::time::sleep(Duration::from_secs(
                     option::UDP_SESSION_TIMEOUT_CHECK_INTERVAL,
                 ))
                 .await;
@@ -142,7 +142,7 @@ impl NatManager {
 
             let (mut target_sock_recv, mut target_sock_send) = socket.split();
 
-            let mut client_ch_tx = client_ch_tx.clone();
+            let client_ch_tx = client_ch_tx.clone();
 
             // downlink
             let downlink_task = async move {

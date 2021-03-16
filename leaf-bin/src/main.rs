@@ -76,7 +76,7 @@ fn main() {
         }
     };
 
-    let mut rt = {
+    let rt = {
         let threads = matches.value_of("threads").unwrap();
         let stack_size = matches
             .value_of("thread-stack-size")
@@ -84,24 +84,21 @@ fn main() {
             .parse::<usize>()
             .unwrap();
         if threads == "auto" {
-            tokio::runtime::Builder::new()
-                .threaded_scheduler()
+            tokio::runtime::Builder::new_multi_thread()
                 .thread_stack_size(stack_size)
                 .enable_all()
                 .build()
                 .unwrap()
         } else if let Ok(n) = threads.parse::<usize>() {
             if n > 1 {
-                tokio::runtime::Builder::new()
-                    .threaded_scheduler()
-                    .core_threads(n)
+                tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(n)
                     .thread_stack_size(stack_size)
                     .enable_all()
                     .build()
                     .unwrap()
             } else {
-                tokio::runtime::Builder::new()
-                    .basic_scheduler()
+                tokio::runtime::Builder::new_current_thread()
                     .thread_stack_size(stack_size)
                     .enable_all()
                     .build()

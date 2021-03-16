@@ -2,10 +2,7 @@ use std::{io, net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
-use tokio::net::{
-    udp::{RecvHalf, SendHalf},
-    UdpSocket,
-};
+use tokio::net::UdpSocket;
 
 use crate::{
     app::dns_client::DnsClient,
@@ -48,7 +45,8 @@ impl OutboundDatagram for SimpleOutboundDatagram {
         Box<dyn OutboundDatagramRecvHalf>,
         Box<dyn OutboundDatagramSendHalf>,
     ) {
-        let (r, s) = self.inner.split();
+        let r = Arc::new(self.inner);
+        let s = r.clone();
         (
             Box::new(SimpleOutboundDatagramRecvHalf(r, self.destination)),
             Box::new(SimpleOutboundDatagramSendHalf(
@@ -60,7 +58,7 @@ impl OutboundDatagram for SimpleOutboundDatagram {
     }
 }
 
-pub struct SimpleOutboundDatagramRecvHalf(RecvHalf, Option<SocksAddr>);
+pub struct SimpleOutboundDatagramRecvHalf(Arc<UdpSocket>, Option<SocksAddr>);
 
 #[async_trait]
 impl OutboundDatagramRecvHalf for SimpleOutboundDatagramRecvHalf {
@@ -78,7 +76,7 @@ impl OutboundDatagramRecvHalf for SimpleOutboundDatagramRecvHalf {
     }
 }
 
-pub struct SimpleOutboundDatagramSendHalf(SendHalf, Arc<DnsClient>, SocketAddr);
+pub struct SimpleOutboundDatagramSendHalf(Arc<UdpSocket>, Arc<DnsClient>, SocketAddr);
 
 #[async_trait]
 impl OutboundDatagramSendHalf for SimpleOutboundDatagramSendHalf {
@@ -119,7 +117,8 @@ impl InboundDatagram for SimpleInboundDatagram {
         Box<dyn InboundDatagramRecvHalf>,
         Box<dyn InboundDatagramSendHalf>,
     ) {
-        let (r, s) = self.0.split();
+        let r = Arc::new(self.0);
+        let s = r.clone();
         (
             Box::new(SimpleInboundDatagramRecvHalf(r)),
             Box::new(SimpleInboundDatagramSendHalf(s)),
@@ -127,7 +126,7 @@ impl InboundDatagram for SimpleInboundDatagram {
     }
 }
 
-pub struct SimpleInboundDatagramRecvHalf(RecvHalf);
+pub struct SimpleInboundDatagramRecvHalf(Arc<UdpSocket>);
 
 #[async_trait]
 impl InboundDatagramRecvHalf for SimpleInboundDatagramRecvHalf {
@@ -140,7 +139,7 @@ impl InboundDatagramRecvHalf for SimpleInboundDatagramRecvHalf {
     }
 }
 
-pub struct SimpleInboundDatagramSendHalf(SendHalf);
+pub struct SimpleInboundDatagramSendHalf(Arc<UdpSocket>);
 
 #[async_trait]
 impl InboundDatagramSendHalf for SimpleInboundDatagramSendHalf {
