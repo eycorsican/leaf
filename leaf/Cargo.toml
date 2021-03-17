@@ -55,7 +55,7 @@ all-endpoints = [
 
 # Ring-related
 ring-aead = ["ring"]
-rustls-tls = ["tokio-rustls", "webpki-roots"]
+rustls-tls = ["tokio-rustls", "webpki-roots","rustls"]
 
 # Openssl-related, for platforms not supported by ring, such as mips
 openssl-aead = ["openssl"]
@@ -138,8 +138,11 @@ fern = { version = "0.6", features = ["colored"] }
 chrono = "0.4"
 colored = "2.0"
 
+#rusttls
+rustls = { version = "0.19.0", optional = true}
+
 # TLS/rustls
-tokio-rustls = { version = "0.22", optional = true }
+tokio-rustls = { version = "0.22", optional = true ,features = ["dangerous_configuration"]}
 webpki-roots = { version = "0.21", optional = true }
 
 # TLS/openssl

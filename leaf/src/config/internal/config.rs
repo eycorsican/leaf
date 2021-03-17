@@ -3761,6 +3761,7 @@ pub struct TlsOutboundSettings {
     // message fields
     pub server_name: ::std::string::String,
     pub alpn: ::protobuf::RepeatedField<::std::string::String>,
+    pub insecure: bool,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -3827,6 +3828,20 @@ impl TlsOutboundSettings {
     pub fn take_alpn(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
         ::std::mem::replace(&mut self.alpn, ::protobuf::RepeatedField::new())
     }
+
+    // Param is passed by value, moved
+    pub fn set_insecure(&mut self, v:bool) {
+        self.insecure = v;
+    }
+
+    pub fn clear_insecure(&mut self) {
+        self.insecure =false;
+    }
+
+    pub fn get_insecure(&self) -> bool {
+        self.insecure
+    }
+
 }
 
 impl ::protobuf::Message for TlsOutboundSettings {
@@ -3843,6 +3858,13 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 },
                 2 => {
                     ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.alpn)?;
+                },
+                3 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_bool()?;
+                    self.insecure = tmp;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -3862,6 +3884,11 @@ impl ::protobuf::Message for TlsOutboundSettings {
         for value in &self.alpn {
             my_size += ::protobuf::rt::string_size(2, &value);
         };
+
+        if self.insecure != false {
+            my_size += 2;
+        }
+
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -3874,6 +3901,11 @@ impl ::protobuf::Message for TlsOutboundSettings {
         for v in &self.alpn {
             os.write_string(2, &v)?;
         };
+
+        if self.insecure != false {
+            os.write_bool(3, self.insecure)?;
+        }
+
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -3922,6 +3954,11 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 |m: &TlsOutboundSettings| { &m.alpn },
                 |m: &mut TlsOutboundSettings| { &mut m.alpn },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
+                "insecure",
+                |m: &TlsOutboundSettings| { &m.insecure },
+                |m: &mut TlsOutboundSettings| { &mut m.insecure },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<TlsOutboundSettings>(
                 "TlsOutboundSettings",
                 fields,
@@ -3940,6 +3977,7 @@ impl ::protobuf::Clear for TlsOutboundSettings {
     fn clear(&mut self) {
         self.server_name.clear();
         self.alpn.clear();
+        self.insecure =false;
         self.unknown_fields.clear();
     }
 }

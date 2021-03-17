@@ -14,6 +14,7 @@ use super::stream;
 pub struct Handler {
     pub server_name: String,
     pub alpns: Vec<String>,
+    pub insecure: bool
 }
 
 #[async_trait]
@@ -40,7 +41,7 @@ impl TcpOutboundHandler for Handler {
         trace!("wrapping tls with name {}", &name);
         match stream {
             Some(stream) => {
-                let tls_stream = stream::wrapper::wrap_tls(stream, &name, self.alpns.clone())
+                let tls_stream = stream::wrapper::wrap_tls(stream, &name, self.alpns.clone(),self.insecure)
                     .map_err(|e| {
                         io::Error::new(io::ErrorKind::Other, format!("wrap tls failed: {}", e))
                     })
