@@ -49,7 +49,11 @@ impl FakeDns {
     }
 
     fn allocate_ip(&mut self, domain: &str) -> Ipv4Addr {
-        self.ip_to_domain.insert(self.cursor, domain.to_owned());
+        if let Some(prev_domain) = self.ip_to_domain.insert(self.cursor, domain.to_owned()) {
+            // Remove the entry in the reverse map to make sure we won't have
+            // multiple domains point to a same IP.
+            self.domain_to_ip.remove(&prev_domain);
+        }
         self.domain_to_ip.insert(domain.to_owned(), self.cursor);
         let ip = Self::u32_to_ip(self.cursor);
         self.cursor += 1;
