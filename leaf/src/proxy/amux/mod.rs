@@ -90,7 +90,7 @@ pub type Streams = Arc<Mutex<HashMap<StreamId, Sender<Vec<u8>>>>>;
 
 enum TaskState {
     Idle,
-    Pending,
+    Pending(Pin<Box<dyn Future<Output = io::Result<()>> + 'static + Sync + Send>>),
 }
 
 pub struct MuxStream {
@@ -100,9 +100,7 @@ pub struct MuxStream {
     frame_write_tx: Sender<MuxFrame>,
     buf: BytesMut,
     write_state: TaskState,
-    write_task: Option<Pin<Box<dyn Future<Output = io::Result<()>> + 'static + Sync + Send>>>,
     shutdown_state: TaskState,
-    shutdown_task: Option<Pin<Box<dyn Future<Output = io::Result<()>> + 'static + Sync + Send>>>,
 }
 
 impl MuxStream {
@@ -121,9 +119,7 @@ impl MuxStream {
                 frame_write_tx,
                 buf: BytesMut::new(),
                 write_state: TaskState::Idle,
-                write_task: None,
                 shutdown_state: TaskState::Idle,
-                shutdown_task: None,
             },
             stream_read_tx,
         )
@@ -190,29 +186,12 @@ impl AsyncWrite for MuxStream {
                     let tx = self.frame_write_tx.clone();
                     let task =
                         Box::pin(async move { tx.send(frame).map_err(|_| broken_pipe()).await });
-                    self.write_task.replace(task);
-                    self.write_state = TaskState::Pending;
+                    self.write_state = TaskState::Pending(task);
                 }
-                TaskState::Pending => {
-                    if let Some(mut task) = self.write_task.take() {
-                        match task.as_mut().poll(cx) {
-                            Poll::Ready(res) => {
-                                self.write_state = TaskState::Idle;
-                                match res {
-                                    Ok(_) => {
-                                        return Poll::Ready(Ok(buf.len()));
-                                    }
-                                    Err(e) => {
-                                        return Poll::Ready(Err(e));
-                                    }
-                                }
-                            }
-                            Poll::Pending => {
-                                self.write_task.replace(task);
-                                return Poll::Pending;
-                            }
-                        }
-                    }
+                TaskState::Pending(ref mut task) => {
+                    let res = ready!(task.as_mut().poll(cx).map_ok(|_| buf.len()));
+                    self.write_state = TaskState::Idle;
+                    return Poll::Ready(res);
                 }
             }
         }
@@ -230,29 +209,12 @@ impl AsyncWrite for MuxStream {
                     let tx = self.frame_write_tx.clone();
                     let task =
                         Box::pin(async move { tx.send(frame).map_err(|_| broken_pipe()).await });
-                    self.shutdown_task.replace(task);
-                    self.shutdown_state = TaskState::Pending;
+                    self.shutdown_state = TaskState::Pending(task);
                 }
-                TaskState::Pending => {
-                    if let Some(mut task) = self.shutdown_task.take() {
-                        match task.as_mut().poll(cx) {
-                            Poll::Ready(res) => {
-                                self.shutdown_state = TaskState::Idle;
-                                match res {
-                                    Ok(_) => {
-                                        return Poll::Ready(Ok(()));
-                                    }
-                                    Err(e) => {
-                                        return Poll::Ready(Err(e));
-                                    }
-                                }
-                            }
-                            Poll::Pending => {
-                                self.shutdown_task.replace(task);
-                                return Poll::Pending;
-                            }
-                        }
-                    }
+                TaskState::Pending(ref mut task) => {
+                    let res = ready!(task.as_mut().poll(cx).map_ok(|_| ()));
+                    self.shutdown_state = TaskState::Idle;
+                    return Poll::Ready(res);
                 }
             }
         }
