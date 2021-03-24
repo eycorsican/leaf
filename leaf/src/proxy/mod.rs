@@ -299,7 +299,9 @@ pub enum OutboundTransport {
     Datagram(Box<dyn OutboundDatagram>),
 }
 
-pub trait InboundHandler: Tag + TcpInboundHandler + UdpInboundHandler + Send + Unpin {
+pub trait InboundHandler:
+    Tag + TcpInboundHandler + UdpInboundHandler + Send + Sync + Unpin
+{
     fn has_tcp(&self) -> bool;
     fn has_udp(&self) -> bool;
 }
@@ -326,7 +328,7 @@ pub trait UdpInboundHandler: Send + Sync + Unpin {
 }
 
 /// An unreliable transport for inbound handlers.
-pub trait InboundDatagram: Send + Unpin {
+pub trait InboundDatagram: Send + Sync + Unpin {
     /// Splits the datagram.
     fn split(
         self: Box<Self>,
@@ -379,7 +381,7 @@ pub enum SingleInboundTransport {
     Empty,
 }
 
-pub type IncomingTransport = Box<dyn Stream<Item = SingleInboundTransport> + Sync + Send + Unpin>;
+pub type IncomingTransport = Box<dyn Stream<Item = SingleInboundTransport> + Send + Unpin>;
 
 /// An inbound transport represents either a reliable or unreliable transport.
 pub enum InboundTransport {
