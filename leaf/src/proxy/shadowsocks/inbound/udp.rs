@@ -11,7 +11,7 @@ use log::*;
 use crate::{
     proxy::{
         DatagramSource, InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf,
-        UdpInboundHandler,
+        InboundTransport, UdpInboundHandler,
     },
     session::{SocksAddr, SocksAddrWireType},
 };
@@ -28,14 +28,17 @@ impl UdpInboundHandler for Handler {
     async fn handle_udp<'a>(
         &'a self,
         socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<Box<dyn InboundDatagram>> {
+    ) -> io::Result<InboundTransport> {
         let dgram = ShadowedDatagram::new(&self.cipher, &self.password).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,
                 format!("new shadowed datagram failed: {}", e),
             )
         })?;
-        Ok(Box::new(Datagram { dgram, socket }))
+        Ok(InboundTransport::Datagram(Box::new(Datagram {
+            dgram,
+            socket,
+        })))
     }
 }
 
@@ -57,6 +60,10 @@ impl InboundDatagram for Datagram {
             Box::new(DatagramRecvHalf(dgram.clone(), rh)),
             Box::new(DatagramSendHalf(dgram, sh)),
         )
+    }
+
+    fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket> {
+        unimplemented!();
     }
 }
 

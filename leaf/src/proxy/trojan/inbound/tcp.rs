@@ -37,6 +37,10 @@ impl InboundDatagram for StreamToDatagram {
             Box::new(StreamToDatagramSendHalf(s)),
         )
     }
+
+    fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket> {
+        Err(io::Error::new(io::ErrorKind::Other, "stream transport"))
+    }
 }
 
 struct StreamToDatagramRecvHalf<T>(T, DatagramSource);

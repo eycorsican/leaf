@@ -94,7 +94,7 @@ where
                 let ptr = buf.filled().as_ptr();
                 ready!(Pin::new(&mut self.inner).poll_read(cx, &mut buf))?;
                 assert_eq!(ptr, buf.filled().as_ptr());
-                if buf.filled().len() == 0 {
+                if buf.filled().is_empty() {
                     return Poll::Ready(Err(early_eof()));
                 }
                 self.read_pos += buf.filled().len();

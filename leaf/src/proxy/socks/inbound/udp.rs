@@ -8,7 +8,10 @@ use bytes::{BufMut, BytesMut};
 use log::*;
 
 use crate::{
-    proxy::{InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, UdpInboundHandler},
+    proxy::{
+        InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, InboundTransport,
+        UdpInboundHandler,
+    },
     session::{DatagramSource, SocksAddr, SocksAddrWireType},
 };
 
@@ -19,8 +22,8 @@ impl UdpInboundHandler for Handler {
     async fn handle_udp<'a>(
         &'a self,
         socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<Box<dyn InboundDatagram>> {
-        Ok(Box::new(Datagram { socket }))
+    ) -> io::Result<InboundTransport> {
+        Ok(InboundTransport::Datagram(Box::new(Datagram { socket })))
     }
 }
 
@@ -40,6 +43,10 @@ impl InboundDatagram for Datagram {
             Box::new(DatagramRecvHalf(rh)),
             Box::new(DatagramSendHalf(sh)),
         )
+    }
+
+    fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket> {
+        self.socket.into_std()
     }
 }
 

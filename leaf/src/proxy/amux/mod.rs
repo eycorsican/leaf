@@ -158,7 +158,7 @@ impl AsyncRead for MuxStream {
         }
         Poll::Ready(
             ready!(self.stream_read_rx.poll_recv(cx)).map_or(Err(broken_pipe()), |data| {
-                if data.len() == 0 {
+                if data.is_empty() {
                     Ok(()) // EOF
                 } else {
                     let to_read = min(buf.remaining(), data.len());
@@ -236,9 +236,9 @@ impl<S> MuxConnection<S> {
     pub fn new(inner: S) -> Self {
         MuxConnection {
             inner,
-            read_buf: BytesMut::with_capacity(8 * 1024),
-            write_buf: BytesMut::with_capacity(8 * 1024),
-            backpressure_boundary: 8 * 1024,
+            read_buf: BytesMut::with_capacity(2 * 1024),
+            write_buf: BytesMut::new(),
+            backpressure_boundary: 2 * 1024,
         }
     }
 
@@ -414,7 +414,7 @@ impl MuxSession {
                                             frame_write_tx.clone(),
                                         );
                                         streams.lock().await.insert(stream_id, stream_read_tx);
-                                        if let Err(_) = stream_accept_tx.send(mux_stream).await {
+                                        if stream_accept_tx.send(mux_stream).await.is_err() {
                                             // The `Incoming` transport has been dropped.
                                             break;
                                         }
@@ -473,19 +473,16 @@ impl MuxSession {
         let task = Box::pin(async move {
             while let Some(frame) = frame_write_rx.recv().await {
                 // Peek EOF.
-                match frame {
-                    MuxFrame::StreamFin(ref stream_id) => {
-                        let streams2 = streams.clone();
-                        let stream_id2 = *stream_id;
-                        tokio::spawn(async move {
-                            sleep(Duration::from_secs(4)).await;
-                            streams2.lock().await.remove(&stream_id2);
-                        });
-                    }
-                    _ => (),
+                if let MuxFrame::StreamFin(ref stream_id) = frame {
+                    let streams2 = streams.clone();
+                    let stream_id2 = *stream_id;
+                    tokio::spawn(async move {
+                        sleep(Duration::from_secs(4)).await;
+                        streams2.lock().await.remove(&stream_id2);
+                    });
                 }
                 // Send
-                if let Err(_) = frame_sink.send(frame).await {
+                if frame_sink.send(frame).await.is_err() {
                     break;
                 }
             }
@@ -552,8 +549,7 @@ impl MuxSession {
                 frame_write_tx,
             }),
         );
-        let send_handle =
-            Self::run_frame_send_loop(streams.clone(), frame_sink, frame_write_rx, None);
+        let send_handle = Self::run_frame_send_loop(streams, frame_sink, frame_write_rx, None);
         MuxAcceptor::new(session_id, stream_accept_rx, recv_handle, send_handle)
     }
 }
@@ -585,6 +581,7 @@ pub struct MuxConnector {
 }
 
 impl MuxConnector {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         max_accepts: usize,
         concurrency: usize,

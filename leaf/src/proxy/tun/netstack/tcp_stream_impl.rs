@@ -193,11 +193,12 @@ impl AsyncRead for TcpStreamImpl {
             }
             return Poll::Ready(Ok(()));
         }
-        if {
+        let res = {
             let guard = self.lwip_lock.lock();
             let errored = self.callback_ctx.lock(&guard).errored;
             errored
-        } {
+        };
+        if res {
             return Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
                 "read on broken pipe",

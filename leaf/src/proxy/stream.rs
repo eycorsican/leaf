@@ -97,7 +97,7 @@ where
                 return Poll::Ready(Err(early_eof()));
             }
             me.first_payload.advance(n);
-            if me.first_payload.len() <= 0 {
+            if me.first_payload.is_empty() {
                 me.first_payload = BytesMut::new(); // shadow to free
                 return Poll::Ready(Ok(buf.len()));
             }

@@ -124,6 +124,10 @@ impl InboundDatagram for SimpleInboundDatagram {
             Box::new(SimpleInboundDatagramSendHalf(s)),
         )
     }
+
+    fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket> {
+        self.0.into_std()
+    }
 }
 
 pub struct SimpleInboundDatagramRecvHalf(Arc<UdpSocket>);

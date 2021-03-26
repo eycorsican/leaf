@@ -18,6 +18,8 @@ default-ring = [
     "leaf/all-endpoints",
     "leaf/ring-aead",
     "leaf/rustls-tls",
+    "leaf/inbound-quic",
+    "leaf/outbound-quic",
 ]
 
 default-openssl = [

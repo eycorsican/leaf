@@ -51,7 +51,7 @@ pub struct Proxy {
     // shadowsocks, trojan
     pub password: Option<String>,
 
-    // vmess, vless
+    // vmess
     pub username: Option<String>,
     pub ws: Option<bool>,
     pub tls: Option<bool>,
@@ -916,86 +916,6 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
                     outbound.tag = format!("{}_vmess_xxx", ext_proxy.tag.clone());
-
-                    // chain
-                    let mut chain_outbound = internal::Outbound::new();
-                    chain_outbound.tag = ext_proxy.tag.clone();
-                    let mut chain_settings = internal::ChainOutboundSettings::new();
-                    if ext_proxy.tls.unwrap() {
-                        chain_settings.actors.push(tls_outbound.tag.clone());
-                    }
-                    if ext_proxy.ws.unwrap() {
-                        chain_settings.actors.push(ws_outbound.tag.clone());
-                    }
-                    chain_settings.actors.push(outbound.tag.clone());
-                    let chain_settings = chain_settings.write_to_bytes().unwrap();
-                    chain_outbound.settings = chain_settings;
-                    chain_outbound.bind = ext_proxy.interface.clone();
-                    chain_outbound.protocol = "chain".to_string();
-
-                    // always push chain first, in case there isn't final rule,
-                    // the chain outbound will be the default one to use
-                    outbounds.push(chain_outbound);
-                    if ext_proxy.tls.unwrap() {
-                        outbounds.push(tls_outbound);
-                    }
-                    if ext_proxy.ws.unwrap() {
-                        outbounds.push(ws_outbound);
-                    }
-                    outbounds.push(outbound);
-                }
-                "vless" => {
-                    // tls
-                    let mut tls_outbound = internal::Outbound::new();
-                    tls_outbound.protocol = "tls".to_string();
-                    tls_outbound.bind = ext_proxy.interface.clone();
-                    let mut tls_settings = internal::TlsOutboundSettings::new();
-                    if let Some(ext_sni) = &ext_proxy.sni {
-                        tls_settings.server_name = ext_sni.clone();
-                    }
-                    let tls_settings = tls_settings.write_to_bytes().unwrap();
-                    tls_outbound.settings = tls_settings;
-                    tls_outbound.tag = format!("{}_tls_xxx", ext_proxy.tag.clone());
-
-                    // ws
-                    let mut ws_outbound = internal::Outbound::new();
-                    ws_outbound.protocol = "ws".to_string();
-                    ws_outbound.bind = ext_proxy.interface.clone();
-                    let mut ws_settings = internal::WebSocketOutboundSettings::new();
-                    if let Some(ext_ws_path) = &ext_proxy.ws_path {
-                        ws_settings.path = ext_ws_path.clone();
-                    } else {
-                        ws_settings.path = "/".to_string();
-                    }
-                    if let Some(ext_ws_host) = &ext_proxy.ws_host {
-                        let mut headers = HashMap::new();
-                        headers.insert("Host".to_string(), ext_ws_host.clone());
-                        ws_settings.headers = headers;
-                    }
-                    let ws_settings = ws_settings.write_to_bytes().unwrap();
-                    ws_outbound.settings = ws_settings;
-                    ws_outbound.tag = format!("{}_ws_xxx", ext_proxy.tag.clone());
-
-                    // vless
-                    let mut settings = internal::VLessOutboundSettings::new();
-                    if ext_proxy.address.is_none()
-                        || ext_proxy.port.is_none()
-                        || ext_proxy.username.is_none()
-                    {
-                        return Err(anyhow!("invalid vless outbound settings"));
-                    }
-                    if let Some(ext_address) = &ext_proxy.address {
-                        settings.address = ext_address.clone();
-                    }
-                    if let Some(ext_port) = &ext_proxy.port {
-                        settings.port = *ext_port as u32;
-                    }
-                    if let Some(ext_username) = &ext_proxy.username {
-                        settings.uuid = ext_username.clone();
-                    }
-                    let settings = settings.write_to_bytes().unwrap();
-                    outbound.settings = settings;
-                    outbound.tag = format!("{}_vless_xxx", ext_proxy.tag.clone());
 
                     // chain
                     let mut chain_outbound = internal::Outbound::new();

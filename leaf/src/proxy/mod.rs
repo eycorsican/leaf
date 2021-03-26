@@ -35,6 +35,8 @@ pub mod failover;
 pub mod h2;
 #[cfg(feature = "inbound-http")]
 pub mod http;
+#[cfg(any(feature = "inbound-quic", feature = "outbound-quic"))]
+pub mod quic;
 #[cfg(feature = "outbound-random")]
 pub mod random;
 #[cfg(feature = "outbound-redirect")]
@@ -45,8 +47,6 @@ pub mod retry;
 pub mod shadowsocks;
 #[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
 pub mod socks;
-#[cfg(feature = "outbound-stat")]
-pub mod stat;
 #[cfg(feature = "outbound-tls")]
 pub mod tls;
 #[cfg(any(feature = "inbound-trojan", feature = "outbound-trojan"))]
@@ -58,8 +58,6 @@ pub mod tryall;
     any(target_os = "ios", target_os = "macos", target_os = "linux")
 ))]
 pub mod tun;
-#[cfg(feature = "outbound-vless")]
-pub mod vless;
 #[cfg(feature = "outbound-vmess")]
 pub mod vmess;
 #[cfg(any(feature = "inbound-ws", feature = "outbound-ws"))]
@@ -324,7 +322,7 @@ pub trait UdpInboundHandler: Send + Sync + Unpin {
     async fn handle_udp<'a>(
         &'a self,
         socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<Box<dyn InboundDatagram>>;
+    ) -> io::Result<InboundTransport>;
 }
 
 /// An unreliable transport for inbound handlers.
@@ -336,6 +334,9 @@ pub trait InboundDatagram: Send + Sync + Unpin {
         Box<dyn InboundDatagramRecvHalf>,
         Box<dyn InboundDatagramSendHalf>,
     );
+
+    /// Turns the datagram into a [`std::net::UdpSocket`].
+    fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket>;
 }
 
 /// The receive half.

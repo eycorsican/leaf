@@ -57,6 +57,11 @@ message AMuxInboundSettings {
 	repeated string actors = 1;
 }
 
+message QuicInboundSettings {
+	string certificate = 1;
+	string certificate_key = 2;
+}
+
 message ChainInboundSettings {
 	repeated string actors = 1;
 }
@@ -99,12 +104,6 @@ message VMessOutboundSettings {
 	string security = 4;
 }
 
-message VLessOutboundSettings {
-	string address = 1;
-	uint32 port = 2;
-	string uuid = 3;
-}
-
 message TlsOutboundSettings {
 	string server_name = 1;
 	repeated string alpn = 2;
@@ -119,7 +118,6 @@ message HTTP2OutboundSettings {
 	string path = 1;
 	string host = 2;
 }
-
 
 message TryAllOutboundSettings {
 	repeated string actors = 1;
@@ -136,6 +134,13 @@ message AMuxOutboundSettings {
 	repeated string actors = 3;
 	uint32 max_accepts = 4;
 	uint32 concurrency = 5;
+}
+
+message QuicOutboundSettings {
+	string address = 1;
+	uint32 port = 2;
+	string server_name = 3;
+	string certificate = 4;
 }
 
 message ChainOutboundSettings {
@@ -158,11 +163,6 @@ message FailOverOutboundSettings {
 	bool fallback_cache = 6;
 	uint32 cache_size = 7;
 	uint32 cache_timeout = 8;
-}
-
-message StatOutboundSettings {
-	string address = 1;
-	uint32 port = 2;
 }
 
 message Outbound {

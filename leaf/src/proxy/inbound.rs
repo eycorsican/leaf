@@ -68,7 +68,7 @@ impl UdpInboundHandler for Handler {
     async fn handle_udp<'a>(
         &'a self,
         socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<Box<dyn InboundDatagram>> {
+    ) -> io::Result<InboundTransport> {
         if let Some(handler) = &self.udp_handler {
             handler.handle_udp(socket).await
         } else {

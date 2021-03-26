@@ -44,6 +44,13 @@ pub struct AMuxInboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct QuicInboundSettings {
+    pub certificate: Option<String>,
+    #[serde(rename = "certificateKey")]
+    pub certificate_key: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ChainInboundSettings {
     pub actors: Option<Vec<String>>,
 }
@@ -107,13 +114,6 @@ pub struct VMessOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct VLessOutboundSettings {
-    pub address: Option<String>,
-    pub port: Option<u16>,
-    pub uuid: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct TryAllOutboundSettings {
     pub actors: Option<Vec<String>>,
     #[serde(rename = "delayBase")]
@@ -152,6 +152,15 @@ pub struct AMuxOutboundSettings {
     #[serde(rename = "maxAccepts")]
     pub max_accepts: Option<u32>,
     pub concurrency: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct QuicOutboundSettings {
+    pub address: Option<String>,
+    pub port: Option<u16>,
+    #[serde(rename = "serverName")]
+    pub server_name: Option<String>,
+    pub certificate: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -393,6 +402,44 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                     inbound.settings = settings;
                     inbounds.push(inbound);
                 }
+                "quic" => {
+                    let mut settings = internal::QuicInboundSettings::new();
+                    let ext_settings: QuicInboundSettings =
+                        serde_json::from_str(ext_inbound.settings.unwrap().get()).unwrap();
+                    if let Some(ext_certificate) = ext_settings.certificate {
+                        let cert = Path::new(&ext_certificate);
+                        if cert.is_absolute() {
+                            settings.certificate = cert.to_string_lossy().to_string();
+                        } else {
+                            let file = std::env::current_exe()
+                                .map_err(|e| anyhow!("failed to find executable path: {}", e))
+                                .map(|mut f| {
+                                    f.pop();
+                                    f.push(cert);
+                                    f
+                                })?;
+                            settings.certificate = file.to_string_lossy().to_string();
+                        }
+                    }
+                    if let Some(ext_certificate_key) = ext_settings.certificate_key {
+                        let key = Path::new(&ext_certificate_key);
+                        if key.is_absolute() {
+                            settings.certificate_key = key.to_string_lossy().to_string();
+                        } else {
+                            let file = std::env::current_exe()
+                                .map_err(|e| anyhow!("failed to find executable path: {}", e))
+                                .map(|mut f| {
+                                    f.pop();
+                                    f.push(key);
+                                    f
+                                })?;
+                            settings.certificate_key = file.to_string_lossy().to_string();
+                        }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    inbound.settings = settings;
+                    inbounds.push(inbound);
+                }
                 "chain" => {
                     if ext_inbound.settings.is_none() {
                         return Err(anyhow!("invalid chain inbound settings"));
@@ -532,26 +579,6 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         settings.security = ext_security;
                     } else {
                         settings.security = "chacha20-ietf-poly1305".to_string();
-                    }
-                    let settings = settings.write_to_bytes().unwrap();
-                    outbound.settings = settings;
-                    outbounds.push(outbound);
-                }
-                "vless" => {
-                    if ext_outbound.settings.is_none() {
-                        return Err(anyhow!("invalid vless outbound settings"));
-                    }
-                    let mut settings = internal::VLessOutboundSettings::new();
-                    let ext_settings: VLessOutboundSettings =
-                        serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
-                    if let Some(ext_address) = ext_settings.address {
-                        settings.address = ext_address; // TODO checks
-                    }
-                    if let Some(ext_port) = ext_settings.port {
-                        settings.port = ext_port as u32; // TODO checks
-                    }
-                    if let Some(ext_uuid) = ext_settings.uuid {
-                        settings.uuid = ext_uuid;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
@@ -735,6 +762,40 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                     outbound.settings = settings;
                     outbounds.push(outbound);
                 }
+                "quic" => {
+                    let mut settings = internal::QuicOutboundSettings::new();
+                    if ext_outbound.settings.is_some() {
+                        let ext_settings: QuicOutboundSettings =
+                            serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
+                        if let Some(ext_address) = ext_settings.address {
+                            settings.address = ext_address;
+                        }
+                        if let Some(ext_port) = ext_settings.port {
+                            settings.port = ext_port as u32;
+                        }
+                        if let Some(ext_server_name) = ext_settings.server_name {
+                            settings.server_name = ext_server_name;
+                        }
+                        if let Some(ext_certificate) = ext_settings.certificate {
+                            let cert = Path::new(&ext_certificate);
+                            if cert.is_absolute() {
+                                settings.certificate = cert.to_string_lossy().to_string();
+                            } else {
+                                let file = std::env::current_exe()
+                                    .map_err(|e| anyhow!("failed to find executable path: {}", e))
+                                    .map(|mut f| {
+                                        f.pop();
+                                        f.push(cert);
+                                        f
+                                    })?;
+                                settings.certificate = file.to_string_lossy().to_string();
+                            }
+                        }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
                 "chain" => {
                     if ext_outbound.settings.is_none() {
                         return Err(anyhow!("invalid chain outbound settings"));
@@ -767,23 +828,6 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         settings.attempts = ext_attempts;
                     } else {
                         settings.attempts = 2;
-                    }
-                    let settings = settings.write_to_bytes().unwrap();
-                    outbound.settings = settings;
-                    outbounds.push(outbound);
-                }
-                "stat" => {
-                    if ext_outbound.settings.is_none() {
-                        return Err(anyhow!("invalid stat outbound settings"));
-                    }
-                    let mut settings = internal::StatOutboundSettings::new();
-                    let ext_settings: StatOutboundSettings =
-                        serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
-                    if let Some(ext_address) = ext_settings.address {
-                        settings.address = ext_address;
-                    }
-                    if let Some(ext_port) = ext_settings.port {
-                        settings.port = ext_port as u32;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
