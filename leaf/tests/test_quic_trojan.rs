@@ -38,7 +38,7 @@ fn test_quic_trojan() {
                     "address": "127.0.0.1",
                     "port": 3001,
                     "serverName": "localhost",
-                    "certificate": "/tmp/cert.der"
+                    "certificate": "cert.der"
                 }
             },
             {
@@ -70,8 +70,8 @@ fn test_quic_trojan() {
                 "protocol": "quic",
                 "tag": "quic",
                 "settings": {
-                    "certificate": "/tmp/cert.der",
-                    "certificateKey": "/tmp/key.der"
+                    "certificate": "cert.der",
+                    "certificateKey": "key.der"
                 }
             },
             {
@@ -89,6 +89,16 @@ fn test_quic_trojan() {
         ]
     }
     "#;
+
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let cert_path = path.join("cert.der");
+    let key_path = path.join("key.der");
+    let key = cert.serialize_private_key_der();
+    let cert = cert.serialize_der().unwrap();
+    std::fs::write(&cert_path, &cert).unwrap();
+    std::fs::write(&key_path, &key).unwrap();
 
     let configs = vec![config1.to_string(), config2.to_string()];
     common::test_configs(configs, "127.0.0.1", 1086);

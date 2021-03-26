@@ -15,6 +15,8 @@ default = [
     "all-endpoints",
     "ring-aead",
     "rustls-tls",
+    "inbound-quic",
+    "outbound-quic",
 ]
 
 # Grouping all features
@@ -97,7 +99,7 @@ inbound-chain = []
 
 [dependencies]
 # Common
-tokio = { version = "1", features = ["macros", "sync", "io-util", "net", "time"] }
+tokio = { version = "1", features = ["macros", "sync", "io-util", "net", "time", "rt"] }
 futures-util = "0.3"
 protobuf = "2"
 thiserror = "1.0"
@@ -198,6 +200,9 @@ rustls = { version = "0.19", optional = true }
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
+
+[dev-dependencies]
+rcgen = "0.8"
 
 [build-dependencies]
 cc = "1.0"
