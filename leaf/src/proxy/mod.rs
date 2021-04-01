@@ -8,6 +8,12 @@ use futures::TryFutureExt;
 use log::*;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, UdpSocket};
+#[cfg(target_os = "android")]
+use {
+    lazy_static::lazy_static, std::os::unix::io::AsRawFd, std::os::unix::io::RawFd,
+    std::path::Path, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt, tokio::net::UnixStream,
+    tokio::sync::Mutex,
+};
 
 use crate::{
     app::dns_client::DnsClient,
@@ -55,7 +61,12 @@ pub mod trojan;
 pub mod tryall;
 #[cfg(all(
     feature = "inbound-tun",
-    any(target_os = "ios", target_os = "macos", target_os = "linux")
+    any(
+        target_os = "ios",
+        target_os = "android",
+        target_os = "macos",
+        target_os = "linux"
+    )
 ))]
 pub mod tun;
 #[cfg(feature = "outbound-vmess")]
@@ -95,9 +106,44 @@ pub trait HandlerTyped {
     fn handler_type(&self) -> ProxyHandlerType;
 }
 
+#[cfg(target_os = "android")]
+lazy_static! {
+    static ref SOCKET_PROTECT_PATH: Mutex<Option<String>> = Mutex::new(None);
+}
+
+// Sets the RPC service endpoint for protecting outbound sockets on Android to
+// avoid infinite loop. The `path` is treated as a Unix domain socket endpoint.
+// The RPC service simply listens for incoming connections, reads an int32 on
+// each connection, treats it as the file descriptor to protect, writes back 0
+// on success.
+#[cfg(target_os = "android")]
+pub async fn set_socket_protect_path(path: String) {
+    SOCKET_PROTECT_PATH.lock().await.replace(path);
+}
+
+#[cfg(target_os = "android")]
+async fn protect_socket(fd: RawFd) -> io::Result<()> {
+    if let Some(path) = SOCKET_PROTECT_PATH.lock().await.as_ref() {
+        let mut stream = UnixStream::connect(path).await?;
+        stream.write_i32(fd as i32).await?;
+        if stream.read_i32().await? != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to protect outbound socket {}", fd),
+            ));
+        }
+    }
+    Ok(())
+}
+
 // New UDP socket.
 async fn create_udp_socket(bind_addr: &SocketAddr) -> io::Result<UdpSocket> {
-    UdpSocket::bind(bind_addr).await
+    let socket = UdpSocket::bind(bind_addr).await?;
+    #[cfg(target_os = "android")]
+    {
+        protect_socket(socket.as_raw_fd()).await?;
+    }
+    Ok(socket)
 }
 
 // A single TCP dial.
@@ -106,6 +152,10 @@ async fn tcp_dial_task(
     bind_addr: &SocketAddr,
 ) -> io::Result<(Box<dyn ProxyStream>, SocketAddr)> {
     let socket = TcpSocket::new_v4()?;
+    #[cfg(target_os = "android")]
+    {
+        protect_socket(socket.as_raw_fd()).await?;
+    }
     socket.bind(*bind_addr)?;
     trace!("dialing tcp {}", &dial_addr);
     let stream = socket.connect(dial_addr).await?;

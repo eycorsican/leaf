@@ -4,4 +4,6 @@
         #include <asl.h>
         // #include <os/proc.h>
     #endif
+#elif __ANDROID__
+    #include <android/log.h>
 #endif

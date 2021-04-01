@@ -36,7 +36,12 @@ use super::InboundListener;
 
 #[cfg(all(
     feature = "inbound-tun",
-    any(target_os = "ios", target_os = "macos", target_os = "linux")
+    any(
+        target_os = "ios",
+        target_os = "android",
+        target_os = "macos",
+        target_os = "linux"
+    )
 ))]
 use super::tun_listener::TUNInboundListener;
 
@@ -198,7 +203,12 @@ impl InboundManager {
             match inbound.protocol.as_str() {
                 #[cfg(all(
                     feature = "inbound-tun",
-                    any(target_os = "ios", target_os = "macos", target_os = "linux")
+                    any(
+                        target_os = "ios",
+                        target_os = "android",
+                        target_os = "macos",
+                        target_os = "linux"
+                    )
                 ))]
                 "tun" => {
                     let listener = Arc::new(TUNInboundListener {

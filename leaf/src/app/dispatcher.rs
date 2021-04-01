@@ -8,7 +8,7 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 use colored::Colorize;
 
 use crate::{
@@ -29,7 +29,7 @@ fn log_tcp(
     handshake_time: u128,
     addr: &SocksAddr,
 ) {
-    #[cfg(not(target_os = "ios"))]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     {
         info!(
             "[{}] [{}] [{}] [{}ms] {}",
@@ -40,7 +40,7 @@ fn log_tcp(
             addr,
         );
     }
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "android"))]
     {
         info!(
             "[{}] [{}] [{}] [{}ms] {}",
@@ -57,7 +57,7 @@ fn log_udp(
     handshake_time: u128,
     addr: &SocksAddr,
 ) {
-    #[cfg(not(target_os = "ios"))]
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     {
         info!(
             "[{}] [{}] [{}] [{}ms] {}",
@@ -68,7 +68,7 @@ fn log_udp(
             addr,
         );
     }
-    #[cfg(target_os = "ios")]
+    #[cfg(any(target_os = "ios", target_os = "android"))]
     {
         info!(
             "[{}] [{}] [{}] [{}ms] {}",

@@ -9,10 +9,10 @@ mod ios;
 #[cfg(target_os = "ios")]
 pub use ios::*;
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "android"))]
 mod unix;
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "android"))]
 pub use unix::*;
 
 #[cfg(target_os = "windows")]

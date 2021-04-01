@@ -95,15 +95,22 @@ fn generate_lwip_bindings() {
 fn main() {
     #[cfg(all(
         feature = "inbound-tun",
-        any(target_os = "ios", target_os = "macos", target_os = "linux")
+        any(
+            target_os = "ios",
+            target_os = "android",
+            target_os = "macos",
+            target_os = "linux"
+        )
     ))]
     {
         let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-        if os == "ios" || os == "linux" || os == "macos" {
+        if os == "ios" || os == "android" || os == "linux" || os == "macos" {
             compile_lwip();
         }
 
-        if env::var("BINDINGS_GEN").is_ok() && (os == "ios" || os == "linux" || os == "macos") {
+        if env::var("BINDINGS_GEN").is_ok()
+            && (os == "ios" || os == "android" || os == "linux" || os == "macos")
+        {
             generate_lwip_bindings();
         }
     }

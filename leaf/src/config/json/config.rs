@@ -279,7 +279,12 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                 inbound.port = ext_port as u32;
             }
             match inbound.protocol.as_str() {
-                #[cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))]
+                #[cfg(any(
+                    target_os = "ios",
+                    target_os = "android",
+                    target_os = "macos",
+                    target_os = "linux"
+                ))]
                 "tun" => {
                     if ext_inbound.settings.is_none() {
                         return Err(anyhow!("invalid tun inbound settings"));

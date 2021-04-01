@@ -8,14 +8,19 @@ build = "build.rs"
 [lib]
 name = "leaf"
 path = "src/lib.rs"
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "lib"]
 
 [features]
 default = [
-    "leaf/all-configs",
-    "leaf/all-endpoints",
-    "leaf/ring-aead",
-    "leaf/rustls-tls",
+    "default-ring",
+]
+
+default-ring = [
+    "leaf/default-ring",
+]
+
+default-openssl = [
+    "leaf/default-openssl",
 ]
 
 [dependencies]

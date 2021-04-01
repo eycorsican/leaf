@@ -11,12 +11,24 @@ path = "src/lib.rs"
 
 [features]
 default = [
+    "default-ring"
+]
+
+default-ring = [
     "all-configs",
     "all-endpoints",
     "ring-aead",
     "rustls-tls",
+	# quinn supports only rustls as tls backend for now
     "inbound-quic",
     "outbound-quic",
+]
+
+default-openssl = [
+    "all-configs",
+    "all-endpoints",
+    "openssl-aead",
+    "openssl-tls",
 ]
 
 # Grouping all features
@@ -198,7 +210,7 @@ quinn = { version = "0.7", default-features = false, features = ["tls-rustls"], 
 rustls = { version = "0.19", optional = true }
 
 # TUN
-[target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "linux"))'.dependencies]
+[target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
 
 [dev-dependencies]

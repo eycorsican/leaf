@@ -14,19 +14,11 @@ default = [
 ]
 
 default-ring = [
-    "leaf/all-configs",
-    "leaf/all-endpoints",
-    "leaf/ring-aead",
-    "leaf/rustls-tls",
-    "leaf/inbound-quic",
-    "leaf/outbound-quic",
+    "leaf/default-ring",
 ]
 
 default-openssl = [
-    "leaf/all-configs",
-    "leaf/all-endpoints",
-    "leaf/openssl-aead",
-    "leaf/openssl-tls",
+    "leaf/default-openssl",
 ]
 
 [dependencies]

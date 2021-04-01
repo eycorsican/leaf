@@ -109,7 +109,7 @@ pub mod wrapper {
         Pin::new(&mut stream)
             .connect()
             .map_err(|e| {
-                println!("{}", e);
+                log::trace!("connect tls stream failed: {}", e);
                 anyhow!(format!("connect tls stream failed"))
             })
             .await?;
