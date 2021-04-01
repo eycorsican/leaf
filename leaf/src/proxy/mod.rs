@@ -11,8 +11,7 @@ use tokio::net::{TcpSocket, UdpSocket};
 #[cfg(target_os = "android")]
 use {
     lazy_static::lazy_static, std::os::unix::io::AsRawFd, std::os::unix::io::RawFd,
-    std::path::Path, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt, tokio::net::UnixStream,
-    tokio::sync::Mutex,
+    tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt, tokio::net::UnixStream, tokio::sync::Mutex,
 };
 
 use crate::{

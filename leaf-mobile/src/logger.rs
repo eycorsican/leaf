@@ -1,7 +1,6 @@
 use std::{
     ffi,
     io::{self, Write},
-    ptr,
 };
 
 use bytes::BytesMut;
@@ -21,8 +20,8 @@ fn log_out(data: &[u8]) {
             Err(_) => return,
         };
         asl_log(
-            ptr::null_mut(),
-            ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
             ASL_LEVEL_NOTICE as i32,
             // ffi::CString::new("%s").unwrap().as_c_str().as_ptr(),
             s.as_c_str().as_ptr(),
