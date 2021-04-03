@@ -29,7 +29,7 @@ use crate::{
     app::nat_manager::NatManager,
     app::nat_manager::UdpPacket,
     common::mutex::AtomicMutex,
-    session::{DatagramSource, Session, SocksAddr},
+    session::{DatagramSource, Network, Session, SocksAddr},
 };
 
 use super::lwip::*;
@@ -106,6 +106,7 @@ impl NetStackImpl {
 
                 tokio::spawn(async move {
                     let mut sess = Session {
+                        network: Network::Tcp,
                         source: stream.local_addr().to_owned(),
                         local_addr: stream.remote_addr().to_owned(),
                         destination: SocksAddr::Ip(*stream.remote_addr()),
@@ -269,6 +270,7 @@ impl NetStackImpl {
 
                 if !nat_manager.contains_key(&dgram_src).await {
                     let sess = Session {
+                        network: Network::Udp,
                         source: dgram_src.address,
                         destination: socks_dst_addr.clone(),
                         inbound_tag: inbound_tag.clone(),

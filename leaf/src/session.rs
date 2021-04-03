@@ -10,6 +10,21 @@ use bytes::BufMut;
 use log::*;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub enum Network {
+    Tcp,
+    Udp,
+}
+
+impl std::fmt::Display for Network {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Tcp => write!(f, "tcp"),
+            Self::Udp => write!(f, "udp"),
+        }
+    }
+}
+
 pub type StreamId = u16;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -35,6 +50,8 @@ impl std::fmt::Display for DatagramSource {
 }
 
 pub struct Session {
+    /// The network type, representing either TCP or UDP.
+    pub network: Network,
     /// The socket address of the remote peer of an inbound connection.
     pub source: SocketAddr,
     /// The socket address of the local socket of an inbound connection.
@@ -50,6 +67,7 @@ pub struct Session {
 impl Clone for Session {
     fn clone(&self) -> Self {
         Session {
+            network: self.network,
             source: self.source,
             local_addr: self.local_addr,
             destination: self.destination.clone(),
@@ -62,6 +80,7 @@ impl Clone for Session {
 impl Default for Session {
     fn default() -> Self {
         Session {
+            network: Network::Tcp,
             source: "0.0.0.0:0".parse().unwrap(),
             local_addr: "0.0.0.0:0".parse().unwrap(),
             destination: SocksAddr::empty_ipv4(),

@@ -13,7 +13,7 @@ use crate::proxy::{
     InboundDatagram, InboundTransport, SimpleInboundDatagram, SimpleProxyStream,
     SingleInboundTransport,
 };
-use crate::session::{Session, SocksAddr};
+use crate::session::{Network, Session, SocksAddr};
 use crate::Runner;
 
 use super::InboundListener;
@@ -78,6 +78,7 @@ async fn handle_inbound_datagram(
                 };
                 if !nat_manager.contains_key(&dgram_src).await {
                     let sess = Session {
+                        network: Network::Udp,
                         source: dgram_src.address,
                         destination: dst_addr.clone(),
                         inbound_tag: inbound_tag.clone(),
@@ -120,6 +121,7 @@ async fn handle_inbound_stream(
         .local_addr()
         .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
     let sess = Session {
+        network: Network::Tcp,
         source,
         local_addr,
         inbound_tag: handler.tag().clone(),
