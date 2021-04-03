@@ -64,6 +64,8 @@ pub struct Proxy {
     pub amux: Option<bool>,
     pub amux_max: Option<i32>,
     pub amux_con: Option<i32>,
+
+    pub quic: Option<bool>,
 }
 
 impl Default for Proxy {
@@ -85,6 +87,7 @@ impl Default for Proxy {
             amux: Some(false),
             amux_max: Some(8),
             amux_con: Some(2),
+            quic: Some(false),
         }
     }
 }
@@ -358,6 +361,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                     };
                     proxy.amux_con = i;
                 }
+                "quic" => proxy.quic = if v == "true" { Some(true) } else { Some(false) },
                 "interface" => {
                     proxy.interface = v.to_string();
                 }
@@ -811,6 +815,24 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     amux_outbound.bind = ext_proxy.interface.clone();
                     amux_outbound.protocol = "amux".to_string();
                     amux_outbound.tag = format!("{}_amux_xxx", ext_proxy.tag.clone());
+                    // quic
+                    let mut quic_outbound = internal::Outbound::new();
+                    quic_outbound.tag = ext_proxy.tag.clone();
+                    let mut quic_settings = internal::QuicOutboundSettings::new();
+                    if let Some(ext_address) = &ext_proxy.address {
+                        quic_settings.address = ext_address.clone();
+                    }
+                    if let Some(ext_port) = &ext_proxy.port {
+                        quic_settings.port = *ext_port as u32;
+                    }
+                    if let Some(ext_sni) = &ext_proxy.sni {
+                        quic_settings.server_name = ext_sni.clone();
+                    }
+                    let quic_settings = quic_settings.write_to_bytes().unwrap();
+                    quic_outbound.settings = quic_settings;
+                    quic_outbound.bind = ext_proxy.interface.clone();
+                    quic_outbound.protocol = "quic".to_string();
+                    quic_outbound.tag = format!("{}_quic_xxx", ext_proxy.tag.clone());
 
                     // plain trojan
                     let mut settings = internal::TrojanOutboundSettings::new();
@@ -835,6 +857,8 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     let mut chain_settings = internal::ChainOutboundSettings::new();
                     if ext_proxy.amux.unwrap() {
                         chain_settings.actors.push(amux_outbound.tag.clone());
+                    } else if ext_proxy.quic.unwrap() {
+                        chain_settings.actors.push(quic_outbound.tag.clone());
                     } else {
                         chain_settings.actors.push(tls_outbound.tag.clone());
                         if ext_proxy.ws.unwrap() {
@@ -853,7 +877,11 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     if ext_proxy.amux.unwrap() {
                         outbounds.push(amux_outbound);
                     }
-                    outbounds.push(tls_outbound);
+                    if ext_proxy.quic.unwrap() {
+                        outbounds.push(quic_outbound);
+                    } else {
+                        outbounds.push(tls_outbound);
+                    }
                     if ext_proxy.ws.unwrap() {
                         outbounds.push(ws_outbound);
                     }
