@@ -1,6 +1,6 @@
 [package]
 name = "leaf-bin"
-version = "0.2.13"
+version = "0.2.14"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
 edition = "2018"
 
