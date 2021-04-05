@@ -213,6 +213,10 @@ rustls = { version = "0.19", optional = true }
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
 
+# Used in mobile logger
+[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+memchr = { version = "2" }
+
 [dev-dependencies]
 rcgen = "0.8"
 

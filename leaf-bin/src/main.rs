@@ -1,9 +1,6 @@
 use std::process::exit;
 
 use clap::{App, Arg};
-use log::*;
-
-use leaf::config;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const COMMIT_HASH: Option<&'static str> = option_env!("CFG_COMMIT_HASH");
@@ -115,37 +112,11 @@ fn main() {
         exit(1);
     }
 
-    let loglevel = if let Some(log) = config.log.as_ref() {
-        match log.level {
-            config::Log_Level::TRACE => log::LevelFilter::Trace,
-            config::Log_Level::DEBUG => log::LevelFilter::Debug,
-            config::Log_Level::INFO => log::LevelFilter::Info,
-            config::Log_Level::WARN => log::LevelFilter::Warn,
-            config::Log_Level::ERROR => log::LevelFilter::Error,
-        }
-    } else {
-        log::LevelFilter::Info
-    };
-    let mut logger = leaf::common::log::setup_logger(loglevel);
-    if let Some(log) = config.log.as_ref() {
-        match log.output {
-            config::Log_Output::CONSOLE => {
-                logger = logger.chain(fern::Output::stdout("\n"));
-            }
-            config::Log_Output::FILE => {
-                let f = fern::log_file(&log.output_file).expect("open log file failed");
-                let file_output = fern::Output::file(f, "\n");
-                logger = logger.chain(file_output);
-            }
-        }
-    }
-    leaf::common::log::apply_logger(logger);
-
-    let runners = match leaf::util::create_runners(config) {
+    let runners = match leaf::util::prepare(config) {
         Ok(v) => v,
         Err(e) => {
-            error!("create runners fialed: {}", e);
-            return;
+            println!("prepare failed: {}", e);
+            exit(1);
         }
     };
 
@@ -153,7 +124,7 @@ fn main() {
         tokio::select! {
             _ = futures::future::join_all(runners) => (),
             _ = tokio::signal::ctrl_c() => {
-                warn!("ctrl-c received, exit");
+                println!("ctrl-c received, exit");
             },
         }
     });

@@ -3,7 +3,6 @@ name = "leaf-ffi"
 version = "0.1.0"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
 edition = "2018"
-build = "build.rs"
 
 [lib]
 name = "leaf"
@@ -25,11 +24,7 @@ default-openssl = [
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
-log = "0.4"
-fern = { version = "0.6", features = ["colored"] }
-memchr = "2"
-bytes = "1"
-tokio = { version = "1", features = ["macros"] }
+tokio = { version = "1", features = ["rt"] }
 futures = "0.3"
 
 [build-dependencies]

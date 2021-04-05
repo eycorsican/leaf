@@ -5,4 +5,4 @@
 #![allow(dead_code)]
 #![allow(clippy::all)]
 
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+include!(concat!(env!("OUT_DIR"), "/mobile_bindings.rs"));

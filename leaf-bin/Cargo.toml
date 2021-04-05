@@ -24,7 +24,5 @@ default-openssl = [
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }
-log = { version = "0.4", features = ["std"] }
-fern = { version = "0.6", features = ["colored"] }
 tokio = { version = "1", features = ["signal", "rt", "rt-multi-thread"] }
 futures = "0.3"

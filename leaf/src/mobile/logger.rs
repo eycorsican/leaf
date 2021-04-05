@@ -4,7 +4,6 @@ use std::{
 };
 
 use bytes::BytesMut;
-use log::{Level, Metadata, Record};
 
 #[cfg(target_os = "ios")]
 use super::bindings::{asl_log, ASL_LEVEL_NOTICE};
