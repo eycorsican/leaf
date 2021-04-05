@@ -30,10 +30,8 @@ fn run(rt: &tokio::runtime::Runtime, config: leaf::config::Config) {
             config::Log_Output::CONSOLE => {
                 #[cfg(any(target_os = "ios", target_os = "android"))]
                 {
-                    let console_output = fern::Output::writer(
-                        Box::new(logger::ConsoleWriter(BytesMut::new())),
-                        "\n",
-                    );
+                    let console_output =
+                        fern::Output::writer(Box::new(logger::ConsoleWriter::default()), "\n");
                     logger = logger.chain(console_output);
                 }
                 #[cfg(not(any(target_os = "ios", target_os = "android")))]

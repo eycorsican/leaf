@@ -45,6 +45,12 @@ fn log_out(data: &[u8]) {
 
 pub struct ConsoleWriter(pub BytesMut);
 
+impl Default for ConsoleWriter {
+    fn default() -> Self {
+        ConsoleWriter(BytesMut::new())
+    }
+}
+
 unsafe impl Send for ConsoleWriter {}
 
 impl Write for ConsoleWriter {
