@@ -1,10 +1,14 @@
 ios:
-	cargo lipo -p leaf-mobile --release --targets aarch64-apple-ios --manifest-path leaf-mobile/Cargo.toml
-	cbindgen --config leaf-mobile/cbindgen.toml leaf-mobile/src/lib.rs > target/universal/release/leaf.h
+	cargo lipo -p leaf-ffi --release --targets aarch64-apple-ios --manifest-path leaf-ffi/Cargo.toml
+	cbindgen --config leaf-ffi/cbindgen.toml leaf-ffi/src/lib.rs > target/universal/release/leaf.h
 
 ios-dev:
-	cargo lipo -p leaf-mobile --targets aarch64-apple-ios --manifest-path leaf-mobile/Cargo.toml
-	cbindgen --config leaf-mobile/cbindgen.toml leaf-mobile/src/lib.rs > target/universal/debug/leaf.h
+	cargo lipo -p leaf-ffi --targets aarch64-apple-ios --manifest-path leaf-ffi/Cargo.toml
+	cbindgen --config leaf-ffi/cbindgen.toml leaf-ffi/src/lib.rs > target/universal/debug/leaf.h
+
+lib:
+	cargo build -p leaf-ffi --release
+	cbindgen --config leaf-ffi/cbindgen.toml leaf-ffi/src/lib.rs > target/release/leaf.h
 
 local:
 	cargo build -p leaf-bin --release

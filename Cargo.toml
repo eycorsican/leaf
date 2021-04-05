@@ -2,7 +2,7 @@
 members = [
     "leaf",
     "leaf-bin",
-    "leaf-mobile",
+    "leaf-ffi",
     "tun2socks-bin",
 ]
 default-members = ["leaf-bin"]

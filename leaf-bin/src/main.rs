@@ -127,12 +127,10 @@ fn main() {
         log::LevelFilter::Info
     };
     let mut logger = leaf::common::log::setup_logger(loglevel);
-    let console_output = fern::Output::stdout("\n");
-    logger = logger.chain(console_output);
     if let Some(log) = config.log.as_ref() {
         match log.output {
             config::Log_Output::CONSOLE => {
-                // console output already applied
+                logger = logger.chain(fern::Output::stdout("\n"));
             }
             config::Log_Output::FILE => {
                 let f = fern::log_file(&log.output_file).expect("open log file failed");

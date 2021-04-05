@@ -1,5 +1,5 @@
 [package]
-name = "leaf-mobile"
+name = "leaf-ffi"
 version = "0.1.0"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
 edition = "2018"

@@ -1,17 +1,15 @@
 use std::{ffi::CStr, os::raw::c_char};
 
-use bytes::BytesMut;
-use log::*;
-
 use leaf::config;
 
 #[cfg(any(target_os = "ios", target_os = "android"))]
 pub mod bindings;
 
+#[cfg(any(target_os = "ios", target_os = "android"))]
 mod logger;
-use logger::ConsoleWriter;
 
-// This function is only available on iOS 13.0+
+// This function is only available on iOS 13.0+, useful for debugging
+// memory issues on iOS.
 // use ios::os_proc_available_memory;
 
 fn run(rt: &tokio::runtime::Runtime, config: leaf::config::Config) {
@@ -27,12 +25,21 @@ fn run(rt: &tokio::runtime::Runtime, config: leaf::config::Config) {
         log::LevelFilter::Info
     };
     let mut logger = leaf::common::log::setup_logger(loglevel);
-    let console_output = fern::Output::writer(Box::new(ConsoleWriter(BytesMut::new())), "\n");
-    logger = logger.chain(console_output);
     if let Some(log) = config.log.as_ref() {
         match log.output {
             config::Log_Output::CONSOLE => {
-                // console output already applied
+                #[cfg(any(target_os = "ios", target_os = "android"))]
+                {
+                    let console_output = fern::Output::writer(
+                        Box::new(logger::ConsoleWriter(BytesMut::new())),
+                        "\n",
+                    );
+                    logger = logger.chain(console_output);
+                }
+                #[cfg(not(any(target_os = "ios", target_os = "android")))]
+                {
+                    logger = logger.chain(fern::Output::stdout("\n"));
+                }
             }
             config::Log_Output::FILE => {
                 let f = fern::log_file(&log.output_file).expect("open log file failed");
@@ -46,28 +53,16 @@ fn run(rt: &tokio::runtime::Runtime, config: leaf::config::Config) {
     let runners = match leaf::util::create_runners(config) {
         Ok(v) => v,
         Err(e) => {
-            error!("create runners fialed: {}", e);
+            log::error!("create runners fialed: {}", e);
             return;
         }
     };
 
-    // let monit_mem = Box::pin(async {
-    //     loop {
-    //         let n = unsafe { os_proc_available_memory() };
-    //         debug!("{} bytes memory available", n);
-    //         tokio::time::delay_for(std::time::Duration::from_secs(1)).await;
-    //     }
-    // });
-
-    rt.block_on(async move {
-        tokio::select! {
-            _ = futures::future::join_all(runners) => (),
-            // _ = monit_mem  => (),
-        }
-    });
+    rt.block_on(futures::future::join_all(runners));
 }
 
-#[cfg(target_os = "ios")]
+// TODO Return meaningful error codes.
+#[cfg(not(target_os = "android"))]
 #[no_mangle]
 pub extern "C" fn run_leaf(config_path: *const c_char) {
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -80,7 +75,7 @@ pub extern "C" fn run_leaf(config_path: *const c_char) {
     {
         run(&rt, config);
     } else {
-        error!("invalid config path or config file");
+        log::error!("invalid config path or config file");
         return;
     }
 }
@@ -103,7 +98,7 @@ pub extern "C" fn run_leaf(config_path: *const c_char, protect_path: *const c_ch
     {
         run(&rt, config);
     } else {
-        error!("invalid config path or config file");
+        log::error!("invalid config path or config file");
         return;
     }
 }
