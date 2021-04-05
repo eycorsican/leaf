@@ -18,6 +18,27 @@ fn main() {
         } else {
             ""
         })
+        .clang_arg(if os == "macos" {
+            // https://github.com/rust-lang/rust-bindgen/issues/1211
+            "--target=x86_64-apple-darwin"
+        } else {
+            ""
+        })
+        .clang_arg(if os == "macos" {
+            // sdk path find by `xcrun --sdk macosx --show-sdk-path`
+            let output = Command::new("xcrun")
+                .arg("--sdk")
+                .arg("macosx")
+                .arg("--show-sdk-path")
+                .output()
+                .expect("failed to execute xcrun");
+            let inc_path =
+                Path::new(String::from_utf8_lossy(&output.stdout).trim()).join("usr/include");
+
+            format!("-I{}", inc_path.to_str().expect("invalid include path"))
+        } else {
+            "".to_string()
+        })
         .clang_arg(if arch == "aarch64" && os == "ios" {
             // sdk path find by `xcrun --sdk iphoneos --show-sdk-path`
             let output = Command::new("xcrun")

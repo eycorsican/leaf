@@ -6,13 +6,13 @@ use std::{
 use bytes::BytesMut;
 use log::{Level, Metadata, Record};
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 use super::bindings::{asl_log, ASL_LEVEL_NOTICE};
 
 #[cfg(target_os = "android")]
 use super::bindings::{__android_log_print, android_LogPriority_ANDROID_LOG_VERBOSE};
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 fn log_out(data: &[u8]) {
     unsafe {
         let s = match ffi::CString::new(data) {

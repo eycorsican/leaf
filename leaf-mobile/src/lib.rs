@@ -5,7 +5,7 @@ use log::*;
 
 use leaf::config;
 
-#[cfg(any(target_os = "ios", target_os = "android"))]
+#[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
 pub mod bindings;
 
 mod logger;
@@ -67,7 +67,7 @@ fn run(rt: &tokio::runtime::Runtime, config: leaf::config::Config) {
     });
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 #[no_mangle]
 pub extern "C" fn run_leaf(config_path: *const c_char) {
     let rt = tokio::runtime::Builder::new_current_thread()

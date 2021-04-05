@@ -2,6 +2,9 @@ ios:
 	cargo lipo -p leaf-mobile --release --targets aarch64-apple-ios --manifest-path leaf-mobile/Cargo.toml
 	cbindgen leaf-mobile/src/lib.rs -l c > target/universal/release/leaf.h
 
+macos:
+	cargo lipo -p leaf-mobile --release --targets x86_64-apple-darwin --manifest-path leaf-mobile/Cargo.toml
+	cbindgen leaf-mobile/src/lib.rs -l c > target/universal/release/leaf.h
 ios-dev:
 	cargo lipo -p leaf-mobile --targets aarch64-apple-ios --manifest-path leaf-mobile/Cargo.toml
 	cbindgen leaf-mobile/src/lib.rs -l c > target/universal/debug/leaf.h
