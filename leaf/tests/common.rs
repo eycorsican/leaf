@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::abortable;
@@ -92,11 +93,10 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
             dns: None,
         };
         let config = leaf::config::json::to_internal(config).unwrap();
-        let outbound_manager = leaf::app::outbound::manager::OutboundManager::new(
-            &config.outbounds,
-            config.dns.as_ref().unwrap(),
-        )
-        .unwrap();
+        let dns_client = Arc::new(leaf::app::dns_client::DnsClient::new(&config.dns).unwrap());
+        let outbound_manager =
+            leaf::app::outbound::manager::OutboundManager::new(&config.outbounds, dns_client)
+                .unwrap();
         let handler = outbound_manager.get("socks").unwrap();
         let mut sess = leaf::session::Session::default();
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
