@@ -4,12 +4,14 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use anyhow::Result;
 use cidr::{Cidr, IpCidr};
+use futures::TryFutureExt;
 use log::*;
 use maxminddb::geoip2::Country;
 use memmap::Mmap;
 
+use crate::app::dns_client::DnsClient;
 use crate::config::{self, RoutingRule};
-use crate::session::Session;
+use crate::session::{Session, SocksAddr};
 
 pub trait Condition: Send + Sync + Unpin {
     fn apply(&self, sess: &Session) -> bool;
@@ -353,10 +355,14 @@ impl Condition for ConditionOr {
 
 pub struct Router {
     rules: Vec<Rule>,
+    dns_client: Arc<DnsClient>,
 }
 
 impl Router {
-    pub fn new(routing_rules: &protobuf::RepeatedField<RoutingRule>) -> Self {
+    pub fn new(
+        routing_rules: &protobuf::RepeatedField<RoutingRule>,
+        dns_client: Arc<DnsClient>,
+    ) -> Self {
         let mut rules = Vec::new();
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
         for rr in routing_rules.iter() {
@@ -403,13 +409,34 @@ impl Router {
 
             rules.push(Rule::new(rr.target_tag.clone(), Box::new(cond_and)));
         }
-        Router { rules }
+        Router { rules, dns_client }
     }
 
-    pub fn pick_route(&self, sess: &Session) -> Result<&String> {
+    pub async fn pick_route(&self, sess: &Session) -> Result<&String> {
         for rule in &self.rules {
             if rule.apply(sess) {
                 return Ok(&rule.target);
+            }
+        }
+        if sess.destination.is_domain() && *crate::option::ROUTING_DOMAIN_RESOLVE {
+            let ips = self
+                .dns_client
+                .lookup(sess.destination.host())
+                .map_err(|e| anyhow!("lookup {} failed: {}", sess.destination.host(), e))
+                .await?;
+            if !ips.is_empty() {
+                let mut new_sess = sess.clone();
+                new_sess.destination = SocksAddr::from((ips[0], sess.destination.port()));
+                log::trace!(
+                    "re-matching with resolved ip [{}] for [{}]",
+                    ips[0],
+                    sess.destination.host()
+                );
+                for rule in &self.rules {
+                    if rule.apply(&new_sess) {
+                        return Ok(&rule.target);
+                    }
+                }
             }
         }
         Err(anyhow!("no matching rules"))

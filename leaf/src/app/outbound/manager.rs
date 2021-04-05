@@ -1,7 +1,7 @@
 use std::{
     collections::{hash_map, HashMap},
     convert::From,
-    net::{IpAddr, SocketAddr, SocketAddrV4},
+    net::{SocketAddr, SocketAddrV4},
     str::FromStr,
     sync::Arc,
 };
@@ -46,7 +46,7 @@ use crate::proxy::ws;
 
 use crate::{
     app::dns_client::DnsClient,
-    config::{self, Dns, Outbound},
+    config::{self, Outbound},
     proxy::{self, OutboundHandler, ProxyHandlerType},
 };
 
@@ -56,29 +56,12 @@ pub struct OutboundManager {
 }
 
 impl OutboundManager {
-    pub fn new(outbounds: &protobuf::RepeatedField<Outbound>, dns: &Dns) -> Result<Self> {
+    pub fn new(
+        outbounds: &protobuf::RepeatedField<Outbound>,
+        dns_client: Arc<DnsClient>,
+    ) -> Result<Self> {
         let mut handlers: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
         let mut default_handler: Option<String> = None;
-        let mut dns_servers = Vec::new();
-        let mut dns_hosts = HashMap::new();
-        for dns_server in dns.servers.iter() {
-            if let Ok(ip) = dns_server.parse::<IpAddr>() {
-                dns_servers.push(SocketAddr::new(ip, 53));
-            }
-        }
-        for (name, ips) in dns.hosts.iter() {
-            dns_hosts.insert(name.to_owned(), ips.values.to_vec());
-        }
-        if dns_servers.is_empty() {
-            return Err(anyhow!("no dns servers"));
-        }
-        let dns_bind_addr = {
-            let addr = format!("{}:0", &dns.bind);
-            let addr = SocketAddrV4::from_str(&addr)
-                .map_err(|e| anyhow!("invalid bind addr [{}] in dns: {}", &dns.bind, e))?;
-            SocketAddr::from(addr)
-        };
-        let dns_client = Arc::new(DnsClient::new(dns_servers, dns_hosts, dns_bind_addr));
 
         for outbound in outbounds.iter() {
             let tag = String::from(&outbound.tag);

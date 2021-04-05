@@ -53,6 +53,10 @@ lazy_static! {
     pub static ref OUTBOUND_DIAL_CONCURRENCY: usize = {
         get_env_var("OUTBOUND_DIAL_CONCURRENCY", 1)
     };
+
+    pub static ref ROUTING_DOMAIN_RESOLVE: bool = {
+        get_env_var("ROUTING_DOMAIN_RESOLVE", false)
+    };
 }
 
 /// UDP session timeout. A UDP session shall be terminated if there are no

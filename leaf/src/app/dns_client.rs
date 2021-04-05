@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -47,11 +47,32 @@ impl Default for DnsClient {
 }
 
 impl DnsClient {
-    pub fn new(
-        servers: Vec<SocketAddr>,
-        hosts: HashMap<String, Vec<String>>,
-        bind_addr: SocketAddr,
-    ) -> Self {
+    pub fn new(dns: &protobuf::SingularPtrField<crate::config::Dns>) -> Result<Self> {
+        let dns = if let Some(dns) = dns.as_ref() {
+            dns
+        } else {
+            return Err(anyhow!("empty dns config"));
+        };
+        let mut servers = Vec::new();
+        let mut hosts = HashMap::new();
+        for server in dns.servers.iter() {
+            if let Ok(ip) = server.parse::<IpAddr>() {
+                servers.push(SocketAddr::new(ip, 53));
+            }
+        }
+        for (name, ips) in dns.hosts.iter() {
+            hosts.insert(name.to_owned(), ips.values.to_vec());
+        }
+        if servers.is_empty() {
+            return Err(anyhow!("no dns servers"));
+        }
+        let bind_addr = {
+            let addr = format!("{}:0", &dns.bind);
+            let addr = SocketAddrV4::from_str(&addr)
+                .map_err(|e| anyhow!("invalid bind addr [{}] in dns: {}", &dns.bind, e))?;
+            SocketAddr::from(addr)
+        };
+
         let cache = Arc::new(TokioMutex::new(LruCache::<String, Vec<IpAddr>>::new(
             option::DNS_CACHE_SIZE,
         )));
@@ -65,12 +86,12 @@ impl DnsClient {
             }
             parsed_hosts.insert(name.to_owned(), ips);
         }
-        DnsClient {
+        Ok(DnsClient {
             servers,
             bind_addr,
             hosts: parsed_hosts,
             cache,
-        }
+        })
     }
 
     /// Updates the cache according to the IP address successfully connected.

@@ -122,7 +122,7 @@ impl Dispatcher {
                 Box::new(SimpleProxyStream(lhs))
             };
 
-        let outbound = match self.router.pick_route(&sess) {
+        let outbound = match self.router.pick_route(&sess).await {
             Ok(tag) => {
                 debug!(
                     "picked route [{}] for {} -> {}",
@@ -460,7 +460,7 @@ impl Dispatcher {
     }
 
     pub async fn dispatch_udp(&self, sess: &Session) -> io::Result<Box<dyn OutboundDatagram>> {
-        let outbound = match self.router.pick_route(&sess) {
+        let outbound = match self.router.pick_route(&sess).await {
             Ok(tag) => {
                 debug!(
                     "picked route [{}] for {} -> {}",

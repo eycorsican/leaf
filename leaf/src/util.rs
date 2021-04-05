@@ -5,8 +5,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{
     app::{
-        dispatcher::Dispatcher, inbound::manager::InboundManager, nat_manager::NatManager,
-        outbound::manager::OutboundManager, router::Router,
+        dispatcher::Dispatcher, dns_client::DnsClient, inbound::manager::InboundManager,
+        nat_manager::NatManager, outbound::manager::OutboundManager, router::Router,
     },
     config::Config,
     session::{Session, SocksAddr},
@@ -14,8 +14,9 @@ use crate::{
 };
 
 pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
-    let outbound_manager = OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap())?;
-    let router = Router::new(&config.routing_rules);
+    let dns_client = Arc::new(DnsClient::new(&config.dns)?);
+    let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
+    let router = Router::new(&config.routing_rules, dns_client);
     let dispatcher = Arc::new(Dispatcher::new(outbound_manager, router));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager = InboundManager::new(&config.inbounds, dispatcher, nat_manager);
@@ -24,8 +25,8 @@ pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
 }
 
 pub async fn test_outbound(tag: &str, config: &Config) {
-    let outbound_manager =
-        OutboundManager::new(&config.outbounds, config.dns.as_ref().unwrap()).unwrap();
+    let dns_client = Arc::new(DnsClient::new(&config.dns).unwrap());
+    let outbound_manager = OutboundManager::new(&config.outbounds, dns_client).unwrap();
     let handler = if let Some(v) = outbound_manager.get(tag) {
         v
     } else {
