@@ -69,7 +69,7 @@ impl TcpOutboundHandler for Handler {
                 headers: &self.headers,
             };
             let ws_config = WebSocketConfig {
-                max_send_queue: Some(16),
+                max_send_queue: Some(4),
                 max_message_size: Some(64 << 20),
                 max_frame_size: Some(16 << 20),
                 accept_unmasked_frames: false,

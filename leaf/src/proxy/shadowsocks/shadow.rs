@@ -57,9 +57,8 @@ impl<T> ShadowedStream<T> {
             enc: None,
             dec: None,
 
-            // never depend on these sizes, reserve when need
-            read_buf: BytesMut::with_capacity(0x3fff + 0x20),
-            write_buf: BytesMut::with_capacity(0x2 + 0x3fff + 0x20 * 2),
+            read_buf: BytesMut::new(),
+            write_buf: BytesMut::new(),
 
             read_state: ReadState::WaitingSalt,
             write_state: WriteState::WaitingSalt,

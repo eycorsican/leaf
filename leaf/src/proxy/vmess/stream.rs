@@ -66,9 +66,8 @@ impl<T> VMessAuthStream<T> {
             dec_size_parser,
             tag_len,
 
-            // never depend on these sizes, reserve when need
-            read_buf: BytesMut::with_capacity(0x2 + 0x4000),
-            write_buf: BytesMut::with_capacity(0x2 + 0x4000),
+            read_buf: BytesMut::new(),
+            write_buf: BytesMut::new(),
 
             read_state: ReadState::WaitingResponseHeader,
             write_state: WriteState::WaitingChunk,

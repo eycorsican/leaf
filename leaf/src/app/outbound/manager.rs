@@ -295,10 +295,10 @@ impl OutboundManager {
                     for alpn in settings.alpn.iter() {
                         alpns.push(alpn.clone());
                     }
-                    let tcp = Box::new(tls::TcpHandler {
-                        server_name: settings.server_name.clone(),
-                        alpns: alpns.clone(),
-                    });
+                    let tcp = Box::new(tls::TcpHandler::new(
+                        settings.server_name.clone(),
+                        alpns.clone(),
+                    ));
                     let handler = proxy::outbound::Handler::new(
                         tag.clone(),
                         colored::Color::TrueColor {
