@@ -112,7 +112,7 @@ fn main() {
         exit(1);
     }
 
-    let runners = match leaf::util::prepare(config) {
+    let runners = match leaf::util::prepare(&rt, config) {
         Ok(v) => v,
         Err(e) => {
             println!("prepare failed: {}", e);

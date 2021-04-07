@@ -11,7 +11,7 @@ pub extern "C" fn run_leaf(config_path: *const c_char) {
         .map_err(Into::into)
         .and_then(leaf::config::from_file)
     {
-        let runners = match leaf::util::prepare(config) {
+        let runners = match leaf::util::prepare(&rt, config) {
             Ok(v) => v,
             Err(e) => {
                 println!("prepare failed: {}", e);

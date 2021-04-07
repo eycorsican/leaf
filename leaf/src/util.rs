@@ -13,22 +13,31 @@ use crate::{
     Runner,
 };
 
+#[cfg(feature = "api")]
+use crate::app::api::api_server::ApiServer;
+
 #[cfg(any(target_os = "ios", target_os = "android"))]
 use super::mobile;
 use super::{common, config};
 
-pub fn create_runners(config: Config) -> Result<Vec<Runner>> {
+pub fn create_runners(rt: &tokio::runtime::Runtime, config: Config) -> Result<Vec<Runner>> {
+    let mut runners = Vec::new();
     let dns_client = Arc::new(DnsClient::new(&config.dns)?);
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
+    #[cfg(feature = "api")]
+    {
+        let api_server = ApiServer::new(outbound_manager.clone());
+        runners.push(api_server.serve(rt));
+    }
     let router = Router::new(&config.routing_rules, dns_client);
     let dispatcher = Arc::new(Dispatcher::new(outbound_manager, router));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager = InboundManager::new(&config.inbounds, dispatcher, nat_manager);
-    let runners = inbound_manager.get_runners();
+    runners.append(&mut inbound_manager.get_runners());
     Ok(runners)
 }
 
-pub fn prepare(config: config::Config) -> Result<Vec<Runner>> {
+pub fn prepare(rt: &tokio::runtime::Runtime, config: config::Config) -> Result<Vec<Runner>> {
     let loglevel = if let Some(log) = config.log.as_ref() {
         match log.level {
             config::Log_Level::TRACE => log::LevelFilter::Trace,
@@ -66,7 +75,7 @@ pub fn prepare(config: config::Config) -> Result<Vec<Runner>> {
     }
     common::log::apply_logger(logger);
 
-    create_runners(config).map_err(|e| anyhow!("create runners fialed: {}", e))
+    create_runners(rt, config).map_err(|e| anyhow!("create runners fialed: {}", e))
 }
 
 pub async fn test_outbound(tag: &str, config: &Config) {

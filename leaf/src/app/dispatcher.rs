@@ -1,5 +1,6 @@
 use std::io::{self, ErrorKind};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::{self, Either};
@@ -12,7 +13,7 @@ use crate::{
     common::sniff,
     option,
     proxy::{OutboundDatagram, ProxyHandlerType, ProxyStream, SimpleProxyStream},
-    session::{Session, SocksAddr},
+    session::{Network, Session, SocksAddr},
 };
 
 use super::outbound::manager::OutboundManager;
@@ -27,10 +28,14 @@ fn log_request(
 ) {
     if let Some(color) = outbound_tag_color {
         use colored::Colorize;
+        let network_color = match sess.network {
+            Network::Tcp => colored::Color::Blue,
+            Network::Udp => colored::Color::Yellow,
+        };
         info!(
             "[{}] [{}] [{}] [{}ms] {}",
             &sess.inbound_tag,
-            sess.network.to_string().color(colored::Color::Blue),
+            sess.network.to_string().color(network_color),
             outbound_tag.color(color),
             handshake_time,
             &sess.destination,
@@ -44,7 +49,7 @@ fn log_request(
 }
 
 pub struct Dispatcher {
-    outbound_manager: OutboundManager,
+    outbound_manager: Arc<OutboundManager>,
     router: Router,
     endpoint_tcp_sem: Semaphore,
     direct_tcp_sem: Semaphore,
@@ -53,7 +58,7 @@ pub struct Dispatcher {
 }
 
 impl Dispatcher {
-    pub fn new(outbound_manager: OutboundManager, router: Router) -> Self {
+    pub fn new(outbound_manager: Arc<OutboundManager>, router: Router) -> Self {
         Dispatcher {
             outbound_manager,
             router,

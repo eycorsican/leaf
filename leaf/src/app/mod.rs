@@ -5,6 +5,9 @@ pub mod nat_manager;
 pub mod outbound;
 pub mod router;
 
+#[cfg(feature = "api")]
+pub mod api;
+
 #[cfg(any(
     target_os = "ios",
     target_os = "android",

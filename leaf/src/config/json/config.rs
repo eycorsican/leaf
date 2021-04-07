@@ -193,9 +193,8 @@ pub struct FailOverOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct StatOutboundSettings {
-    pub address: Option<String>,
-    pub port: Option<u16>,
+pub struct SelectOutboundSettings {
+    pub actors: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -833,6 +832,22 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         settings.attempts = ext_attempts;
                     } else {
                         settings.attempts = 2;
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
+                "select" => {
+                    if ext_outbound.settings.is_none() {
+                        return Err(anyhow!("invalid select outbound settings"));
+                    }
+                    let mut settings = internal::SelectOutboundSettings::new();
+                    let ext_settings: SelectOutboundSettings =
+                        serde_json::from_str(ext_outbound.settings.unwrap().get()).unwrap();
+                    if let Some(ext_actors) = ext_settings.actors {
+                        for ext_actor in ext_actors {
+                            settings.actors.push(ext_actor);
+                        }
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

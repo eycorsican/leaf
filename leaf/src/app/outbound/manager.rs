@@ -9,6 +9,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use log::*;
 use protobuf::Message;
+use tokio::sync::RwLock;
 
 #[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;
@@ -18,6 +19,8 @@ use crate::proxy::failover;
 use crate::proxy::random;
 #[cfg(feature = "outbound-retry")]
 use crate::proxy::retry;
+#[cfg(feature = "outbound-select")]
+use crate::proxy::select;
 #[cfg(feature = "outbound-tryall")]
 use crate::proxy::tryall;
 
@@ -50,8 +53,11 @@ use crate::{
     proxy::{self, OutboundHandler, ProxyHandlerType},
 };
 
+use super::selector::OutboundSelector;
+
 pub struct OutboundManager {
     handlers: HashMap<String, Arc<dyn OutboundHandler>>,
+    selectors: Arc<super::Selectors>,
     default_handler: Option<String>,
 }
 
@@ -59,8 +65,9 @@ impl OutboundManager {
     pub fn new(
         outbounds: &protobuf::RepeatedField<Outbound>,
         dns_client: Arc<DnsClient>,
-    ) -> Result<Self> {
+    ) -> Result<Arc<Self>> {
         let mut handlers: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
+        let mut selectors: super::Selectors = HashMap::new();
         let mut default_handler: Option<String> = None;
 
         for outbound in outbounds.iter() {
@@ -675,15 +682,57 @@ impl OutboundManager {
                         );
                         handlers.insert(tag.clone(), handler);
                     }
+                    #[cfg(feature = "outbound-select")]
+                    "select" => {
+                        let settings = match config::SelectOutboundSettings::parse_from_bytes(
+                            &outbound.settings,
+                        ) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("invalid [{}] outbound settings: {}", &tag, e);
+                                continue;
+                            }
+                        };
+                        let mut actors = HashMap::new();
+                        for actor in settings.actors.iter() {
+                            if let Some(a) = handlers.get(actor) {
+                                actors.insert(actor.to_owned(), a.clone());
+                            }
+                        }
+                        if actors.is_empty() {
+                            continue;
+                        }
+                        let selector = Arc::new(RwLock::new(OutboundSelector::new(actors)));
+                        let tcp = Box::new(select::TcpHandler {
+                            selector: selector.clone(),
+                        });
+                        let udp = Box::new(select::UdpHandler {
+                            selector: selector.clone(),
+                        });
+                        selectors.insert(tag.clone(), selector);
+                        let handler = proxy::outbound::Handler::new(
+                            tag.clone(),
+                            colored::Color::TrueColor {
+                                r: 182,
+                                g: 235,
+                                b: 250,
+                            },
+                            ProxyHandlerType::Ensemble,
+                            Some(tcp),
+                            Some(udp),
+                        );
+                        handlers.insert(tag.clone(), handler);
+                    }
                     _ => (),
                 }
             }
         }
 
-        Ok(OutboundManager {
+        Ok(Arc::new(OutboundManager {
             handlers,
+            selectors: Arc::new(selectors),
             default_handler,
-        })
+        }))
     }
 
     pub fn add(&mut self, tag: String, handler: Arc<dyn OutboundHandler>) {
@@ -702,6 +751,10 @@ impl OutboundManager {
         Handlers {
             inner: self.handlers.values(),
         }
+    }
+
+    pub fn get_selector(&self, tag: &str) -> Option<Arc<RwLock<OutboundSelector>>> {
+        self.selectors.get(tag).map(Clone::clone)
     }
 }
 
