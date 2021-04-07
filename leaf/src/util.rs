@@ -1,3 +1,4 @@
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -26,8 +27,12 @@ pub fn create_runners(rt: &tokio::runtime::Runtime, config: Config) -> Result<Ve
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
     #[cfg(feature = "api")]
     {
-        let api_server = ApiServer::new(outbound_manager.clone());
-        runners.push(api_server.serve(rt));
+        if let Some(api) = config.api.as_ref() {
+            let api_server = ApiServer::new(outbound_manager.clone());
+            let listen_addr =
+                SocketAddr::new(api.address.parse::<IpAddr>().unwrap(), api.port as u16);
+            runners.push(api_server.serve(rt, listen_addr));
+        }
     }
     let router = Router::new(&config.routing_rules, dns_client);
     let dispatcher = Arc::new(Dispatcher::new(outbound_manager, router));

@@ -41,32 +41,34 @@ pub async fn run_echo_servers<A: ToSocketAddrs + 'static + Copy>(addr: A) {
 }
 
 // Runs multiple leaf instances.
-pub async fn run_leaf_instances(configs: Vec<String>) {
+pub fn run_leaf_instances(rt: &tokio::runtime::Runtime, configs: Vec<String>) -> Vec<leaf::Runner> {
     let mut leaf_runners = Vec::new();
     for config in configs {
         let config = leaf::config::json::from_string(config).unwrap();
         let config = leaf::config::json::to_internal(config).unwrap();
-        let task_runners = leaf::util::create_runners(config).unwrap();
-        let task = async move {
-            futures::future::join_all(task_runners).await;
-        };
-        leaf_runners.push(task);
+        let mut task_runners = leaf::util::create_runners(rt, config).unwrap();
+        leaf_runners.append(&mut task_runners);
     }
-    futures::future::join_all(leaf_runners).await;
+    leaf_runners
 }
 
 // Runs multiple leaf instances, thereafter a socks request will be sent to the
 // given socks server to test the proxy chain. The proxy chain is expected to
 // correctly handle the request to it's destination.
 pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
     let mut bg_tasks: Vec<leaf::Runner> = Vec::new();
 
     // Use an echo server as the destination of the socks request.
     let echo_server_task = run_echo_servers("127.0.0.1:3000");
     bg_tasks.push(Box::pin(echo_server_task));
 
-    let leaf_task = run_leaf_instances(configs);
-    bg_tasks.push(Box::pin(leaf_task));
+    let mut leaf_runners = run_leaf_instances(&rt, configs);
+    bg_tasks.append(&mut leaf_runners);
 
     let (bg_task, bg_task_handle) = abortable(futures::future::join_all(bg_tasks));
 
@@ -91,6 +93,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
             outbounds: Some(outbounds),
             rules: None,
             dns: None,
+            api: None,
         };
         let config = leaf::config::json::to_internal(config).unwrap();
         let dns_client = Arc::new(leaf::app::dns_client::DnsClient::new(&config.dns).unwrap());
@@ -125,10 +128,5 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         // Cancel the background task.
         bg_task_handle.abort();
     };
-
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
     rt.block_on(futures::future::join(bg_task, app_task).map(|_| ()));
 }

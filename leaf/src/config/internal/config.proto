@@ -1,5 +1,10 @@
 syntax = "proto3";
 
+message Api {
+	string address = 1;
+	uint32 port = 2;
+}
+
 message Dns {
 	message Ips {
 		repeated string values = 1;
@@ -206,4 +211,5 @@ message Config {
 	repeated Outbound outbounds = 3;
 	repeated RoutingRule routing_rules = 4;
 	Dns dns = 5;
+	Api api = 6;
 }

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use crate::app::outbound::manager::OutboundManager;
 
 pub struct ApiServer {
-    listen_addr: SocketAddr,
     outbound_manager: Arc<OutboundManager>,
 }
 
@@ -66,15 +65,14 @@ mod filters {
 
 impl ApiServer {
     pub fn new(outbound_manager: Arc<OutboundManager>) -> Self {
-        let listen_addr = "127.0.0.1:9991".parse().unwrap();
-        Self {
-            listen_addr,
-            outbound_manager,
-        }
+        Self { outbound_manager }
     }
 
-    pub fn serve(&self, rt: &tokio::runtime::Runtime) -> crate::Runner {
+    pub fn serve(&self, rt: &tokio::runtime::Runtime, listen_addr: SocketAddr) -> crate::Runner {
         let routes = filters::select_update(self.outbound_manager.clone());
-        Box::pin(rt.block_on(async { warp::serve(routes).bind(self.listen_addr) }))
+        Box::pin(rt.block_on(async {
+            log::info!("api server listening tcp {}", &listen_addr);
+            warp::serve(routes).bind(listen_addr)
+        }))
     }
 }
