@@ -130,6 +130,7 @@ pub struct TlsOutboundSettings {
     #[serde(rename = "serverName")]
     pub server_name: Option<String>,
     pub alpn: Option<Vec<String>>,
+    pub insecure:Option<bool>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -604,6 +605,10 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         }
                         if alpns.len() > 0 {
                             settings.alpn = alpns;
+                        }
+                        
+                        if let Some(ext_insecure) = ext_settings.insecure {
+                            settings.insecure = ext_insecure;
                         }
                     }
                     let settings = settings.write_to_bytes().unwrap();

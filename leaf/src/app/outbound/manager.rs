@@ -302,9 +302,12 @@ impl OutboundManager {
                     for alpn in settings.alpn.iter() {
                         alpns.push(alpn.clone());
                     }
+                    info!("outbound-tls  insecure: {}", settings.insecure);
+
                     let tcp = Box::new(tls::TcpHandler::new(
                         settings.server_name.clone(),
                         alpns.clone(),
+                        settings.insecure
                     ));
                     let handler = proxy::outbound::Handler::new(
                         tag.clone(),

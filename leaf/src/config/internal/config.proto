@@ -107,6 +107,7 @@ message VMessOutboundSettings {
 message TlsOutboundSettings {
 	string server_name = 1;
 	repeated string alpn = 2;
+	bool insecure=3;
 }
 
 message WebSocketOutboundSettings {

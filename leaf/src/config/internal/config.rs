@@ -3726,6 +3726,7 @@ pub struct TlsOutboundSettings {
     // message fields
     pub server_name: ::std::string::String,
     pub alpn: ::protobuf::RepeatedField<::std::string::String>,
+    pub insecure: bool,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -3792,6 +3793,21 @@ impl TlsOutboundSettings {
     pub fn take_alpn(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
         ::std::mem::replace(&mut self.alpn, ::protobuf::RepeatedField::new())
     }
+
+    // bool insecure = 3;
+
+
+    pub fn get_insecure(&self) -> bool {
+        self.insecure
+    }
+    pub fn clear_insecure(&mut self) {
+        self.insecure = false;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_insecure(&mut self, v: bool) {
+        self.insecure = v;
+    }
 }
 
 impl ::protobuf::Message for TlsOutboundSettings {
@@ -3808,6 +3824,13 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 },
                 2 => {
                     ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.alpn)?;
+                },
+                3 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_bool()?;
+                    self.insecure = tmp;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -3827,6 +3850,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         for value in &self.alpn {
             my_size += ::protobuf::rt::string_size(2, &value);
         };
+        if self.insecure != false {
+            my_size += 2;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -3839,6 +3865,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         for v in &self.alpn {
             os.write_string(2, &v)?;
         };
+        if self.insecure != false {
+            os.write_bool(3, self.insecure)?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -3887,6 +3916,11 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 |m: &TlsOutboundSettings| { &m.alpn },
                 |m: &mut TlsOutboundSettings| { &mut m.alpn },
             ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
+                "insecure",
+                |m: &TlsOutboundSettings| { &m.insecure },
+                |m: &mut TlsOutboundSettings| { &mut m.insecure },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<TlsOutboundSettings>(
                 "TlsOutboundSettings",
                 fields,
@@ -3905,6 +3939,7 @@ impl ::protobuf::Clear for TlsOutboundSettings {
     fn clear(&mut self) {
         self.server_name.clear();
         self.alpn.clear();
+        self.insecure = false;
         self.unknown_fields.clear();
     }
 }
@@ -7654,54 +7689,55 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x20\x01(\tR\x08password\"u\n\x15VMessOutboundSettings\x12\x18\n\x07addr\
     ess\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\x18\x02\x20\x01(\rR\
     \x04port\x12\x12\n\x04uuid\x18\x03\x20\x01(\tR\x04uuid\x12\x1a\n\x08secu\
-    rity\x18\x04\x20\x01(\tR\x08security\"J\n\x13TlsOutboundSettings\x12\x1f\
+    rity\x18\x04\x20\x01(\tR\x08security\"f\n\x13TlsOutboundSettings\x12\x1f\
     \n\x0bserver_name\x18\x01\x20\x01(\tR\nserverName\x12\x12\n\x04alpn\x18\
-    \x02\x20\x03(\tR\x04alpn\"\xae\x01\n\x19WebSocketOutboundSettings\x12\
-    \x12\n\x04path\x18\x01\x20\x01(\tR\x04path\x12A\n\x07headers\x18\x02\x20\
-    \x03(\x0b2'.WebSocketOutboundSettings.HeadersEntryR\x07headers\x1a:\n\
-    \x0cHeadersEntry\x12\x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x12\x14\n\
-    \x05value\x18\x02\x20\x01(\tR\x05value:\x028\x01\"?\n\x15HTTP2OutboundSe\
-    ttings\x12\x12\n\x04path\x18\x01\x20\x01(\tR\x04path\x12\x12\n\x04host\
-    \x18\x02\x20\x01(\tR\x04host\"O\n\x16TryAllOutboundSettings\x12\x16\n\
-    \x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1d\n\ndelay_base\x18\x02\
-    \x20\x01(\rR\tdelayBase\"0\n\x16RandomOutboundSettings\x12\x16\n\x06acto\
-    rs\x18\x01\x20\x03(\tR\x06actors\"\x9f\x01\n\x14AMuxOutboundSettings\x12\
-    \x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\x18\
-    \x02\x20\x01(\rR\x04port\x12\x16\n\x06actors\x18\x03\x20\x03(\tR\x06acto\
-    rs\x12\x1f\n\x0bmax_accepts\x18\x04\x20\x01(\rR\nmaxAccepts\x12\x20\n\
-    \x0bconcurrency\x18\x05\x20\x01(\rR\x0bconcurrency\"\x87\x01\n\x14QuicOu\
-    tboundSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\
-    \x12\n\x04port\x18\x02\x20\x01(\rR\x04port\x12\x1f\n\x0bserver_name\x18\
-    \x03\x20\x01(\tR\nserverName\x12\x20\n\x0bcertificate\x18\x04\x20\x01(\t\
-    R\x0bcertificate\"/\n\x15ChainOutboundSettings\x12\x16\n\x06actors\x18\
-    \x01\x20\x03(\tR\x06actors\"K\n\x15RetryOutboundSettings\x12\x16\n\x06ac\
-    tors\x18\x01\x20\x03(\tR\x06actors\x12\x1a\n\x08attempts\x18\x02\x20\x01\
-    (\rR\x08attempts\"\xa6\x02\n\x18FailOverOutboundSettings\x12\x16\n\x06ac\
-    tors\x18\x01\x20\x03(\tR\x06actors\x12!\n\x0cfail_timeout\x18\x02\x20\
-    \x01(\rR\x0bfailTimeout\x12!\n\x0chealth_check\x18\x03\x20\x01(\x08R\x0b\
-    healthCheck\x12%\n\x0echeck_interval\x18\x04\x20\x01(\rR\rcheckInterval\
-    \x12\x1a\n\x08failover\x18\x05\x20\x01(\x08R\x08failover\x12%\n\x0efallb\
-    ack_cache\x18\x06\x20\x01(\x08R\rfallbackCache\x12\x1d\n\ncache_size\x18\
-    \x07\x20\x01(\rR\tcacheSize\x12#\n\rcache_timeout\x18\x08\x20\x01(\rR\
-    \x0ccacheTimeout\"0\n\x16SelectOutboundSettings\x12\x16\n\x06actors\x18\
-    \x01\x20\x03(\tR\x06actors\"h\n\x08Outbound\x12\x10\n\x03tag\x18\x01\x20\
-    \x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\x08protocol\
-    \x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08settings\x18\
-    \x04\x20\x01(\x0cR\x08settings\"\xf6\x02\n\x0bRoutingRule\x12\x1d\n\ntar\
-    get_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\x18\x02\x20\x03\
-    (\x0b2\x13.RoutingRule.DomainR\x07domains\x12\x19\n\x08ip_cidrs\x18\x03\
-    \x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\x0b2\x11.Routin\
-    gRule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\x20\x03(\tR\nportR\
-    anges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01(\x0e2\x18.RoutingR\
-    ule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\x20\x01(\tR\x05value\
-    \"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOMAIN\x10\x01\x12\x08\n\
-    \x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\x18\x01\x20\x01(\tR\
-    \x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\x0bcountryCode\"\xba\
-    \x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\x0b2\x04.LogR\x03log\
-    \x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.InboundR\x08inbounds\x12'\
-    \n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\toutbounds\x121\n\rrouti\
-    ng_rules\x18\x04\x20\x03(\x0b2\x0c.RoutingRuleR\x0croutingRules\x12\x16\
-    \n\x03dns\x18\x05\x20\x01(\x0b2\x04.DnsR\x03dnsb\x06proto3\
+    \x02\x20\x03(\tR\x04alpn\x12\x1a\n\x08insecure\x18\x03\x20\x01(\x08R\x08\
+    insecure\"\xae\x01\n\x19WebSocketOutboundSettings\x12\x12\n\x04path\x18\
+    \x01\x20\x01(\tR\x04path\x12A\n\x07headers\x18\x02\x20\x03(\x0b2'.WebSoc\
+    ketOutboundSettings.HeadersEntryR\x07headers\x1a:\n\x0cHeadersEntry\x12\
+    \x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x12\x14\n\x05value\x18\x02\x20\
+    \x01(\tR\x05value:\x028\x01\"?\n\x15HTTP2OutboundSettings\x12\x12\n\x04p\
+    ath\x18\x01\x20\x01(\tR\x04path\x12\x12\n\x04host\x18\x02\x20\x01(\tR\
+    \x04host\"O\n\x16TryAllOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\
+    \x03(\tR\x06actors\x12\x1d\n\ndelay_base\x18\x02\x20\x01(\rR\tdelayBase\
+    \"0\n\x16RandomOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\
+    \x06actors\"\x9f\x01\n\x14AMuxOutboundSettings\x12\x18\n\x07address\x18\
+    \x01\x20\x01(\tR\x07address\x12\x12\n\x04port\x18\x02\x20\x01(\rR\x04por\
+    t\x12\x16\n\x06actors\x18\x03\x20\x03(\tR\x06actors\x12\x1f\n\x0bmax_acc\
+    epts\x18\x04\x20\x01(\rR\nmaxAccepts\x12\x20\n\x0bconcurrency\x18\x05\
+    \x20\x01(\rR\x0bconcurrency\"\x87\x01\n\x14QuicOutboundSettings\x12\x18\
+    \n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\x18\x02\
+    \x20\x01(\rR\x04port\x12\x1f\n\x0bserver_name\x18\x03\x20\x01(\tR\nserve\
+    rName\x12\x20\n\x0bcertificate\x18\x04\x20\x01(\tR\x0bcertificate\"/\n\
+    \x15ChainOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06act\
+    ors\"K\n\x15RetryOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\t\
+    R\x06actors\x12\x1a\n\x08attempts\x18\x02\x20\x01(\rR\x08attempts\"\xa6\
+    \x02\n\x18FailOverOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\
+    \tR\x06actors\x12!\n\x0cfail_timeout\x18\x02\x20\x01(\rR\x0bfailTimeout\
+    \x12!\n\x0chealth_check\x18\x03\x20\x01(\x08R\x0bhealthCheck\x12%\n\x0ec\
+    heck_interval\x18\x04\x20\x01(\rR\rcheckInterval\x12\x1a\n\x08failover\
+    \x18\x05\x20\x01(\x08R\x08failover\x12%\n\x0efallback_cache\x18\x06\x20\
+    \x01(\x08R\rfallbackCache\x12\x1d\n\ncache_size\x18\x07\x20\x01(\rR\tcac\
+    heSize\x12#\n\rcache_timeout\x18\x08\x20\x01(\rR\x0ccacheTimeout\"0\n\
+    \x16SelectOutboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06ac\
+    tors\"h\n\x08Outbound\x12\x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\x12\
+    \x1a\n\x08protocol\x18\x02\x20\x01(\tR\x08protocol\x12\x12\n\x04bind\x18\
+    \x03\x20\x01(\tR\x04bind\x12\x1a\n\x08settings\x18\x04\x20\x01(\x0cR\x08\
+    settings\"\xf6\x02\n\x0bRoutingRule\x12\x1d\n\ntarget_tag\x18\x01\x20\
+    \x01(\tR\ttargetTag\x12-\n\x07domains\x18\x02\x20\x03(\x0b2\x13.RoutingR\
+    ule.DomainR\x07domains\x12\x19\n\x08ip_cidrs\x18\x03\x20\x03(\tR\x07ipCi\
+    drs\x12'\n\x05mmdbs\x18\x04\x20\x03(\x0b2\x11.RoutingRule.MmdbR\x05mmdbs\
+    \x12\x1f\n\x0bport_ranges\x18\x05\x20\x03(\tR\nportRanges\x1au\n\x06Doma\
+    in\x12,\n\x04type\x18\x01\x20\x01(\x0e2\x18.RoutingRule.Domain.TypeR\x04\
+    type\x12\x14\n\x05value\x18\x02\x20\x01(\tR\x05value\"'\n\x04Type\x12\t\
+    \n\x05PLAIN\x10\0\x12\n\n\x06DOMAIN\x10\x01\x12\x08\n\x04FULL\x10\x02\
+    \x1a=\n\x04Mmdb\x12\x12\n\x04file\x18\x01\x20\x01(\tR\x04file\x12!\n\x0c\
+    country_code\x18\x02\x20\x01(\tR\x0bcountryCode\"\xba\x01\n\x06Config\
+    \x12\x16\n\x03log\x18\x01\x20\x01(\x0b2\x04.LogR\x03log\x12$\n\x08inboun\
+    ds\x18\x02\x20\x03(\x0b2\x08.InboundR\x08inbounds\x12'\n\toutbounds\x18\
+    \x03\x20\x03(\x0b2\t.OutboundR\toutbounds\x121\n\rrouting_rules\x18\x04\
+    \x20\x03(\x0b2\x0c.RoutingRuleR\x0croutingRules\x12\x16\n\x03dns\x18\x05\
+    \x20\x01(\x0b2\x04.DnsR\x03dnsb\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;

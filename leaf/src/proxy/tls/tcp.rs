@@ -12,7 +12,7 @@ use {
 
 #[cfg(feature = "openssl-tls")]
 use {
-    openssl::ssl::{Ssl, SslConnector, SslMethod},
+    openssl::ssl::{Ssl, SslConnector, SslMethod,SslVerifyMode},
     std::pin::Pin,
     std::sync::Once,
     tokio_openssl::SslStream,
@@ -26,17 +26,34 @@ use crate::{
 #[cfg(feature = "rustls-tls")]
 pub struct Handler {
     server_name: String,
-    tls_config: Arc<ClientConfig>,
+    tls_config: Arc<ClientConfig>
+}
+
+#[cfg(feature = "rustls-tls")]
+pub struct InsecureVerifier;
+
+#[cfg(feature = "rustls-tls")]
+impl rustls::ServerCertVerifier for InsecureVerifier {
+    fn verify_server_cert(
+        &self,
+        _roots: &rustls::RootCertStore,
+        _presented_certs: &[rustls::Certificate],
+        _dns_name: DNSNameRef<'_>,
+        _ocsp_response: &[u8],
+    ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+        Ok(rustls::ServerCertVerified::assertion())
+    }
 }
 
 #[cfg(feature = "openssl-tls")]
 pub struct Handler {
     server_name: String,
     ssl_connector: SslConnector,
+    insecure: bool
 }
 
 impl Handler {
-    pub fn new(server_name: String, alpns: Vec<String>) -> Self {
+    pub fn new(server_name: String, alpns: Vec<String>,insecure: bool) -> Self {
         #[cfg(feature = "rustls-tls")]
         {
             let mut config = ClientConfig::new();
@@ -47,9 +64,16 @@ impl Handler {
             for alpn in alpns {
                 config.alpn_protocols.push(alpn.as_bytes().to_vec());
             }
+            trace!("rustls-tls insecure: {}", insecure);
+            if insecure {
+                let mut dangerous_config = config.dangerous();
+                dangerous_config.set_certificate_verifier(Arc::new(InsecureVerifier));
+            }
+
             Handler {
                 server_name,
-                tls_config: Arc::new(config),
+                tls_config: Arc::new(config)
+
             }
         }
         #[cfg(feature = "openssl-tls")]
@@ -68,10 +92,14 @@ impl Handler {
                     .concat();
                 builder.set_alpn_protos(&wire).expect("set alpn failed");
             }
+
+            trace!("openssl-tls insecure: {}", insecure);
+            
             let ssl_connector = builder.build();
             Handler {
                 server_name,
                 ssl_connector,
+                insecure
             }
         }
     }
@@ -119,6 +147,9 @@ impl TcpOutboundHandler for Handler {
             {
                 let mut ssl = Ssl::new(self.ssl_connector.context()).map_err(tls_err)?;
                 ssl.set_hostname(&name).map_err(tls_err)?;
+                if self.insecure {
+                   ssl.set_verify(SslVerifyMode::NONE);
+                }
                 let mut stream = SslStream::new(ssl, stream).map_err(tls_err)?;
                 Pin::new(&mut stream)
                     .connect()
