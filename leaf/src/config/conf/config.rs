@@ -1130,10 +1130,21 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                 }
                 "GEOIP" => {
                     let mut mmdb = internal::RoutingRule_Mmdb::new();
-                    let mut file = std::env::current_exe().unwrap();
-                    file.pop();
-                    file.push("geo.mmdb");
-                    mmdb.file = file.to_str().unwrap().to_string();
+                    let mut file_buf = std::env::current_exe().unwrap();
+                    file_buf.pop();
+                    file_buf.push("geo.mmdb");
+                    let mut file = file_buf.to_str().unwrap().to_string();
+
+                    let key = "ASSET_LOCATION";
+                    match std::env::var(key) {
+                        Ok(_) => {
+                            file = std::env::var("ASSET_LOCATION").unwrap();
+                            let db = "geo.mmdb".to_string();
+                            file += &db;
+                        },
+                        Err(_) => println!("{} env not set, use default", key),
+                    }
+                    mmdb.file = file;
                     mmdb.country_code = ext_filter;
                     rule.mmdbs.push(mmdb)
                 }

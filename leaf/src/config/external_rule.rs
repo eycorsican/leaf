@@ -20,12 +20,24 @@ pub fn load_file_or_default(filter: &str, default: &str) -> Result<(String, Stri
             file.push(parts[1]);
             file.to_str().unwrap().to_string()
         };
+
         (path, parts[2].to_string())
     } else if parts.len() == 2 {
-        let mut file = std::env::current_exe().unwrap();
-        file.pop();
-        file.push(default);
-        (file.to_str().unwrap().to_string(), parts[1].to_string())
+        let mut file_buf = std::env::current_exe().unwrap();
+        file_buf.pop();
+        file_buf.push(default);
+        let mut file = file_buf.to_str().unwrap().to_string();
+
+        let key = "ASSET_LOCATION";
+        match std::env::var(key) {
+            Ok(_) => {
+                file = std::env::var("ASSET_LOCATION").unwrap();
+                let db = default.to_string();
+                file += &db;
+            },
+            Err(_) => println!("{} env not set, use default", key),
+        }
+        (file, parts[1].to_string())
     } else {
         return Err(anyhow!("invalid external rule: {}", filter));
     };
