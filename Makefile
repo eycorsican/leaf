@@ -21,7 +21,7 @@ local-dev:
 	cargo build -p leaf-bin
 
 test:
-	cargo test -p leaf
+	cargo test -p leaf -- --nocapture
 
 # Force a re-generation of protobuf files.
 proto-gen:

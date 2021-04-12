@@ -114,10 +114,12 @@ inbound-quic = ["quinn", "rustls", "webpki-roots"]
 inbound-chain = []
 
 api = ["warp"]
+auto-reload = ["notify"]
+ctrlc = ["tokio/signal"]
 
 [dependencies]
 # Common
-tokio = { version = "1", features = ["macros", "sync", "io-util", "net", "time", "rt"] }
+tokio = { version = "1", features = ["sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
 futures-util = "0.3"
 protobuf = "2"
 thiserror = "1.0"
@@ -216,7 +218,10 @@ quinn = { version = "0.7", default-features = false, features = ["tls-rustls"], 
 rustls = { version = "0.19", optional = true }
 
 # API
-warp = { version = "0.3", optional = true }
+warp = { version = "0.3", default-features = false, optional = true }
+
+# Auto reload
+notify = { version = "5.0.0-pre.6", optional = true }
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
@@ -231,5 +236,5 @@ rcgen = "0.8"
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.57"
+bindgen = "0.58"
 protoc-rust = "2"

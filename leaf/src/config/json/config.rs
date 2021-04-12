@@ -979,7 +979,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
     let api = if let Some(ext_api) = json.api {
         if let (Some(ext_address), Some(ext_port)) = (ext_api.address, ext_api.port) {
             let mut api = internal::Api::new();
-            api.address = ext_address.to_owned();
+            api.address = ext_address;
             api.port = ext_port.to_owned() as u32;
             protobuf::SingularPtrField::some(api)
         } else {

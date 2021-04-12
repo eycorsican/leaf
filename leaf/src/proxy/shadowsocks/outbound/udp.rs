@@ -11,7 +11,7 @@ use bytes::{BufMut, BytesMut};
 use log::*;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
         OutboundTransport, SimpleOutboundDatagram, UdpConnector, UdpOutboundHandler,
@@ -28,7 +28,7 @@ pub struct Handler {
     pub cipher: String,
     pub password: String,
     pub bind_addr: SocketAddr,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
 }
 
 impl UdpConnector for Handler {}

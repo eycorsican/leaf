@@ -27,6 +27,13 @@ impl OutboundSelector {
         None
     }
 
+    pub fn get_selected_tag(&self) -> Option<String> {
+        if let Some(tag) = self.selected.as_ref() {
+            return Some(tag.to_owned());
+        }
+        None
+    }
+
     pub fn set_selected(&mut self, tag: &str) -> Result<()> {
         if self.handlers.contains_key(tag) {
             self.selected.replace(tag.to_string());

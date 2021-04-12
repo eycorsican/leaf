@@ -9,7 +9,7 @@ use log::*;
 use maxminddb::geoip2::Country;
 use memmap::Mmap;
 
-use crate::app::dns_client::DnsClient;
+use crate::app::SyncDnsClient;
 use crate::config::{self, RoutingRule};
 use crate::session::{Session, SocksAddr};
 
@@ -355,14 +355,11 @@ impl Condition for ConditionOr {
 
 pub struct Router {
     rules: Vec<Rule>,
-    dns_client: Arc<DnsClient>,
+    dns_client: SyncDnsClient,
 }
 
 impl Router {
-    pub fn new(
-        routing_rules: &protobuf::RepeatedField<RoutingRule>,
-        dns_client: Arc<DnsClient>,
-    ) -> Self {
+    fn load_rules(routing_rules: &protobuf::RepeatedField<RoutingRule>) -> Vec<Rule> {
         let mut rules = Vec::new();
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
         for rr in routing_rules.iter() {
@@ -409,7 +406,21 @@ impl Router {
 
             rules.push(Rule::new(rr.target_tag.clone(), Box::new(cond_and)));
         }
+        rules
+    }
+
+    pub fn new(
+        routing_rules: &protobuf::RepeatedField<RoutingRule>,
+        dns_client: SyncDnsClient,
+    ) -> Self {
+        let rules = Self::load_rules(routing_rules);
         Router { rules, dns_client }
+    }
+
+    pub fn reload(&mut self, routing_rules: &protobuf::RepeatedField<RoutingRule>) -> Result<()> {
+        let rules = Self::load_rules(routing_rules);
+        self.rules = rules;
+        Ok(())
     }
 
     pub async fn pick_route(&self, sess: &Session) -> Result<&String> {
@@ -419,11 +430,14 @@ impl Router {
             }
         }
         if sess.destination.is_domain() && *crate::option::ROUTING_DOMAIN_RESOLVE {
-            let ips = self
-                .dns_client
-                .lookup(sess.destination.host())
-                .map_err(|e| anyhow!("lookup {} failed: {}", sess.destination.host(), e))
-                .await?;
+            let ips = {
+                self.dns_client
+                    .read()
+                    .await
+                    .lookup(sess.destination.host())
+                    .map_err(|e| anyhow!("lookup {} failed: {}", sess.destination.host(), e))
+                    .await?
+            };
             if !ips.is_empty() {
                 let mut new_sess = sess.clone();
                 new_sess.destination = SocksAddr::from((ips[0], sess.destination.port()));

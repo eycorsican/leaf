@@ -5,6 +5,7 @@ use futures::future::abortable;
 use futures::FutureExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, ToSocketAddrs, UdpSocket};
+use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 pub async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
@@ -41,15 +42,28 @@ pub async fn run_echo_servers<A: ToSocketAddrs + 'static + Copy>(addr: A) {
 }
 
 // Runs multiple leaf instances.
-pub fn run_leaf_instances(rt: &tokio::runtime::Runtime, configs: Vec<String>) -> Vec<leaf::Runner> {
-    let mut leaf_runners = Vec::new();
+pub fn run_leaf_instances(
+    rt: &tokio::runtime::Runtime,
+    configs: Vec<String>,
+) -> Vec<leaf::RuntimeId> {
+    let mut leaf_rt_ids = Vec::new();
+    let mut rt_id = 0;
     for config in configs {
         let config = leaf::config::json::from_string(config).unwrap();
         let config = leaf::config::json::to_internal(config).unwrap();
-        let mut task_runners = leaf::util::create_runners(rt, config).unwrap();
-        leaf_runners.append(&mut task_runners);
+        let opts = leaf::StartOptions {
+            config: leaf::Config::Internal(config),
+            #[cfg(feature = "auto-reload")]
+            auto_reload: false,
+            runtime_opt: leaf::RuntimeOption::SingleThread,
+        };
+        rt.spawn_blocking(move || {
+            leaf::start(rt_id, opts).unwrap();
+        });
+        leaf_rt_ids.push(rt_id);
+        rt_id += 1;
     }
-    leaf_runners
+    leaf_rt_ids
 }
 
 // Runs multiple leaf instances, thereafter a socks request will be sent to the
@@ -61,19 +75,18 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         .build()
         .unwrap();
 
-    let mut bg_tasks: Vec<leaf::Runner> = Vec::new();
-
     // Use an echo server as the destination of the socks request.
+    let mut bg_tasks: Vec<leaf::Runner> = Vec::new();
     let echo_server_task = run_echo_servers("127.0.0.1:3000");
     bg_tasks.push(Box::pin(echo_server_task));
-
-    let mut leaf_runners = run_leaf_instances(&rt, configs);
-    bg_tasks.append(&mut leaf_runners);
-
     let (bg_task, bg_task_handle) = abortable(futures::future::join_all(bg_tasks));
+
+    let leaf_rt_ids = run_leaf_instances(&rt, configs);
 
     // Simulates an application request.
     let app_task = async move {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
         // Make use of a socks outbound to initiate a socks request to a leaf instance.
         let settings = leaf::config::json::SocksOutboundSettings {
             address: Some(socks_addr.to_string()),
@@ -96,7 +109,9 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
             api: None,
         };
         let config = leaf::config::json::to_internal(config).unwrap();
-        let dns_client = Arc::new(leaf::app::dns_client::DnsClient::new(&config.dns).unwrap());
+        let dns_client = Arc::new(RwLock::new(
+            leaf::app::dns_client::DnsClient::new(&config.dns).unwrap(),
+        ));
         let outbound_manager =
             leaf::app::outbound::manager::OutboundManager::new(&config.outbounds, dns_client)
                 .unwrap();
@@ -129,4 +144,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         bg_task_handle.abort();
     };
     rt.block_on(futures::future::join(bg_task, app_task).map(|_| ()));
+    for id in leaf_rt_ids.into_iter() {
+        assert!(leaf::shutdown(id));
+    }
 }

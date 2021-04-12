@@ -1,9 +1,9 @@
-use std::{io, net::SocketAddr, sync::Arc};
+use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundTransport, SimpleOutboundDatagram, UdpConnector,
         UdpOutboundHandler, UdpTransportType,
@@ -13,11 +13,11 @@ use crate::{
 
 pub struct Handler {
     bind_addr: SocketAddr,
-    dns_client: Arc<DnsClient>,
+    dns_client: SyncDnsClient,
 }
 
 impl Handler {
-    pub fn new(bind_addr: SocketAddr, dns_client: Arc<DnsClient>) -> Self {
+    pub fn new(bind_addr: SocketAddr, dns_client: SyncDnsClient) -> Self {
         Handler {
             bind_addr,
             dns_client,

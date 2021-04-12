@@ -109,10 +109,8 @@ impl NatManager {
         client_ch_tx: Sender<UdpPacket>,
     ) {
         // Runs the lazy task for session cleanup job, this task will run only once.
-        if self.timeout_check_task.lock().await.is_some() {
-            if let Some(task) = self.timeout_check_task.lock().await.take() {
-                tokio::spawn(task);
-            }
+        if let Some(task) = self.timeout_check_task.lock().await.take() {
+            tokio::spawn(task);
         }
 
         let (target_ch_tx, mut target_ch_rx) = mpsc::channel(64);

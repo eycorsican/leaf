@@ -1,7 +1,6 @@
 use std::cmp::min;
 use std::io;
 use std::net::SocketAddr;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
@@ -12,7 +11,7 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
         OutboundTransport, TcpConnector, UdpOutboundHandler, UdpTransportType,
@@ -25,7 +24,7 @@ pub struct Handler {
     pub port: u16,
     pub password: String,
     pub bind_addr: SocketAddr,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
 }
 
 impl TcpConnector for Handler {}

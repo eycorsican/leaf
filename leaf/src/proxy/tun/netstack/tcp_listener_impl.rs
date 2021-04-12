@@ -31,6 +31,7 @@ pub extern "C" fn tcp_accept_cb(arg: *mut raw::c_void, newpcb: *mut tcp_pcb, err
 }
 
 pub struct TcpListenerImpl {
+    pub tpcb: *mut tcp_pcb,
     pub lwip_lock: Arc<AtomicMutex>,
     pub waker: Option<Waker>,
     pub queue: VecDeque<Box<TcpStreamImpl>>,
@@ -38,14 +39,15 @@ pub struct TcpListenerImpl {
 
 impl TcpListenerImpl {
     pub fn new(lwip_lock: Arc<AtomicMutex>) -> Box<Self> {
-        let listener = Box::new(TcpListenerImpl {
-            lwip_lock,
-            waker: None,
-            queue: VecDeque::new(),
-        });
         unsafe {
-            let _g = listener.lwip_lock.lock();
+            let _g = lwip_lock.lock();
             let mut tpcb = tcp_new();
+            let listener = Box::new(TcpListenerImpl {
+                tpcb,
+                lwip_lock: lwip_lock.clone(),
+                waker: None,
+                queue: VecDeque::new(),
+            });
             let err = tcp_bind(tpcb, &ip_addr_any_type, 0);
             if err != err_enum_t_ERR_OK as err_t {
                 error!("bind tcp failed");
@@ -59,8 +61,20 @@ impl TcpListenerImpl {
             let arg = &*listener as *const TcpListenerImpl as *mut raw::c_void;
             tcp_arg(tpcb, arg);
             tcp_accept(tpcb, Some(tcp_accept_cb));
+            listener
         }
-        listener
+    }
+}
+
+unsafe impl Sync for TcpListenerImpl {}
+unsafe impl Send for TcpListenerImpl {}
+
+impl Drop for TcpListenerImpl {
+    fn drop(&mut self) {
+        unsafe {
+            tcp_accept(self.tpcb, None);
+            tcp_close(self.tpcb);
+        }
     }
 }
 

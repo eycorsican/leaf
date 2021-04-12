@@ -15,14 +15,19 @@ default = [
 
 default-ring = [
     "leaf/default-ring",
+    "leaf/ctrlc",
+    "auto-reload",
 ]
 
 default-openssl = [
     "leaf/default-openssl",
+    "leaf/ctrlc",
+    "auto-reload",
 ]
+
+auto-reload = ["leaf/auto-reload"]
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }
-tokio = { version = "1", features = ["signal", "rt", "rt-multi-thread"] }
-futures = "0.3"
+tokio = { version = "1", features = ["rt"] }

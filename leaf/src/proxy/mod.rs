@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
@@ -15,7 +14,7 @@ use {
 };
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     common::resolver::Resolver,
     option,
     session::{DatagramSource, Session, SocksAddr},
@@ -166,7 +165,7 @@ async fn tcp_dial_task(
 
 // Dials a TCP stream.
 pub async fn dial_tcp_stream(
-    dns_client: Arc<DnsClient>,
+    dns_client: SyncDnsClient,
     bind_addr: &SocketAddr,
     address: &str,
     port: &u16,
@@ -201,7 +200,7 @@ pub async fn dial_tcp_stream(
             match select_ok(tasks.into_iter()).await {
                 Ok(v) => {
                     #[rustfmt::skip]
-                    dns_client.optimize_cache(address.to_owned(), v.0.1.ip()).await;
+                    dns_client.read().await.optimize_cache(address.to_owned(), v.0.1.ip()).await;
                     #[rustfmt::skip]
                     return Ok(v.0.0);
                 }
@@ -229,7 +228,7 @@ pub trait TcpConnector: Send + Sync + Unpin {
     /// Dials a TCP connection.
     async fn dial_tcp_stream(
         &self,
-        dns_client: Arc<DnsClient>,
+        dns_client: SyncDnsClient,
         bind_addr: &SocketAddr,
         address: &str,
         port: &u16,

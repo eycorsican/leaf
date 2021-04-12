@@ -1,11 +1,11 @@
-use std::{io, net::SocketAddr, sync::Arc};
+use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
 use bytes::BytesMut;
 
 use super::shadow::ShadowedStream;
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{BufHeadProxyStream, OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
@@ -16,7 +16,7 @@ pub struct Handler {
     pub cipher: String,
     pub password: String,
     pub bind_addr: SocketAddr,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
 }
 
 impl TcpConnector for Handler {}

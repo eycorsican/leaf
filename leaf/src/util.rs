@@ -1,90 +1,76 @@
-use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::RwLock;
 
 use crate::{
-    app::{
-        dispatcher::Dispatcher, dns_client::DnsClient, inbound::manager::InboundManager,
-        nat_manager::NatManager, outbound::manager::OutboundManager, router::Router,
-    },
+    app::{dns_client::DnsClient, outbound::manager::OutboundManager},
     config::Config,
     session::{Session, SocksAddr},
-    Runner,
 };
 
-#[cfg(feature = "api")]
-use crate::app::api::api_server::ApiServer;
-
-#[cfg(any(target_os = "ios", target_os = "android"))]
-use super::mobile;
-use super::{common, config};
-
-pub fn create_runners(rt: &tokio::runtime::Runtime, config: Config) -> Result<Vec<Runner>> {
-    let mut runners = Vec::new();
-    let dns_client = Arc::new(DnsClient::new(&config.dns)?);
-    let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
-    #[cfg(feature = "api")]
-    {
-        if let Some(api) = config.api.as_ref() {
-            let api_server = ApiServer::new(outbound_manager.clone());
-            let listen_addr =
-                SocketAddr::new(api.address.parse::<IpAddr>().unwrap(), api.port as u16);
-            runners.push(api_server.serve(rt, listen_addr));
-        }
+fn get_start_options(
+    config_path: String,
+    #[cfg(feature = "auto-reload")] auto_reload: bool,
+    multi_thread: bool,
+    auto_threads: bool,
+    threads: usize,
+    stack_size: usize,
+) -> crate::StartOptions {
+    if !multi_thread {
+        return crate::StartOptions {
+            config: crate::Config::File(config_path),
+            #[cfg(feature = "auto-reload")]
+            auto_reload,
+            #[cfg(target_os = "android")]
+            socket_protect_path: None,
+            runtime_opt: crate::RuntimeOption::SingleThread,
+        };
     }
-    let router = Router::new(&config.routing_rules, dns_client);
-    let dispatcher = Arc::new(Dispatcher::new(outbound_manager, router));
-    let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
-    let inbound_manager = InboundManager::new(&config.inbounds, dispatcher, nat_manager);
-    runners.append(&mut inbound_manager.get_runners());
-    Ok(runners)
+    if auto_threads {
+        return crate::StartOptions {
+            config: crate::Config::File(config_path),
+            #[cfg(feature = "auto-reload")]
+            auto_reload,
+            #[cfg(target_os = "android")]
+            socket_protect_path: None,
+            runtime_opt: crate::RuntimeOption::MultiThreadAuto(stack_size),
+        };
+    }
+    crate::StartOptions {
+        config: crate::Config::File(config_path),
+        #[cfg(feature = "auto-reload")]
+        auto_reload,
+        #[cfg(target_os = "android")]
+        socket_protect_path: None,
+        runtime_opt: crate::RuntimeOption::MultiThread(threads, stack_size),
+    }
 }
 
-pub fn prepare(rt: &tokio::runtime::Runtime, config: config::Config) -> Result<Vec<Runner>> {
-    let loglevel = if let Some(log) = config.log.as_ref() {
-        match log.level {
-            config::Log_Level::TRACE => log::LevelFilter::Trace,
-            config::Log_Level::DEBUG => log::LevelFilter::Debug,
-            config::Log_Level::INFO => log::LevelFilter::Info,
-            config::Log_Level::WARN => log::LevelFilter::Warn,
-            config::Log_Level::ERROR => log::LevelFilter::Error,
-        }
-    } else {
-        log::LevelFilter::Info
-    };
-    let mut logger = common::log::setup_logger(loglevel);
-    if let Some(log) = config.log.as_ref() {
-        match log.output {
-            config::Log_Output::CONSOLE => {
-                #[cfg(any(target_os = "ios", target_os = "android"))]
-                {
-                    let console_output = fern::Output::writer(
-                        Box::new(mobile::logger::ConsoleWriter::default()),
-                        "\n",
-                    );
-                    logger = logger.chain(console_output);
-                }
-                #[cfg(not(any(target_os = "ios", target_os = "android")))]
-                {
-                    logger = logger.chain(fern::Output::stdout("\n"));
-                }
-            }
-            config::Log_Output::FILE => {
-                let f = fern::log_file(&log.output_file).expect("open log file failed");
-                let file_output = fern::Output::file(f, "\n");
-                logger = logger.chain(file_output);
-            }
-        }
-    }
-    common::log::apply_logger(logger);
-
-    create_runners(rt, config).map_err(|e| anyhow!("create runners fialed: {}", e))
+pub fn run_with_options(
+    rt_id: crate::RuntimeId,
+    config_path: String,
+    #[cfg(feature = "auto-reload")] auto_reload: bool,
+    multi_thread: bool,
+    auto_threads: bool,
+    threads: usize,
+    stack_size: usize,
+) -> Result<(), crate::Error> {
+    let opts = get_start_options(
+        config_path,
+        #[cfg(feature = "auto-reload")]
+        auto_reload,
+        multi_thread,
+        auto_threads,
+        threads,
+        stack_size,
+    );
+    crate::start(rt_id, opts)
 }
 
 pub async fn test_outbound(tag: &str, config: &Config) {
-    let dns_client = Arc::new(DnsClient::new(&config.dns).unwrap());
+    let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns).unwrap()));
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client).unwrap();
     let handler = if let Some(v) = outbound_manager.get(tag) {
         v

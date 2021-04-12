@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::io;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
@@ -9,7 +8,7 @@ use tungstenite::protocol::WebSocketConfig;
 use url::Url;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
     session::Session,
 };
@@ -19,7 +18,7 @@ use super::stream;
 pub struct Handler {
     pub path: String,
     pub headers: HashMap<String, String>,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
 }
 
 struct Request<'a> {

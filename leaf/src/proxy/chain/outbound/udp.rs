@@ -5,7 +5,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, ProxyStream,
         SimpleOutboundDatagram, TcpConnector, UdpConnector, UdpOutboundHandler, UdpTransportType,
@@ -22,7 +22,7 @@ fn invalid_chain(reason: &str) -> io::Error {
 
 pub struct Handler {
     pub actors: Vec<Arc<dyn OutboundHandler>>,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
 }
 
 impl Handler {

@@ -8,6 +8,8 @@ use std::{
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::future::{abortable, AbortHandle};
+use futures::FutureExt;
 use log::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::sync::Mutex as TokioMutex;
@@ -42,7 +44,8 @@ impl Handler {
         health_check: bool,
         check_interval: u32,
         failover: bool,
-    ) -> Self {
+    ) -> (Self, Vec<AbortHandle>) {
+        let mut abort_handles = Vec::new();
         let mut schedule = Vec::new();
         for i in 0..actors.len() {
             schedule.push(i);
@@ -52,7 +55,7 @@ impl Handler {
         let schedule2 = schedule.clone();
         let actors2 = actors.clone();
         let task = if health_check {
-            let health_check_task: BoxFuture<'static, ()> = Box::pin(async move {
+            let fut = async move {
                 loop {
                     let mut measures: Vec<Measure> = Vec::new();
                     for (i, a) in (&actors2).iter().enumerate() {
@@ -163,18 +166,24 @@ impl Handler {
 
                     tokio::time::sleep(time::Duration::from_secs(check_interval as u64)).await;
                 }
-            });
+            };
+            let (abortable, abort_handle) = abortable(fut);
+            abort_handles.push(abort_handle);
+            let health_check_task: BoxFuture<'static, ()> = Box::pin(abortable.map(|_| ()));
             Some(health_check_task)
         } else {
             None
         };
 
-        Handler {
-            actors,
-            fail_timeout,
-            schedule,
-            health_check_task: TokioMutex::new(task),
-        }
+        (
+            Handler {
+                actors,
+                fail_timeout,
+                schedule,
+                health_check_task: TokioMutex::new(task),
+            },
+            abort_handles,
+        )
     }
 }
 
@@ -197,10 +206,8 @@ impl UdpOutboundHandler for Handler {
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        if self.health_check_task.lock().await.is_some() {
-            if let Some(task) = self.health_check_task.lock().await.take() {
-                tokio::spawn(task);
-            }
+        if let Some(task) = self.health_check_task.lock().await.take() {
+            tokio::spawn(task);
         }
 
         let schedule = self.schedule.lock().await.clone();

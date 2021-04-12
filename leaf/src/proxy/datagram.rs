@@ -5,7 +5,7 @@ use futures::TryFutureExt;
 use tokio::net::UdpSocket;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     session::{DatagramSource, SocksAddr},
 };
 
@@ -18,7 +18,7 @@ use super::{
 pub struct SimpleOutboundDatagram {
     inner: UdpSocket,
     destination: Option<SocksAddr>,
-    dns_client: Arc<DnsClient>,
+    dns_client: SyncDnsClient,
     bind_addr: SocketAddr,
 }
 
@@ -26,7 +26,7 @@ impl SimpleOutboundDatagram {
     pub fn new(
         inner: UdpSocket,
         destination: Option<SocksAddr>,
-        dns_client: Arc<DnsClient>,
+        dns_client: SyncDnsClient,
         bind_addr: SocketAddr,
     ) -> Self {
         SimpleOutboundDatagram {
@@ -76,23 +76,26 @@ impl OutboundDatagramRecvHalf for SimpleOutboundDatagramRecvHalf {
     }
 }
 
-pub struct SimpleOutboundDatagramSendHalf(Arc<UdpSocket>, Arc<DnsClient>, SocketAddr);
+pub struct SimpleOutboundDatagramSendHalf(Arc<UdpSocket>, SyncDnsClient, SocketAddr);
 
 #[async_trait]
 impl OutboundDatagramSendHalf for SimpleOutboundDatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
         let addr = match target {
             SocksAddr::Domain(domain, port) => {
-                let ips = self
-                    .1
-                    .lookup_with_bind(domain.to_owned(), &self.2)
-                    .map_err(|e| {
-                        io::Error::new(
-                            io::ErrorKind::Other,
-                            format!("lookup {} failed: {}", domain, e),
-                        )
-                    })
-                    .await?;
+                let ips = {
+                    self.1
+                        .read()
+                        .await
+                        .lookup_with_bind(domain.to_owned(), &self.2)
+                        .map_err(|e| {
+                            io::Error::new(
+                                io::ErrorKind::Other,
+                                format!("lookup {} failed: {}", domain, e),
+                            )
+                        })
+                        .await?
+                };
                 if ips.is_empty() {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,

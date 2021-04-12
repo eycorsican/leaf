@@ -22,6 +22,8 @@ default-openssl = [
     "leaf/default-openssl",
 ]
 
+auto-reload = ["leaf/auto-reload"]
+
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 tokio = { version = "1", features = ["rt"] }

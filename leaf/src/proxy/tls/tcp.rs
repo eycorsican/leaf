@@ -23,15 +23,11 @@ use crate::{
     session::Session,
 };
 
-#[cfg(feature = "rustls-tls")]
 pub struct Handler {
     server_name: String,
+    #[cfg(feature = "rustls-tls")]
     tls_config: Arc<ClientConfig>,
-}
-
-#[cfg(feature = "openssl-tls")]
-pub struct Handler {
-    server_name: String,
+    #[cfg(feature = "openssl-tls")]
     ssl_connector: SslConnector,
 }
 

@@ -5,10 +5,7 @@ use protobuf::Message;
 
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
-use crate::config::{
-    AMuxInboundSettings, ChainInboundSettings, Inbound, QuicInboundSettings,
-    ShadowsocksInboundSettings, TrojanInboundSettings, WebSocketInboundSettings,
-};
+use crate::config;
 use crate::proxy;
 use crate::proxy::InboundHandler;
 use crate::Runner;
@@ -51,7 +48,7 @@ pub struct InboundManager {
 
 impl InboundManager {
     pub fn new(
-        inbounds: &protobuf::RepeatedField<Inbound>,
+        inbounds: &protobuf::RepeatedField<config::Inbound>,
         dispatcher: Arc<Dispatcher>,
         nat_manager: Arc<NatManager>,
     ) -> Self {
@@ -83,7 +80,8 @@ impl InboundManager {
                 #[cfg(feature = "inbound-shadowsocks")]
                 "shadowsocks" => {
                     let settings =
-                        ShadowsocksInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                        config::ShadowsocksInboundSettings::parse_from_bytes(&inbound.settings)
+                            .unwrap();
                     let tcp = Arc::new(shadowsocks::inbound::TcpHandler {
                         cipher: settings.method.clone(),
                         password: settings.password.clone(),
@@ -102,7 +100,7 @@ impl InboundManager {
                 #[cfg(feature = "inbound-trojan")]
                 "trojan" => {
                     let settings =
-                        TrojanInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                        config::TrojanInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
                     let tcp = Arc::new(trojan::inbound::TcpHandler::new(&settings.password));
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         inbound.tag.clone(),
@@ -114,7 +112,8 @@ impl InboundManager {
                 #[cfg(feature = "inbound-ws")]
                 "ws" => {
                     let settings =
-                        WebSocketInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                        config::WebSocketInboundSettings::parse_from_bytes(&inbound.settings)
+                            .unwrap();
                     let tcp = Arc::new(ws::inbound::TcpHandler::new(settings.path.clone()));
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         inbound.tag.clone(),
@@ -126,7 +125,7 @@ impl InboundManager {
                 #[cfg(feature = "inbound-quic")]
                 "quic" => {
                     let settings =
-                        QuicInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                        config::QuicInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
                     let udp = Arc::new(quic::inbound::UdpHandler::new(
                         settings.certificate.clone(),
                         settings.certificate_key.clone(),
@@ -150,7 +149,7 @@ impl InboundManager {
                     "amux" => {
                         let mut actors = Vec::new();
                         if let Ok(settings) =
-                            AMuxInboundSettings::parse_from_bytes(&inbound.settings)
+                            config::AMuxInboundSettings::parse_from_bytes(&inbound.settings)
                         {
                             for actor in settings.actors.iter() {
                                 if let Some(a) = handlers.get(actor) {
@@ -171,7 +170,8 @@ impl InboundManager {
                     #[cfg(feature = "inbound-chain")]
                     "chain" => {
                         let settings =
-                            ChainInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                            config::ChainInboundSettings::parse_from_bytes(&inbound.settings)
+                                .unwrap();
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {

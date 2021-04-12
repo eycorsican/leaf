@@ -5,10 +5,12 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::future::{abortable, AbortHandle};
+use futures::FutureExt;
 use tokio::sync::Mutex;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundHandler, ProxyStream, SimpleProxyStream, TcpConnector,
         TcpOutboundHandler,
@@ -27,7 +29,9 @@ pub struct MuxManager {
     pub max_accepts: usize,
     pub concurrency: usize,
     pub bind_addr: SocketAddr,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
+    // TODO Verify whether the run loops in connectors are aborted after
+    // a config reload.
     pub connectors: Arc<Mutex<Vec<MuxConnector>>>,
     pub monitor_task: Mutex<Option<BoxFuture<'static, ()>>>,
 }
@@ -40,31 +44,38 @@ impl MuxManager {
         max_accepts: usize,
         concurrency: usize,
         bind_addr: SocketAddr,
-        dns_client: Arc<DnsClient>,
-    ) -> Self {
+        dns_client: SyncDnsClient,
+    ) -> (Self, Vec<AbortHandle>) {
+        let mut abort_handles = Vec::new();
         let connectors: Arc<Mutex<Vec<MuxConnector>>> = Arc::new(Mutex::new(Vec::new()));
         let connectors2 = connectors.clone();
         // A task to monitor and remove completed connectors.
         // TODO passive detection
-        let monitor_task = Box::pin(async move {
+        let fut = async move {
             loop {
                 connectors2.lock().await.retain(|c| !c.is_done());
                 log::trace!("active connectors {}", connectors2.lock().await.len());
                 use std::time::Duration;
                 tokio::time::sleep(Duration::from_secs(10)).await;
             }
-        });
-        MuxManager {
-            address,
-            port,
-            actors,
-            max_accepts,
-            concurrency,
-            bind_addr,
-            dns_client,
-            connectors,
-            monitor_task: Mutex::new(Some(monitor_task)),
-        }
+        };
+        let (abortable, abort_handle) = abortable(fut);
+        abort_handles.push(abort_handle);
+        let monitor_task: BoxFuture<'static, ()> = Box::pin(abortable.map(|_| ()));
+        (
+            MuxManager {
+                address,
+                port,
+                actors,
+                max_accepts,
+                concurrency,
+                bind_addr,
+                dns_client,
+                connectors,
+                monitor_task: Mutex::new(Some(monitor_task)),
+            },
+            abort_handles,
+        )
     }
 
     pub async fn new_stream(&self, sess: &Session) -> io::Result<MuxStream> {
@@ -118,19 +129,18 @@ impl Handler {
         max_accepts: usize,
         concurrency: usize,
         bind_addr: SocketAddr,
-        dns_client: Arc<DnsClient>,
-    ) -> Self {
-        Handler {
-            manager: MuxManager::new(
-                address,
-                port,
-                actors,
-                max_accepts,
-                concurrency,
-                bind_addr,
-                dns_client,
-            ),
-        }
+        dns_client: SyncDnsClient,
+    ) -> (Self, Vec<AbortHandle>) {
+        let (manager, abort_handles) = MuxManager::new(
+            address,
+            port,
+            actors,
+            max_accepts,
+            concurrency,
+            bind_addr,
+            dns_client,
+        );
+        (Handler { manager }, abort_handles)
     }
 }
 

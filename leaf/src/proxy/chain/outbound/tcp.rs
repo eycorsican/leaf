@@ -4,7 +4,7 @@ use std::{io, sync::Arc};
 use async_trait::async_trait;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{
         stream::SimpleProxyStream, OutboundConnect, OutboundHandler, ProxyStream, TcpConnector,
         TcpOutboundHandler,
@@ -14,7 +14,7 @@ use crate::{
 
 pub struct Handler {
     pub actors: Vec<Arc<dyn OutboundHandler>>,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
 }
 
 impl Handler {

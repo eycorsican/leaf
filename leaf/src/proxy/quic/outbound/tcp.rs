@@ -9,7 +9,7 @@ use futures::TryFutureExt;
 use tokio::sync::Mutex;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler, UdpConnector},
     session::Session,
 };
@@ -34,7 +34,7 @@ struct Manager {
     port: u16,
     server_name: Option<String>,
     bind_addr: SocketAddr,
-    dns_client: Arc<DnsClient>,
+    dns_client: SyncDnsClient,
     client_config: quinn::ClientConfig,
     connections: Mutex<Vec<Connection>>,
 }
@@ -46,7 +46,7 @@ impl Manager {
         server_name: Option<String>,
         certificate: Option<String>,
         bind_addr: SocketAddr,
-        dns_client: Arc<DnsClient>,
+        dns_client: SyncDnsClient,
     ) -> Self {
         let mut client_config = quinn::ClientConfig::default();
 
@@ -148,16 +148,19 @@ impl Manager {
         let socket = self.create_udp_socket(&self.bind_addr).await?;
         let (endpoint, _) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
 
-        let ips = self
-            .dns_client
-            .lookup_with_bind(self.address.to_owned(), &self.bind_addr)
-            .map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("lookup {} failed: {}", &self.address, e),
-                )
-            })
-            .await?;
+        let ips = {
+            self.dns_client
+                .read()
+                .await
+                .lookup_with_bind(self.address.to_owned(), &self.bind_addr)
+                .map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("lookup {} failed: {}", &self.address, e),
+                    )
+                })
+                .await?
+        };
         if ips.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -203,7 +206,7 @@ impl Handler {
         server_name: Option<String>,
         certificate: Option<String>,
         bind_addr: SocketAddr,
-        dns_client: Arc<DnsClient>,
+        dns_client: SyncDnsClient,
     ) -> Self {
         Self {
             manager: Manager::new(

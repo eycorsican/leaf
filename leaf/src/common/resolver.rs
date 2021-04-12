@@ -1,10 +1,9 @@
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::TryFutureExt;
 
-use crate::app::dns_client::DnsClient;
+use crate::app::SyncDnsClient;
 
 pub struct Resolver {
     ips: Vec<IpAddr>,
@@ -13,15 +12,19 @@ pub struct Resolver {
 
 impl Resolver {
     pub async fn new<'a>(
-        client: Arc<DnsClient>,
+        dns_client: SyncDnsClient,
         bind_addr: &'a SocketAddr,
         address: &'a str,
         port: &'a u16,
     ) -> Result<Self> {
-        let mut ips = client
-            .lookup_with_bind(String::from(address), bind_addr)
-            .map_err(|e| anyhow!("lookup {} failed: {}", address, e))
-            .await?;
+        let mut ips = {
+            dns_client
+                .read()
+                .await
+                .lookup_with_bind(String::from(address), bind_addr)
+                .map_err(|e| anyhow!("lookup {} failed: {}", address, e))
+                .await?
+        };
         ips.reverse();
         Ok(Resolver {
             ips,

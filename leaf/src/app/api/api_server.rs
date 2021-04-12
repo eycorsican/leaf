@@ -2,11 +2,9 @@ use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::app::outbound::manager::OutboundManager;
+use warp::Filter;
 
-pub struct ApiServer {
-    outbound_manager: Arc<OutboundManager>,
-}
+use crate::RuntimeManager;
 
 mod models {
     use serde_derive::Deserialize;
@@ -24,55 +22,92 @@ mod handlers {
 
     pub async fn select_update(
         opts: models::SelectOptions,
-        obm: Arc<OutboundManager>,
+        rm: Arc<RuntimeManager>,
     ) -> Result<impl warp::Reply, Infallible> {
         if let models::SelectOptions {
             outbound: Some(outbound),
             select: Some(select),
         } = opts
         {
-            if let Some(selector) = obm.get_selector(&outbound) {
-                if selector.write().await.set_selected(&select).is_ok() {
-                    return Ok(StatusCode::OK);
-                }
+            if rm.set_outbound_selected(&outbound, &select).await.is_ok() {
+                return Ok(StatusCode::OK);
             }
         }
         Ok(StatusCode::ACCEPTED)
+    }
+
+    pub async fn runtime_reload(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+        if rm.reload().await.is_ok() {
+            Ok(StatusCode::OK)
+        } else {
+            Ok(StatusCode::ACCEPTED)
+        }
+    }
+
+    pub async fn runtime_shutdown(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+        if rm.shutdown().await {
+            Ok(StatusCode::OK)
+        } else {
+            Ok(StatusCode::ACCEPTED)
+        }
     }
 }
 
 mod filters {
     use super::*;
-    use warp::Filter;
 
-    fn with_outbound_manager(
-        obm: Arc<OutboundManager>,
-    ) -> impl Filter<Extract = (Arc<OutboundManager>,), Error = Infallible> + Clone {
-        warp::any().map(move || obm.clone())
+    fn with_runtime_manager(
+        rm: Arc<RuntimeManager>,
+    ) -> impl Filter<Extract = (Arc<RuntimeManager>,), Error = Infallible> + Clone {
+        warp::any().map(move || rm.clone())
     }
 
-    // PUT /api/v1/app/outbound/select?outbound=Proxy&select=p3
+    // POST /api/v1/app/outbound/select?outbound=Proxy&select=p3
     pub fn select_update(
-        obm: Arc<OutboundManager>,
+        rm: Arc<RuntimeManager>,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         warp::path!("api" / "v1" / "app" / "outbound" / "select")
-            .and(warp::put())
+            .and(warp::post())
             .and(warp::query::<models::SelectOptions>())
-            .and(with_outbound_manager(obm))
+            .and(with_runtime_manager(rm))
             .and_then(handlers::select_update)
+    }
+
+    // POST /api/v1/runtime/reload
+    pub fn runtime_reload(
+        rm: Arc<RuntimeManager>,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::path!("api" / "v1" / "runtime" / "reload")
+            .and(warp::post())
+            .and(with_runtime_manager(rm))
+            .and_then(handlers::runtime_reload)
+    }
+
+    // POST /api/v1/runtime/shutdown
+    pub fn runtime_shutdown(
+        rm: Arc<RuntimeManager>,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::path!("api" / "v1" / "runtime" / "shutdown")
+            .and(warp::post())
+            .and(with_runtime_manager(rm))
+            .and_then(handlers::runtime_shutdown)
     }
 }
 
+pub struct ApiServer {
+    runtime_manager: Arc<RuntimeManager>,
+}
+
 impl ApiServer {
-    pub fn new(outbound_manager: Arc<OutboundManager>) -> Self {
-        Self { outbound_manager }
+    pub fn new(runtime_manager: Arc<RuntimeManager>) -> Self {
+        Self { runtime_manager }
     }
 
-    pub fn serve(&self, rt: &tokio::runtime::Runtime, listen_addr: SocketAddr) -> crate::Runner {
-        let routes = filters::select_update(self.outbound_manager.clone());
-        Box::pin(rt.block_on(async {
-            log::info!("api server listening tcp {}", &listen_addr);
-            warp::serve(routes).bind(listen_addr)
-        }))
+    pub fn serve(&self, listen_addr: SocketAddr) -> crate::Runner {
+        let routes = filters::select_update(self.runtime_manager.clone())
+            .or(filters::runtime_reload(self.runtime_manager.clone()))
+            .or(filters::runtime_shutdown(self.runtime_manager.clone()));
+        log::info!("api server listening tcp {}", &listen_addr);
+        Box::pin(warp::serve(routes).bind(listen_addr))
     }
 }

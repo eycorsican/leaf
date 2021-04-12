@@ -1,5 +1,17 @@
-pub fn setup_logger(loglevel: log::LevelFilter) -> fern::Dispatch {
-    fern::Dispatch::new()
+use crate::config;
+
+use anyhow::{anyhow, Result};
+
+pub fn setup_logger(config: &config::Log) -> Result<()> {
+    let loglevel = match config.level {
+        config::Log_Level::TRACE => log::LevelFilter::Trace,
+        config::Log_Level::DEBUG => log::LevelFilter::Debug,
+        config::Log_Level::INFO => log::LevelFilter::Info,
+        config::Log_Level::WARN => log::LevelFilter::Warn,
+        config::Log_Level::ERROR => log::LevelFilter::Error,
+    };
+
+    let mut dispatch = fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(
                 #[cfg(any(target_os = "ios", target_os = "android"))]
@@ -38,9 +50,33 @@ pub fn setup_logger(loglevel: log::LevelFilter) -> fern::Dispatch {
             )
         })
         .level(log::LevelFilter::Warn)
-        .level_for("leaf", loglevel)
-}
+        .level_for("leaf", loglevel);
 
-pub fn apply_logger(dispatch: fern::Dispatch) {
-    dispatch.apply().expect("setup logger failed");
+    match config.output {
+        config::Log_Output::CONSOLE => {
+            #[cfg(any(target_os = "ios", target_os = "android"))]
+            {
+                let console_output = fern::Output::writer(
+                    Box::new(crate::mobile::logger::ConsoleWriter::default()),
+                    "\n",
+                );
+                dispatch = dispatch.chain(console_output);
+            }
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            {
+                dispatch = dispatch.chain(fern::Output::stdout("\n"));
+            }
+        }
+        config::Log_Output::FILE => {
+            let f = fern::log_file(&config.output_file)?;
+            let file_output = fern::Output::file(f, "\n");
+            dispatch = dispatch.chain(file_output);
+        }
+    }
+
+    if let Err(e) = dispatch.apply() {
+        return Err(anyhow!("apply logger config failed: {}", e));
+    }
+
+    Ok(())
 }

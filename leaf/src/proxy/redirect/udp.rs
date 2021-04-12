@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{
     io::Result,
     net::{IpAddr, SocketAddr},
@@ -8,7 +7,7 @@ use async_trait::async_trait;
 use futures::TryFutureExt;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
         OutboundTransport, SimpleOutboundDatagram, UdpConnector, UdpOutboundHandler,
@@ -22,7 +21,7 @@ pub struct Handler {
     pub address: String,
     pub port: u16,
     pub bind_addr: SocketAddr,
-    pub dns_client: Arc<DnsClient>,
+    pub dns_client: SyncDnsClient,
 }
 
 impl UdpConnector for Handler {}

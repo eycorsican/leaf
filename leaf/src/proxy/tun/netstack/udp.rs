@@ -124,34 +124,45 @@ pub fn send_udp(
 }
 
 pub struct UdpListener {
+    pcb: *mut udp_pcb,
     waker: Arc<Mutex<Option<Waker>>>,
     queue: Arc<Mutex<VecDeque<UdpPacket>>>,
-    pcb: usize,
 }
 
 impl UdpListener {
     pub fn new() -> Self {
-        let mut listener = UdpListener {
-            waker: Arc::new(Mutex::new(None)),
-            queue: Arc::new(Mutex::new(VecDeque::new())),
-            pcb: 0,
-        };
         unsafe {
-            let upcb = udp_new();
-            let err = udp_bind(upcb, &ip_addr_any_type, 0);
+            let pcb = udp_new();
+            let listener = UdpListener {
+                pcb,
+                waker: Arc::new(Mutex::new(None)),
+                queue: Arc::new(Mutex::new(VecDeque::new())),
+            };
+            let err = udp_bind(pcb, &ip_addr_any_type, 0);
             if err != err_enum_t_ERR_OK as err_t {
                 error!("bind udp failed");
                 panic!("");
             }
             let arg = &listener as *const UdpListener as *mut raw::c_void;
-            udp_recv(upcb, Some(udp_recv_cb), arg);
-            listener.pcb = upcb as usize;
+            udp_recv(pcb, Some(udp_recv_cb), arg);
+            listener
         }
-        listener
     }
 
     pub fn pcb(&self) -> usize {
-        self.pcb
+        self.pcb as usize
+    }
+}
+
+unsafe impl Sync for UdpListener {}
+unsafe impl Send for UdpListener {}
+
+impl Drop for UdpListener {
+    fn drop(&mut self) {
+        unsafe {
+            udp_recv(self.pcb, None, std::ptr::null_mut());
+            udp_remove(self.pcb);
+        }
     }
 }
 
