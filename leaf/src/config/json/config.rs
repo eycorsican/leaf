@@ -422,14 +422,9 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         if cert.is_absolute() {
                             settings.certificate = cert.to_string_lossy().to_string();
                         } else {
-                            let file = std::env::current_exe()
-                                .map_err(|e| anyhow!("failed to find executable path: {}", e))
-                                .map(|mut f| {
-                                    f.pop();
-                                    f.push(cert);
-                                    f
-                                })?;
-                            settings.certificate = file.to_string_lossy().to_string();
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(cert).to_string_lossy().to_string();
+                            settings.certificate = path;
                         }
                     }
                     if let Some(ext_certificate_key) = ext_settings.certificate_key {
@@ -437,14 +432,9 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                         if key.is_absolute() {
                             settings.certificate_key = key.to_string_lossy().to_string();
                         } else {
-                            let file = std::env::current_exe()
-                                .map_err(|e| anyhow!("failed to find executable path: {}", e))
-                                .map(|mut f| {
-                                    f.pop();
-                                    f.push(key);
-                                    f
-                                })?;
-                            settings.certificate_key = file.to_string_lossy().to_string();
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(key).to_string_lossy().to_string();
+                            settings.certificate_key = path;
                         }
                     }
                     let settings = settings.write_to_bytes().unwrap();
@@ -792,14 +782,9 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
                             if cert.is_absolute() {
                                 settings.certificate = cert.to_string_lossy().to_string();
                             } else {
-                                let file = std::env::current_exe()
-                                    .map_err(|e| anyhow!("failed to find executable path: {}", e))
-                                    .map(|mut f| {
-                                        f.pop();
-                                        f.push(cert);
-                                        f
-                                    })?;
-                                settings.certificate = file.to_string_lossy().to_string();
+                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                let path = asset_loc.join(cert).to_string_lossy().to_string();
+                                settings.certificate = path;
                             }
                         }
                     }
@@ -907,10 +892,8 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
             if let Some(ext_geoips) = ext_rule.geoip {
                 for ext_geoip in ext_geoips {
                     let mut mmdb = internal::RoutingRule_Mmdb::new();
-                    let mut file = std::env::current_exe().unwrap();
-                    file.pop();
-                    file.push("geo.mmdb");
-                    mmdb.file = file.to_str().unwrap().to_string();
+                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                    mmdb.file = asset_loc.join("geo.mmdb").to_string_lossy().to_string();
                     mmdb.country_code = ext_geoip;
                     rule.mmdbs.push(mmdb)
                 }

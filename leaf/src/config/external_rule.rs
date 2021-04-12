@@ -15,17 +15,14 @@ pub fn load_file_or_default(filter: &str, default: &str) -> Result<(String, Stri
         let path = if Path::new(parts[1]).is_absolute() {
             parts[1].to_string()
         } else {
-            let mut file = std::env::current_exe().unwrap();
-            file.pop();
-            file.push(parts[1]);
-            file.to_str().unwrap().to_string()
+            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+            asset_loc.join(parts[1]).to_string_lossy().to_string()
         };
         (path, parts[2].to_string())
     } else if parts.len() == 2 {
-        let mut file = std::env::current_exe().unwrap();
-        file.pop();
-        file.push(default);
-        (file.to_str().unwrap().to_string(), parts[1].to_string())
+        let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+        let path = asset_loc.join(default).to_string_lossy().to_string();
+        (path, parts[1].to_string())
     } else {
         return Err(anyhow!("invalid external rule: {}", filter));
     };

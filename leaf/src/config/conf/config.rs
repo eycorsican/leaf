@@ -1145,10 +1145,9 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                 }
                 "GEOIP" => {
                     let mut mmdb = internal::RoutingRule_Mmdb::new();
-                    let mut file = std::env::current_exe().unwrap();
-                    file.pop();
-                    file.push("geo.mmdb");
-                    mmdb.file = file.to_str().unwrap().to_string();
+
+                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                    mmdb.file = asset_loc.join("geo.mmdb").to_string_lossy().to_string();
                     mmdb.country_code = ext_filter;
                     rule.mmdbs.push(mmdb)
                 }

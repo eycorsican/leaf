@@ -57,6 +57,12 @@ lazy_static! {
     pub static ref ROUTING_DOMAIN_RESOLVE: bool = {
         get_env_var("ROUTING_DOMAIN_RESOLVE", false)
     };
+
+    pub static ref ASSET_LOCATION: String = {
+        let mut file = std::env::current_exe().unwrap();
+        file.pop();
+        get_env_var("ASSET_LOCATION", file.to_str().unwrap().to_string())
+    };
 }
 
 /// UDP session timeout. A UDP session shall be terminated if there are no
