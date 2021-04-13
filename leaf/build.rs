@@ -172,5 +172,11 @@ fn main() {
             .inputs(&["src/config/geosite.proto"])
             .run()
             .expect("protoc");
+
+        protoc_rust::Codegen::new()
+            .out_dir("src/app/outbound")
+            .inputs(&["src/app/outbound/selector_cache.proto"])
+            .run()
+            .expect("protoc");
     }
 }

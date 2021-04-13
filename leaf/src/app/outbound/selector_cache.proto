@@ -1,0 +1,5 @@
+syntax = "proto3";
+
+message SelectorCache {
+	map<string, string> items = 1;
+}

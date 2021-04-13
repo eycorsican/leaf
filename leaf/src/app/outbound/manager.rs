@@ -709,7 +709,7 @@ impl OutboundManager {
     fn load_selectors(
         outbounds: &protobuf::RepeatedField<Outbound>,
         handlers: &mut HashMap<String, Arc<dyn OutboundHandler>>,
-    ) -> super::Selectors {
+    ) -> Result<super::Selectors> {
         let mut selectors: super::Selectors = HashMap::new();
 
         // FIXME a better way to find outbound deps?
@@ -738,9 +738,15 @@ impl OutboundManager {
                         if actors.is_empty() {
                             continue;
                         }
-                        let mut selector = OutboundSelector::new(actors);
-                        selector.set_selected(&settings.actors[0]);
+
+                        let mut selector = OutboundSelector::new(tag.clone(), actors);
+                        if let Ok(Some(selected)) = super::selector::get_selected_from_cache(&tag) {
+                            selector.set_selected(&selected)?;
+                        } else {
+                            selector.set_selected(&settings.actors[0])?;
+                        }
                         let selector = Arc::new(RwLock::new(selector));
+
                         let tcp = Box::new(select::TcpHandler {
                             selector: selector.clone(),
                         });
@@ -766,7 +772,7 @@ impl OutboundManager {
             }
         }
 
-        selectors
+        Ok(selectors)
     }
 
     // TODO make this non-async?
@@ -789,7 +795,7 @@ impl OutboundManager {
             abort_handle.abort();
         }
 
-        let mut selectors = Self::load_selectors(outbounds, &mut handlers);
+        let mut selectors = Self::load_selectors(outbounds, &mut handlers)?;
 
         // Restore selected outbounds.
         for (k, v) in selected_outbounds.iter() {
@@ -815,7 +821,7 @@ impl OutboundManager {
     ) -> Result<Self> {
         let (mut handlers, default_handler, abort_handles) =
             Self::load_handlers(outbounds, dns_client);
-        let selectors = Self::load_selectors(outbounds, &mut handlers);
+        let selectors = Self::load_selectors(outbounds, &mut handlers)?;
         Ok(OutboundManager {
             handlers,
             selectors: Arc::new(selectors),
