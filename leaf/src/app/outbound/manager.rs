@@ -738,7 +738,9 @@ impl OutboundManager {
                         if actors.is_empty() {
                             continue;
                         }
-                        let selector = Arc::new(RwLock::new(OutboundSelector::new(actors)));
+                        let mut selector = OutboundSelector::new(actors);
+                        selector.set_selected(&settings.actors[0]);
+                        let selector = Arc::new(RwLock::new(selector));
                         let tcp = Box::new(select::TcpHandler {
                             selector: selector.clone(),
                         });
