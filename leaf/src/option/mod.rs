@@ -67,6 +67,10 @@ lazy_static! {
     pub static ref CACHE_LOCATION: String = {
         get_env_var("CACHE_LOCATION", "".to_string())
     };
+
+    pub static ref API_LISTEN: String = {
+        get_env_var("API_LISTEN", "".to_string())
+    };
 }
 
 /// UDP session timeout. A UDP session shall be terminated if there are no

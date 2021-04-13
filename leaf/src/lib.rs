@@ -400,15 +400,25 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     #[cfg(feature = "api")]
     {
-        if let Some(api) = config.api.as_ref() {
-            let _g = rt.enter();
-            let api_server = ApiServer::new(runtime_manager.clone());
-            let listen_addr = SocketAddr::new(
+        let listen_addr = if !(&*crate::option::API_LISTEN).is_empty() {
+            Some(
+                (&*crate::option::API_LISTEN)
+                    .parse::<SocketAddr>()
+                    .map_err(|e| Error::Config(anyhow!("parse SocketAddr failed: {}", e)))?,
+            )
+        } else if let Some(api) = config.api.as_ref() {
+            Some(SocketAddr::new(
                 api.address
                     .parse::<IpAddr>()
-                    .map_err(|e| Error::Config(anyhow!("parse IP address failed: {}", e)))?,
+                    .map_err(|e| Error::Config(anyhow!("parse IpAddr failed: {}", e)))?,
                 api.port as u16,
-            );
+            ))
+        } else {
+            None
+        };
+        if let Some(listen_addr) = listen_addr {
+            let _g = rt.enter();
+            let api_server = ApiServer::new(runtime_manager.clone());
             runners.push(api_server.serve(listen_addr));
         }
     }
