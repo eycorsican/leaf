@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use protobuf::Message;
@@ -6,30 +7,32 @@ use protobuf::Message;
 use crate::proxy::OutboundHandler;
 use anyhow::{anyhow, Result};
 
-pub fn get_selected_from_cache(id: &str) -> Result<Option<String>> {
-    let proj_dirs = if let Some(d) = directories::ProjectDirs::from("com", "github", "leaf") {
-        d
+fn get_cache_file_path() -> Result<PathBuf> {
+    let cache_loc = if !(&*crate::option::CACHE_LOCATION).is_empty() {
+        Path::new(&*crate::option::CACHE_LOCATION).to_owned()
     } else {
-        return Err(anyhow!("no home directory"));
+        let proj_dirs = if let Some(d) = directories::ProjectDirs::from("com", "github", "leaf") {
+            d
+        } else {
+            return Err(anyhow!("no home directory"));
+        };
+        proj_dirs.cache_dir().to_owned()
     };
-    let cache_loc = proj_dirs.cache_dir();
-    let cache_file = cache_loc.join("selector.cache");
+    if !cache_loc.exists() {
+        std::fs::create_dir_all(&cache_loc)?;
+    }
+    Ok(cache_loc.join("selector.cache"))
+}
+
+pub fn get_selected_from_cache(id: &str) -> Result<Option<String>> {
+    let cache_file = get_cache_file_path()?;
     let content = std::fs::read(&cache_file)?;
     let cache = super::selector_cache::SelectorCache::parse_from_bytes(&content)?;
     Ok(cache.items.get(id).map(Clone::clone))
 }
 
 pub fn persist_selected_to_cache(id: String, selected: String) -> Result<()> {
-    let proj_dirs = if let Some(d) = directories::ProjectDirs::from("com", "github", "leaf") {
-        d
-    } else {
-        return Err(anyhow!("no home directory"));
-    };
-    let cache_loc = proj_dirs.cache_dir();
-    if !cache_loc.exists() {
-        std::fs::create_dir_all(&cache_loc)?;
-    }
-    let cache_file = cache_loc.join("selector.cache");
+    let cache_file = get_cache_file_path()?;
     let mut cache = if cache_file.exists() {
         let content = std::fs::read(&cache_file)?;
         super::selector_cache::SelectorCache::parse_from_bytes(&content)?

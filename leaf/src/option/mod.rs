@@ -63,6 +63,10 @@ lazy_static! {
         file.pop();
         get_env_var("ASSET_LOCATION", file.to_str().unwrap().to_string())
     };
+
+    pub static ref CACHE_LOCATION: String = {
+        get_env_var("CACHE_LOCATION", "".to_string())
+    };
 }
 
 /// UDP session timeout. A UDP session shall be terminated if there are no
