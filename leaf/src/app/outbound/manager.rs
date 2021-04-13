@@ -741,7 +741,8 @@ impl OutboundManager {
 
                         let mut selector = OutboundSelector::new(tag.clone(), actors);
                         if let Ok(Some(selected)) = super::selector::get_selected_from_cache(&tag) {
-                            selector.set_selected(&selected)?;
+                            // FIXME handle error
+                            let _ = selector.set_selected(&selected);
                         } else {
                             selector.set_selected(&settings.actors[0])?;
                         }
