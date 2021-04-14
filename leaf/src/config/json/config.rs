@@ -475,7 +475,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
             if let Some(ext_bind) = ext_outbound.bind {
                 outbound.bind = ext_bind;
             } else {
-                outbound.bind = "0.0.0.0".to_string();
+                outbound.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
             }
             match outbound.protocol.as_str() {
                 "direct" | "drop" => {
@@ -948,7 +948,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
         }
     }
     if dns.bind.is_empty() {
-        dns.bind = "0.0.0.0".to_string();
+        dns.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
     }
     if servers.len() == 0 {
         servers.push("114.114.114.114".to_string());

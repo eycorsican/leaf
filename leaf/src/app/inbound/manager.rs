@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::{anyhow, Result};
 use protobuf::Message;
 
 use crate::app::dispatcher::Dispatcher;
@@ -51,37 +52,35 @@ impl InboundManager {
         inbounds: &protobuf::RepeatedField<config::Inbound>,
         dispatcher: Arc<Dispatcher>,
         nat_manager: Arc<NatManager>,
-    ) -> Self {
+    ) -> Result<Self> {
         let mut handlers: HashMap<String, Arc<dyn InboundHandler>> = HashMap::new();
 
         for inbound in inbounds.iter() {
+            let tag = String::from(&inbound.tag);
             match inbound.protocol.as_str() {
                 #[cfg(feature = "inbound-socks")]
                 "socks" => {
                     let tcp = Arc::new(socks::inbound::TcpHandler);
                     let udp = Arc::new(socks::inbound::UdpHandler);
                     let handler = Arc::new(proxy::inbound::Handler::new(
-                        inbound.tag.clone(),
+                        tag.clone(),
                         Some(tcp),
                         Some(udp),
                     ));
-                    handlers.insert(inbound.tag.clone(), handler);
+                    handlers.insert(tag.clone(), handler);
                 }
                 #[cfg(feature = "inbound-http")]
                 "http" => {
                     let tcp = Arc::new(http::inbound::TcpHandler);
-                    let handler = Arc::new(proxy::inbound::Handler::new(
-                        inbound.tag.clone(),
-                        Some(tcp),
-                        None,
-                    ));
-                    handlers.insert(inbound.tag.clone(), handler);
+                    let handler =
+                        Arc::new(proxy::inbound::Handler::new(tag.clone(), Some(tcp), None));
+                    handlers.insert(tag.clone(), handler);
                 }
                 #[cfg(feature = "inbound-shadowsocks")]
                 "shadowsocks" => {
                     let settings =
                         config::ShadowsocksInboundSettings::parse_from_bytes(&inbound.settings)
-                            .unwrap();
+                            .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
                     let tcp = Arc::new(shadowsocks::inbound::TcpHandler {
                         cipher: settings.method.clone(),
                         password: settings.password.clone(),
@@ -91,23 +90,20 @@ impl InboundManager {
                         password: settings.password.clone(),
                     });
                     let handler = Arc::new(proxy::inbound::Handler::new(
-                        inbound.tag.clone(),
+                        tag.clone(),
                         Some(tcp),
                         Some(udp),
                     ));
-                    handlers.insert(inbound.tag.clone(), handler);
+                    handlers.insert(tag.clone(), handler);
                 }
                 #[cfg(feature = "inbound-trojan")]
                 "trojan" => {
                     let settings =
                         config::TrojanInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
                     let tcp = Arc::new(trojan::inbound::TcpHandler::new(&settings.password));
-                    let handler = Arc::new(proxy::inbound::Handler::new(
-                        inbound.tag.clone(),
-                        Some(tcp),
-                        None,
-                    ));
-                    handlers.insert(inbound.tag.clone(), handler);
+                    let handler =
+                        Arc::new(proxy::inbound::Handler::new(tag.clone(), Some(tcp), None));
+                    handlers.insert(tag.clone(), handler);
                 }
                 #[cfg(feature = "inbound-ws")]
                 "ws" => {
@@ -115,12 +111,9 @@ impl InboundManager {
                         config::WebSocketInboundSettings::parse_from_bytes(&inbound.settings)
                             .unwrap();
                     let tcp = Arc::new(ws::inbound::TcpHandler::new(settings.path.clone()));
-                    let handler = Arc::new(proxy::inbound::Handler::new(
-                        inbound.tag.clone(),
-                        Some(tcp),
-                        None,
-                    ));
-                    handlers.insert(inbound.tag.clone(), handler);
+                    let handler =
+                        Arc::new(proxy::inbound::Handler::new(tag.clone(), Some(tcp), None));
+                    handlers.insert(tag.clone(), handler);
                 }
                 #[cfg(feature = "inbound-quic")]
                 "quic" => {
@@ -130,12 +123,9 @@ impl InboundManager {
                         settings.certificate.clone(),
                         settings.certificate_key.clone(),
                     ));
-                    let handler = Arc::new(proxy::inbound::Handler::new(
-                        inbound.tag.clone(),
-                        None,
-                        Some(udp),
-                    ));
-                    handlers.insert(inbound.tag.clone(), handler);
+                    let handler =
+                        Arc::new(proxy::inbound::Handler::new(tag.clone(), None, Some(udp)));
+                    handlers.insert(tag.clone(), handler);
                 }
                 _ => (),
             }
@@ -143,35 +133,36 @@ impl InboundManager {
 
         for _i in 0..4 {
             for inbound in inbounds.iter() {
+                let tag = String::from(&inbound.tag);
                 #[allow(clippy::single_match)]
                 match inbound.protocol.as_str() {
                     #[cfg(feature = "inbound-amux")]
                     "amux" => {
                         let mut actors = Vec::new();
-                        if let Ok(settings) =
+                        let settings =
                             config::AMuxInboundSettings::parse_from_bytes(&inbound.settings)
-                        {
-                            for actor in settings.actors.iter() {
-                                if let Some(a) = handlers.get(actor) {
-                                    actors.push(a.clone());
-                                }
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] inbound settings: {}", &tag, e)
+                                })?;
+                        for actor in settings.actors.iter() {
+                            if let Some(a) = handlers.get(actor) {
+                                actors.push(a.clone());
                             }
                         }
                         let tcp = Arc::new(amux::inbound::TcpHandler {
                             actors: actors.clone(),
                         });
-                        let handler = Arc::new(proxy::inbound::Handler::new(
-                            inbound.tag.clone(),
-                            Some(tcp),
-                            None,
-                        ));
-                        handlers.insert(inbound.tag.clone(), handler);
+                        let handler =
+                            Arc::new(proxy::inbound::Handler::new(tag.clone(), Some(tcp), None));
+                        handlers.insert(tag.clone(), handler);
                     }
                     #[cfg(feature = "inbound-chain")]
                     "chain" => {
                         let settings =
                             config::ChainInboundSettings::parse_from_bytes(&inbound.settings)
-                                .unwrap();
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] inbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -186,11 +177,11 @@ impl InboundManager {
                         });
                         let udp = Arc::new(chain::inbound::UdpHandler { actors });
                         let handler = Arc::new(proxy::inbound::Handler::new(
-                            inbound.tag.clone(),
+                            tag.clone(),
                             Some(tcp),
                             Some(udp),
                         ));
-                        handlers.insert(inbound.tag.clone(), handler);
+                        handlers.insert(tag.clone(), handler);
                     }
                     _ => (),
                 }
@@ -200,6 +191,7 @@ impl InboundManager {
         let mut listeners: HashMap<String, Arc<dyn InboundListener>> = HashMap::new();
 
         for inbound in inbounds.iter() {
+            let tag = String::from(&inbound.tag);
             match inbound.protocol.as_str() {
                 #[cfg(all(
                     feature = "inbound-tun",
@@ -216,11 +208,11 @@ impl InboundManager {
                         dispatcher: dispatcher.clone(),
                         nat_manager: nat_manager.clone(),
                     });
-                    listeners.insert(inbound.tag.clone(), listener);
+                    listeners.insert(tag.clone(), listener);
                 }
                 _ => {
                     if inbound.port != 0 {
-                        if let Some(h) = handlers.get(&inbound.tag) {
+                        if let Some(h) = handlers.get(&tag) {
                             let listener = Arc::new(NetworkInboundListener {
                                 address: inbound.address.clone(),
                                 port: inbound.port as u16,
@@ -228,21 +220,21 @@ impl InboundManager {
                                 dispatcher: dispatcher.clone(),
                                 nat_manager: nat_manager.clone(),
                             });
-                            listeners.insert(inbound.tag.clone(), listener);
+                            listeners.insert(tag.clone(), listener);
                         }
                     }
                 }
             }
         }
 
-        InboundManager { listeners }
+        Ok(InboundManager { listeners })
     }
 
-    pub fn get_runners(self) -> Vec<Runner> {
+    pub fn get_runners(self) -> Result<Vec<Runner>> {
         let mut runners: Vec<Runner> = Vec::new();
         for (_, listener) in self.listeners {
-            runners.append(&mut listener.listen());
+            runners.append(&mut listener.listen()?);
         }
-        runners
+        Ok(runners)
     }
 }

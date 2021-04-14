@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use anyhow::Result;
+
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
 use crate::config::Inbound;
@@ -15,7 +17,7 @@ pub struct TUNInboundListener {
 }
 
 impl InboundListener for TUNInboundListener {
-    fn listen(&self) -> Vec<Runner> {
+    fn listen(&self) -> Result<Vec<Runner>> {
         let mut runners: Vec<Runner> = Vec::new();
         if let Ok(r) = tun::inbound::new(
             self.inbound.clone(),
@@ -24,6 +26,6 @@ impl InboundListener for TUNInboundListener {
         ) {
             runners.push(Box::pin(r));
         }
-        runners
+        Ok(runners)
     }
 }

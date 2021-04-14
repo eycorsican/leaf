@@ -75,7 +75,7 @@ impl Default for Proxy {
         Proxy {
             tag: "".to_string(),
             protocol: "".to_string(),
-            interface: "0.0.0.0".to_string(),
+            interface: (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string(),
             address: None,
             port: None,
             encrypt_method: Some("chacha20-ietf-poly1305".to_string()),
@@ -985,7 +985,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
             let mut outbound = internal::Outbound::new();
             outbound.protocol = ext_proxy_group.protocol.clone();
             outbound.tag = ext_proxy_group.tag.clone();
-            outbound.bind = "0.0.0.0".to_string();
+            outbound.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
             match outbound.protocol.as_str() {
                 "tryall" => {
                     let mut settings = internal::TryAllOutboundSettings::new();
@@ -1180,17 +1180,15 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         if let Some(ext_dns_interface) = &ext_general.dns_interface {
             dns.bind = ext_dns_interface.clone();
         } else {
-            dns.bind = "0.0.0.0".to_string();
+            dns.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
         }
         if let Some(ext_dns_servers) = &ext_general.dns_server {
             for ext_dns_server in ext_dns_servers {
                 servers.push(ext_dns_server.clone());
             }
-            if servers.len() == 0 {
-                servers.push("114.114.114.114".to_string());
-                servers.push("8.8.8.8".to_string());
+            if !servers.is_empty() {
+                dns.servers = servers;
             }
-            dns.servers = servers;
         }
     }
     if let Some(ext_hosts) = &conf.host {

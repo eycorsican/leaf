@@ -109,7 +109,7 @@ impl TcpInboundHandler for Handler {
                 buf.put_u8(0x05); // version 5
                 buf.put_u8(0x0); // succeeded
                 buf.put_u8(0x0); // rsv
-                let resp_addr = SocksAddr::empty_ipv4();
+                let resp_addr = SocksAddr::any();
                 if let Err(e) = resp_addr.write_buf(&mut buf, SocksAddrWireType::PortLast) {
                     debug!("write address buffer: {}", e);
                     return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));

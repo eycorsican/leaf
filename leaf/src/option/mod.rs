@@ -1,4 +1,5 @@
 use std::env;
+use std::net::SocketAddr;
 use std::str::FromStr;
 
 use lazy_static::lazy_static;
@@ -70,6 +71,23 @@ lazy_static! {
 
     pub static ref API_LISTEN: String = {
         get_env_var("API_LISTEN", "".to_string())
+    };
+
+    pub static ref ENABLE_IPV6: bool = {
+        get_env_var("ENABLE_IPV6", false)
+    };
+
+    pub static ref PREFER_IPV6: bool = {
+        get_env_var("PREFER_IPV6", false)
+    };
+
+    pub static ref UNSPECIFIED_BIND_ADDR: SocketAddr = {
+        let default =  if *ENABLE_IPV6 {
+            "[::]:0".to_string().parse().unwrap()
+        } else {
+            "0.0.0.0:0".to_string().parse().unwrap()
+        };
+        get_env_var("UNSPECIFIED_BIND_ADDR", default)
     };
 }
 

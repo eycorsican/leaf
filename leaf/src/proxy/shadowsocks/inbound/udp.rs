@@ -29,12 +29,7 @@ impl UdpInboundHandler for Handler {
         &'a self,
         socket: Box<dyn InboundDatagram>,
     ) -> io::Result<InboundTransport> {
-        let dgram = ShadowedDatagram::new(&self.cipher, &self.password).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("new shadowed datagram failed: {}", e),
-            )
-        })?;
+        let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;
         Ok(InboundTransport::Datagram(Box::new(Datagram {
             dgram,
             socket,
@@ -80,15 +75,7 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
         let (n, src_addr, _) = self.1.recv_from(&mut recv_buf).await?;
         recv_buf.resize(n, 0);
         let plaintext = self.0.decrypt(recv_buf).map_err(|_| shadow::crypto_err())?;
-        let dst_addr = match SocksAddr::try_from((&plaintext[..], SocksAddrWireType::PortLast)) {
-            Ok(v) => v,
-            Err(e) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("read address failed: {}", e),
-                ));
-            }
-        };
+        let dst_addr = SocksAddr::try_from((&plaintext[..], SocksAddrWireType::PortLast))?;
         let header_size = dst_addr.size();
         let payload_size = plaintext.len() - header_size;
         let to_recv = min(buf.len(), payload_size);

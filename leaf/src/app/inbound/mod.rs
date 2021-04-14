@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 mod network_listener;
 
 #[cfg(all(
@@ -13,8 +15,6 @@ mod tun_listener;
 
 pub mod manager;
 
-use crate::Runner;
-
 trait InboundListener {
-    fn listen(&self) -> Vec<Runner>;
+    fn listen(&self) -> Result<Vec<crate::Runner>>;
 }

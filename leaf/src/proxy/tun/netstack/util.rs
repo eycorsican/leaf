@@ -1,7 +1,6 @@
 use std::{
     ffi, mem,
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
-    str::FromStr,
+    net::{IpAddr, SocketAddr},
 };
 
 use anyhow::anyhow;
@@ -9,15 +8,14 @@ use anyhow::Result;
 
 use super::lwip::*;
 
+// TODO optimize
+
 pub fn to_socket_addr(addr: &ip_addr_t, port: u16_t) -> Result<SocketAddr> {
     unsafe {
         let src_ip = ffi::CStr::from_ptr(ipaddr_ntoa(addr))
             .to_str()
             .map_err(|_| anyhow!("to_sockset_addr failed"))?;
-        Ok(SocketAddr::from(SocketAddrV4::new(
-            Ipv4Addr::from_str(src_ip).map_err(|_| anyhow!("to_sockset_addr failed"))?,
-            port as u16,
-        )))
+        Ok(SocketAddr::new(src_ip.parse::<IpAddr>()?, port as u16))
     }
 }
 

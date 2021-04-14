@@ -145,7 +145,10 @@ impl Manager {
 
         let mut endpoint = quinn::Endpoint::builder();
         endpoint.default_client_config(self.client_config.clone());
-        let socket = self.create_udp_socket(&self.bind_addr).await?;
+        // FIXME A better indicator.
+        let socket = self
+            .create_udp_socket(&self.bind_addr, &self.bind_addr)
+            .await?;
         let (endpoint, _) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
 
         let ips = {

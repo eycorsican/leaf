@@ -20,24 +20,9 @@ impl TcpInboundHandler for Handler {
         &'a self,
         mut sess: Session,
         stream: Box<dyn ProxyStream>,
-    ) -> std::io::Result<InboundTransport> {
-        let mut stream =
-            ShadowedStream::new(stream, &self.cipher, &self.password).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("create shadowsocks stream failed: {}", e),
-                )
-            })?;
-        let destination = match SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await
-        {
-            Ok(v) => v,
-            Err(e) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("read address failed: {}", e),
-                ));
-            }
-        };
+    ) -> io::Result<InboundTransport> {
+        let mut stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
+        let destination = SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
         sess.destination = destination;
 
         Ok(InboundTransport::Stream(

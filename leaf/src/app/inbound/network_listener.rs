@@ -1,4 +1,7 @@
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
+
+use anyhow::Result;
 
 use futures::stream::StreamExt;
 use log::*;
@@ -116,10 +119,10 @@ async fn handle_inbound_stream(
 ) {
     let source = stream
         .peer_addr()
-        .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
+        .unwrap_or_else(|_| *crate::option::UNSPECIFIED_BIND_ADDR);
     let local_addr = stream
         .local_addr()
-        .unwrap_or_else(|_| "0.0.0.0:0".parse().unwrap());
+        .unwrap_or_else(|_| *crate::option::UNSPECIFIED_BIND_ADDR);
     let sess = Session {
         network: Network::Tcp,
         source,
@@ -176,7 +179,7 @@ pub struct NetworkInboundListener {
 }
 
 impl InboundListener for NetworkInboundListener {
-    fn listen(&self) -> Vec<Runner> {
+    fn listen(&self) -> Result<Vec<Runner>> {
         let mut runners: Vec<Runner> = Vec::new();
         let handler = self.handler.clone();
         let dispatcher = self.dispatcher.clone();
@@ -185,11 +188,10 @@ impl InboundListener for NetworkInboundListener {
         let port = self.port;
 
         if self.handler.has_tcp() {
+            let listen_addr = SocketAddr::new(address.parse::<IpAddr>()?, port);
             let tcp_task = async move {
-                let listener = TcpListener::bind(format!("{}:{}", address, port).as_str())
-                    .await
-                    .unwrap();
-                info!("inbound listening tcp {}:{}", address, port);
+                let listener = TcpListener::bind(&listen_addr).await.unwrap();
+                info!("inbound listening tcp {}", &listen_addr);
                 loop {
                     match listener.accept().await {
                         Ok((stream, _)) => {
@@ -216,11 +218,10 @@ impl InboundListener for NetworkInboundListener {
             let handler = self.handler.clone();
             let address = self.address.clone();
             let port = self.port;
+            let listen_addr = SocketAddr::new(address.parse()?, port);
             let udp_task = async move {
-                let socket = UdpSocket::bind(format!("{}:{}", address, port))
-                    .await
-                    .unwrap();
-                info!("inbound listening udp {}:{}", address, port);
+                let socket = UdpSocket::bind(&listen_addr).await.unwrap();
+                info!("inbound listening udp {}", &listen_addr);
 
                 // FIXME spawn
                 match handler
@@ -266,6 +267,6 @@ impl InboundListener for NetworkInboundListener {
             runners.push(Box::pin(udp_task));
         }
 
-        runners
+        Ok(runners)
     }
 }

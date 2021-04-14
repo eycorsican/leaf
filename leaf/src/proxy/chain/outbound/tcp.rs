@@ -29,7 +29,7 @@ impl Handler {
 
     fn next_session(&self, mut sess: Session, start: usize) -> Session {
         if let Some(OutboundConnect::Proxy(address, port, _)) = self.next_tcp_connect_addr(start) {
-            if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", address, port)) {
+            if let Ok(addr) = SocksAddr::try_from((address, port)) {
                 sess.destination = addr;
             }
         }

@@ -137,8 +137,20 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
 }
 
 // New UDP socket.
-async fn create_udp_socket(bind_addr: &SocketAddr) -> io::Result<UdpSocket> {
-    let socket = UdpSocket::bind(bind_addr).await?;
+async fn create_udp_socket(
+    bind_addr: &SocketAddr,
+    indicator: &SocketAddr,
+) -> io::Result<UdpSocket> {
+    let socket = if bind_addr.ip().is_unspecified() {
+        match indicator {
+            SocketAddr::V4(..) => {
+                UdpSocket::bind("0.0.0.0:0".parse::<SocketAddr>().unwrap()).await?
+            }
+            SocketAddr::V6(..) => UdpSocket::bind("[::]:0".parse::<SocketAddr>().unwrap()).await?,
+        }
+    } else {
+        UdpSocket::bind(bind_addr).await?
+    };
     #[cfg(target_os = "android")]
     {
         protect_socket(socket.as_raw_fd()).await?;
@@ -151,12 +163,25 @@ async fn tcp_dial_task(
     dial_addr: SocketAddr,
     bind_addr: &SocketAddr,
 ) -> io::Result<(Box<dyn ProxyStream>, SocketAddr)> {
-    let socket = TcpSocket::new_v4()?;
+    let socket = match dial_addr {
+        SocketAddr::V4(..) => TcpSocket::new_v4()?,
+        SocketAddr::V6(..) => TcpSocket::new_v6()?,
+    };
+
     #[cfg(target_os = "android")]
     {
         protect_socket(socket.as_raw_fd()).await?;
     }
-    socket.bind(*bind_addr)?;
+
+    if bind_addr.ip().is_unspecified() {
+        match dial_addr {
+            SocketAddr::V4(..) => socket.bind("0.0.0.0:0".parse::<SocketAddr>().unwrap())?,
+            SocketAddr::V6(..) => socket.bind("[::]:0".parse::<SocketAddr>().unwrap())?,
+        }
+    } else {
+        socket.bind(*bind_addr)?;
+    }
+
     trace!("dialing tcp {}", &dial_addr);
     let stream = socket.connect(dial_addr).await?;
     trace!("connected tcp {}", &dial_addr);
@@ -241,8 +266,12 @@ pub trait TcpConnector: Send + Sync + Unpin {
 #[async_trait]
 pub trait UdpConnector: Send + Sync + Unpin {
     /// Creates a UDP socket.
-    async fn create_udp_socket(&self, bind_addr: &SocketAddr) -> io::Result<UdpSocket> {
-        create_udp_socket(bind_addr).await
+    async fn create_udp_socket(
+        &self,
+        bind_addr: &SocketAddr,
+        indicator: &SocketAddr,
+    ) -> io::Result<UdpSocket> {
+        create_udp_socket(bind_addr, indicator).await
     }
 }
 

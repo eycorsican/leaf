@@ -48,7 +48,7 @@ impl UdpOutboundHandler for Handler {
 
     async fn handle_udp<'a>(
         &'a self,
-        _sess: &'a Session,
+        sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> Result<Box<dyn OutboundDatagram>> {
         // TODO support chaining, this requires implementing our own socks5 client
@@ -60,7 +60,9 @@ impl UdpOutboundHandler for Handler {
                 &self.port,
             )
             .await?;
-        let socket = self.create_udp_socket(&self.bind_addr).await?;
+        let socket = self
+            .create_udp_socket(&self.bind_addr, &sess.source)
+            .await?;
         let socket = SocksDatagram::associate(stream, socket, None::<Auth>, None::<AddrKind>)
             .map_err(|x| Error::new(ErrorKind::Other, x))
             .await?;

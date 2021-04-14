@@ -1,8 +1,7 @@
 use std::{
     collections::{hash_map, HashMap},
     convert::From,
-    net::{SocketAddr, SocketAddrV4},
-    str::FromStr,
+    net::{IpAddr, SocketAddr},
     sync::Arc,
 };
 
@@ -68,11 +67,11 @@ impl OutboundManager {
     fn load_handlers(
         outbounds: &protobuf::RepeatedField<Outbound>,
         dns_client: Arc<RwLock<DnsClient>>,
-    ) -> (
+    ) -> Result<(
         HashMap<String, Arc<dyn OutboundHandler>>,
         Option<String>,
         Vec<AbortHandle>,
-    ) {
+    )> {
         let mut handlers: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles = Vec::new();
@@ -83,21 +82,7 @@ impl OutboundManager {
                 default_handler = Some(String::from(&outbound.tag));
                 debug!("default handler [{}]", &outbound.tag);
             }
-            let bind_addr = {
-                let addr = format!("{}:0", &outbound.bind);
-                // FIXME panic
-                let addr = SocketAddrV4::from_str(&addr)
-                    .map_err(|e| {
-                        anyhow!(
-                            "invalid bind addr [{}] in outbound {}: {}",
-                            &outbound.bind,
-                            &outbound.tag,
-                            e
-                        )
-                    })
-                    .unwrap();
-                SocketAddr::from(addr)
-            };
+            let bind_addr = SocketAddr::new(outbound.bind.parse::<IpAddr>()?, 0);
             match outbound.protocol.as_str() {
                 #[cfg(feature = "outbound-direct")]
                 "direct" => {
@@ -127,15 +112,9 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-redirect")]
                 "redirect" => {
-                    let settings = match config::RedirectOutboundSettings::parse_from_bytes(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        config::RedirectOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let tcp = Box::new(redirect::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
@@ -160,13 +139,8 @@ impl OutboundManager {
                 #[cfg(feature = "outbound-socks")]
                 "socks" => {
                     let settings =
-                        match config::SocksOutboundSettings::parse_from_bytes(&outbound.settings) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        config::SocksOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let tcp = Box::new(socks::outbound::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
@@ -194,15 +168,9 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-shadowsocks")]
                 "shadowsocks" => {
-                    let settings = match config::ShadowsocksOutboundSettings::parse_from_bytes(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        config::ShadowsocksOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let tcp = Box::new(shadowsocks::outbound::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
@@ -230,15 +198,9 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-trojan")]
                 "trojan" => {
-                    let settings = match config::TrojanOutboundSettings::parse_from_bytes(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        config::TrojanOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let tcp = Box::new(trojan::outbound::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
@@ -265,14 +227,8 @@ impl OutboundManager {
                 #[cfg(feature = "outbound-vmess")]
                 "vmess" => {
                     let settings =
-                        match config::VMessOutboundSettings::parse_from_bytes(&outbound.settings) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
-
+                        config::VMessOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let tcp = Box::new(vmess::TcpHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
@@ -301,13 +257,8 @@ impl OutboundManager {
                 #[cfg(feature = "outbound-tls")]
                 "tls" => {
                     let settings =
-                        match config::TlsOutboundSettings::parse_from_bytes(&outbound.settings) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        config::TlsOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let mut alpns = Vec::new();
                     for alpn in settings.alpn.iter() {
                         alpns.push(alpn.clone());
@@ -331,15 +282,9 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-ws")]
                 "ws" => {
-                    let settings = match config::WebSocketOutboundSettings::parse_from_bytes(
-                        &outbound.settings,
-                    ) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("invalid [{}] outbound settings: {}", &tag, e);
-                            continue;
-                        }
-                    };
+                    let settings =
+                        config::WebSocketOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let tcp = Box::new(ws::outbound::TcpHandler {
                         path: settings.path.clone(),
                         headers: settings.headers.clone(),
@@ -361,13 +306,8 @@ impl OutboundManager {
                 #[cfg(feature = "outbound-quic")]
                 "quic" => {
                     let settings =
-                        match config::QuicOutboundSettings::parse_from_bytes(&outbound.settings) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        config::QuicOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let server_name = if settings.server_name.is_empty() {
                         None
                     } else {
@@ -402,13 +342,8 @@ impl OutboundManager {
                 #[cfg(feature = "outbound-h2")]
                 "h2" => {
                     let settings =
-                        match config::HTTP2OutboundSettings::parse_from_bytes(&outbound.settings) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        config::HTTP2OutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
                     let tcp = Box::new(crate::proxy::h2::TcpHandler {
                         path: settings.path.clone(),
                         host: settings.host.clone(),
@@ -434,33 +369,15 @@ impl OutboundManager {
         for _i in 0..4 {
             for outbound in outbounds.iter() {
                 let tag = String::from(&outbound.tag);
-                let bind_addr = {
-                    let addr = format!("{}:0", &outbound.bind);
-                    // FIXME panic
-                    let addr = SocketAddrV4::from_str(&addr)
-                        .map_err(|e| {
-                            anyhow!(
-                                "invalid bind addr [{}] in outbound {}: {}",
-                                &outbound.bind,
-                                &outbound.tag,
-                                e
-                            )
-                        })
-                        .unwrap();
-                    SocketAddr::from(addr)
-                };
+                let bind_addr = SocketAddr::new(outbound.bind.parse::<IpAddr>()?, 0);
                 match outbound.protocol.as_str() {
                     #[cfg(feature = "outbound-tryall")]
                     "tryall" => {
-                        let settings = match config::TryAllOutboundSettings::parse_from_bytes(
-                            &outbound.settings,
-                        ) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        let settings =
+                            config::TryAllOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -493,15 +410,11 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-random")]
                     "random" => {
-                        let settings = match config::RandomOutboundSettings::parse_from_bytes(
-                            &outbound.settings,
-                        ) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        let settings =
+                            config::RandomOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -530,15 +443,11 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-failover")]
                     "failover" => {
-                        let settings = match config::FailOverOutboundSettings::parse_from_bytes(
-                            &outbound.settings,
-                        ) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        let settings =
+                            config::FailOverOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -582,15 +491,11 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-amux")]
                     "amux" => {
-                        let settings = match config::AMuxOutboundSettings::parse_from_bytes(
-                            &outbound.settings,
-                        ) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        let settings =
+                            config::AMuxOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -622,15 +527,11 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-chain")]
                     "chain" => {
-                        let settings = match config::ChainOutboundSettings::parse_from_bytes(
-                            &outbound.settings,
-                        ) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        let settings =
+                            config::ChainOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -659,15 +560,11 @@ impl OutboundManager {
                     }
                     #[cfg(feature = "outbound-retry")]
                     "retry" => {
-                        let settings = match config::RetryOutboundSettings::parse_from_bytes(
-                            &outbound.settings,
-                        ) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        let settings =
+                            config::RetryOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -703,7 +600,7 @@ impl OutboundManager {
             }
         }
 
-        (handlers, default_handler, abort_handles)
+        Ok((handlers, default_handler, abort_handles))
     }
 
     fn load_selectors(
@@ -720,15 +617,11 @@ impl OutboundManager {
                 match outbound.protocol.as_str() {
                     #[cfg(feature = "outbound-select")]
                     "select" => {
-                        let settings = match config::SelectOutboundSettings::parse_from_bytes(
-                            &outbound.settings,
-                        ) {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("invalid [{}] outbound settings: {}", &tag, e);
-                                continue;
-                            }
-                        };
+                        let settings =
+                            config::SelectOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
                         let mut actors = HashMap::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
@@ -789,7 +682,7 @@ impl OutboundManager {
         }
 
         let (mut handlers, default_handler, abort_handles) =
-            Self::load_handlers(outbounds, dns_client);
+            Self::load_handlers(outbounds, dns_client)?;
 
         // Abort spawned tasks inside handlers.
         for abort_handle in self.abort_handles.iter() {
@@ -821,7 +714,7 @@ impl OutboundManager {
         dns_client: Arc<RwLock<DnsClient>>,
     ) -> Result<Self> {
         let (mut handlers, default_handler, abort_handles) =
-            Self::load_handlers(outbounds, dns_client);
+            Self::load_handlers(outbounds, dns_client)?;
         let selectors = Self::load_selectors(outbounds, &mut handlers)?;
         Ok(OutboundManager {
             handlers,

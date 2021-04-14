@@ -1,10 +1,4 @@
-use std::{
-    cmp::min,
-    convert::TryFrom,
-    io::{self, Error, ErrorKind},
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-};
+use std::{cmp::min, convert::TryFrom, io, net::SocketAddr, sync::Arc};
 
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
@@ -60,16 +54,14 @@ impl UdpOutboundHandler for Handler {
         sess: &'a Session,
         transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        let server_addr = if let Ok(ip) = self.address.parse::<IpAddr>() {
-            SocksAddr::Ip(SocketAddr::new(ip, self.port))
-        } else {
-            SocksAddr::Domain(self.address.clone(), self.port)
-        };
+        let server_addr = SocksAddr::try_from((&self.address, self.port))?;
 
         let socket = if let Some(OutboundTransport::Datagram(socket)) = transport {
             socket
         } else {
-            let socket = self.create_udp_socket(&self.bind_addr).await?;
+            let socket = self
+                .create_udp_socket(&self.bind_addr, &sess.source)
+                .await?;
             Box::new(SimpleOutboundDatagram::new(
                 socket,
                 None,
@@ -78,12 +70,7 @@ impl UdpOutboundHandler for Handler {
             ))
         };
 
-        let dgram = ShadowedDatagram::new(&self.cipher, &self.password).map_err(|e| {
-            Error::new(
-                ErrorKind::Other,
-                format!("new shadowed datagram failed: {}", e),
-            )
-        })?;
+        let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;
 
         let destination = match &sess.destination {
             SocksAddr::Domain(domain, port) => {
@@ -142,15 +129,7 @@ impl OutboundDatagramRecvHalf for DatagramRecvHalf {
         let (n, _) = self.1.recv_from(&mut buf2).await?;
         buf2.resize(n, 0);
         let plaintext = self.0.decrypt(buf2).map_err(|_| shadow::crypto_err())?;
-        let src_addr = match SocksAddr::try_from((&plaintext[..], SocksAddrWireType::PortLast)) {
-            Ok(v) => v,
-            Err(e) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("invalid remote address: {}", e),
-                ));
-            }
-        };
+        let src_addr = SocksAddr::try_from((&plaintext[..], SocksAddrWireType::PortLast))?;
         let payload_len = plaintext.len() - src_addr.size();
         let to_write = min(payload_len, buf.len());
         if to_write < payload_len {

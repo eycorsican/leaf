@@ -55,12 +55,7 @@ impl TcpOutboundHandler for Handler {
             )
             .await?
         };
-        let stream = ShadowedStream::new(stream, &self.cipher, &self.password).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("create shadowsocks stream failed: {}", e),
-            )
-        })?;
+        let stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
         let mut buf = BytesMut::new();
         sess.destination
             .write_buf(&mut buf, SocksAddrWireType::PortLast)?;

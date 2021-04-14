@@ -46,7 +46,9 @@ impl UdpOutboundHandler for Handler {
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        let socket = self.create_udp_socket(&self.bind_addr).await?;
+        let socket = self
+            .create_udp_socket(&self.bind_addr, &sess.source)
+            .await?;
         let destination = match &sess.destination {
             SocksAddr::Domain(domain, port) => {
                 Some(SocksAddr::Domain(domain.to_owned(), port.to_owned()))

@@ -21,7 +21,7 @@ impl Resolver {
             dns_client
                 .read()
                 .await
-                .lookup_with_bind(String::from(address), bind_addr)
+                .lookup_with_bind(address.to_string(), bind_addr)
                 .map_err(|e| anyhow!("lookup {} failed: {}", address, e))
                 .await?
         };

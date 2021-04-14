@@ -63,15 +63,7 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
         if n < 3 {
             return Err(io::Error::new(io::ErrorKind::Other, "recv short udp pkt"));
         }
-        let dst_addr = match SocksAddr::try_from((&recv_buf[3..], SocksAddrWireType::PortLast)) {
-            Ok(v) => v,
-            Err(e) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("read address failed: {}", e),
-                ));
-            }
-        };
+        let dst_addr = SocksAddr::try_from((&recv_buf[3..], SocksAddrWireType::PortLast))?;
         let header_size = 3 + dst_addr.size();
         let payload_size = n - header_size;
         let to_recv = min(buf.len(), payload_size);

@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::io::{self, ErrorKind};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -113,7 +114,17 @@ impl Dispatcher {
                                 "sniffed domain {} for tcp link {} <-> {}",
                                 &domain, &sess.source, &sess.destination,
                             );
-                            sess.destination = SocksAddr::from((domain, sess.destination.port()));
+                            sess.destination =
+                                match SocksAddr::try_from((&domain, sess.destination.port())) {
+                                    Ok(a) => a,
+                                    Err(e) => {
+                                        debug!(
+                                            "convert sniffed domain {} to destination failed: {}",
+                                            &domain, e,
+                                        );
+                                        return;
+                                    }
+                                };
                         }
                     }
                     Err(e) => {

@@ -1,5 +1,5 @@
 use std::{
-    io::Result,
+    io,
     net::{IpAddr, SocketAddr},
 };
 
@@ -44,15 +44,22 @@ impl UdpOutboundHandler for Handler {
         &'a self,
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
-    ) -> Result<Box<dyn OutboundDatagram>> {
-        let socket = self.create_udp_socket(&self.bind_addr).await?;
+    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        let socket = self
+            .create_udp_socket(&self.bind_addr, &sess.source)
+            .await?;
         let socket = Box::new(SimpleOutboundDatagram::new(
             socket,
             None,
             self.dns_client.clone(),
             self.bind_addr,
         ));
-        let target = SocksAddr::from((self.address.parse::<IpAddr>().unwrap(), self.port));
+        let target = SocksAddr::from((
+            self.address.parse::<IpAddr>().map_err(|e| {
+                io::Error::new(io::ErrorKind::Other, format!("parse IpAddr failed: {}", e))
+            })?,
+            self.port,
+        ));
         Ok(Box::new(Datagram {
             socket,
             destination: sess.destination.clone(),
@@ -88,7 +95,7 @@ pub struct DatagramRecvHalf(Box<dyn OutboundDatagramRecvHalf>, SocksAddr);
 
 #[async_trait]
 impl OutboundDatagramRecvHalf for DatagramRecvHalf {
-    async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocksAddr)> {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
         // Always rewrite the address, thus would allow only symmetric NAT sessions.
         let dest = self.1.clone();
         self.0.recv_from(buf).map_ok(|(n, _)| (n, dest)).await
@@ -99,7 +106,7 @@ pub struct DatagramSendHalf(Box<dyn OutboundDatagramSendHalf>, SocksAddr);
 
 #[async_trait]
 impl OutboundDatagramSendHalf for DatagramSendHalf {
-    async fn send_to(&mut self, buf: &[u8], _target: &SocksAddr) -> Result<usize> {
+    async fn send_to(&mut self, buf: &[u8], _target: &SocksAddr) -> io::Result<usize> {
         self.0.send_to(buf, &self.1).await
     }
 }

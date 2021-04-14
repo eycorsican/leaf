@@ -1,7 +1,6 @@
 use std::mem::MaybeUninit;
 use std::{cmp::min, io, pin::Pin};
 
-use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{
@@ -47,9 +46,16 @@ pub struct ShadowedStream<T> {
 }
 
 impl<T> ShadowedStream<T> {
-    pub fn new(s: T, cipher: &str, password: &str) -> Result<Self> {
-        let cipher = AeadCipher::new(cipher)?;
-        let psk = kdf(password, cipher.key_len())?;
+    pub fn new(s: T, cipher: &str, password: &str) -> io::Result<Self> {
+        let cipher = AeadCipher::new(cipher).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("create AEAD cipher failed: {}", e),
+            )
+        })?;
+        let psk = kdf(password, cipher.key_len()).map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("derive key failed: {}", e))
+        })?;
         Ok(ShadowedStream {
             inner: s,
             cipher,
@@ -322,11 +328,16 @@ pub struct ShadowedDatagram {
 }
 
 impl ShadowedDatagram {
-    pub fn new(cipher: &str, password: &str) -> Result<Self> {
-        let cipher =
-            AeadCipher::new(cipher).map_err(|e| anyhow!("new aead cipher failed: {}", e))?;
-        let psk =
-            kdf(password, cipher.key_len()).map_err(|e| anyhow!("derive key failed: {}", e))?;
+    pub fn new(cipher: &str, password: &str) -> io::Result<Self> {
+        let cipher = AeadCipher::new(cipher).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("create AEAD cipher failed: {}", e),
+            )
+        })?;
+        let psk = kdf(password, cipher.key_len()).map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("derive key failed: {}", e))
+        })?;
         Ok(ShadowedDatagram { cipher, psk })
     }
 

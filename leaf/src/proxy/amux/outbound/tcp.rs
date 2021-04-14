@@ -99,7 +99,7 @@ impl MuxManager {
             )
             .await?;
         let mut sess = sess.clone();
-        if let Ok(addr) = SocksAddr::try_from(format!("{}:{}", &self.address, &self.port)) {
+        if let Ok(addr) = SocksAddr::try_from((&self.address, self.port)) {
             sess.destination = addr;
         }
         for (_, a) in self.actors.iter().enumerate() {

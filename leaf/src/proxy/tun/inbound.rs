@@ -25,7 +25,7 @@ pub fn new(
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
 ) -> Result<Runner> {
-    let settings = TunInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+    let settings = TunInboundSettings::parse_from_bytes(&inbound.settings)?;
 
     let cfg = if settings.fd >= 0 {
         let mut cfg = tun::Configuration::default();

@@ -374,8 +374,9 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     )));
     let dispatcher = Arc::new(Dispatcher::new(outbound_manager.clone(), router.clone()));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
-    let inbound_manager = InboundManager::new(&config.inbounds, dispatcher, nat_manager);
-    runners.append(&mut inbound_manager.get_runners());
+    let inbound_manager =
+        InboundManager::new(&config.inbounds, dispatcher, nat_manager).map_err(Error::Config)?;
+    runners.append(&mut inbound_manager.get_runners().map_err(Error::Config)?);
 
     let runtime_manager = RuntimeManager::new(
         #[cfg(feature = "auto-reload")]
