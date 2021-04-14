@@ -7,12 +7,17 @@ use warp::Filter;
 use crate::RuntimeManager;
 
 mod models {
-    use serde_derive::Deserialize;
+    use serde_derive::{Deserialize, Serialize};
 
     #[derive(Debug, Deserialize)]
     pub struct SelectOptions {
         pub outbound: Option<String>,
         pub select: Option<String>,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct SelectReply {
+        pub selected: Option<String>,
     }
 }
 
@@ -34,6 +39,24 @@ mod handlers {
             }
         }
         Ok(StatusCode::ACCEPTED)
+    }
+
+    pub async fn select_get(
+        opts: models::SelectOptions,
+        rm: Arc<RuntimeManager>,
+    ) -> Result<impl warp::Reply, Infallible> {
+        if let models::SelectOptions {
+            outbound: Some(outbound),
+            ..
+        } = opts
+        {
+            if let Ok(selected) = rm.get_outbound_selected(&outbound).await {
+                return Ok(warp::reply::json(&models::SelectReply {
+                    selected: Some(selected),
+                }));
+            }
+        }
+        Ok(warp::reply::json(&models::SelectReply { selected: None }))
     }
 
     pub async fn runtime_reload(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
@@ -73,6 +96,17 @@ mod filters {
             .and_then(handlers::select_update)
     }
 
+    // GET /api/v1/app/outbound/select?outbound=Proxy
+    pub fn select_get(
+        rm: Arc<RuntimeManager>,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::path!("api" / "v1" / "app" / "outbound" / "select")
+            .and(warp::get())
+            .and(warp::query::<models::SelectOptions>())
+            .and(with_runtime_manager(rm))
+            .and_then(handlers::select_get)
+    }
+
     // POST /api/v1/runtime/reload
     pub fn runtime_reload(
         rm: Arc<RuntimeManager>,
@@ -105,6 +139,7 @@ impl ApiServer {
 
     pub fn serve(&self, listen_addr: SocketAddr) -> crate::Runner {
         let routes = filters::select_update(self.runtime_manager.clone())
+            .or(filters::select_get(self.runtime_manager.clone()))
             .or(filters::runtime_reload(self.runtime_manager.clone()))
             .or(filters::runtime_shutdown(self.runtime_manager.clone()));
         log::info!("api server listening tcp {}", &listen_addr);

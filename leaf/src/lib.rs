@@ -113,6 +113,15 @@ impl RuntimeManager {
         }
     }
 
+    pub async fn get_outbound_selected(&self, outbound: &str) -> Result<String, Error> {
+        if let Some(selector) = self.outbound_manager.read().await.get_selector(outbound) {
+            if let Some(tag) = selector.read().await.get_selected_tag() {
+                return Ok(tag);
+            }
+        }
+        Err(Error::Config(anyhow!("not found")))
+    }
+
     // This function could block by an in-progress connection dialing.
     //
     // TODO Reload FakeDns. And perhaps the inbounds as long as the listening
