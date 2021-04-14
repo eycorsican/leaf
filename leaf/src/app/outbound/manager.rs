@@ -744,7 +744,7 @@ impl OutboundManager {
                             // FIXME handle error
                             let _ = selector.set_selected(&selected);
                         } else {
-                            selector.set_selected(&settings.actors[0])?;
+                            let _ = selector.set_selected(&settings.actors[0]);
                         }
                         let selector = Arc::new(RwLock::new(selector));
 
