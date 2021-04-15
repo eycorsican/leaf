@@ -365,10 +365,15 @@ impl OutboundManager {
             }
         }
 
+        let mut parsed = Vec::new();
+
         // FIXME a better way to find outbound deps?
         for _i in 0..4 {
-            for outbound in outbounds.iter() {
+            'outbounds: for outbound in outbounds.iter() {
                 let tag = String::from(&outbound.tag);
+                if parsed.contains(&tag) {
+                    continue;
+                }
                 let bind_addr = SocketAddr::new(outbound.bind.parse::<IpAddr>()?, 0);
                 match outbound.protocol.as_str() {
                     #[cfg(feature = "outbound-tryall")]
@@ -382,6 +387,8 @@ impl OutboundManager {
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
                                 actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
                             }
                         }
                         if actors.is_empty() {
@@ -419,6 +426,8 @@ impl OutboundManager {
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
                                 actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
                             }
                         }
                         if actors.is_empty() {
@@ -452,6 +461,8 @@ impl OutboundManager {
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
                                 actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
                             }
                         }
                         if actors.is_empty() {
@@ -500,6 +511,8 @@ impl OutboundManager {
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
                                 actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
                             }
                         }
                         let (tcp, mut tcp_abort_handles) = amux::outbound::TcpHandler::new(
@@ -536,6 +549,8 @@ impl OutboundManager {
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
                                 actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
                             }
                         }
                         if actors.is_empty() {
@@ -569,6 +584,8 @@ impl OutboundManager {
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
                                 actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
                             }
                         }
                         if actors.is_empty() {
@@ -597,6 +614,7 @@ impl OutboundManager {
                     }
                     _ => (),
                 }
+                parsed.push(tag.clone());
             }
         }
 
@@ -609,10 +627,15 @@ impl OutboundManager {
     ) -> Result<super::Selectors> {
         let mut selectors: super::Selectors = HashMap::new();
 
+        let mut parsed = Vec::new();
+
         // FIXME a better way to find outbound deps?
         for _i in 0..4 {
-            for outbound in outbounds.iter() {
+            'outbounds: for outbound in outbounds.iter() {
                 let tag = String::from(&outbound.tag);
+                if parsed.contains(&tag) {
+                    continue;
+                }
                 #[allow(clippy::single_match)]
                 match outbound.protocol.as_str() {
                     #[cfg(feature = "outbound-select")]
@@ -626,6 +649,8 @@ impl OutboundManager {
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
                                 actors.insert(actor.to_owned(), a.clone());
+                            } else {
+                                continue 'outbounds;
                             }
                         }
                         if actors.is_empty() {
@@ -663,6 +688,7 @@ impl OutboundManager {
                     }
                     _ => (),
                 }
+                parsed.push(tag.clone());
             }
         }
 
