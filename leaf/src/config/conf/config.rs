@@ -24,6 +24,7 @@ pub struct Tun {
 pub struct General {
     pub tun: Option<Tun>,
     pub tun_fd: Option<i32>,
+    pub tun_auto: Option<bool>,
     pub loglevel: Option<String>,
     pub dns_server: Option<Vec<String>>,
     pub dns_interface: Option<String>,
@@ -239,6 +240,10 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "tun" => {
                 if let Some(items) = get_char_sep_slice(parts[1], ',') {
+                    if items.len() == 1 {
+                        general.tun_auto = Some(items[0] == "auto");
+                        continue;
+                    }
                     if items.len() != 5 {
                         continue;
                     }
@@ -655,7 +660,10 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
             inbounds.push(inbound);
         }
 
-        if ext_general.tun_fd.is_some() || ext_general.tun.is_some() {
+        if ext_general.tun_fd.is_some()
+            || ext_general.tun_auto.is_some()
+            || ext_general.tun.is_some()
+        {
             let mut inbound = internal::Inbound::new();
             inbound.protocol = "tun".to_string();
             inbound.tag = "tun".to_string();
@@ -683,6 +691,9 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
 
             if ext_general.tun_fd.is_some() {
                 settings.fd = ext_general.tun_fd.unwrap();
+            } else if ext_general.tun_auto.is_some() && ext_general.tun_auto.unwrap() {
+                settings.auto = true;
+                settings.fd = -1; // disable fd option
             } else {
                 let ext_tun = ext_general.tun.as_ref().unwrap();
 

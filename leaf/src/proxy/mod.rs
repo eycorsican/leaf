@@ -1,16 +1,21 @@
-use std::{io, net::SocketAddr};
+use std::{
+    io,
+    net::{IpAddr, SocketAddr},
+};
 
 use async_trait::async_trait;
 use futures::future::select_ok;
 use futures::stream::Stream;
 use futures::TryFutureExt;
+use lazy_static::lazy_static;
 use log::*;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, UdpSocket};
+use tokio::sync::Mutex;
 #[cfg(target_os = "android")]
 use {
-    lazy_static::lazy_static, std::os::unix::io::AsRawFd, std::os::unix::io::RawFd,
-    tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt, tokio::net::UnixStream, tokio::sync::Mutex,
+    std::os::unix::io::AsRawFd, std::os::unix::io::RawFd, tokio::io::AsyncReadExt,
+    tokio::io::AsyncWriteExt, tokio::net::UnixStream,
 };
 
 use crate::{
@@ -111,6 +116,11 @@ lazy_static! {
     static ref SOCKET_PROTECT_PATH: Mutex<Option<String>> = Mutex::new(None);
 }
 
+lazy_static! {
+    // TODO split ipv4/ipv6
+    static ref OUTBOUND_BIND_IPS: Mutex<Option<Vec<IpAddr>>> = Mutex::new(None);
+}
+
 // Sets the RPC service endpoint for protecting outbound sockets on Android to
 // avoid infinite loop. The `path` is treated as a Unix domain socket endpoint.
 // The RPC service simply listens for incoming connections, reads an int32 on
@@ -119,6 +129,10 @@ lazy_static! {
 #[cfg(target_os = "android")]
 pub async fn set_socket_protect_path(path: String) {
     SOCKET_PROTECT_PATH.lock().await.replace(path);
+}
+
+pub async fn set_outbound_bind_ips(ips: Vec<IpAddr>) {
+    OUTBOUND_BIND_IPS.lock().await.replace(ips);
 }
 
 #[cfg(target_os = "android")]
@@ -136,25 +150,44 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
     Ok(())
 }
 
+async fn get_bind_addr(bind_addr: &SocketAddr, indicator: &SocketAddr) -> SocketAddr {
+    if let Some(ips) = OUTBOUND_BIND_IPS.lock().await.as_ref() {
+        match indicator {
+            SocketAddr::V4(..) => {
+                if let Some(ip) = ips.iter().find(|ip| ip.is_ipv4()) {
+                    return SocketAddr::new(ip.to_owned(), 0);
+                }
+            }
+            SocketAddr::V6(..) => {
+                if let Some(ip) = ips.iter().find(|ip| ip.is_ipv6()) {
+                    return SocketAddr::new(ip.to_owned(), 0);
+                }
+            }
+        }
+    }
+    if bind_addr.ip().is_unspecified() {
+        match indicator {
+            SocketAddr::V4(..) => return "0.0.0.0:0".parse::<SocketAddr>().unwrap(),
+            SocketAddr::V6(..) => return "[::]:0".parse::<SocketAddr>().unwrap(),
+        }
+    }
+    bind_addr.to_owned()
+}
+
 // New UDP socket.
 async fn create_udp_socket(
     bind_addr: &SocketAddr,
     indicator: &SocketAddr,
 ) -> io::Result<UdpSocket> {
-    let socket = if bind_addr.ip().is_unspecified() {
-        match indicator {
-            SocketAddr::V4(..) => {
-                UdpSocket::bind("0.0.0.0:0".parse::<SocketAddr>().unwrap()).await?
-            }
-            SocketAddr::V6(..) => UdpSocket::bind("[::]:0".parse::<SocketAddr>().unwrap()).await?,
-        }
-    } else {
-        UdpSocket::bind(bind_addr).await?
-    };
+    let bind_addr = get_bind_addr(bind_addr, indicator).await;
+    trace!("udp bind {}", &bind_addr);
+    let socket = UdpSocket::bind(&bind_addr).await?;
+
     #[cfg(target_os = "android")]
     {
         protect_socket(socket.as_raw_fd()).await?;
     }
+
     Ok(socket)
 }
 
@@ -163,28 +196,22 @@ async fn tcp_dial_task(
     dial_addr: SocketAddr,
     bind_addr: &SocketAddr,
 ) -> io::Result<(Box<dyn ProxyStream>, SocketAddr)> {
+    let bind_addr = get_bind_addr(bind_addr, &dial_addr).await;
     let socket = match dial_addr {
         SocketAddr::V4(..) => TcpSocket::new_v4()?,
         SocketAddr::V6(..) => TcpSocket::new_v6()?,
     };
+    trace!("tcp bind {}", &bind_addr);
+    socket.bind(bind_addr)?;
 
     #[cfg(target_os = "android")]
     {
         protect_socket(socket.as_raw_fd()).await?;
     }
 
-    if bind_addr.ip().is_unspecified() {
-        match dial_addr {
-            SocketAddr::V4(..) => socket.bind("0.0.0.0:0".parse::<SocketAddr>().unwrap())?,
-            SocketAddr::V6(..) => socket.bind("[::]:0".parse::<SocketAddr>().unwrap())?,
-        }
-    } else {
-        socket.bind(*bind_addr)?;
-    }
-
-    trace!("dialing tcp {}", &dial_addr);
+    trace!("tcp dialing {}", &dial_addr);
     let stream = socket.connect(dial_addr).await?;
-    trace!("connected tcp {}", &dial_addr);
+    trace!("tcp connected {}", &dial_addr);
     Ok((Box::new(SimpleProxyStream(stream)), dial_addr))
 }
 

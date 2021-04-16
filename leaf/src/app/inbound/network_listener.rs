@@ -19,8 +19,6 @@ use crate::proxy::{
 use crate::session::{Network, Session, SocksAddr};
 use crate::Runner;
 
-use super::InboundListener;
-
 async fn handle_inbound_datagram(
     inbound_tag: String,
     socket: Box<dyn InboundDatagram>,
@@ -178,8 +176,8 @@ pub struct NetworkInboundListener {
     pub nat_manager: Arc<NatManager>,
 }
 
-impl InboundListener for NetworkInboundListener {
-    fn listen(&self) -> Result<Vec<Runner>> {
+impl NetworkInboundListener {
+    pub fn listen(&self) -> Result<Vec<Runner>> {
         let mut runners: Vec<Runner> = Vec::new();
         let handler = self.handler.clone();
         let dispatcher = self.dispatcher.clone();

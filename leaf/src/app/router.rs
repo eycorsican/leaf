@@ -359,8 +359,7 @@ pub struct Router {
 }
 
 impl Router {
-    fn load_rules(routing_rules: &protobuf::RepeatedField<RoutingRule>) -> Vec<Rule> {
-        let mut rules = Vec::new();
+    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &protobuf::RepeatedField<RoutingRule>) {
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
         for rr in routing_rules.iter() {
             let mut cond_and = ConditionAnd::new();
@@ -406,20 +405,20 @@ impl Router {
 
             rules.push(Rule::new(rr.target_tag.clone(), Box::new(cond_and)));
         }
-        rules
     }
 
     pub fn new(
         routing_rules: &protobuf::RepeatedField<RoutingRule>,
         dns_client: SyncDnsClient,
     ) -> Self {
-        let rules = Self::load_rules(routing_rules);
+        let mut rules: Vec<Rule> = Vec::new();
+        Self::load_rules(&mut rules, routing_rules);
         Router { rules, dns_client }
     }
 
     pub fn reload(&mut self, routing_rules: &protobuf::RepeatedField<RoutingRule>) -> Result<()> {
-        let rules = Self::load_rules(routing_rules);
-        self.rules = rules;
+        self.rules.clear();
+        Self::load_rules(&mut self.rules, routing_rules);
         Ok(())
     }
 

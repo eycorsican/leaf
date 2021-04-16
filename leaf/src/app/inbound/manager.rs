@@ -30,7 +30,6 @@ use crate::proxy::ws;
 use crate::proxy::chain;
 
 use super::network_listener::NetworkInboundListener;
-use super::InboundListener;
 
 #[cfg(all(
     feature = "inbound-tun",
@@ -41,10 +40,21 @@ use super::InboundListener;
         target_os = "linux"
     )
 ))]
-use super::tun_listener::TUNInboundListener;
+use super::tun_listener::TunInboundListener;
 
 pub struct InboundManager {
-    listeners: HashMap<String, Arc<dyn InboundListener>>,
+    network_listeners: HashMap<String, NetworkInboundListener>,
+    #[cfg(all(
+        feature = "inbound-tun",
+        any(
+            target_os = "ios",
+            target_os = "android",
+            target_os = "macos",
+            target_os = "linux"
+        )
+    ))]
+    tun_listener: Option<TunInboundListener>,
+    tun_auto: bool,
 }
 
 impl InboundManager {
@@ -188,7 +198,20 @@ impl InboundManager {
             }
         }
 
-        let mut listeners: HashMap<String, Arc<dyn InboundListener>> = HashMap::new();
+        let mut network_listeners: HashMap<String, NetworkInboundListener> = HashMap::new();
+
+        #[cfg(all(
+            feature = "inbound-tun",
+            any(
+                target_os = "ios",
+                target_os = "android",
+                target_os = "macos",
+                target_os = "linux"
+            )
+        ))]
+        let mut tun_listener: Option<TunInboundListener> = None;
+
+        let mut tun_auto = false;
 
         for inbound in inbounds.iter() {
             let tag = String::from(&inbound.tag);
@@ -203,38 +226,87 @@ impl InboundManager {
                     )
                 ))]
                 "tun" => {
-                    let listener = Arc::new(TUNInboundListener {
+                    let listener = TunInboundListener {
                         inbound: inbound.clone(),
                         dispatcher: dispatcher.clone(),
                         nat_manager: nat_manager.clone(),
-                    });
-                    listeners.insert(tag.clone(), listener);
+                    };
+                    tun_listener.replace(listener);
+                    let settings =
+                        crate::config::TunInboundSettings::parse_from_bytes(&inbound.settings)?;
+                    tun_auto = settings.auto;
                 }
                 _ => {
                     if inbound.port != 0 {
                         if let Some(h) = handlers.get(&tag) {
-                            let listener = Arc::new(NetworkInboundListener {
+                            let listener = NetworkInboundListener {
                                 address: inbound.address.clone(),
                                 port: inbound.port as u16,
                                 handler: h.clone(),
                                 dispatcher: dispatcher.clone(),
                                 nat_manager: nat_manager.clone(),
-                            });
-                            listeners.insert(tag.clone(), listener);
+                            };
+                            network_listeners.insert(tag.clone(), listener);
                         }
                     }
                 }
             }
         }
 
-        Ok(InboundManager { listeners })
+        Ok(InboundManager {
+            network_listeners,
+            #[cfg(all(
+                feature = "inbound-tun",
+                any(
+                    target_os = "ios",
+                    target_os = "android",
+                    target_os = "macos",
+                    target_os = "linux"
+                )
+            ))]
+            tun_listener,
+            tun_auto,
+        })
     }
 
-    pub fn get_runners(self) -> Result<Vec<Runner>> {
+    pub fn get_network_runners(&self) -> Result<Vec<Runner>> {
         let mut runners: Vec<Runner> = Vec::new();
-        for (_, listener) in self.listeners {
+        for (_, listener) in self.network_listeners.iter() {
             runners.append(&mut listener.listen()?);
         }
         Ok(runners)
+    }
+
+    #[cfg(all(
+        feature = "inbound-tun",
+        any(
+            target_os = "ios",
+            target_os = "android",
+            target_os = "macos",
+            target_os = "linux"
+        )
+    ))]
+    pub fn get_tun_runner(&self) -> Result<Runner> {
+        if let Some(listener) = &self.tun_listener {
+            return listener.listen();
+        }
+        Err(anyhow!("no tun inbound"))
+    }
+
+    #[cfg(all(
+        feature = "inbound-tun",
+        any(
+            target_os = "ios",
+            target_os = "android",
+            target_os = "macos",
+            target_os = "linux"
+        )
+    ))]
+    pub fn has_tun_listener(&self) -> bool {
+        self.tun_listener.is_some()
+    }
+
+    pub fn tun_auto(&self) -> bool {
+        self.tun_auto
     }
 }

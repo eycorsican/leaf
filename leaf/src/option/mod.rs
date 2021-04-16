@@ -89,6 +89,10 @@ lazy_static! {
         };
         get_env_var("UNSPECIFIED_BIND_ADDR", default)
     };
+
+    pub static ref OUTBOUND_INTERFACE: String = {
+        get_env_var("OUTBOUND_INTERFACE", "".to_string())
+    };
 }
 
 /// UDP session timeout. A UDP session shall be terminated if there are no
@@ -105,3 +109,11 @@ pub static MAX_DNS_RETRIES: usize = 4;
 
 /// Timeout for a DNS query for the built-in DNS client.
 pub static DNS_TIMEOUT: u64 = 4;
+
+pub static DEFAULT_TUN_NAME: &str = "utun233";
+pub static DEFAULT_TUN_IPV4_ADDR: &str = "240.255.0.2";
+pub static DEFAULT_TUN_IPV4_GW: &str = "240.255.0.1";
+pub static DEFAULT_TUN_IPV4_MASK: &str = "255.255.255.0";
+pub static DEFAULT_TUN_IPV6_ADDR: &str = "2001:2::2";
+pub static DEFAULT_TUN_IPV6_GW: &str = "2001:2::1";
+pub static DEFAULT_TUN_IPV6_PREFIXLEN: i32 = 64;

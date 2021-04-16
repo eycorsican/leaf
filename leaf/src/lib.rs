@@ -36,6 +36,9 @@ pub mod util;
 #[cfg(any(target_os = "ios", target_os = "android"))]
 pub mod mobile;
 
+#[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
+mod sys;
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error(transparent)]
@@ -362,6 +365,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     });
 
     let rt = new_runtime(&opts.runtime_opt)?;
+    let _g = rt.enter();
 
     #[cfg(target_os = "android")]
     if let Some(p) = opts.socket_protect_path.as_ref() {
@@ -385,7 +389,57 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
         InboundManager::new(&config.inbounds, dispatcher, nat_manager).map_err(Error::Config)?;
-    runners.append(&mut inbound_manager.get_runners().map_err(Error::Config)?);
+    let mut inbound_net_runners = inbound_manager
+        .get_network_runners()
+        .map_err(Error::Config)?;
+    runners.append(&mut inbound_net_runners);
+
+    #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
+    let net_info = if inbound_manager.has_tun_listener() && inbound_manager.tun_auto() {
+        sys::get_net_info()
+    } else {
+        sys::NetInfo::default()
+    };
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if !(&*option::OUTBOUND_INTERFACE).is_empty() {
+        let mut bind_ips = Vec::new();
+        for item in (&*option::OUTBOUND_INTERFACE).split(',').map(str::trim) {
+            if let Ok(ip) = item.parse::<IpAddr>() {
+                bind_ips.push(ip);
+            } else {
+                let all_interfaces = pnet_datalink::interfaces();
+                if let Some(ifa) = all_interfaces
+                    .iter()
+                    .find(|ifa| ifa.name == item && ifa.is_up() && !ifa.ips.is_empty())
+                {
+                    let mut ips: Vec<IpAddr> = ifa.ips.iter().map(|ipn| ipn.ip()).collect();
+                    if !ips.is_empty() {
+                        bind_ips.append(&mut ips);
+                    }
+                }
+            }
+        }
+        if !bind_ips.is_empty() {
+            rt.block_on(proxy::set_outbound_bind_ips(bind_ips));
+        }
+    }
+
+    #[cfg(all(
+        feature = "inbound-tun",
+        any(
+            target_os = "ios",
+            target_os = "android",
+            target_os = "macos",
+            target_os = "linux"
+        )
+    ))]
+    if let Ok(r) = inbound_manager.get_tun_runner() {
+        runners.push(r);
+    }
+
+    #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
+    sys::post_tun_creation_setup(&net_info);
 
     let runtime_manager = RuntimeManager::new(
         #[cfg(feature = "auto-reload")]
@@ -410,9 +464,9 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     #[cfg(feature = "api")]
     {
-        let listen_addr = if !(&*crate::option::API_LISTEN).is_empty() {
+        let listen_addr = if !(&*option::API_LISTEN).is_empty() {
             Some(
-                (&*crate::option::API_LISTEN)
+                (&*option::API_LISTEN)
                     .parse::<SocketAddr>()
                     .map_err(|e| Error::Config(anyhow!("parse SocketAddr failed: {}", e)))?,
             )
@@ -427,7 +481,6 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
             None
         };
         if let Some(listen_addr) = listen_addr {
-            let _g = rt.enter();
             let api_server = ApiServer::new(runtime_manager.clone());
             runners.push(api_server.serve(listen_addr));
         }
@@ -472,6 +525,9 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         .insert(rt_id, runtime_manager);
 
     rt.block_on(futures::future::select_all(tasks));
+
+    #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
+    sys::post_tun_completion_setup(&net_info);
 
     rt.shutdown_background();
 

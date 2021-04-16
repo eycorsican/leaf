@@ -36,6 +36,7 @@ message Log {
 
 message TunInboundSettings {
 	int32 fd = 1;
+	bool auto = 9;
 	string name = 2;
 	string address = 3;
 	string gateway = 4;

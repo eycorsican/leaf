@@ -13,7 +13,7 @@ use crate::{
     app::fake_dns::{FakeDns, FakeDnsMode},
     app::nat_manager::NatManager,
     config::{Inbound, TunInboundSettings},
-    Runner,
+    option, Runner,
 };
 
 use super::netstack::NetStack;
@@ -30,6 +30,25 @@ pub fn new(
     let cfg = if settings.fd >= 0 {
         let mut cfg = tun::Configuration::default();
         cfg.raw_fd(settings.fd);
+        cfg
+    } else if settings.auto {
+        let mut cfg = tun::Configuration::default();
+        cfg.name(option::DEFAULT_TUN_NAME)
+            .address(option::DEFAULT_TUN_IPV4_ADDR)
+            .destination(option::DEFAULT_TUN_IPV4_GW)
+            .mtu(1500);
+
+        #[cfg(not(any(
+            target_arch = "mips",
+            target_arch = "mips64",
+            target_arch = "mipsel",
+            target_arch = "mipsel64",
+        )))]
+        {
+            cfg.netmask(option::DEFAULT_TUN_IPV4_MASK);
+        }
+
+        cfg.up();
         cfg
     } else {
         let mut cfg = tun::Configuration::default();
@@ -66,9 +85,13 @@ pub fn new(
         (FakeDnsMode::Exclude, fake_dns_exclude)
     };
 
-    Ok(Box::pin(async move {
-        let tun = tun::create_as_async(&cfg).unwrap();
+    let tun = tun::create_as_async(&cfg).unwrap();
 
+    if settings.auto {
+        assert!(settings.fd == -1, "tun-auto is not compatible with tun-fd");
+    }
+
+    Ok(Box::pin(async move {
         let fakedns = Arc::new(TokioMutex::new(FakeDns::new(fake_dns_mode)));
 
         for filter in fake_dns_filters.into_iter() {

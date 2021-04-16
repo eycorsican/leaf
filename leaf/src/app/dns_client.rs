@@ -287,23 +287,32 @@ impl DnsClient {
 
         let mut cached_ips = Vec::new();
 
-        if *crate::option::PREFER_IPV6 {
-            if let Some(ips) = self.ipv6_cache.lock().await.get(&domain) {
-                let mut ips = ips.to_vec();
-                cached_ips.append(&mut ips);
+        match (*crate::option::ENABLE_IPV6, *crate::option::PREFER_IPV6) {
+            (true, true) => {
+                if let Some(ips) = self.ipv6_cache.lock().await.get(&domain) {
+                    let mut ips = ips.to_vec();
+                    cached_ips.append(&mut ips);
+                }
+                if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
+                    let mut ips = ips.to_vec();
+                    cached_ips.append(&mut ips);
+                }
             }
-            if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
-                let mut ips = ips.to_vec();
-                cached_ips.append(&mut ips);
+            (true, false) => {
+                if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
+                    let mut ips = ips.to_vec();
+                    cached_ips.append(&mut ips);
+                }
+                if let Some(ips) = self.ipv6_cache.lock().await.get(&domain) {
+                    let mut ips = ips.to_vec();
+                    cached_ips.append(&mut ips);
+                }
             }
-        } else {
-            if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
-                let mut ips = ips.to_vec();
-                cached_ips.append(&mut ips);
-            }
-            if let Some(ips) = self.ipv6_cache.lock().await.get(&domain) {
-                let mut ips = ips.to_vec();
-                cached_ips.append(&mut ips);
+            _ => {
+                if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
+                    let mut ips = ips.to_vec();
+                    cached_ips.append(&mut ips);
+                }
             }
         }
 
@@ -334,42 +343,100 @@ impl DnsClient {
 
         let mut query_tasks = Vec::new();
 
-        let msg = Self::new_query(name.clone(), RecordType::A);
-        let msg_buf = match msg.to_vec() {
-            Ok(b) => b,
-            Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
-        };
-        let mut tasks = Vec::new();
-        for server in &self.servers {
-            let t = self.query_task(
-                msg_buf.clone().into_boxed_slice(),
-                &domain,
-                server,
-                bind_addr,
-            );
-            tasks.push(Box::pin(t));
-        }
-        let query_task = select_ok(tasks.into_iter());
-        query_tasks.push(query_task);
+        match (*crate::option::ENABLE_IPV6, *crate::option::PREFER_IPV6) {
+            (true, true) => {
+                let msg = Self::new_query(name.clone(), RecordType::AAAA);
+                let msg_buf = match msg.to_vec() {
+                    Ok(b) => b,
+                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
+                };
+                let mut tasks = Vec::new();
+                for server in &self.servers {
+                    let t = self.query_task(
+                        msg_buf.clone().into_boxed_slice(),
+                        &domain,
+                        server,
+                        bind_addr,
+                    );
+                    tasks.push(Box::pin(t));
+                }
+                let query_task = select_ok(tasks.into_iter());
+                query_tasks.push(query_task);
 
-        if *crate::option::ENABLE_IPV6 {
-            let msg = Self::new_query(name.clone(), RecordType::AAAA);
-            let msg_buf = match msg.to_vec() {
-                Ok(b) => b,
-                Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
-            };
-            let mut tasks = Vec::new();
-            for server in &self.servers {
-                let t = self.query_task(
-                    msg_buf.clone().into_boxed_slice(),
-                    &domain,
-                    server,
-                    bind_addr,
-                );
-                tasks.push(Box::pin(t));
+                let msg = Self::new_query(name.clone(), RecordType::A);
+                let msg_buf = match msg.to_vec() {
+                    Ok(b) => b,
+                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
+                };
+                let mut tasks = Vec::new();
+                for server in &self.servers {
+                    let t = self.query_task(
+                        msg_buf.clone().into_boxed_slice(),
+                        &domain,
+                        server,
+                        bind_addr,
+                    );
+                    tasks.push(Box::pin(t));
+                }
+                let query_task = select_ok(tasks.into_iter());
+                query_tasks.push(query_task);
             }
-            let query_task = select_ok(tasks.into_iter());
-            query_tasks.push(query_task);
+            (true, false) => {
+                let msg = Self::new_query(name.clone(), RecordType::A);
+                let msg_buf = match msg.to_vec() {
+                    Ok(b) => b,
+                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
+                };
+                let mut tasks = Vec::new();
+                for server in &self.servers {
+                    let t = self.query_task(
+                        msg_buf.clone().into_boxed_slice(),
+                        &domain,
+                        server,
+                        bind_addr,
+                    );
+                    tasks.push(Box::pin(t));
+                }
+                let query_task = select_ok(tasks.into_iter());
+                query_tasks.push(query_task);
+
+                let msg = Self::new_query(name.clone(), RecordType::AAAA);
+                let msg_buf = match msg.to_vec() {
+                    Ok(b) => b,
+                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
+                };
+                let mut tasks = Vec::new();
+                for server in &self.servers {
+                    let t = self.query_task(
+                        msg_buf.clone().into_boxed_slice(),
+                        &domain,
+                        server,
+                        bind_addr,
+                    );
+                    tasks.push(Box::pin(t));
+                }
+                let query_task = select_ok(tasks.into_iter());
+                query_tasks.push(query_task);
+            }
+            _ => {
+                let msg = Self::new_query(name.clone(), RecordType::A);
+                let msg_buf = match msg.to_vec() {
+                    Ok(b) => b,
+                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
+                };
+                let mut tasks = Vec::new();
+                for server in &self.servers {
+                    let t = self.query_task(
+                        msg_buf.clone().into_boxed_slice(),
+                        &domain,
+                        server,
+                        bind_addr,
+                    );
+                    tasks.push(Box::pin(t));
+                }
+                let query_task = select_ok(tasks.into_iter());
+                query_tasks.push(query_task);
+            }
         }
 
         let mut ips = Vec::new();

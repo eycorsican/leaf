@@ -228,6 +228,9 @@ notify = { version = "5.0.0-pre.6", optional = true }
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
 
+[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+pnet_datalink = { version = "0.27", package = "pnet_datalink" }
+
 # Used in mobile logger
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
 memchr = { version = "2" }
