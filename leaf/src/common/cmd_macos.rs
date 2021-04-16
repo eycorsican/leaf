@@ -5,6 +5,7 @@ use anyhow::Result;
 
 pub fn get_default_ipv4_gateway() -> Result<String> {
     let out = Command::new("route")
+        .arg("-n")
         .arg("get")
         .arg("1")
         .output()
@@ -48,6 +49,7 @@ pub fn get_default_ipv6_gateway() -> Result<String> {
 
 pub fn get_default_interface() -> Result<String> {
     let out = Command::new("route")
+        .arg("-n")
         .arg("get")
         .arg("1")
         .output()
