@@ -27,6 +27,7 @@ pub fn get_default_ipv4_gateway() -> Result<String> {
 
 pub fn get_default_ipv6_gateway() -> Result<String> {
     let out = Command::new("route")
+        .arg("-n")
         .arg("get")
         .arg("-inet6")
         .arg("::2")
@@ -43,7 +44,9 @@ pub fn get_default_ipv6_gateway() -> Result<String> {
         .map(str::trim)
         .collect();
     assert!(cols.len() == 2);
-    let res = cols[1].to_string();
+    let parts: Vec<&str> = cols[1].split('%').map(str::trim).collect();
+    assert!(parts.len() >= 1);
+    let res = parts[0].to_string();
     Ok(res)
 }
 
