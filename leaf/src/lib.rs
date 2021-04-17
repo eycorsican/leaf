@@ -1,3 +1,4 @@
+#![feature(ip)]
 use std::collections::HashMap;
 use std::io;
 use std::net::{IpAddr, SocketAddr};
@@ -413,7 +414,19 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
                     .iter()
                     .find(|ifa| ifa.name == item && ifa.is_up() && !ifa.ips.is_empty())
                 {
-                    let mut ips: Vec<IpAddr> = ifa.ips.iter().map(|ipn| ipn.ip()).collect();
+                    let mut ips: Vec<IpAddr> = ifa
+                        .ips
+                        .iter()
+                        .map(|ipn| ipn.ip())
+                        .filter(|&i| {
+                            if let IpAddr::V6(i) = i {
+                                // addr is now an Ipv6Addr ...
+                                return i.is_global();
+                            }
+                            return true;
+                        })
+                        .collect();
+
                     if !ips.is_empty() {
                         bind_ips.append(&mut ips);
                     }
