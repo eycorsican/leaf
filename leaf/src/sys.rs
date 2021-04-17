@@ -119,12 +119,12 @@ pub fn post_tun_creation_setup(net_info: &NetInfo) {
                 common::cmd::delete_default_ipv6_route(None).unwrap();
                 common::cmd::delete_default_ipv6_route(Some(iface.clone())).unwrap();
                 common::cmd::add_default_ipv6_route(
-                    option::DEFAULT_TUN_IPV6_GW.parse::<Ipv6Addr>().unwrap(),
+                    option::DEFAULT_TUN_IPV6_GW.to_owned(),
                     None,
                 )
                 .unwrap();
                 common::cmd::add_default_ipv6_route(
-                    ipv6_gw.parse::<Ipv6Addr>().unwrap(),
+                    ipv6_gw.to_owned(),
                     Some(iface.clone()),
                 )
                 .unwrap();
@@ -149,7 +149,7 @@ pub fn post_tun_completion_setup(net_info: &NetInfo) {
         default_interface: Some(iface),
     } = &net_info
     {
-        use std::net::{Ipv4Addr, Ipv6Addr};
+        use std::net::{Ipv4Addr};
         common::cmd::delete_default_ipv4_route(None).unwrap();
         common::cmd::delete_default_ipv4_route(Some(iface.clone())).unwrap();
         common::cmd::add_default_ipv4_route(ipv4_gw.parse::<Ipv4Addr>().unwrap(), None).unwrap();
@@ -164,7 +164,7 @@ pub fn post_tun_completion_setup(net_info: &NetInfo) {
             if let Some(ipv6_gw) = ipv6_gw {
                 common::cmd::delete_default_ipv6_route(None).unwrap();
                 common::cmd::delete_default_ipv6_route(Some(iface.clone())).unwrap();
-                common::cmd::add_default_ipv6_route(ipv6_gw.parse::<Ipv6Addr>().unwrap(), None)
+                common::cmd::add_default_ipv6_route(ipv6_gw.to_owned(), None)
                     .unwrap();
             }
 

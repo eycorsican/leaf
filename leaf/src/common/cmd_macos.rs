@@ -122,13 +122,13 @@ pub fn add_default_ipv4_route(gateway: Ipv4Addr, ifscope: Option<String>) -> Res
     Ok(())
 }
 
-pub fn add_default_ipv6_route(gateway: Ipv6Addr, ifscope: Option<String>) -> Result<()> {
+pub fn add_default_ipv6_route(gateway: String, ifscope: Option<String>) -> Result<()> {
     if let Some(ifscope) = ifscope {
         Command::new("route")
             .arg("add")
             .arg("-inet6")
             .arg("default")
-            .arg(gateway.to_string())
+            .arg(gateway)
             .arg("-ifscope")
             .arg(ifscope)
             .status()
@@ -138,7 +138,7 @@ pub fn add_default_ipv6_route(gateway: Ipv6Addr, ifscope: Option<String>) -> Res
             .arg("add")
             .arg("-inet6")
             .arg("default")
-            .arg(gateway.to_string())
+            .arg(gateway)
             .status()
             .expect("failed to execute command");
     };
