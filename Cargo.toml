@@ -16,3 +16,4 @@ panic = "abort"
 [profile.dev]
 opt-level = 0
 debug = true
+split-debuginfo = "unpacked"

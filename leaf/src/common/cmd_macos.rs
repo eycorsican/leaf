@@ -195,3 +195,67 @@ pub fn delete_default_ipv6_route(ifscope: Option<String>) -> Result<()> {
     };
     Ok(())
 }
+
+pub fn get_ipv4_forwarding() -> Result<bool> {
+    let out = Command::new("sysctl")
+        .arg("-n")
+        .arg("net.inet.ip.forwarding")
+        .output()
+        .expect("failed to execute command");
+    let out = String::from_utf8_lossy(&out.stdout).to_string();
+    let res = if out
+        .trim()
+        .parse::<i8>()
+        .expect("unexpected ip_forward value")
+        == 0
+    {
+        false
+    } else {
+        true
+    };
+    Ok(res)
+}
+
+pub fn get_ipv6_forwarding() -> Result<bool> {
+    let out = Command::new("sysctl")
+        .arg("-n")
+        .arg("net.inet6.ip6.forwarding")
+        .output()
+        .expect("failed to execute command");
+    let out = String::from_utf8_lossy(&out.stdout).to_string();
+    let res = if out
+        .trim()
+        .parse::<i8>()
+        .expect("unexpected ip_forward value")
+        == 0
+    {
+        false
+    } else {
+        true
+    };
+    Ok(res)
+}
+
+pub fn set_ipv4_forwarding(val: bool) -> Result<()> {
+    Command::new("sysctl")
+        .arg("-w")
+        .arg(format!(
+            "net.inet.ip.forwarding={}",
+            if val { "1" } else { "0" }
+        ))
+        .status()
+        .expect("failed to execute command");
+    Ok(())
+}
+
+pub fn set_ipv6_forwarding(val: bool) -> Result<()> {
+    Command::new("sysctl")
+        .arg("-w")
+        .arg(format!(
+            "net.inet6.ip6.forwarding={}",
+            if val { "1" } else { "0" }
+        ))
+        .status()
+        .expect("failed to execute command");
+    Ok(())
+}

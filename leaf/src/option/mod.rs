@@ -93,6 +93,10 @@ lazy_static! {
     pub static ref OUTBOUND_INTERFACE: String = {
         get_env_var("OUTBOUND_INTERFACE", "".to_string())
     };
+
+    pub static ref GATEWAY_MODE: bool = {
+        get_env_var("GATEWAY_MODE", false)
+    };
 }
 
 /// UDP session timeout. A UDP session shall be terminated if there are no

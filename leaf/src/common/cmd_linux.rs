@@ -308,3 +308,93 @@ pub fn delete_default_ipv6_rule(addr: Ipv6Addr) -> Result<()> {
         .expect("failed to execute command");
     Ok(())
 }
+
+pub fn get_ipv4_forwarding() -> Result<bool> {
+    let out = Command::new("sysctl")
+        .arg("-n")
+        .arg("net.ipv4.ip_forward")
+        .output()
+        .expect("failed to execute command");
+    let out = String::from_utf8_lossy(&out.stdout).to_string();
+    let res = if out
+        .trim()
+        .parse::<i8>()
+        .expect("unexpected ip_forward value")
+        == 0
+    {
+        false
+    } else {
+        true
+    };
+    Ok(res)
+}
+
+pub fn get_ipv6_forwarding() -> Result<bool> {
+    let out = Command::new("sysctl")
+        .arg("-n")
+        .arg("net.ipv6.conf.all.forwarding")
+        .output()
+        .expect("failed to execute command");
+    let out = String::from_utf8_lossy(&out.stdout).to_string();
+    let res = if out
+        .trim()
+        .parse::<i8>()
+        .expect("unexpected ip_forward value")
+        == 0
+    {
+        false
+    } else {
+        true
+    };
+    Ok(res)
+}
+
+pub fn set_ipv4_forwarding(val: bool) -> Result<()> {
+    Command::new("sysctl")
+        .arg("-w")
+        .arg(format!(
+            "net.ipv4.ip_forward={}",
+            if val { "1" } else { "0" }
+        ))
+        .status()
+        .expect("failed to execute command");
+    Ok(())
+}
+
+pub fn set_ipv6_forwarding(val: bool) -> Result<()> {
+    Command::new("sysctl")
+        .arg("-w")
+        .arg(format!(
+            "net.ipv6.conf.all.forwarding={}",
+            if val { "1" } else { "0" }
+        ))
+        .status()
+        .expect("failed to execute command");
+    Ok(())
+}
+
+pub fn add_iptable_forward(interface: &str) -> Result<()> {
+    Command::new("iptables")
+        .arg("-I")
+        .arg("FORWARD")
+        .arg("-o")
+        .arg(interface)
+        .arg("-j")
+        .arg("ACCEPT")
+        .status()
+        .expect("failed to execute command");
+    Ok(())
+}
+
+pub fn delete_iptable_forward(interface: &str) -> Result<()> {
+    Command::new("iptables")
+        .arg("-D")
+        .arg("FORWARD")
+        .arg("-o")
+        .arg(interface)
+        .arg("-j")
+        .arg("ACCEPT")
+        .status()
+        .expect("failed to execute command");
+    Ok(())
+}
