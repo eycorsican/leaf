@@ -422,7 +422,14 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
                                 }
                                 IpAddr::V6(ref ip6) => {
                                     // FIXME https://doc.rust-lang.org/std/net/struct.Ipv6Addr.html#method.is_global
-                                    if (ip6.segments()[0] & 0xffc0) != 0xfe80 {
+                                    if !ip6.is_loopback()
+                                        && !ip6.is_multicast()
+                                        && !ip6.is_unspecified()
+                                        && !((ip6.segments()[0] & 0xffc0) == 0xfe80)
+                                        && !((ip6.segments()[0] & 0xfe00) == 0xfc00)
+                                        && !((ip6.segments()[0] == 0x2001)
+                                            && (ip6.segments()[1] == 0xdb8))
+                                    {
                                         bind_ips.push(ip);
                                     }
                                 }
