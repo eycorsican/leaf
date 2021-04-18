@@ -102,15 +102,13 @@ pub fn add_interface_ipv6_address(name: &str, addr: Ipv6Addr, prefixlen: i32) ->
     Ok(())
 }
 
-pub fn add_default_ipv4_route(gateway: Ipv4Addr, ifscope: Option<String>) -> Result<()> {
-    if let Some(ifscope) = ifscope {
+pub fn add_default_ipv4_route(gateway: Ipv4Addr, interface: String, primary: bool) -> Result<()> {
+    if primary {
         Command::new("route")
             .arg("add")
             .arg("-inet")
             .arg("default")
             .arg(gateway.to_string())
-            .arg("-ifscope")
-            .arg(ifscope)
             .status()
             .expect("failed to execute command");
     } else {
@@ -119,21 +117,27 @@ pub fn add_default_ipv4_route(gateway: Ipv4Addr, ifscope: Option<String>) -> Res
             .arg("-inet")
             .arg("default")
             .arg(gateway.to_string())
+            .arg("-ifscope")
+            .arg(interface)
             .status()
             .expect("failed to execute command");
     };
     Ok(())
 }
 
-pub fn add_default_ipv6_route(gateway: Ipv6Addr, ifscope: Option<String>) -> Result<()> {
-    if let Some(ifscope) = ifscope {
+pub fn add_default_ipv6_route(gateway: Ipv6Addr, interface: String, primary: bool) -> Result<()> {
+    // FIXME https://doc.rust-lang.org/std/net/struct.Ipv6Addr.html#method.is_global
+    let gw = if (gateway.segments()[0] & 0xffc0) == 0xfe80 {
+        format!("{}%{}", gateway.to_string(), interface)
+    } else {
+        gateway.to_string()
+    };
+    if primary {
         Command::new("route")
             .arg("add")
             .arg("-inet6")
             .arg("default")
-            .arg(gateway.to_string())
-            .arg("-ifscope")
-            .arg(ifscope)
+            .arg(gw)
             .status()
             .expect("failed to execute command");
     } else {
@@ -141,7 +145,9 @@ pub fn add_default_ipv6_route(gateway: Ipv6Addr, ifscope: Option<String>) -> Res
             .arg("add")
             .arg("-inet6")
             .arg("default")
-            .arg(gateway.to_string())
+            .arg(gw)
+            .arg("-ifscope")
+            .arg(interface)
             .status()
             .expect("failed to execute command");
     };

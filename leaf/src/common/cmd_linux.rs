@@ -145,18 +145,16 @@ pub fn add_interface_ipv6_address(name: &str, addr: Ipv6Addr, prefixlen: i32) ->
     Ok(())
 }
 
-pub fn add_default_ipv4_route(gateway: Ipv4Addr, ifscope: Option<String>) -> Result<()> {
-    if let Some(ifscope) = ifscope {
+pub fn add_default_ipv4_route(gateway: Ipv4Addr, interface: String, primary: bool) -> Result<()> {
+    if primary {
         Command::new("ip")
             .arg("route")
             .arg("add")
             .arg("default")
             .arg("via")
             .arg(gateway.to_string())
-            .arg("dev")
-            .arg(ifscope)
             .arg("table")
-            .arg("default")
+            .arg("main")
             .status()
             .expect("failed to execute command");
     } else {
@@ -166,16 +164,18 @@ pub fn add_default_ipv4_route(gateway: Ipv4Addr, ifscope: Option<String>) -> Res
             .arg("default")
             .arg("via")
             .arg(gateway.to_string())
+            .arg("dev")
+            .arg(interface)
             .arg("table")
-            .arg("main")
+            .arg("default")
             .status()
             .expect("failed to execute command");
     };
     Ok(())
 }
 
-pub fn add_default_ipv6_route(gateway: Ipv6Addr, ifscope: Option<String>) -> Result<()> {
-    if let Some(ifscope) = ifscope {
+pub fn add_default_ipv6_route(gateway: Ipv6Addr, interface: String, primary: bool) -> Result<()> {
+    if primary {
         Command::new("ip")
             .arg("-6")
             .arg("route")
@@ -184,9 +184,9 @@ pub fn add_default_ipv6_route(gateway: Ipv6Addr, ifscope: Option<String>) -> Res
             .arg("via")
             .arg(gateway.to_string())
             .arg("dev")
-            .arg(ifscope)
+            .arg(interface)
             .arg("table")
-            .arg("default")
+            .arg("main")
             .status()
             .expect("failed to execute command");
     } else {
@@ -197,8 +197,10 @@ pub fn add_default_ipv6_route(gateway: Ipv6Addr, ifscope: Option<String>) -> Res
             .arg("default")
             .arg("via")
             .arg(gateway.to_string())
+            .arg("dev")
+            .arg(interface)
             .arg("table")
-            .arg("main")
+            .arg("default")
             .status()
             .expect("failed to execute command");
     };

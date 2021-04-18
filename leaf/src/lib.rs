@@ -415,7 +415,19 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
                 {
                     let mut ips: Vec<IpAddr> = ifa.ips.iter().map(|ipn| ipn.ip()).collect();
                     if !ips.is_empty() {
-                        bind_ips.append(&mut ips);
+                        for ip in ips.into_iter() {
+                            match ip {
+                                IpAddr::V4(..) => {
+                                    bind_ips.push(ip);
+                                }
+                                IpAddr::V6(ref ip6) => {
+                                    // FIXME https://doc.rust-lang.org/std/net/struct.Ipv6Addr.html#method.is_global
+                                    if (ip6.segments()[0] & 0xffc0) != 0xfe80 {
+                                        bind_ips.push(ip);
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
