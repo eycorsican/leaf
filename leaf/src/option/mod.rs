@@ -55,10 +55,6 @@ lazy_static! {
         get_env_var("OUTBOUND_DIAL_CONCURRENCY", 1)
     };
 
-    pub static ref ROUTING_DOMAIN_RESOLVE: bool = {
-        get_env_var("ROUTING_DOMAIN_RESOLVE", false)
-    };
-
     pub static ref ASSET_LOCATION: String = {
         let mut file = std::env::current_exe().unwrap();
         file.pop();

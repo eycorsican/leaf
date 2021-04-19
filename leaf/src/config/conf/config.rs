@@ -36,6 +36,7 @@ pub struct General {
     pub socks_port: Option<u16>,
     pub api_interface: Option<String>,
     pub api_port: Option<u16>,
+    pub routing_domain_resolve: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -273,7 +274,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 general.always_fake_ip = get_char_sep_slice(parts[1], ',');
             }
             "routing-domain-resolve" => {
-                std::env::set_var("ROUTING_DOMAIN_RESOLVE", parts[1]);
+                general.routing_domain_resolve = if parts[1] == "true" {
+                    Some(true)
+                } else {
+                    Some(false)
+                };
             }
             "http-interface" | "interface" => {
                 general.http_interface = get_string(parts[1]);
@@ -1103,11 +1108,12 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         }
     }
 
+    let mut int_router = internal::Router::new();
     let mut rules = protobuf::RepeatedField::new();
     if let Some(ext_rules) = &conf.rule {
         let mut site_group_lists = HashMap::<String, geosite::SiteGroupList>::new();
         for ext_rule in ext_rules {
-            let mut rule = internal::RoutingRule::new();
+            let mut rule = internal::Router_Rule::new();
             rule.target_tag = ext_rule.target.clone();
 
             // handle FINAL rule first
@@ -1137,25 +1143,25 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     rule.ip_cidrs.push(ext_filter);
                 }
                 "DOMAIN" => {
-                    let mut domain = internal::RoutingRule_Domain::new();
-                    domain.field_type = internal::RoutingRule_Domain_Type::FULL;
+                    let mut domain = internal::Router_Rule_Domain::new();
+                    domain.field_type = internal::Router_Rule_Domain_Type::FULL;
                     domain.value = ext_filter;
                     rule.domains.push(domain);
                 }
                 "DOMAIN-KEYWORD" => {
-                    let mut domain = internal::RoutingRule_Domain::new();
-                    domain.field_type = internal::RoutingRule_Domain_Type::PLAIN;
+                    let mut domain = internal::Router_Rule_Domain::new();
+                    domain.field_type = internal::Router_Rule_Domain_Type::PLAIN;
                     domain.value = ext_filter;
                     rule.domains.push(domain);
                 }
                 "DOMAIN-SUFFIX" => {
-                    let mut domain = internal::RoutingRule_Domain::new();
-                    domain.field_type = internal::RoutingRule_Domain_Type::DOMAIN;
+                    let mut domain = internal::Router_Rule_Domain::new();
+                    domain.field_type = internal::Router_Rule_Domain_Type::DOMAIN;
                     domain.value = ext_filter;
                     rule.domains.push(domain);
                 }
                 "GEOIP" => {
-                    let mut mmdb = internal::RoutingRule_Mmdb::new();
+                    let mut mmdb = internal::Router_Rule_Mmdb::new();
 
                     let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
                     mmdb.file = asset_loc.join("geo.mmdb").to_string_lossy().to_string();
@@ -1183,6 +1189,13 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
         }
         drop(site_group_lists); // make sure it's released
     }
+    int_router.rules = rules;
+    if let Some(ext_general) = &conf.general {
+        if let Some(ext_domain_resolve) = ext_general.routing_domain_resolve {
+            int_router.domain_resolve = ext_domain_resolve;
+        }
+    }
+    let router = protobuf::SingularPtrField::some(int_router);
 
     let mut dns = internal::Dns::new();
     let mut servers = protobuf::RepeatedField::new();
@@ -1234,7 +1247,7 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
     config.log = protobuf::SingularPtrField::some(log);
     config.inbounds = inbounds;
     config.outbounds = outbounds;
-    config.routing_rules = rules;
+    config.router = router;
     config.dns = protobuf::SingularPtrField::some(dns);
     config.api = api;
 

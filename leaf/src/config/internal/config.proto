@@ -182,35 +182,40 @@ message Outbound {
 	bytes settings = 4;
 }
 
-message RoutingRule {
-	message Domain {
-		enum Type {
-			PLAIN = 0;
-			DOMAIN = 1;
-			FULL = 2;
+message Router {
+	message Rule {
+		message Domain {
+			enum Type {
+				PLAIN = 0;
+				DOMAIN = 1;
+				FULL = 2;
+			}
+
+			Type type = 1;
+			string value = 2;
 		}
 
-		Type type = 1;
-		string value = 2;
+		message Mmdb {
+			string file = 1;
+			string country_code = 2;
+		}
+
+		string target_tag = 1;
+		repeated Domain domains = 2;
+		repeated string ip_cidrs = 3;
+		repeated Mmdb mmdbs = 4;
+		repeated string port_ranges = 5;
 	}
 
-	message Mmdb {
-		string file = 1;
-		string country_code = 2;
-	}
-
-	string target_tag = 1;
-	repeated Domain domains = 2;
-	repeated string ip_cidrs = 3;
-	repeated Mmdb mmdbs = 4;
-	repeated string port_ranges = 5;
+	repeated Rule rules = 1;
+	bool domain_resolve = 2;
 }
 
 message Config {
 	Log log = 1;
 	repeated Inbound inbounds = 2;
 	repeated Outbound outbounds = 3;
-	repeated RoutingRule routing_rules = 4;
+	Router router = 4;
 	Dns dns = 5;
 	Api api = 6;
 }

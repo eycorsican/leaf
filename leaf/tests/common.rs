@@ -104,7 +104,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
             log: None,
             inbounds: None,
             outbounds: Some(outbounds),
-            rules: None,
+            router: None,
             dns: None,
             api: None,
         };

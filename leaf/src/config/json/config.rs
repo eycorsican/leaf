@@ -227,11 +227,18 @@ pub struct Rule {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct Router {
+    pub rules: Option<Vec<Rule>>,
+    #[serde(rename = "domainResolve")]
+    pub domain_resolve: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub log: Option<Log>,
     pub inbounds: Option<Vec<Inbound>>,
     pub outbounds: Option<Vec<Outbound>>,
-    pub rules: Option<Vec<Rule>>,
+    pub router: Option<Router>,
     pub dns: Option<Dns>,
     pub api: Option<Api>,
 }
@@ -852,75 +859,84 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
         }
     }
 
-    let mut rules = protobuf::RepeatedField::new();
-    if let Some(ext_rules) = json.rules {
-        // a map for caching external site so we need not load a same file multiple times
-        let mut site_group_lists = HashMap::<String, geosite::SiteGroupList>::new();
+    let mut router = protobuf::SingularPtrField::none();
+    if let Some(ext_router) = json.router {
+        let mut int_router = internal::Router::new();
+        let mut rules = protobuf::RepeatedField::new();
+        if let Some(ext_rules) = ext_router.rules {
+            // a map for caching external site so we need not load a same file multiple times
+            let mut site_group_lists = HashMap::<String, geosite::SiteGroupList>::new();
 
-        for ext_rule in ext_rules {
-            let mut rule = internal::RoutingRule::new();
-            rule.target_tag = ext_rule.target;
-            if let Some(ext_ips) = ext_rule.ip {
-                for ext_ip in ext_ips {
-                    rule.ip_cidrs.push(ext_ip);
+            for ext_rule in ext_rules {
+                let mut rule = internal::Router_Rule::new();
+                rule.target_tag = ext_rule.target;
+                if let Some(ext_ips) = ext_rule.ip {
+                    for ext_ip in ext_ips {
+                        rule.ip_cidrs.push(ext_ip);
+                    }
                 }
-            }
-            if let Some(ext_domains) = ext_rule.domain {
-                for ext_domain in ext_domains {
-                    let mut domain = internal::RoutingRule_Domain::new();
-                    domain.field_type = internal::RoutingRule_Domain_Type::FULL;
-                    domain.value = ext_domain;
-                    rule.domains.push(domain);
+                if let Some(ext_domains) = ext_rule.domain {
+                    for ext_domain in ext_domains {
+                        let mut domain = internal::Router_Rule_Domain::new();
+                        domain.field_type = internal::Router_Rule_Domain_Type::FULL;
+                        domain.value = ext_domain;
+                        rule.domains.push(domain);
+                    }
                 }
-            }
-            if let Some(ext_domain_keywords) = ext_rule.domain_keyword {
-                for ext_domain_keyword in ext_domain_keywords {
-                    let mut domain = internal::RoutingRule_Domain::new();
-                    domain.field_type = internal::RoutingRule_Domain_Type::PLAIN;
-                    domain.value = ext_domain_keyword;
-                    rule.domains.push(domain);
+                if let Some(ext_domain_keywords) = ext_rule.domain_keyword {
+                    for ext_domain_keyword in ext_domain_keywords {
+                        let mut domain = internal::Router_Rule_Domain::new();
+                        domain.field_type = internal::Router_Rule_Domain_Type::PLAIN;
+                        domain.value = ext_domain_keyword;
+                        rule.domains.push(domain);
+                    }
                 }
-            }
-            if let Some(ext_domain_suffixes) = ext_rule.domain_suffix {
-                for ext_domain_suffix in ext_domain_suffixes {
-                    let mut domain = internal::RoutingRule_Domain::new();
-                    domain.field_type = internal::RoutingRule_Domain_Type::DOMAIN;
-                    domain.value = ext_domain_suffix;
-                    rule.domains.push(domain);
+                if let Some(ext_domain_suffixes) = ext_rule.domain_suffix {
+                    for ext_domain_suffix in ext_domain_suffixes {
+                        let mut domain = internal::Router_Rule_Domain::new();
+                        domain.field_type = internal::Router_Rule_Domain_Type::DOMAIN;
+                        domain.value = ext_domain_suffix;
+                        rule.domains.push(domain);
+                    }
                 }
-            }
-            if let Some(ext_geoips) = ext_rule.geoip {
-                for ext_geoip in ext_geoips {
-                    let mut mmdb = internal::RoutingRule_Mmdb::new();
-                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                    mmdb.file = asset_loc.join("geo.mmdb").to_string_lossy().to_string();
-                    mmdb.country_code = ext_geoip;
-                    rule.mmdbs.push(mmdb)
+                if let Some(ext_geoips) = ext_rule.geoip {
+                    for ext_geoip in ext_geoips {
+                        let mut mmdb = internal::Router_Rule_Mmdb::new();
+                        let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                        mmdb.file = asset_loc.join("geo.mmdb").to_string_lossy().to_string();
+                        mmdb.country_code = ext_geoip;
+                        rule.mmdbs.push(mmdb)
+                    }
                 }
-            }
-            if let Some(ext_externals) = ext_rule.external {
-                for ext_external in ext_externals {
-                    match external_rule::add_external_rule(
-                        &mut rule,
-                        &ext_external,
-                        &mut site_group_lists,
-                    ) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            println!("load external rule failed: {}", e);
+                if let Some(ext_externals) = ext_rule.external {
+                    for ext_external in ext_externals {
+                        match external_rule::add_external_rule(
+                            &mut rule,
+                            &ext_external,
+                            &mut site_group_lists,
+                        ) {
+                            Ok(_) => (),
+                            Err(e) => {
+                                println!("load external rule failed: {}", e);
+                            }
                         }
                     }
                 }
-            }
-            if let Some(ext_port_ranges) = ext_rule.port_range {
-                for ext_port_range in ext_port_ranges {
-                    // FIXME validate
-                    rule.port_ranges.push(ext_port_range);
+                if let Some(ext_port_ranges) = ext_rule.port_range {
+                    for ext_port_range in ext_port_ranges {
+                        // FIXME validate
+                        rule.port_ranges.push(ext_port_range);
+                    }
                 }
+                rules.push(rule);
             }
-            rules.push(rule);
+            drop(site_group_lists); // make sure it's released
         }
-        drop(site_group_lists); // make sure it's released
+        int_router.rules = rules;
+        if let Some(ext_domain_resolve) = ext_router.domain_resolve {
+            int_router.domain_resolve = ext_domain_resolve;
+        }
+        router = protobuf::SingularPtrField::some(int_router);
     }
 
     let mut dns = internal::Dns::new();
@@ -976,7 +992,7 @@ pub fn to_internal(json: Config) -> Result<internal::Config> {
     config.log = protobuf::SingularPtrField::some(log);
     config.inbounds = inbounds;
     config.outbounds = outbounds;
-    config.routing_rules = rules;
+    config.router = router;
     config.dns = protobuf::SingularPtrField::some(dns);
     config.api = api;
     Ok(config)

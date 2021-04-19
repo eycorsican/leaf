@@ -137,7 +137,7 @@ impl RuntimeManager {
         };
         log::info!("reloading from config file: {}", config_path);
         let config = config::from_file(config_path).map_err(Error::Config)?;
-        self.router.write().await.reload(&config.routing_rules)?;
+        self.router.write().await.reload(&config.router)?;
         self.dns_client.write().await.reload(&config.dns)?;
         self.outbound_manager
             .write()
@@ -381,10 +381,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     let outbound_manager = Arc::new(RwLock::new(
         OutboundManager::new(&config.outbounds, dns_client.clone()).map_err(Error::Config)?,
     ));
-    let router = Arc::new(RwLock::new(Router::new(
-        &config.routing_rules,
-        dns_client.clone(),
-    )));
+    let router = Arc::new(RwLock::new(Router::new(&config.router, dns_client.clone())));
     let dispatcher = Arc::new(Dispatcher::new(outbound_manager.clone(), router.clone()));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
@@ -413,7 +410,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
                     .iter()
                     .find(|ifa| ifa.name == item && ifa.is_up() && !ifa.ips.is_empty())
                 {
-                    let mut ips: Vec<IpAddr> = ifa.ips.iter().map(|ipn| ipn.ip()).collect();
+                    let ips: Vec<IpAddr> = ifa.ips.iter().map(|ipn| ipn.ip()).collect();
                     if !ips.is_empty() {
                         for ip in ips.into_iter() {
                             match ip {

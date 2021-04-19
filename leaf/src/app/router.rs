@@ -10,7 +10,7 @@ use maxminddb::geoip2::Country;
 use memmap::Mmap;
 
 use crate::app::SyncDnsClient;
-use crate::config::{self, RoutingRule};
+use crate::config::{self, Router_Rule};
 use crate::session::{Session, SocksAddr};
 
 pub trait Condition: Send + Sync + Unpin {
@@ -268,17 +268,17 @@ struct DomainMatcher {
 }
 
 impl DomainMatcher {
-    fn new(domains: &protobuf::RepeatedField<config::RoutingRule_Domain>) -> Self {
+    fn new(domains: &protobuf::RepeatedField<config::Router_Rule_Domain>) -> Self {
         let mut cond_or = ConditionOr::new();
         for rr_domain in domains.iter() {
             match rr_domain.field_type {
-                config::RoutingRule_Domain_Type::PLAIN => {
+                config::Router_Rule_Domain_Type::PLAIN => {
                     cond_or.add(Box::new(DomainKeywordMatcher::new(rr_domain.value.clone())));
                 }
-                config::RoutingRule_Domain_Type::DOMAIN => {
+                config::Router_Rule_Domain_Type::DOMAIN => {
                     cond_or.add(Box::new(DomainSuffixMatcher::new(rr_domain.value.clone())));
                 }
-                config::RoutingRule_Domain_Type::FULL => {
+                config::Router_Rule_Domain_Type::FULL => {
                     cond_or.add(Box::new(DomainFullMatcher::new(rr_domain.value.clone())));
                 }
             }
@@ -355,11 +355,12 @@ impl Condition for ConditionOr {
 
 pub struct Router {
     rules: Vec<Rule>,
+    domain_resolve: bool,
     dns_client: SyncDnsClient,
 }
 
 impl Router {
-    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &protobuf::RepeatedField<RoutingRule>) {
+    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &protobuf::RepeatedField<Router_Rule>) {
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
         for rr in routing_rules.iter() {
             let mut cond_and = ConditionAnd::new();
@@ -408,17 +409,28 @@ impl Router {
     }
 
     pub fn new(
-        routing_rules: &protobuf::RepeatedField<RoutingRule>,
+        router: &protobuf::SingularPtrField<config::Router>,
         dns_client: SyncDnsClient,
     ) -> Self {
         let mut rules: Vec<Rule> = Vec::new();
-        Self::load_rules(&mut rules, routing_rules);
-        Router { rules, dns_client }
+        let mut domain_resolve = false;
+        if let Some(router) = router.as_ref() {
+            Self::load_rules(&mut rules, &router.rules);
+            domain_resolve = router.domain_resolve;
+        }
+        Router {
+            rules,
+            domain_resolve,
+            dns_client,
+        }
     }
 
-    pub fn reload(&mut self, routing_rules: &protobuf::RepeatedField<RoutingRule>) -> Result<()> {
+    pub fn reload(&mut self, router: &protobuf::SingularPtrField<config::Router>) -> Result<()> {
         self.rules.clear();
-        Self::load_rules(&mut self.rules, routing_rules);
+        if let Some(router) = router.as_ref() {
+            Self::load_rules(&mut self.rules, &router.rules);
+            self.domain_resolve = router.domain_resolve;
+        }
         Ok(())
     }
 
@@ -428,7 +440,7 @@ impl Router {
                 return Ok(&rule.target);
             }
         }
-        if sess.destination.is_domain() && *crate::option::ROUTING_DOMAIN_RESOLVE {
+        if sess.destination.is_domain() && self.domain_resolve {
             let ips = {
                 self.dns_client
                     .read()

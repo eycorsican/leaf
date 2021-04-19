@@ -38,7 +38,7 @@ pub fn load_site_rule(filter: &str) -> Result<(String, String)> {
 }
 
 pub fn add_external_rule(
-    rule: &mut internal::RoutingRule,
+    rule: &mut internal::Router_Rule,
     ext_external: &str,
     site_group_lists: &mut HashMap<String, geosite::SiteGroupList>,
 ) -> Result<()> {
@@ -49,7 +49,7 @@ pub fn add_external_rule(
                 return Err(anyhow!("load mmdb rule failed: {}", e));
             }
         };
-        let mut mmdb = internal::RoutingRule_Mmdb::new();
+        let mut mmdb = internal::Router_Rule_Mmdb::new();
         mmdb.file = file;
         mmdb.country_code = code;
         rule.mmdbs.push(mmdb)
@@ -94,18 +94,18 @@ pub fn add_external_rule(
                 for domain in site_group.domain.iter() {
                     let mut domain_rule = match domain.field_type {
                         geosite::Domain_Type::Plain => {
-                            let mut d = internal::RoutingRule_Domain::new();
-                            d.field_type = internal::RoutingRule_Domain_Type::PLAIN;
+                            let mut d = internal::Router_Rule_Domain::new();
+                            d.field_type = internal::Router_Rule_Domain_Type::PLAIN;
                             d
                         }
                         geosite::Domain_Type::Domain => {
-                            let mut d = internal::RoutingRule_Domain::new();
-                            d.field_type = internal::RoutingRule_Domain_Type::DOMAIN;
+                            let mut d = internal::Router_Rule_Domain::new();
+                            d.field_type = internal::Router_Rule_Domain_Type::DOMAIN;
                             d
                         }
                         geosite::Domain_Type::Full => {
-                            let mut d = internal::RoutingRule_Domain::new();
-                            d.field_type = internal::RoutingRule_Domain_Type::FULL;
+                            let mut d = internal::Router_Rule_Domain::new();
+                            d.field_type = internal::Router_Rule_Domain_Type::FULL;
                             d
                         }
                         _ => {
