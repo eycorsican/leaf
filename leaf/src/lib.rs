@@ -400,44 +400,20 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     if !(&*option::OUTBOUND_INTERFACE).is_empty() {
-        let mut bind_ips = Vec::new();
+        use proxy::OutboundBind;
+        use std::net::{Ipv4Addr, Ipv6Addr};
+        let mut outbound_binds = Vec::new();
         for item in (&*option::OUTBOUND_INTERFACE).split(',').map(str::trim) {
-            if let Ok(ip) = item.parse::<IpAddr>() {
-                bind_ips.push(ip);
+            if let Ok(ip) = item.parse::<Ipv4Addr>() {
+                outbound_binds.push(OutboundBind::Ipv4(ip));
+            } else if let Ok(ip) = item.parse::<Ipv6Addr>() {
+                outbound_binds.push(OutboundBind::Ipv6(ip));
             } else {
-                let all_interfaces = pnet_datalink::interfaces();
-                if let Some(ifa) = all_interfaces
-                    .iter()
-                    .find(|ifa| ifa.name == item && ifa.is_up() && !ifa.ips.is_empty())
-                {
-                    let ips: Vec<IpAddr> = ifa.ips.iter().map(|ipn| ipn.ip()).collect();
-                    if !ips.is_empty() {
-                        for ip in ips.into_iter() {
-                            match ip {
-                                IpAddr::V4(..) => {
-                                    bind_ips.push(ip);
-                                }
-                                IpAddr::V6(ref ip6) => {
-                                    // FIXME https://doc.rust-lang.org/std/net/struct.Ipv6Addr.html#method.is_global
-                                    if !ip6.is_loopback()
-                                        && !ip6.is_multicast()
-                                        && !ip6.is_unspecified()
-                                        && !((ip6.segments()[0] & 0xffc0) == 0xfe80)
-                                        && !((ip6.segments()[0] & 0xfe00) == 0xfc00)
-                                        && !((ip6.segments()[0] == 0x2001)
-                                            && (ip6.segments()[1] == 0xdb8))
-                                    {
-                                        bind_ips.push(ip);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                outbound_binds.push(OutboundBind::Interface(item.to_owned()));
             }
         }
-        if !bind_ips.is_empty() {
-            rt.block_on(proxy::set_outbound_bind_ips(bind_ips));
+        if !outbound_binds.is_empty() {
+            rt.block_on(proxy::set_outbound_binds(outbound_binds));
         }
     }
 

@@ -1,3 +1,5 @@
+use std::ffi::CString;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::{
     io,
     net::{IpAddr, SocketAddr},
@@ -12,6 +14,7 @@ use log::*;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, UdpSocket};
 use tokio::sync::Mutex;
+
 #[cfg(target_os = "android")]
 use {
     std::os::unix::io::AsRawFd, std::os::unix::io::RawFd, tokio::io::AsyncReadExt,
@@ -116,9 +119,14 @@ lazy_static! {
     static ref SOCKET_PROTECT_PATH: Mutex<Option<String>> = Mutex::new(None);
 }
 
+pub enum OutboundBind {
+    Ipv4(Ipv4Addr),
+    Ipv6(Ipv6Addr),
+    Interface(String),
+}
+
 lazy_static! {
-    // TODO split ipv4/ipv6
-    static ref OUTBOUND_BIND_IPS: Mutex<Option<Vec<IpAddr>>> = Mutex::new(None);
+    static ref OUTBOUND_BINDS: Mutex<Option<Vec<OutboundBind>>> = Mutex::new(None);
 }
 
 // Sets the RPC service endpoint for protecting outbound sockets on Android to
@@ -131,8 +139,8 @@ pub async fn set_socket_protect_path(path: String) {
     SOCKET_PROTECT_PATH.lock().await.replace(path);
 }
 
-pub async fn set_outbound_bind_ips(ips: Vec<IpAddr>) {
-    OUTBOUND_BIND_IPS.lock().await.replace(ips);
+pub async fn set_outbound_binds(binds: Vec<OutboundBind>) {
+    OUTBOUND_BINDS.lock().await.replace(binds);
 }
 
 #[cfg(target_os = "android")]
@@ -150,28 +158,116 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
     Ok(())
 }
 
-async fn get_bind_addr(bind_addr: &SocketAddr, indicator: &SocketAddr) -> SocketAddr {
-    if let Some(ips) = OUTBOUND_BIND_IPS.lock().await.as_ref() {
-        match indicator {
-            SocketAddr::V4(..) => {
-                if let Some(ip) = ips.iter().find(|ip| ip.is_ipv4()) {
-                    return SocketAddr::new(ip.to_owned(), 0);
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::os::unix::io::AsRawFd;
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+trait BindSocket: AsRawFd {
+    fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+trait BindSocket {
+    fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
+}
+
+impl BindSocket for TcpSocket {
+    fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()> {
+        self.bind(bind_addr.to_owned())
+    }
+}
+
+impl BindSocket for socket2::Socket {
+    fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()> {
+        self.bind(&bind_addr.to_owned().into())
+    }
+}
+
+async fn bind_socket<T: BindSocket>(
+    socket: &T,
+    bind_addr: &SocketAddr,
+    indicator: &SocketAddr,
+) -> io::Result<()> {
+    if let Some(binds) = OUTBOUND_BINDS.lock().await.as_ref() {
+        for bind in binds.iter() {
+            match bind {
+                OutboundBind::Interface(iface) => unsafe {
+                    #[cfg(target_os = "macos")]
+                    {
+                        let ifa = CString::new(iface.as_bytes()).unwrap();
+                        let ifidx: libc::c_uint = libc::if_nametoindex(ifa.as_ptr());
+                        if ifidx == 0 {
+                            return Err(io::Error::last_os_error());
+                        }
+                        const IP_BOUND_IF: libc::c_int = 25;
+                        let ret = libc::setsockopt(
+                            socket.as_raw_fd(),
+                            libc::IPPROTO_IP,
+                            IP_BOUND_IF,
+                            &ifidx as *const _ as *const libc::c_void,
+                            std::mem::size_of::<libc::c_uint>() as libc::socklen_t,
+                        );
+                        if ret == -1 {
+                            return Err(io::Error::last_os_error());
+                        }
+                        trace!("socket bind {}", iface);
+                        return Ok(());
+                    }
+                    #[cfg(target_os = "linux")]
+                    {
+                        let ifa = CString::new(iface.as_bytes()).unwrap();
+                        let ret = libc::setsockopt(
+                            socket.as_raw_fd(),
+                            libc::SOL_SOCKET,
+                            libc::SO_BINDTODEVICE,
+                            ifa.as_ptr() as *const libc::c_void,
+                            ifa.as_bytes().len() as libc::socklen_t,
+                        );
+                        if ret == -1 {
+                            return Err(io::Error::last_os_error());
+                        }
+                        trace!("socket bind {}", iface);
+                        return Ok(());
+                    }
+                    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                    {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "binding to interface is not supported on this platform",
+                        ));
+                    }
+                },
+                OutboundBind::Ipv4(ip) => {
+                    if let SocketAddr::V4(..) = indicator {
+                        trace!("socket bind {}", ip);
+                        return socket.bind(&SocketAddr::new(IpAddr::V4(ip.to_owned()), 0));
+                    }
                 }
-            }
-            SocketAddr::V6(..) => {
-                if let Some(ip) = ips.iter().find(|ip| ip.is_ipv6()) {
-                    return SocketAddr::new(ip.to_owned(), 0);
+                OutboundBind::Ipv6(ip) => {
+                    if let SocketAddr::V6(..) = indicator {
+                        trace!("socket bind {}", ip);
+                        return socket.bind(&SocketAddr::new(IpAddr::V6(ip.to_owned()), 0));
+                    }
                 }
             }
         }
     }
     if bind_addr.ip().is_unspecified() {
         match indicator {
-            SocketAddr::V4(..) => return "0.0.0.0:0".parse::<SocketAddr>().unwrap(),
-            SocketAddr::V6(..) => return "[::]:0".parse::<SocketAddr>().unwrap(),
+            SocketAddr::V4(..) => {
+                let ip = "0.0.0.0:0".parse::<SocketAddr>().unwrap();
+                trace!("socket bind {}", &ip);
+                return socket.bind(&ip);
+            }
+            SocketAddr::V6(..) => {
+                let ip = "[::]:0".parse::<SocketAddr>().unwrap();
+                trace!("socket bind {}", &ip);
+                return socket.bind(&ip);
+            }
         }
     }
-    bind_addr.to_owned()
+    trace!("socket bind {}", bind_addr);
+    socket.bind(bind_addr)
 }
 
 // New UDP socket.
@@ -179,16 +275,19 @@ async fn create_udp_socket(
     bind_addr: &SocketAddr,
     indicator: &SocketAddr,
 ) -> io::Result<UdpSocket> {
-    let bind_addr = get_bind_addr(bind_addr, indicator).await;
-    trace!("udp bind {}", &bind_addr);
-    let socket = UdpSocket::bind(&bind_addr).await?;
+    use socket2::{Domain, Socket, Type};
+    let socket = match indicator {
+        SocketAddr::V4(..) => Socket::new(Domain::IPV4, Type::DGRAM, None)?,
+        SocketAddr::V6(..) => Socket::new(Domain::IPV6, Type::DGRAM, None)?,
+    };
+    socket.set_nonblocking(true)?;
+
+    bind_socket(&socket, bind_addr, indicator).await?;
 
     #[cfg(target_os = "android")]
-    {
-        protect_socket(socket.as_raw_fd()).await?;
-    }
+    protect_socket(socket.as_raw_fd()).await?;
 
-    Ok(socket)
+    UdpSocket::from_std(socket.into())
 }
 
 // A single TCP dial.
@@ -196,22 +295,19 @@ async fn tcp_dial_task(
     dial_addr: SocketAddr,
     bind_addr: &SocketAddr,
 ) -> io::Result<(Box<dyn ProxyStream>, SocketAddr)> {
-    let bind_addr = get_bind_addr(bind_addr, &dial_addr).await;
     let socket = match dial_addr {
         SocketAddr::V4(..) => TcpSocket::new_v4()?,
         SocketAddr::V6(..) => TcpSocket::new_v6()?,
     };
-    trace!("tcp bind {}", &bind_addr);
-    socket.bind(bind_addr)?;
+
+    bind_socket(&socket, bind_addr, &dial_addr).await?;
 
     #[cfg(target_os = "android")]
-    {
-        protect_socket(socket.as_raw_fd()).await?;
-    }
+    protect_socket(socket.as_raw_fd()).await?;
 
     trace!("tcp dialing {}", &dial_addr);
     let stream = socket.connect(dial_addr).await?;
-    trace!("tcp connected {}", &dial_addr);
+    trace!("tcp connected {} <-> {}", stream.local_addr()?, &dial_addr);
     Ok((Box::new(SimpleProxyStream(stream)), dial_addr))
 }
 

@@ -130,6 +130,7 @@ bytes = "1"
 lazy_static = "1.4.0"
 anyhow = "1.0"
 rand = "0.8"
+socket2 = "0.4"
 directories = "3.0"
 
 # config-json
@@ -230,6 +231,7 @@ tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", 
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pnet_datalink = { version = "0.27", package = "pnet_datalink" }
+libc = "0.2"
 
 # Used in mobile logger
 [target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
