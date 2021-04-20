@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::{
     io,
     net::SocketAddr,
@@ -315,6 +316,14 @@ impl NetStackImpl {
             return Ok(n);
         }
         Ok(0)
+    }
+}
+
+impl Drop for NetStackImpl {
+    fn drop(&mut self) {
+        unsafe {
+            super::STACK_CLOSED.store(true, Ordering::Relaxed);
+        }
     }
 }
 

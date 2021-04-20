@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicBool;
+
 mod lwip;
 mod output;
 mod stack;
@@ -11,3 +13,5 @@ mod udp;
 mod util;
 
 pub use stack::NetStack;
+
+pub static mut STACK_CLOSED: AtomicBool = AtomicBool::new(false);
