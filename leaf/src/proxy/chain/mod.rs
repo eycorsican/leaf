@@ -2,5 +2,3 @@
 pub mod inbound;
 #[cfg(feature = "outbound-chain")]
 pub mod outbound;
-
-pub static NAME: &str = "chain";

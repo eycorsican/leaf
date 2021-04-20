@@ -29,10 +29,6 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn name(&self) -> &str {
-        super::NAME
-    }
-
     fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         if !self.address.is_empty() && self.port != 0 {
             Some(OutboundConnect::Proxy(

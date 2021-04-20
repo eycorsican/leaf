@@ -436,9 +436,6 @@ pub enum OutboundConnect {
 /// An outbound handler for outgoing TCP conections.
 #[async_trait]
 pub trait TcpOutboundHandler: Send + Sync + Unpin {
-    /// Returns the name of the handler.
-    fn name(&self) -> &str;
-
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn tcp_connect_addr(&self) -> Option<OutboundConnect>;
@@ -484,9 +481,6 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
 /// An outbound handler for outgoing UDP connections.
 #[async_trait]
 pub trait UdpOutboundHandler: Send + Sync + Unpin {
-    /// Returns the name of the handler.
-    fn name(&self) -> &str;
-
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn udp_connect_addr(&self) -> Option<OutboundConnect>;

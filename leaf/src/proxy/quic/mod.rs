@@ -10,8 +10,6 @@ pub mod inbound;
 #[cfg(feature = "outbound-quic")]
 pub mod outbound;
 
-pub static NAME: &str = "quic";
-
 pub struct QuicProxyStream<R, W> {
     recv: R,
     send: W,

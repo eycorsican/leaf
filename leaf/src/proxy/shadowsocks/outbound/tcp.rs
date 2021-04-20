@@ -23,10 +23,6 @@ impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn name(&self) -> &str {
-        super::NAME
-    }
-
     fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
         if !self.address.is_empty() && self.port != 0 {
             Some(OutboundConnect::Proxy(

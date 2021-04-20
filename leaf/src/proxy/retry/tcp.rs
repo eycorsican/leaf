@@ -15,10 +15,6 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn name(&self) -> &str {
-        super::NAME
-    }
-
     fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -30,12 +26,7 @@ impl TcpOutboundHandler for Handler {
     ) -> io::Result<Box<dyn ProxyStream>> {
         for _ in 0..self.attempts {
             for a in self.actors.iter() {
-                debug!(
-                    "{} handles tcp [{}] to [{}]",
-                    self.name(),
-                    sess.destination,
-                    a.tag()
-                );
+                debug!("retry handles tcp [{}] to [{}]", sess.destination, a.tag());
                 match a.handle_tcp(sess, None).await {
                     Ok(s) => return Ok(s),
                     Err(_) => continue,

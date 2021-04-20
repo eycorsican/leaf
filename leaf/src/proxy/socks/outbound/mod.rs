@@ -3,5 +3,3 @@ mod udp;
 
 pub use tcp::Handler as TcpHandler;
 pub use udp::Handler as UdpHandler;
-
-pub use super::NAME;

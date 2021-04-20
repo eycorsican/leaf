@@ -10,8 +10,6 @@ use super::{
     ProxyHandlerType, ProxyStream, Tag, TcpOutboundHandler, UdpOutboundHandler, UdpTransportType,
 };
 
-pub static NAME: &str = "handler";
-
 /// An outbound handler groups a TCP outbound handler and a UDP outbound
 /// handler.
 pub struct Handler {
@@ -74,10 +72,6 @@ impl HandlerTyped for Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn name(&self) -> &str {
-        NAME
-    }
-
     fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
         if let Some(handler) = &self.tcp_handler {
             handler.tcp_connect_addr()
@@ -101,10 +95,6 @@ impl TcpOutboundHandler for Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn name(&self) -> &str {
-        NAME
-    }
-
     fn udp_connect_addr(&self) -> Option<OutboundConnect> {
         if let Some(handler) = &self.udp_handler {
             return handler.udp_connect_addr();

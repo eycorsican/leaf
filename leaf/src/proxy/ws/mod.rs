@@ -4,5 +4,3 @@ pub mod inbound;
 pub mod outbound;
 
 mod stream;
-
-pub static NAME: &str = "ws";

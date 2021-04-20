@@ -30,8 +30,6 @@ pub mod inbound;
 #[cfg(feature = "outbound-amux")]
 pub mod outbound;
 
-pub static NAME: &str = "amux";
-
 pub const FRAME_STREAM: u8 = 0x01;
 pub const FRAME_STREAM_FIN: u8 = 0x02;
 
