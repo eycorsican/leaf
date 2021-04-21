@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use clap::{App, Arg};
+use argh::FromArgs;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 const COMMIT_HASH: Option<&'static str> = option_env!("CFG_COMMIT_HASH");
@@ -24,75 +24,49 @@ fn default_thread_stack_size() -> usize {
     128 * 1024
 }
 
-fn main() {
-    let mut app = App::new("leaf");
+#[derive(FromArgs)]
+/// A lightweight and fast proxy utility
+struct Args {
+    /// the configuration file
+    #[argh(option, short = 'c', default = "String::from(\"config.conf\")")]
+    config: String,
 
+    /// enables auto reloading when config file changes
     #[cfg(feature = "auto-reload")]
-    {
-        app = app.arg(
-            Arg::new("auto-reload")
-                .long("auto-reload")
-                .about("Enables auto reloading when config file changes.")
-                .takes_value(false),
-        );
+    #[argh(switch)]
+    auto_reload: bool,
+
+    /// runs in a single thread
+    #[argh(switch)]
+    single_thread: bool,
+
+    /// sets the stack size of runtime worker threads
+    #[argh(option, default = "default_thread_stack_size()")]
+    thread_stack_size: usize,
+
+    /// tests the configuration and exit
+    #[argh(switch, short = 'T')]
+    test: bool,
+
+    /// tests the connectivity of the specified outbound
+    #[argh(option, short = 't')]
+    test_outbound: Option<String>,
+
+    /// prints version
+    #[argh(switch, short = 'V')]
+    version: bool,
+}
+
+fn main() {
+    let args: Args = argh::from_env();
+
+    if args.version {
+        println!("{}", get_version_string());
+        exit(0);
     }
 
-    app = app.arg(
-        Arg::new("config")
-            .short('c')
-            .long("config")
-            .value_name("FILE")
-            .about("The configuration file")
-            .takes_value(true)
-            .default_value("config.conf"),
-    );
-
-    let matches = app
-        .version(get_version_string().as_str())
-        .about("A lightweight and fast proxy utility.")
-        .arg(
-            Arg::new("single-thread")
-                .long("single-thread")
-                .about("Runs in a single thread.")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::new("threads")
-                .long("threads")
-                .value_name("N")
-                .about("Sets the number of runtime worker threads.")
-                .takes_value(true)
-                .default_value("auto"),
-        )
-        .arg(
-            Arg::new("thread-stack-size")
-                .long("thread-stack-size")
-                .value_name("BYTES")
-                .about("Sets the stack size of runtime worker threads.")
-                .takes_value(true)
-                .default_value(&default_thread_stack_size().to_string()),
-        )
-        .arg(
-            Arg::new("test")
-                .short('T')
-                .long("test")
-                .about("Tests the configuration and exit.")
-                .takes_value(false),
-        )
-        .arg(
-            Arg::new("test-outbound")
-                .short('t')
-                .long("test-outbound")
-                .value_name("TAG")
-                .about("Tests the availability of a specified outbound")
-                .takes_value(true),
-        )
-        .get_matches();
-
-    let config_path = matches.value_of("config").unwrap();
-
-    if matches.is_present("test") {
-        if let Err(e) = leaf::test_config(&config_path) {
+    if args.test {
+        if let Err(e) = leaf::test_config(&args.config) {
             println!("{}", e);
             exit(1);
         } else {
@@ -101,8 +75,8 @@ fn main() {
         }
     }
 
-    if let Some(tag) = matches.value_of("test-outbound") {
-        let config = leaf::config::from_file(&config_path).unwrap();
+    if let Some(tag) = args.test_outbound {
+        let config = leaf::config::from_file(&args.config).unwrap();
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -111,28 +85,15 @@ fn main() {
         exit(0);
     }
 
-    #[cfg(feature = "auto-reload")]
-    let auto_reload = matches.is_present("auto-reload");
-
-    let threads = matches.value_of("threads").unwrap();
-    let thread_stack_size = matches
-        .value_of("thread-stack-size")
-        .unwrap()
-        .parse::<usize>()
-        .unwrap();
-    let multi_thread = !matches.is_present("single-thread");
-    let auto_threads = threads.parse::<usize>().map(|_| false).unwrap_or(true);
-    let threads = threads.parse::<usize>().unwrap_or(1);
-
     if let Err(e) = leaf::util::run_with_options(
         0,
-        config_path.to_string(),
+        args.config,
         #[cfg(feature = "auto-reload")]
-        auto_reload,
-        multi_thread,
-        auto_threads,
-        threads,
-        thread_stack_size,
+        args.auto_reload,
+        !args.single_thread,
+        true,
+        0, // auto_threads is true, this value no longer matters
+        args.thread_stack_size,
     ) {
         println!("start leaf failed: {}", e);
         exit(1);

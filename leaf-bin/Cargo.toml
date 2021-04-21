@@ -29,5 +29,5 @@ auto-reload = ["leaf/auto-reload"]
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
-clap = { version = "3.0.0-beta.1", default-features = false, features =["std"] }
 tokio = { version = "1", features = ["rt"] }
+argh = "0.1"
