@@ -1,11 +1,9 @@
-use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
+use std::io::BufReader;
 use std::path::Path;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use protobuf::Message;
 
 use super::{geosite, internal};
 
@@ -37,11 +35,7 @@ pub fn load_site_rule(filter: &str) -> Result<(String, String)> {
     load_file_or_default(filter, "site.dat")
 }
 
-pub fn add_external_rule(
-    rule: &mut internal::Router_Rule,
-    ext_external: &str,
-    site_group_lists: &mut HashMap<String, geosite::SiteGroupList>,
-) -> Result<()> {
+pub fn add_external_rule(rule: &mut internal::Router_Rule, ext_external: &str) -> Result<()> {
     if ext_external.starts_with("mmdb") {
         let (file, code) = match load_mmdb_rule(&ext_external) {
             Ok((f, c)) => (f, c),
@@ -62,36 +56,15 @@ pub fn add_external_rule(
                 return Err(anyhow!("load site rule failed: {}", e));
             }
         };
-        let site_group_list = match site_group_lists.get(&file) {
-            Some(l) => l,
-            None => {
-                let mut f = match File::open(&file) {
-                    Ok(f) => f,
-                    Err(e) => {
-                        return Err(anyhow!("open dat file {} failed: {}", &file, e));
-                    }
-                };
-                let mut buf = Vec::new();
-                match f.read_to_end(&mut buf) {
-                    Ok(_) => (),
-                    Err(e) => {
-                        return Err(anyhow!("reading dat file {} failed: {}", &file, e));
-                    }
-                }
-                let site_group_list = match geosite::SiteGroupList::parse_from_bytes(&buf) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        return Err(anyhow!("dat file {} has invalid format: {}", &file, e));
-                    }
-                };
-                site_group_lists.insert(file.clone(), site_group_list);
-                site_group_lists.get(&file).unwrap()
-            }
-        };
 
-        for site_group in site_group_list.site_group.iter() {
+        // Loads SiteGroup objects one by one instead of loading the whole list.
+        let mut reader = BufReader::with_capacity(2048, File::open(&file)?);
+        let mut input = protobuf::CodedInputStream::new(&mut reader);
+        while !input.eof()? {
+            let _ = input.read_raw_byte()?; // skip
+            let mut site_group = input.read_message::<geosite::SiteGroup>()?;
             if site_group.tag == code.to_uppercase() {
-                for domain in site_group.domain.iter() {
+                for domain in site_group.domain.iter_mut() {
                     let mut domain_rule = match domain.field_type {
                         geosite::Domain_Type::Plain => {
                             let mut d = internal::Router_Rule_Domain::new();
@@ -112,7 +85,8 @@ pub fn add_external_rule(
                             continue;
                         }
                     };
-                    domain_rule.value = domain.value.clone();
+                    let value = std::mem::replace(&mut domain.value, String::new());
+                    domain_rule.value = value;
                     rule.domains.push(domain_rule);
                 }
                 println!(

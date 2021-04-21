@@ -136,8 +136,8 @@ impl RuntimeManager {
             return Err(Error::NoConfigFile);
         };
         log::info!("reloading from config file: {}", config_path);
-        let config = config::from_file(config_path).map_err(Error::Config)?;
-        self.router.write().await.reload(&config.router)?;
+        let mut config = config::from_file(config_path).map_err(Error::Config)?;
+        self.router.write().await.reload(&mut config.router)?;
         self.dns_client.write().await.reload(&config.dns)?;
         self.outbound_manager
             .write()
@@ -348,7 +348,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         _ => None,
     };
 
-    let config = match opts.config {
+    let mut config = match opts.config {
         Config::File(p) => config::from_file(&p).map_err(Error::Config)?,
         Config::Internal(c) => c,
     };
@@ -381,7 +381,10 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     let outbound_manager = Arc::new(RwLock::new(
         OutboundManager::new(&config.outbounds, dns_client.clone()).map_err(Error::Config)?,
     ));
-    let router = Arc::new(RwLock::new(Router::new(&config.router, dns_client.clone())));
+    let router = Arc::new(RwLock::new(Router::new(
+        &mut config.router,
+        dns_client.clone(),
+    )));
     let dispatcher = Arc::new(Dispatcher::new(outbound_manager.clone(), router.clone()));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =

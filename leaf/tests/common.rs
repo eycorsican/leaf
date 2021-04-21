@@ -49,8 +49,8 @@ pub fn run_leaf_instances(
     let mut leaf_rt_ids = Vec::new();
     let mut rt_id = 0;
     for config in configs {
-        let config = leaf::config::json::from_string(config).unwrap();
-        let config = leaf::config::json::to_internal(config).unwrap();
+        let mut config = leaf::config::json::from_string(config).unwrap();
+        let config = leaf::config::json::to_internal(&mut config).unwrap();
         let opts = leaf::StartOptions {
             config: leaf::Config::Internal(config),
             #[cfg(feature = "auto-reload")]
@@ -85,7 +85,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
 
     // Simulates an application request.
     let app_task = async move {
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
         // Make use of a socks outbound to initiate a socks request to a leaf instance.
         let settings = leaf::config::json::SocksOutboundSettings {
@@ -100,7 +100,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
             bind: None,
             settings: Some(raw_settings),
         }];
-        let config = leaf::config::json::Config {
+        let mut config = leaf::config::json::Config {
             log: None,
             inbounds: None,
             outbounds: Some(outbounds),
@@ -108,7 +108,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
             dns: None,
             api: None,
         };
-        let config = leaf::config::json::to_internal(config).unwrap();
+        let config = leaf::config::json::to_internal(&mut config).unwrap();
         let dns_client = Arc::new(RwLock::new(
             leaf::app::dns_client::DnsClient::new(&config.dns).unwrap(),
         ));

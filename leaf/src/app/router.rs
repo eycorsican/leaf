@@ -73,15 +73,17 @@ struct IpCidrMatcher {
 }
 
 impl IpCidrMatcher {
-    fn new(ips: &protobuf::RepeatedField<String>) -> Self {
+    fn new(ips: &mut protobuf::RepeatedField<String>) -> Self {
         let mut cidrs = Vec::new();
-        for ip in ips {
+        for ip in ips.iter_mut() {
+            let ip = std::mem::replace(ip, String::new());
             match ip.parse::<IpCidr>() {
                 Ok(cidr) => cidrs.push(cidr),
                 Err(err) => {
                     debug!("parsing cidr {} failed: {}", ip, err);
                 }
             }
+            drop(ip);
         }
         IpCidrMatcher { values: cidrs }
     }
@@ -268,18 +270,19 @@ struct DomainMatcher {
 }
 
 impl DomainMatcher {
-    fn new(domains: &protobuf::RepeatedField<config::Router_Rule_Domain>) -> Self {
+    fn new(domains: &mut protobuf::RepeatedField<config::Router_Rule_Domain>) -> Self {
         let mut cond_or = ConditionOr::new();
-        for rr_domain in domains.iter() {
+        for rr_domain in domains.iter_mut() {
+            let filter = std::mem::replace(&mut rr_domain.value, String::new());
             match rr_domain.field_type {
                 config::Router_Rule_Domain_Type::PLAIN => {
-                    cond_or.add(Box::new(DomainKeywordMatcher::new(rr_domain.value.clone())));
+                    cond_or.add(Box::new(DomainKeywordMatcher::new(filter)));
                 }
                 config::Router_Rule_Domain_Type::DOMAIN => {
-                    cond_or.add(Box::new(DomainSuffixMatcher::new(rr_domain.value.clone())));
+                    cond_or.add(Box::new(DomainSuffixMatcher::new(filter)));
                 }
                 config::Router_Rule_Domain_Type::FULL => {
-                    cond_or.add(Box::new(DomainFullMatcher::new(rr_domain.value.clone())));
+                    cond_or.add(Box::new(DomainFullMatcher::new(filter)));
                 }
             }
         }
@@ -360,17 +363,17 @@ pub struct Router {
 }
 
 impl Router {
-    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &protobuf::RepeatedField<Router_Rule>) {
+    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &mut protobuf::RepeatedField<Router_Rule>) {
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
-        for rr in routing_rules.iter() {
+        for rr in routing_rules.iter_mut() {
             let mut cond_and = ConditionAnd::new();
 
             if rr.domains.len() > 0 {
-                cond_and.add(Box::new(DomainMatcher::new(&rr.domains)));
+                cond_and.add(Box::new(DomainMatcher::new(&mut rr.domains)));
             }
 
             if rr.ip_cidrs.len() > 0 {
-                cond_and.add(Box::new(IpCidrMatcher::new(&rr.ip_cidrs)));
+                cond_and.add(Box::new(IpCidrMatcher::new(&mut rr.ip_cidrs)));
             }
 
             if rr.mmdbs.len() > 0 {
@@ -404,18 +407,19 @@ impl Router {
                 continue;
             }
 
-            rules.push(Rule::new(rr.target_tag.clone(), Box::new(cond_and)));
+            let tag = std::mem::replace(&mut rr.target_tag, String::new());
+            rules.push(Rule::new(tag, Box::new(cond_and)));
         }
     }
 
     pub fn new(
-        router: &protobuf::SingularPtrField<config::Router>,
+        router: &mut protobuf::SingularPtrField<config::Router>,
         dns_client: SyncDnsClient,
     ) -> Self {
         let mut rules: Vec<Rule> = Vec::new();
         let mut domain_resolve = false;
-        if let Some(router) = router.as_ref() {
-            Self::load_rules(&mut rules, &router.rules);
+        if let Some(router) = router.as_mut() {
+            Self::load_rules(&mut rules, &mut router.rules);
             domain_resolve = router.domain_resolve;
         }
         Router {
@@ -425,10 +429,13 @@ impl Router {
         }
     }
 
-    pub fn reload(&mut self, router: &protobuf::SingularPtrField<config::Router>) -> Result<()> {
+    pub fn reload(
+        &mut self,
+        router: &mut protobuf::SingularPtrField<config::Router>,
+    ) -> Result<()> {
         self.rules.clear();
-        if let Some(router) = router.as_ref() {
-            Self::load_rules(&mut self.rules, &router.rules);
+        if let Some(router) = router.as_mut() {
+            Self::load_rules(&mut self.rules, &mut router.rules);
             self.domain_resolve = router.domain_resolve;
         }
         Ok(())

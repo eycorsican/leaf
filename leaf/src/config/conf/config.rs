@@ -9,7 +9,7 @@ use anyhow::Result;
 use protobuf::Message;
 use regex::Regex;
 
-use crate::config::{external_rule, geosite, internal};
+use crate::config::{external_rule, internal};
 
 #[derive(Debug, Default)]
 pub struct Tun {
@@ -626,7 +626,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
     })
 }
 
-pub fn to_internal(conf: Config) -> Result<internal::Config> {
+pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
     let mut log = internal::Log::new();
     if let Some(ext_general) = &conf.general {
         if let Some(ext_loglevel) = &ext_general.loglevel {
@@ -1110,11 +1110,12 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
 
     let mut int_router = internal::Router::new();
     let mut rules = protobuf::RepeatedField::new();
-    if let Some(ext_rules) = &conf.rule {
-        let mut site_group_lists = HashMap::<String, geosite::SiteGroupList>::new();
-        for ext_rule in ext_rules {
+    if let Some(ext_rules) = conf.rule.as_mut() {
+        for ext_rule in ext_rules.iter_mut() {
             let mut rule = internal::Router_Rule::new();
-            rule.target_tag = ext_rule.target.clone();
+
+            let target_tag = std::mem::replace(&mut ext_rule.target, String::new());
+            rule.target_tag = target_tag;
 
             // handle FINAL rule first
             if ext_rule.type_field == "FINAL" {
@@ -1133,8 +1134,8 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
             }
 
             // the remaining rules must have a filter
-            let ext_filter = if let Some(f) = &ext_rule.filter {
-                f.clone()
+            let ext_filter = if let Some(f) = ext_rule.filter.as_mut() {
+                std::mem::replace(f, String::new())
             } else {
                 continue;
             };
@@ -1168,18 +1169,12 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
                     mmdb.country_code = ext_filter;
                     rule.mmdbs.push(mmdb)
                 }
-                "EXTERNAL" => {
-                    match external_rule::add_external_rule(
-                        &mut rule,
-                        &ext_filter,
-                        &mut site_group_lists,
-                    ) {
-                        Ok(_) => (),
-                        Err(e) => {
-                            println!("load external rule failed: {}", e);
-                        }
+                "EXTERNAL" => match external_rule::add_external_rule(&mut rule, &ext_filter) {
+                    Ok(_) => (),
+                    Err(e) => {
+                        println!("load external rule failed: {}", e);
                     }
-                }
+                },
                 "PORT-RANGE" => {
                     rule.port_ranges.push(ext_filter);
                 }
@@ -1187,7 +1182,6 @@ pub fn to_internal(conf: Config) -> Result<internal::Config> {
             }
             rules.push(rule);
         }
-        drop(site_group_lists); // make sure it's released
     }
     int_router.rules = rules;
     if let Some(ext_general) = &conf.general {
@@ -1261,6 +1255,6 @@ where
     P: AsRef<Path>,
 {
     let lines = read_lines(path)?.collect();
-    let config = from_lines(lines)?;
-    to_internal(config)
+    let mut config = from_lines(lines)?;
+    to_internal(&mut config)
 }
