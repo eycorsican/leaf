@@ -67,10 +67,10 @@ impl DnsClient {
         let servers = Self::load_servers(&dns)?;
         let hosts = Self::load_hosts(&dns);
         let ipv4_cache = Arc::new(TokioMutex::new(LruCache::<String, Vec<IpAddr>>::new(
-            option::DNS_CACHE_SIZE,
+            *option::DNS_CACHE_SIZE,
         )));
         let ipv6_cache = Arc::new(TokioMutex::new(LruCache::<String, Vec<IpAddr>>::new(
-            option::DNS_CACHE_SIZE,
+            *option::DNS_CACHE_SIZE,
         )));
 
         Ok(DnsClient {
@@ -167,14 +167,14 @@ impl DnsClient {
     ) -> Result<Vec<IpAddr>> {
         let socket = self.create_udp_socket(bind_addr, server).await?;
         let mut last_err = None;
-        for _i in 0..option::MAX_DNS_RETRIES {
+        for _i in 0..*option::MAX_DNS_RETRIES {
             debug!("looking up domain {} on {}", domain, server);
             let start = tokio::time::Instant::now();
             match socket.send_to(&request, server).await {
                 Ok(_) => {
                     let mut buf = vec![0u8; 512];
                     match timeout(
-                        Duration::from_secs(option::DNS_TIMEOUT),
+                        Duration::from_secs(*option::DNS_TIMEOUT),
                         socket.recv_from(&mut buf),
                     )
                     .await

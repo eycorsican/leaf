@@ -42,7 +42,7 @@ impl NatManager {
                 let now = Instant::now();
                 let mut to_be_remove = Vec::new();
                 for (key, val) in sessions.iter() {
-                    if now.duration_since(val.2).as_secs() >= option::UDP_SESSION_TIMEOUT {
+                    if now.duration_since(val.2).as_secs() >= *option::UDP_SESSION_TIMEOUT {
                         to_be_remove.push(key.to_owned());
                     }
                 }
@@ -69,7 +69,7 @@ impl NatManager {
                     );
                 }
                 tokio::time::sleep(Duration::from_secs(
-                    option::UDP_SESSION_TIMEOUT_CHECK_INTERVAL,
+                    *option::UDP_SESSION_TIMEOUT_CHECK_INTERVAL,
                 ))
                 .await;
             }
@@ -181,7 +181,7 @@ impl NatManager {
                                         // DNS query and set a negative timeout so it will
                                         // be removed on next check.
                                         sess.2.checked_sub(Duration::from_secs(
-                                            option::UDP_SESSION_TIMEOUT,
+                                            *option::UDP_SESSION_TIMEOUT,
                                         ));
                                     } else {
                                         sess.2 = Instant::now();

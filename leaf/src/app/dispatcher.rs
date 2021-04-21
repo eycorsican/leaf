@@ -67,8 +67,8 @@ impl Dispatcher {
         Dispatcher {
             outbound_manager,
             router,
-            endpoint_tcp_sem: Semaphore::new(option::ENDPOINT_TCP_CONCURRENCY),
-            direct_tcp_sem: Semaphore::new(option::DIRECT_TCP_CONCURRENCY),
+            endpoint_tcp_sem: Semaphore::new(*option::ENDPOINT_TCP_CONCURRENCY),
+            direct_tcp_sem: Semaphore::new(*option::DIRECT_TCP_CONCURRENCY),
             num_endpoint_tcp: AtomicUsize::new(0),
             num_direct_tcp: AtomicUsize::new(0),
         }

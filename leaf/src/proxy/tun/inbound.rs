@@ -33,9 +33,9 @@ pub fn new(
         cfg
     } else if settings.auto {
         let mut cfg = tun::Configuration::default();
-        cfg.name(option::DEFAULT_TUN_NAME)
-            .address(option::DEFAULT_TUN_IPV4_ADDR)
-            .destination(option::DEFAULT_TUN_IPV4_GW)
+        cfg.name(&*option::DEFAULT_TUN_NAME)
+            .address(&*option::DEFAULT_TUN_IPV4_ADDR)
+            .destination(&*option::DEFAULT_TUN_IPV4_GW)
             .mtu(1500);
 
         #[cfg(not(any(
@@ -45,7 +45,7 @@ pub fn new(
             target_arch = "mipsel64",
         )))]
         {
-            cfg.netmask(option::DEFAULT_TUN_IPV4_MASK);
+            cfg.netmask(&*option::DEFAULT_TUN_IPV4_MASK);
         }
 
         cfg.up();

@@ -96,10 +96,14 @@ pub fn post_tun_creation_setup(net_info: &NetInfo) {
     {
         use std::net::{Ipv4Addr, Ipv6Addr};
         common::cmd::add_interface_ipv4_address(
-            option::DEFAULT_TUN_NAME,
-            option::DEFAULT_TUN_IPV4_ADDR.parse::<Ipv4Addr>().unwrap(),
-            option::DEFAULT_TUN_IPV4_GW.parse::<Ipv4Addr>().unwrap(),
-            option::DEFAULT_TUN_IPV4_MASK.parse::<Ipv4Addr>().unwrap(),
+            &*option::DEFAULT_TUN_NAME,
+            (*option::DEFAULT_TUN_IPV4_ADDR)
+                .parse::<Ipv4Addr>()
+                .unwrap(),
+            (*option::DEFAULT_TUN_IPV4_GW).parse::<Ipv4Addr>().unwrap(),
+            (*option::DEFAULT_TUN_IPV4_MASK)
+                .parse::<Ipv4Addr>()
+                .unwrap(),
         )
         .unwrap();
         common::cmd::delete_default_ipv4_route(None).unwrap();
@@ -130,9 +134,9 @@ pub fn post_tun_creation_setup(net_info: &NetInfo) {
 
         if *option::ENABLE_IPV6 {
             common::cmd::add_interface_ipv6_address(
-                option::DEFAULT_TUN_NAME,
+                &*option::DEFAULT_TUN_NAME,
                 option::DEFAULT_TUN_IPV6_ADDR.parse::<Ipv6Addr>().unwrap(),
-                option::DEFAULT_TUN_IPV6_PREFIXLEN,
+                *option::DEFAULT_TUN_IPV6_PREFIXLEN,
             )
             .unwrap();
 
@@ -167,7 +171,7 @@ pub fn post_tun_creation_setup(net_info: &NetInfo) {
         #[cfg(target_os = "linux")]
         {
             if *option::GATEWAY_MODE {
-                common::cmd::add_iptable_forward(option::DEFAULT_TUN_NAME).unwrap();
+                common::cmd::add_iptable_forward(&*option::DEFAULT_TUN_NAME).unwrap();
             }
         }
     }
@@ -233,7 +237,7 @@ pub fn post_tun_completion_setup(net_info: &NetInfo) {
         #[cfg(target_os = "linux")]
         {
             if *option::GATEWAY_MODE {
-                common::cmd::delete_iptable_forward(option::DEFAULT_TUN_NAME).unwrap();
+                common::cmd::delete_iptable_forward(&*option::DEFAULT_TUN_NAME).unwrap();
             }
         }
     }
