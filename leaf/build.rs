@@ -154,7 +154,7 @@ fn main() {
     }
 
     let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
-    if os == "ios" || os == "android" {
+    if os == "ios" || os == "macos" || os == "android" {
         generate_mobile_bindings();
     }
 

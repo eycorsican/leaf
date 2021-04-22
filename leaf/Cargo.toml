@@ -234,7 +234,7 @@ pnet_datalink = { version = "0.27", package = "pnet_datalink" }
 libc = "0.2"
 
 # Used in mobile logger
-[target.'cfg(any(target_os = "ios", target_os = "android"))'.dependencies]
+[target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "android"))'.dependencies]
 memchr = { version = "2" }
 
 [dev-dependencies]

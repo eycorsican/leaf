@@ -55,6 +55,14 @@ lazy_static! {
 }
 
 lazy_static! {
+    pub static ref LOG_CONSOLE_OUT: bool = {
+        get_env_var_or("LOG_CONSOLE_OUT", false)
+    };
+
+    pub static ref LOG_NO_COLOR: bool = {
+        get_env_var_or("LOG_NO_COLOR", false)
+    };
+
     /// Uplink timeout after downlink EOF.
     pub static ref TCP_UPLINK_TIMEOUT: u64 = {
         get_env_var_or("TCP_UPLINK_TIMEOUT", 2)
