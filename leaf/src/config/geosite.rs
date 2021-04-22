@@ -23,7 +23,7 @@
 /// of protobuf runtime.
 // const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_2_22_1;
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Domain {
     // message fields
     pub field_type: Domain_Type,
@@ -51,14 +51,6 @@ impl Domain {
     pub fn get_field_type(&self) -> Domain_Type {
         self.field_type
     }
-    pub fn clear_field_type(&mut self) {
-        self.field_type = Domain_Type::Plain;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_field_type(&mut self, v: Domain_Type) {
-        self.field_type = v;
-    }
 
     // string value = 2;
 
@@ -66,49 +58,12 @@ impl Domain {
     pub fn get_value(&self) -> &str {
         &self.value
     }
-    pub fn clear_value(&mut self) {
-        self.value.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_value(&mut self, v: ::std::string::String) {
-        self.value = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_value(&mut self) -> &mut ::std::string::String {
-        &mut self.value
-    }
-
-    // Take field
-    pub fn take_value(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.value, ::std::string::String::new())
-    }
 
     // repeated .Domain.Attribute attribute = 3;
 
 
     pub fn get_attribute(&self) -> &[Domain_Attribute] {
         &self.attribute
-    }
-    pub fn clear_attribute(&mut self) {
-        self.attribute.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_attribute(&mut self, v: ::protobuf::RepeatedField<Domain_Attribute>) {
-        self.attribute = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_attribute(&mut self) -> &mut ::protobuf::RepeatedField<Domain_Attribute> {
-        &mut self.attribute
-    }
-
-    // Take field
-    pub fn take_attribute(&mut self) -> ::protobuf::RepeatedField<Domain_Attribute> {
-        ::std::mem::replace(&mut self.attribute, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -208,33 +163,6 @@ impl ::protobuf::Message for Domain {
         Domain::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeEnum<Domain_Type>>(
-                "type",
-                |m: &Domain| { &m.field_type },
-                |m: &mut Domain| { &mut m.field_type },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "value",
-                |m: &Domain| { &m.value },
-                |m: &mut Domain| { &mut m.value },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Domain_Attribute>>(
-                "attribute",
-                |m: &Domain| { &m.attribute },
-                |m: &mut Domain| { &mut m.attribute },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Domain>(
-                "Domain",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Domain {
         static instance: ::protobuf::rt::LazyV2<Domain> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Domain::new)
@@ -250,19 +178,13 @@ impl ::protobuf::Clear for Domain {
     }
 }
 
-impl ::std::fmt::Debug for Domain {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Domain {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Domain_Attribute {
     // message fields
     pub key: ::std::string::String,
@@ -296,25 +218,6 @@ impl Domain_Attribute {
     pub fn get_key(&self) -> &str {
         &self.key
     }
-    pub fn clear_key(&mut self) {
-        self.key.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_key(&mut self, v: ::std::string::String) {
-        self.key = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_key(&mut self) -> &mut ::std::string::String {
-        &mut self.key
-    }
-
-    // Take field
-    pub fn take_key(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.key, ::std::string::String::new())
-    }
 
     // bool bool_value = 2;
 
@@ -325,21 +228,6 @@ impl Domain_Attribute {
             _ => false,
         }
     }
-    pub fn clear_bool_value(&mut self) {
-        self.typed_value = ::std::option::Option::None;
-    }
-
-    pub fn has_bool_value(&self) -> bool {
-        match self.typed_value {
-            ::std::option::Option::Some(Domain_Attribute_oneof_typed_value::bool_value(..)) => true,
-            _ => false,
-        }
-    }
-
-    // Param is passed by value, moved
-    pub fn set_bool_value(&mut self, v: bool) {
-        self.typed_value = ::std::option::Option::Some(Domain_Attribute_oneof_typed_value::bool_value(v))
-    }
 
     // int64 int_value = 3;
 
@@ -349,21 +237,6 @@ impl Domain_Attribute {
             ::std::option::Option::Some(Domain_Attribute_oneof_typed_value::int_value(v)) => v,
             _ => 0,
         }
-    }
-    pub fn clear_int_value(&mut self) {
-        self.typed_value = ::std::option::Option::None;
-    }
-
-    pub fn has_int_value(&self) -> bool {
-        match self.typed_value {
-            ::std::option::Option::Some(Domain_Attribute_oneof_typed_value::int_value(..)) => true,
-            _ => false,
-        }
-    }
-
-    // Param is passed by value, moved
-    pub fn set_int_value(&mut self, v: i64) {
-        self.typed_value = ::std::option::Option::Some(Domain_Attribute_oneof_typed_value::int_value(v))
     }
 }
 
@@ -469,33 +342,6 @@ impl ::protobuf::Message for Domain_Attribute {
         Domain_Attribute::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "key",
-                |m: &Domain_Attribute| { &m.key },
-                |m: &mut Domain_Attribute| { &mut m.key },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_singular_bool_accessor::<_>(
-                "bool_value",
-                Domain_Attribute::has_bool_value,
-                Domain_Attribute::get_bool_value,
-            ));
-            fields.push(::protobuf::reflect::accessor::make_singular_i64_accessor::<_>(
-                "int_value",
-                Domain_Attribute::has_int_value,
-                Domain_Attribute::get_int_value,
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Domain_Attribute>(
-                "Domain.Attribute",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Domain_Attribute {
         static instance: ::protobuf::rt::LazyV2<Domain_Attribute> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Domain_Attribute::new)
@@ -508,12 +354,6 @@ impl ::protobuf::Clear for Domain_Attribute {
         self.typed_value = ::std::option::Option::None;
         self.typed_value = ::std::option::Option::None;
         self.unknown_fields.clear();
-    }
-}
-
-impl ::std::fmt::Debug for Domain_Attribute {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
     }
 }
 
@@ -555,13 +395,6 @@ impl ::protobuf::ProtobufEnum for Domain_Type {
         ];
         values
     }
-
-    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            ::protobuf::reflect::EnumDescriptor::new_pb_name::<Domain_Type>("Domain.Type", file_descriptor_proto())
-        })
-    }
 }
 
 impl ::std::marker::Copy for Domain_Type {
@@ -579,7 +412,7 @@ impl ::protobuf::reflect::ProtobufValue for Domain_Type {
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct SiteGroup {
     // message fields
     pub tag: ::std::string::String,
@@ -606,49 +439,12 @@ impl SiteGroup {
     pub fn get_tag(&self) -> &str {
         &self.tag
     }
-    pub fn clear_tag(&mut self) {
-        self.tag.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_tag(&mut self, v: ::std::string::String) {
-        self.tag = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_tag(&mut self) -> &mut ::std::string::String {
-        &mut self.tag
-    }
-
-    // Take field
-    pub fn take_tag(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.tag, ::std::string::String::new())
-    }
 
     // repeated .Domain domain = 2;
 
 
     pub fn get_domain(&self) -> &[Domain] {
         &self.domain
-    }
-    pub fn clear_domain(&mut self) {
-        self.domain.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_domain(&mut self, v: ::protobuf::RepeatedField<Domain>) {
-        self.domain = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_domain(&mut self) -> &mut ::protobuf::RepeatedField<Domain> {
-        &mut self.domain
-    }
-
-    // Take field
-    pub fn take_domain(&mut self) -> ::protobuf::RepeatedField<Domain> {
-        ::std::mem::replace(&mut self.domain, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -739,28 +535,6 @@ impl ::protobuf::Message for SiteGroup {
         SiteGroup::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "tag",
-                |m: &SiteGroup| { &m.tag },
-                |m: &mut SiteGroup| { &mut m.tag },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Domain>>(
-                "domain",
-                |m: &SiteGroup| { &m.domain },
-                |m: &mut SiteGroup| { &mut m.domain },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<SiteGroup>(
-                "SiteGroup",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static SiteGroup {
         static instance: ::protobuf::rt::LazyV2<SiteGroup> = ::protobuf::rt::LazyV2::INIT;
         instance.get(SiteGroup::new)
@@ -775,19 +549,13 @@ impl ::protobuf::Clear for SiteGroup {
     }
 }
 
-impl ::std::fmt::Debug for SiteGroup {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for SiteGroup {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct SiteGroupList {
     // message fields
     pub site_group: ::protobuf::RepeatedField<SiteGroup>,
@@ -812,24 +580,6 @@ impl SiteGroupList {
 
     pub fn get_site_group(&self) -> &[SiteGroup] {
         &self.site_group
-    }
-    pub fn clear_site_group(&mut self) {
-        self.site_group.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_site_group(&mut self, v: ::protobuf::RepeatedField<SiteGroup>) {
-        self.site_group = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_site_group(&mut self) -> &mut ::protobuf::RepeatedField<SiteGroup> {
-        &mut self.site_group
-    }
-
-    // Take field
-    pub fn take_site_group(&mut self) -> ::protobuf::RepeatedField<SiteGroup> {
-        ::std::mem::replace(&mut self.site_group, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -911,23 +661,6 @@ impl ::protobuf::Message for SiteGroupList {
         SiteGroupList::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<SiteGroup>>(
-                "site_group",
-                |m: &SiteGroupList| { &m.site_group },
-                |m: &mut SiteGroupList| { &mut m.site_group },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<SiteGroupList>(
-                "SiteGroupList",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static SiteGroupList {
         static instance: ::protobuf::rt::LazyV2<SiteGroupList> = ::protobuf::rt::LazyV2::INIT;
         instance.get(SiteGroupList::new)
@@ -941,40 +674,8 @@ impl ::protobuf::Clear for SiteGroupList {
     }
 }
 
-impl ::std::fmt::Debug for SiteGroupList {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for SiteGroupList {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
-}
-
-static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x18src/config/geosite.proto\"\x93\x02\n\x06Domain\x12\x20\n\x04type\
-    \x18\x01\x20\x01(\x0e2\x0c.Domain.TypeR\x04type\x12\x14\n\x05value\x18\
-    \x02\x20\x01(\tR\x05value\x12/\n\tattribute\x18\x03\x20\x03(\x0b2\x11.Do\
-    main.AttributeR\tattribute\x1al\n\tAttribute\x12\x10\n\x03key\x18\x01\
-    \x20\x01(\tR\x03key\x12\x1f\n\nbool_value\x18\x02\x20\x01(\x08H\0R\tbool\
-    Value\x12\x1d\n\tint_value\x18\x03\x20\x01(\x03H\0R\x08intValueB\r\n\x0b\
-    typed_value\"2\n\x04Type\x12\t\n\x05Plain\x10\0\x12\t\n\x05Regex\x10\x01\
-    \x12\n\n\x06Domain\x10\x02\x12\x08\n\x04Full\x10\x03\">\n\tSiteGroup\x12\
-    \x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\x12\x1f\n\x06domain\x18\x02\x20\
-    \x03(\x0b2\x07.DomainR\x06domain\":\n\rSiteGroupList\x12)\n\nsite_group\
-    \x18\x01\x20\x03(\x0b2\n.SiteGroupR\tsiteGroupb\x06proto3\
-";
-
-static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
-
-fn parse_descriptor_proto() -> ::protobuf::descriptor::FileDescriptorProto {
-    ::protobuf::Message::parse_from_bytes(file_descriptor_proto_data).unwrap()
-}
-
-pub fn file_descriptor_proto() -> &'static ::protobuf::descriptor::FileDescriptorProto {
-    file_descriptor_proto_lazy.get(|| {
-        parse_descriptor_proto()
-    })
 }

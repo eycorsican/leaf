@@ -23,7 +23,7 @@
 /// of protobuf runtime.
 // const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_2_22_1;
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Api {
     // message fields
     pub address: ::std::string::String,
@@ -50,39 +50,12 @@ impl Api {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
 
     pub fn get_port(&self) -> u32 {
         self.port
-    }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
     }
 }
 
@@ -169,28 +142,6 @@ impl ::protobuf::Message for Api {
         Api::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &Api| { &m.address },
-                |m: &mut Api| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &Api| { &m.port },
-                |m: &mut Api| { &mut m.port },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Api>(
-                "Api",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Api {
         static instance: ::protobuf::rt::LazyV2<Api> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Api::new)
@@ -205,19 +156,13 @@ impl ::protobuf::Clear for Api {
     }
 }
 
-impl ::std::fmt::Debug for Api {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Api {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Dns {
     // message fields
     pub servers: ::protobuf::RepeatedField<::std::string::String>,
@@ -245,24 +190,6 @@ impl Dns {
     pub fn get_servers(&self) -> &[::std::string::String] {
         &self.servers
     }
-    pub fn clear_servers(&mut self) {
-        self.servers.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_servers(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.servers = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_servers(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.servers
-    }
-
-    // Take field
-    pub fn take_servers(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.servers, ::protobuf::RepeatedField::new())
-    }
 
     // string bind = 2;
 
@@ -270,49 +197,12 @@ impl Dns {
     pub fn get_bind(&self) -> &str {
         &self.bind
     }
-    pub fn clear_bind(&mut self) {
-        self.bind.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_bind(&mut self, v: ::std::string::String) {
-        self.bind = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_bind(&mut self) -> &mut ::std::string::String {
-        &mut self.bind
-    }
-
-    // Take field
-    pub fn take_bind(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.bind, ::std::string::String::new())
-    }
 
     // repeated .Dns.HostsEntry hosts = 3;
 
 
     pub fn get_hosts(&self) -> &::std::collections::HashMap<::std::string::String, Dns_Ips> {
         &self.hosts
-    }
-    pub fn clear_hosts(&mut self) {
-        self.hosts.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_hosts(&mut self, v: ::std::collections::HashMap<::std::string::String, Dns_Ips>) {
-        self.hosts = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_hosts(&mut self) -> &mut ::std::collections::HashMap<::std::string::String, Dns_Ips> {
-        &mut self.hosts
-    }
-
-    // Take field
-    pub fn take_hosts(&mut self) -> ::std::collections::HashMap<::std::string::String, Dns_Ips> {
-        ::std::mem::replace(&mut self.hosts, ::std::collections::HashMap::new())
     }
 }
 
@@ -400,33 +290,6 @@ impl ::protobuf::Message for Dns {
         Dns::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "servers",
-                |m: &Dns| { &m.servers },
-                |m: &mut Dns| { &mut m.servers },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "bind",
-                |m: &Dns| { &m.bind },
-                |m: &mut Dns| { &mut m.bind },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_map_accessor::<_, ::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeMessage<Dns_Ips>>(
-                "hosts",
-                |m: &Dns| { &m.hosts },
-                |m: &mut Dns| { &mut m.hosts },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Dns>(
-                "Dns",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Dns {
         static instance: ::protobuf::rt::LazyV2<Dns> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Dns::new)
@@ -442,19 +305,13 @@ impl ::protobuf::Clear for Dns {
     }
 }
 
-impl ::std::fmt::Debug for Dns {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Dns {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Dns_Ips {
     // message fields
     pub values: ::protobuf::RepeatedField<::std::string::String>,
@@ -479,24 +336,6 @@ impl Dns_Ips {
 
     pub fn get_values(&self) -> &[::std::string::String] {
         &self.values
-    }
-    pub fn clear_values(&mut self) {
-        self.values.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_values(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.values = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_values(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.values
-    }
-
-    // Take field
-    pub fn take_values(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.values, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -570,23 +409,6 @@ impl ::protobuf::Message for Dns_Ips {
         Dns_Ips::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "values",
-                |m: &Dns_Ips| { &m.values },
-                |m: &mut Dns_Ips| { &mut m.values },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Dns_Ips>(
-                "Dns.Ips",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Dns_Ips {
         static instance: ::protobuf::rt::LazyV2<Dns_Ips> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Dns_Ips::new)
@@ -600,19 +422,13 @@ impl ::protobuf::Clear for Dns_Ips {
     }
 }
 
-impl ::std::fmt::Debug for Dns_Ips {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Dns_Ips {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Log {
     // message fields
     pub level: Log_Level,
@@ -640,14 +456,6 @@ impl Log {
     pub fn get_level(&self) -> Log_Level {
         self.level
     }
-    pub fn clear_level(&mut self) {
-        self.level = Log_Level::TRACE;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_level(&mut self, v: Log_Level) {
-        self.level = v;
-    }
 
     // .Log.Output output = 2;
 
@@ -655,39 +463,12 @@ impl Log {
     pub fn get_output(&self) -> Log_Output {
         self.output
     }
-    pub fn clear_output(&mut self) {
-        self.output = Log_Output::CONSOLE;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_output(&mut self, v: Log_Output) {
-        self.output = v;
-    }
 
     // string output_file = 3;
 
 
     pub fn get_output_file(&self) -> &str {
         &self.output_file
-    }
-    pub fn clear_output_file(&mut self) {
-        self.output_file.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_output_file(&mut self, v: ::std::string::String) {
-        self.output_file = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_output_file(&mut self) -> &mut ::std::string::String {
-        &mut self.output_file
-    }
-
-    // Take field
-    pub fn take_output_file(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.output_file, ::std::string::String::new())
     }
 }
 
@@ -779,33 +560,6 @@ impl ::protobuf::Message for Log {
         Log::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeEnum<Log_Level>>(
-                "level",
-                |m: &Log| { &m.level },
-                |m: &mut Log| { &mut m.level },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeEnum<Log_Output>>(
-                "output",
-                |m: &Log| { &m.output },
-                |m: &mut Log| { &mut m.output },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "output_file",
-                |m: &Log| { &m.output_file },
-                |m: &mut Log| { &mut m.output_file },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Log>(
-                "Log",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Log {
         static instance: ::protobuf::rt::LazyV2<Log> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Log::new)
@@ -818,12 +572,6 @@ impl ::protobuf::Clear for Log {
         self.output = Log_Output::CONSOLE;
         self.output_file.clear();
         self.unknown_fields.clear();
-    }
-}
-
-impl ::std::fmt::Debug for Log {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
     }
 }
 
@@ -868,13 +616,6 @@ impl ::protobuf::ProtobufEnum for Log_Level {
         ];
         values
     }
-
-    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            ::protobuf::reflect::EnumDescriptor::new_pb_name::<Log_Level>("Log.Level", file_descriptor_proto())
-        })
-    }
 }
 
 impl ::std::marker::Copy for Log_Level {
@@ -918,13 +659,6 @@ impl ::protobuf::ProtobufEnum for Log_Output {
         ];
         values
     }
-
-    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            ::protobuf::reflect::EnumDescriptor::new_pb_name::<Log_Output>("Log.Output", file_descriptor_proto())
-        })
-    }
 }
 
 impl ::std::marker::Copy for Log_Output {
@@ -942,7 +676,7 @@ impl ::protobuf::reflect::ProtobufValue for Log_Output {
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct TunInboundSettings {
     // message fields
     pub fd: i32,
@@ -976,28 +710,12 @@ impl TunInboundSettings {
     pub fn get_fd(&self) -> i32 {
         self.fd
     }
-    pub fn clear_fd(&mut self) {
-        self.fd = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_fd(&mut self, v: i32) {
-        self.fd = v;
-    }
 
     // bool auto = 9;
 
 
     pub fn get_auto(&self) -> bool {
         self.auto
-    }
-    pub fn clear_auto(&mut self) {
-        self.auto = false;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_auto(&mut self, v: bool) {
-        self.auto = v;
     }
 
     // string name = 2;
@@ -1006,50 +724,12 @@ impl TunInboundSettings {
     pub fn get_name(&self) -> &str {
         &self.name
     }
-    pub fn clear_name(&mut self) {
-        self.name.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_name(&mut self, v: ::std::string::String) {
-        self.name = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_name(&mut self) -> &mut ::std::string::String {
-        &mut self.name
-    }
-
-    // Take field
-    pub fn take_name(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.name, ::std::string::String::new())
-    }
 
     // string address = 3;
 
 
     pub fn get_address(&self) -> &str {
         &self.address
-    }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
     }
 
     // string gateway = 4;
@@ -1058,50 +738,12 @@ impl TunInboundSettings {
     pub fn get_gateway(&self) -> &str {
         &self.gateway
     }
-    pub fn clear_gateway(&mut self) {
-        self.gateway.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_gateway(&mut self, v: ::std::string::String) {
-        self.gateway = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_gateway(&mut self) -> &mut ::std::string::String {
-        &mut self.gateway
-    }
-
-    // Take field
-    pub fn take_gateway(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.gateway, ::std::string::String::new())
-    }
 
     // string netmask = 5;
 
 
     pub fn get_netmask(&self) -> &str {
         &self.netmask
-    }
-    pub fn clear_netmask(&mut self) {
-        self.netmask.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_netmask(&mut self, v: ::std::string::String) {
-        self.netmask = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_netmask(&mut self) -> &mut ::std::string::String {
-        &mut self.netmask
-    }
-
-    // Take field
-    pub fn take_netmask(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.netmask, ::std::string::String::new())
     }
 
     // int32 mtu = 6;
@@ -1110,14 +752,6 @@ impl TunInboundSettings {
     pub fn get_mtu(&self) -> i32 {
         self.mtu
     }
-    pub fn clear_mtu(&mut self) {
-        self.mtu = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_mtu(&mut self, v: i32) {
-        self.mtu = v;
-    }
 
     // repeated string fake_dns_exclude = 7;
 
@@ -1125,48 +759,12 @@ impl TunInboundSettings {
     pub fn get_fake_dns_exclude(&self) -> &[::std::string::String] {
         &self.fake_dns_exclude
     }
-    pub fn clear_fake_dns_exclude(&mut self) {
-        self.fake_dns_exclude.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_fake_dns_exclude(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.fake_dns_exclude = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_fake_dns_exclude(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.fake_dns_exclude
-    }
-
-    // Take field
-    pub fn take_fake_dns_exclude(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.fake_dns_exclude, ::protobuf::RepeatedField::new())
-    }
 
     // repeated string fake_dns_include = 8;
 
 
     pub fn get_fake_dns_include(&self) -> &[::std::string::String] {
         &self.fake_dns_include
-    }
-    pub fn clear_fake_dns_include(&mut self) {
-        self.fake_dns_include.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_fake_dns_include(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.fake_dns_include = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_fake_dns_include(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.fake_dns_include
-    }
-
-    // Take field
-    pub fn take_fake_dns_include(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.fake_dns_include, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -1324,63 +922,6 @@ impl ::protobuf::Message for TunInboundSettings {
         TunInboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
-                "fd",
-                |m: &TunInboundSettings| { &m.fd },
-                |m: &mut TunInboundSettings| { &mut m.fd },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
-                "auto",
-                |m: &TunInboundSettings| { &m.auto },
-                |m: &mut TunInboundSettings| { &mut m.auto },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "name",
-                |m: &TunInboundSettings| { &m.name },
-                |m: &mut TunInboundSettings| { &mut m.name },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &TunInboundSettings| { &m.address },
-                |m: &mut TunInboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "gateway",
-                |m: &TunInboundSettings| { &m.gateway },
-                |m: &mut TunInboundSettings| { &mut m.gateway },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "netmask",
-                |m: &TunInboundSettings| { &m.netmask },
-                |m: &mut TunInboundSettings| { &mut m.netmask },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeInt32>(
-                "mtu",
-                |m: &TunInboundSettings| { &m.mtu },
-                |m: &mut TunInboundSettings| { &mut m.mtu },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "fake_dns_exclude",
-                |m: &TunInboundSettings| { &m.fake_dns_exclude },
-                |m: &mut TunInboundSettings| { &mut m.fake_dns_exclude },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "fake_dns_include",
-                |m: &TunInboundSettings| { &m.fake_dns_include },
-                |m: &mut TunInboundSettings| { &mut m.fake_dns_include },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<TunInboundSettings>(
-                "TunInboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static TunInboundSettings {
         static instance: ::protobuf::rt::LazyV2<TunInboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(TunInboundSettings::new)
@@ -1402,19 +943,13 @@ impl ::protobuf::Clear for TunInboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for TunInboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for TunInboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct ShadowsocksInboundSettings {
     // message fields
     pub method: ::std::string::String,
@@ -1441,50 +976,12 @@ impl ShadowsocksInboundSettings {
     pub fn get_method(&self) -> &str {
         &self.method
     }
-    pub fn clear_method(&mut self) {
-        self.method.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_method(&mut self, v: ::std::string::String) {
-        self.method = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_method(&mut self) -> &mut ::std::string::String {
-        &mut self.method
-    }
-
-    // Take field
-    pub fn take_method(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.method, ::std::string::String::new())
-    }
 
     // string password = 2;
 
 
     pub fn get_password(&self) -> &str {
         &self.password
-    }
-    pub fn clear_password(&mut self) {
-        self.password.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_password(&mut self, v: ::std::string::String) {
-        self.password = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_password(&mut self) -> &mut ::std::string::String {
-        &mut self.password
-    }
-
-    // Take field
-    pub fn take_password(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.password, ::std::string::String::new())
     }
 }
 
@@ -1567,28 +1064,6 @@ impl ::protobuf::Message for ShadowsocksInboundSettings {
         ShadowsocksInboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "method",
-                |m: &ShadowsocksInboundSettings| { &m.method },
-                |m: &mut ShadowsocksInboundSettings| { &mut m.method },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "password",
-                |m: &ShadowsocksInboundSettings| { &m.password },
-                |m: &mut ShadowsocksInboundSettings| { &mut m.password },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ShadowsocksInboundSettings>(
-                "ShadowsocksInboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static ShadowsocksInboundSettings {
         static instance: ::protobuf::rt::LazyV2<ShadowsocksInboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(ShadowsocksInboundSettings::new)
@@ -1603,19 +1078,13 @@ impl ::protobuf::Clear for ShadowsocksInboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for ShadowsocksInboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for ShadowsocksInboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct TrojanInboundSettings {
     // message fields
     pub password: ::std::string::String,
@@ -1640,25 +1109,6 @@ impl TrojanInboundSettings {
 
     pub fn get_password(&self) -> &str {
         &self.password
-    }
-    pub fn clear_password(&mut self) {
-        self.password.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_password(&mut self, v: ::std::string::String) {
-        self.password = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_password(&mut self) -> &mut ::std::string::String {
-        &mut self.password
-    }
-
-    // Take field
-    pub fn take_password(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.password, ::std::string::String::new())
     }
 }
 
@@ -1732,23 +1182,6 @@ impl ::protobuf::Message for TrojanInboundSettings {
         TrojanInboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "password",
-                |m: &TrojanInboundSettings| { &m.password },
-                |m: &mut TrojanInboundSettings| { &mut m.password },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<TrojanInboundSettings>(
-                "TrojanInboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static TrojanInboundSettings {
         static instance: ::protobuf::rt::LazyV2<TrojanInboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(TrojanInboundSettings::new)
@@ -1762,19 +1195,13 @@ impl ::protobuf::Clear for TrojanInboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for TrojanInboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for TrojanInboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct WebSocketInboundSettings {
     // message fields
     pub path: ::std::string::String,
@@ -1799,25 +1226,6 @@ impl WebSocketInboundSettings {
 
     pub fn get_path(&self) -> &str {
         &self.path
-    }
-    pub fn clear_path(&mut self) {
-        self.path.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_path(&mut self, v: ::std::string::String) {
-        self.path = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_path(&mut self) -> &mut ::std::string::String {
-        &mut self.path
-    }
-
-    // Take field
-    pub fn take_path(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.path, ::std::string::String::new())
     }
 }
 
@@ -1891,23 +1299,6 @@ impl ::protobuf::Message for WebSocketInboundSettings {
         WebSocketInboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "path",
-                |m: &WebSocketInboundSettings| { &m.path },
-                |m: &mut WebSocketInboundSettings| { &mut m.path },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<WebSocketInboundSettings>(
-                "WebSocketInboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static WebSocketInboundSettings {
         static instance: ::protobuf::rt::LazyV2<WebSocketInboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(WebSocketInboundSettings::new)
@@ -1921,19 +1312,13 @@ impl ::protobuf::Clear for WebSocketInboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for WebSocketInboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for WebSocketInboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct AMuxInboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -1958,24 +1343,6 @@ impl AMuxInboundSettings {
 
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
-    }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -2049,23 +1416,6 @@ impl ::protobuf::Message for AMuxInboundSettings {
         AMuxInboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &AMuxInboundSettings| { &m.actors },
-                |m: &mut AMuxInboundSettings| { &mut m.actors },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<AMuxInboundSettings>(
-                "AMuxInboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static AMuxInboundSettings {
         static instance: ::protobuf::rt::LazyV2<AMuxInboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(AMuxInboundSettings::new)
@@ -2079,19 +1429,13 @@ impl ::protobuf::Clear for AMuxInboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for AMuxInboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for AMuxInboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct QuicInboundSettings {
     // message fields
     pub certificate: ::std::string::String,
@@ -2118,50 +1462,12 @@ impl QuicInboundSettings {
     pub fn get_certificate(&self) -> &str {
         &self.certificate
     }
-    pub fn clear_certificate(&mut self) {
-        self.certificate.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_certificate(&mut self, v: ::std::string::String) {
-        self.certificate = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_certificate(&mut self) -> &mut ::std::string::String {
-        &mut self.certificate
-    }
-
-    // Take field
-    pub fn take_certificate(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.certificate, ::std::string::String::new())
-    }
 
     // string certificate_key = 2;
 
 
     pub fn get_certificate_key(&self) -> &str {
         &self.certificate_key
-    }
-    pub fn clear_certificate_key(&mut self) {
-        self.certificate_key.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_certificate_key(&mut self, v: ::std::string::String) {
-        self.certificate_key = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_certificate_key(&mut self) -> &mut ::std::string::String {
-        &mut self.certificate_key
-    }
-
-    // Take field
-    pub fn take_certificate_key(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.certificate_key, ::std::string::String::new())
     }
 }
 
@@ -2244,28 +1550,6 @@ impl ::protobuf::Message for QuicInboundSettings {
         QuicInboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "certificate",
-                |m: &QuicInboundSettings| { &m.certificate },
-                |m: &mut QuicInboundSettings| { &mut m.certificate },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "certificate_key",
-                |m: &QuicInboundSettings| { &m.certificate_key },
-                |m: &mut QuicInboundSettings| { &mut m.certificate_key },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<QuicInboundSettings>(
-                "QuicInboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static QuicInboundSettings {
         static instance: ::protobuf::rt::LazyV2<QuicInboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(QuicInboundSettings::new)
@@ -2280,19 +1564,13 @@ impl ::protobuf::Clear for QuicInboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for QuicInboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for QuicInboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct ChainInboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -2317,24 +1595,6 @@ impl ChainInboundSettings {
 
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
-    }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -2408,23 +1668,6 @@ impl ::protobuf::Message for ChainInboundSettings {
         ChainInboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &ChainInboundSettings| { &m.actors },
-                |m: &mut ChainInboundSettings| { &mut m.actors },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ChainInboundSettings>(
-                "ChainInboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static ChainInboundSettings {
         static instance: ::protobuf::rt::LazyV2<ChainInboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(ChainInboundSettings::new)
@@ -2438,19 +1681,13 @@ impl ::protobuf::Clear for ChainInboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for ChainInboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for ChainInboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Inbound {
     // message fields
     pub tag: ::std::string::String,
@@ -2480,50 +1717,12 @@ impl Inbound {
     pub fn get_tag(&self) -> &str {
         &self.tag
     }
-    pub fn clear_tag(&mut self) {
-        self.tag.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_tag(&mut self, v: ::std::string::String) {
-        self.tag = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_tag(&mut self) -> &mut ::std::string::String {
-        &mut self.tag
-    }
-
-    // Take field
-    pub fn take_tag(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.tag, ::std::string::String::new())
-    }
 
     // string protocol = 2;
 
 
     pub fn get_protocol(&self) -> &str {
         &self.protocol
-    }
-    pub fn clear_protocol(&mut self) {
-        self.protocol.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_protocol(&mut self, v: ::std::string::String) {
-        self.protocol = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_protocol(&mut self) -> &mut ::std::string::String {
-        &mut self.protocol
-    }
-
-    // Take field
-    pub fn take_protocol(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.protocol, ::std::string::String::new())
     }
 
     // string address = 3;
@@ -2532,25 +1731,6 @@ impl Inbound {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 4;
 
@@ -2558,39 +1738,12 @@ impl Inbound {
     pub fn get_port(&self) -> u32 {
         self.port
     }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
-    }
 
     // bytes settings = 5;
 
 
     pub fn get_settings(&self) -> &[u8] {
         &self.settings
-    }
-    pub fn clear_settings(&mut self) {
-        self.settings.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_settings(&mut self, v: ::std::vec::Vec<u8>) {
-        self.settings = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_settings(&mut self) -> &mut ::std::vec::Vec<u8> {
-        &mut self.settings
-    }
-
-    // Take field
-    pub fn take_settings(&mut self) -> ::std::vec::Vec<u8> {
-        ::std::mem::replace(&mut self.settings, ::std::vec::Vec::new())
     }
 }
 
@@ -2704,43 +1857,6 @@ impl ::protobuf::Message for Inbound {
         Inbound::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "tag",
-                |m: &Inbound| { &m.tag },
-                |m: &mut Inbound| { &mut m.tag },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "protocol",
-                |m: &Inbound| { &m.protocol },
-                |m: &mut Inbound| { &mut m.protocol },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &Inbound| { &m.address },
-                |m: &mut Inbound| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &Inbound| { &m.port },
-                |m: &mut Inbound| { &mut m.port },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
-                "settings",
-                |m: &Inbound| { &m.settings },
-                |m: &mut Inbound| { &mut m.settings },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Inbound>(
-                "Inbound",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Inbound {
         static instance: ::protobuf::rt::LazyV2<Inbound> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Inbound::new)
@@ -2758,19 +1874,13 @@ impl ::protobuf::Clear for Inbound {
     }
 }
 
-impl ::std::fmt::Debug for Inbound {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Inbound {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct RedirectOutboundSettings {
     // message fields
     pub address: ::std::string::String,
@@ -2797,39 +1907,12 @@ impl RedirectOutboundSettings {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
 
     pub fn get_port(&self) -> u32 {
         self.port
-    }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
     }
 }
 
@@ -2916,28 +1999,6 @@ impl ::protobuf::Message for RedirectOutboundSettings {
         RedirectOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &RedirectOutboundSettings| { &m.address },
-                |m: &mut RedirectOutboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &RedirectOutboundSettings| { &m.port },
-                |m: &mut RedirectOutboundSettings| { &mut m.port },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<RedirectOutboundSettings>(
-                "RedirectOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static RedirectOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<RedirectOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(RedirectOutboundSettings::new)
@@ -2952,19 +2013,13 @@ impl ::protobuf::Clear for RedirectOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for RedirectOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for RedirectOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct SocksOutboundSettings {
     // message fields
     pub address: ::std::string::String,
@@ -2991,39 +2046,12 @@ impl SocksOutboundSettings {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
 
     pub fn get_port(&self) -> u32 {
         self.port
-    }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
     }
 }
 
@@ -3110,28 +2138,6 @@ impl ::protobuf::Message for SocksOutboundSettings {
         SocksOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &SocksOutboundSettings| { &m.address },
-                |m: &mut SocksOutboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &SocksOutboundSettings| { &m.port },
-                |m: &mut SocksOutboundSettings| { &mut m.port },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<SocksOutboundSettings>(
-                "SocksOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static SocksOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<SocksOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(SocksOutboundSettings::new)
@@ -3146,19 +2152,13 @@ impl ::protobuf::Clear for SocksOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for SocksOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for SocksOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct ShadowsocksOutboundSettings {
     // message fields
     pub address: ::std::string::String,
@@ -3187,39 +2187,12 @@ impl ShadowsocksOutboundSettings {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
 
     pub fn get_port(&self) -> u32 {
         self.port
-    }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
     }
 
     // string method = 3;
@@ -3228,50 +2201,12 @@ impl ShadowsocksOutboundSettings {
     pub fn get_method(&self) -> &str {
         &self.method
     }
-    pub fn clear_method(&mut self) {
-        self.method.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_method(&mut self, v: ::std::string::String) {
-        self.method = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_method(&mut self) -> &mut ::std::string::String {
-        &mut self.method
-    }
-
-    // Take field
-    pub fn take_method(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.method, ::std::string::String::new())
-    }
 
     // string password = 4;
 
 
     pub fn get_password(&self) -> &str {
         &self.password
-    }
-    pub fn clear_password(&mut self) {
-        self.password.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_password(&mut self, v: ::std::string::String) {
-        self.password = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_password(&mut self) -> &mut ::std::string::String {
-        &mut self.password
-    }
-
-    // Take field
-    pub fn take_password(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.password, ::std::string::String::new())
     }
 }
 
@@ -3376,38 +2311,6 @@ impl ::protobuf::Message for ShadowsocksOutboundSettings {
         ShadowsocksOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &ShadowsocksOutboundSettings| { &m.address },
-                |m: &mut ShadowsocksOutboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &ShadowsocksOutboundSettings| { &m.port },
-                |m: &mut ShadowsocksOutboundSettings| { &mut m.port },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "method",
-                |m: &ShadowsocksOutboundSettings| { &m.method },
-                |m: &mut ShadowsocksOutboundSettings| { &mut m.method },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "password",
-                |m: &ShadowsocksOutboundSettings| { &m.password },
-                |m: &mut ShadowsocksOutboundSettings| { &mut m.password },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ShadowsocksOutboundSettings>(
-                "ShadowsocksOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static ShadowsocksOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<ShadowsocksOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(ShadowsocksOutboundSettings::new)
@@ -3424,19 +2327,13 @@ impl ::protobuf::Clear for ShadowsocksOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for ShadowsocksOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for ShadowsocksOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct TrojanOutboundSettings {
     // message fields
     pub address: ::std::string::String,
@@ -3464,25 +2361,6 @@ impl TrojanOutboundSettings {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
@@ -3490,39 +2368,12 @@ impl TrojanOutboundSettings {
     pub fn get_port(&self) -> u32 {
         self.port
     }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
-    }
 
     // string password = 3;
 
 
     pub fn get_password(&self) -> &str {
         &self.password
-    }
-    pub fn clear_password(&mut self) {
-        self.password.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_password(&mut self, v: ::std::string::String) {
-        self.password = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_password(&mut self) -> &mut ::std::string::String {
-        &mut self.password
-    }
-
-    // Take field
-    pub fn take_password(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.password, ::std::string::String::new())
     }
 }
 
@@ -3618,33 +2469,6 @@ impl ::protobuf::Message for TrojanOutboundSettings {
         TrojanOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &TrojanOutboundSettings| { &m.address },
-                |m: &mut TrojanOutboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &TrojanOutboundSettings| { &m.port },
-                |m: &mut TrojanOutboundSettings| { &mut m.port },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "password",
-                |m: &TrojanOutboundSettings| { &m.password },
-                |m: &mut TrojanOutboundSettings| { &mut m.password },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<TrojanOutboundSettings>(
-                "TrojanOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static TrojanOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<TrojanOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(TrojanOutboundSettings::new)
@@ -3660,19 +2484,13 @@ impl ::protobuf::Clear for TrojanOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for TrojanOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for TrojanOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct VMessOutboundSettings {
     // message fields
     pub address: ::std::string::String,
@@ -3701,39 +2519,12 @@ impl VMessOutboundSettings {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
 
     pub fn get_port(&self) -> u32 {
         self.port
-    }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
     }
 
     // string uuid = 3;
@@ -3742,50 +2533,12 @@ impl VMessOutboundSettings {
     pub fn get_uuid(&self) -> &str {
         &self.uuid
     }
-    pub fn clear_uuid(&mut self) {
-        self.uuid.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_uuid(&mut self, v: ::std::string::String) {
-        self.uuid = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_uuid(&mut self) -> &mut ::std::string::String {
-        &mut self.uuid
-    }
-
-    // Take field
-    pub fn take_uuid(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.uuid, ::std::string::String::new())
-    }
 
     // string security = 4;
 
 
     pub fn get_security(&self) -> &str {
         &self.security
-    }
-    pub fn clear_security(&mut self) {
-        self.security.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_security(&mut self, v: ::std::string::String) {
-        self.security = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_security(&mut self) -> &mut ::std::string::String {
-        &mut self.security
-    }
-
-    // Take field
-    pub fn take_security(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.security, ::std::string::String::new())
     }
 }
 
@@ -3890,38 +2643,6 @@ impl ::protobuf::Message for VMessOutboundSettings {
         VMessOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &VMessOutboundSettings| { &m.address },
-                |m: &mut VMessOutboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &VMessOutboundSettings| { &m.port },
-                |m: &mut VMessOutboundSettings| { &mut m.port },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "uuid",
-                |m: &VMessOutboundSettings| { &m.uuid },
-                |m: &mut VMessOutboundSettings| { &mut m.uuid },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "security",
-                |m: &VMessOutboundSettings| { &m.security },
-                |m: &mut VMessOutboundSettings| { &mut m.security },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<VMessOutboundSettings>(
-                "VMessOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static VMessOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<VMessOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(VMessOutboundSettings::new)
@@ -3938,19 +2659,13 @@ impl ::protobuf::Clear for VMessOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for VMessOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for VMessOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct TlsOutboundSettings {
     // message fields
     pub server_name: ::std::string::String,
@@ -3977,49 +2692,12 @@ impl TlsOutboundSettings {
     pub fn get_server_name(&self) -> &str {
         &self.server_name
     }
-    pub fn clear_server_name(&mut self) {
-        self.server_name.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_server_name(&mut self, v: ::std::string::String) {
-        self.server_name = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_server_name(&mut self) -> &mut ::std::string::String {
-        &mut self.server_name
-    }
-
-    // Take field
-    pub fn take_server_name(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.server_name, ::std::string::String::new())
-    }
 
     // repeated string alpn = 2;
 
 
     pub fn get_alpn(&self) -> &[::std::string::String] {
         &self.alpn
-    }
-    pub fn clear_alpn(&mut self) {
-        self.alpn.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_alpn(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.alpn = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_alpn(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.alpn
-    }
-
-    // Take field
-    pub fn take_alpn(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.alpn, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -4102,28 +2780,6 @@ impl ::protobuf::Message for TlsOutboundSettings {
         TlsOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "server_name",
-                |m: &TlsOutboundSettings| { &m.server_name },
-                |m: &mut TlsOutboundSettings| { &mut m.server_name },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "alpn",
-                |m: &TlsOutboundSettings| { &m.alpn },
-                |m: &mut TlsOutboundSettings| { &mut m.alpn },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<TlsOutboundSettings>(
-                "TlsOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static TlsOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<TlsOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(TlsOutboundSettings::new)
@@ -4138,19 +2794,13 @@ impl ::protobuf::Clear for TlsOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for TlsOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for TlsOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct WebSocketOutboundSettings {
     // message fields
     pub path: ::std::string::String,
@@ -4177,49 +2827,12 @@ impl WebSocketOutboundSettings {
     pub fn get_path(&self) -> &str {
         &self.path
     }
-    pub fn clear_path(&mut self) {
-        self.path.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_path(&mut self, v: ::std::string::String) {
-        self.path = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_path(&mut self) -> &mut ::std::string::String {
-        &mut self.path
-    }
-
-    // Take field
-    pub fn take_path(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.path, ::std::string::String::new())
-    }
 
     // repeated .WebSocketOutboundSettings.HeadersEntry headers = 2;
 
 
     pub fn get_headers(&self) -> &::std::collections::HashMap<::std::string::String, ::std::string::String> {
         &self.headers
-    }
-    pub fn clear_headers(&mut self) {
-        self.headers.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_headers(&mut self, v: ::std::collections::HashMap<::std::string::String, ::std::string::String>) {
-        self.headers = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_headers(&mut self) -> &mut ::std::collections::HashMap<::std::string::String, ::std::string::String> {
-        &mut self.headers
-    }
-
-    // Take field
-    pub fn take_headers(&mut self) -> ::std::collections::HashMap<::std::string::String, ::std::string::String> {
-        ::std::mem::replace(&mut self.headers, ::std::collections::HashMap::new())
     }
 }
 
@@ -4298,28 +2911,6 @@ impl ::protobuf::Message for WebSocketOutboundSettings {
         WebSocketOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "path",
-                |m: &WebSocketOutboundSettings| { &m.path },
-                |m: &mut WebSocketOutboundSettings| { &mut m.path },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_map_accessor::<_, ::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeString>(
-                "headers",
-                |m: &WebSocketOutboundSettings| { &m.headers },
-                |m: &mut WebSocketOutboundSettings| { &mut m.headers },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<WebSocketOutboundSettings>(
-                "WebSocketOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static WebSocketOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<WebSocketOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(WebSocketOutboundSettings::new)
@@ -4334,19 +2925,13 @@ impl ::protobuf::Clear for WebSocketOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for WebSocketOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for WebSocketOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct HTTP2OutboundSettings {
     // message fields
     pub path: ::std::string::String,
@@ -4373,50 +2958,12 @@ impl HTTP2OutboundSettings {
     pub fn get_path(&self) -> &str {
         &self.path
     }
-    pub fn clear_path(&mut self) {
-        self.path.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_path(&mut self, v: ::std::string::String) {
-        self.path = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_path(&mut self) -> &mut ::std::string::String {
-        &mut self.path
-    }
-
-    // Take field
-    pub fn take_path(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.path, ::std::string::String::new())
-    }
 
     // string host = 2;
 
 
     pub fn get_host(&self) -> &str {
         &self.host
-    }
-    pub fn clear_host(&mut self) {
-        self.host.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_host(&mut self, v: ::std::string::String) {
-        self.host = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_host(&mut self) -> &mut ::std::string::String {
-        &mut self.host
-    }
-
-    // Take field
-    pub fn take_host(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.host, ::std::string::String::new())
     }
 }
 
@@ -4499,28 +3046,6 @@ impl ::protobuf::Message for HTTP2OutboundSettings {
         HTTP2OutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "path",
-                |m: &HTTP2OutboundSettings| { &m.path },
-                |m: &mut HTTP2OutboundSettings| { &mut m.path },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "host",
-                |m: &HTTP2OutboundSettings| { &m.host },
-                |m: &mut HTTP2OutboundSettings| { &mut m.host },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<HTTP2OutboundSettings>(
-                "HTTP2OutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static HTTP2OutboundSettings {
         static instance: ::protobuf::rt::LazyV2<HTTP2OutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(HTTP2OutboundSettings::new)
@@ -4535,19 +3060,13 @@ impl ::protobuf::Clear for HTTP2OutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for HTTP2OutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for HTTP2OutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct TryAllOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -4574,38 +3093,12 @@ impl TryAllOutboundSettings {
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
     }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
-    }
 
     // uint32 delay_base = 2;
 
 
     pub fn get_delay_base(&self) -> u32 {
         self.delay_base
-    }
-    pub fn clear_delay_base(&mut self) {
-        self.delay_base = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_delay_base(&mut self, v: u32) {
-        self.delay_base = v;
     }
 }
 
@@ -4692,28 +3185,6 @@ impl ::protobuf::Message for TryAllOutboundSettings {
         TryAllOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &TryAllOutboundSettings| { &m.actors },
-                |m: &mut TryAllOutboundSettings| { &mut m.actors },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "delay_base",
-                |m: &TryAllOutboundSettings| { &m.delay_base },
-                |m: &mut TryAllOutboundSettings| { &mut m.delay_base },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<TryAllOutboundSettings>(
-                "TryAllOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static TryAllOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<TryAllOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(TryAllOutboundSettings::new)
@@ -4728,19 +3199,13 @@ impl ::protobuf::Clear for TryAllOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for TryAllOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for TryAllOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct RandomOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -4765,24 +3230,6 @@ impl RandomOutboundSettings {
 
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
-    }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -4856,23 +3303,6 @@ impl ::protobuf::Message for RandomOutboundSettings {
         RandomOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &RandomOutboundSettings| { &m.actors },
-                |m: &mut RandomOutboundSettings| { &mut m.actors },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<RandomOutboundSettings>(
-                "RandomOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static RandomOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<RandomOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(RandomOutboundSettings::new)
@@ -4886,19 +3316,13 @@ impl ::protobuf::Clear for RandomOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for RandomOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for RandomOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct AMuxOutboundSettings {
     // message fields
     pub address: ::std::string::String,
@@ -4928,39 +3352,12 @@ impl AMuxOutboundSettings {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
 
     pub fn get_port(&self) -> u32 {
         self.port
-    }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
     }
 
     // repeated string actors = 3;
@@ -4969,24 +3366,6 @@ impl AMuxOutboundSettings {
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
     }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
-    }
 
     // uint32 max_accepts = 4;
 
@@ -4994,28 +3373,12 @@ impl AMuxOutboundSettings {
     pub fn get_max_accepts(&self) -> u32 {
         self.max_accepts
     }
-    pub fn clear_max_accepts(&mut self) {
-        self.max_accepts = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_max_accepts(&mut self, v: u32) {
-        self.max_accepts = v;
-    }
 
     // uint32 concurrency = 5;
 
 
     pub fn get_concurrency(&self) -> u32 {
         self.concurrency
-    }
-    pub fn clear_concurrency(&mut self) {
-        self.concurrency = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_concurrency(&mut self, v: u32) {
-        self.concurrency = v;
     }
 }
 
@@ -5137,43 +3500,6 @@ impl ::protobuf::Message for AMuxOutboundSettings {
         AMuxOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &AMuxOutboundSettings| { &m.address },
-                |m: &mut AMuxOutboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &AMuxOutboundSettings| { &m.port },
-                |m: &mut AMuxOutboundSettings| { &mut m.port },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &AMuxOutboundSettings| { &m.actors },
-                |m: &mut AMuxOutboundSettings| { &mut m.actors },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "max_accepts",
-                |m: &AMuxOutboundSettings| { &m.max_accepts },
-                |m: &mut AMuxOutboundSettings| { &mut m.max_accepts },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "concurrency",
-                |m: &AMuxOutboundSettings| { &m.concurrency },
-                |m: &mut AMuxOutboundSettings| { &mut m.concurrency },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<AMuxOutboundSettings>(
-                "AMuxOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static AMuxOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<AMuxOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(AMuxOutboundSettings::new)
@@ -5191,19 +3517,13 @@ impl ::protobuf::Clear for AMuxOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for AMuxOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for AMuxOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct QuicOutboundSettings {
     // message fields
     pub address: ::std::string::String,
@@ -5232,39 +3552,12 @@ impl QuicOutboundSettings {
     pub fn get_address(&self) -> &str {
         &self.address
     }
-    pub fn clear_address(&mut self) {
-        self.address.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_address(&mut self, v: ::std::string::String) {
-        self.address = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_address(&mut self) -> &mut ::std::string::String {
-        &mut self.address
-    }
-
-    // Take field
-    pub fn take_address(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.address, ::std::string::String::new())
-    }
 
     // uint32 port = 2;
 
 
     pub fn get_port(&self) -> u32 {
         self.port
-    }
-    pub fn clear_port(&mut self) {
-        self.port = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port(&mut self, v: u32) {
-        self.port = v;
     }
 
     // string server_name = 3;
@@ -5273,50 +3566,12 @@ impl QuicOutboundSettings {
     pub fn get_server_name(&self) -> &str {
         &self.server_name
     }
-    pub fn clear_server_name(&mut self) {
-        self.server_name.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_server_name(&mut self, v: ::std::string::String) {
-        self.server_name = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_server_name(&mut self) -> &mut ::std::string::String {
-        &mut self.server_name
-    }
-
-    // Take field
-    pub fn take_server_name(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.server_name, ::std::string::String::new())
-    }
 
     // string certificate = 4;
 
 
     pub fn get_certificate(&self) -> &str {
         &self.certificate
-    }
-    pub fn clear_certificate(&mut self) {
-        self.certificate.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_certificate(&mut self, v: ::std::string::String) {
-        self.certificate = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_certificate(&mut self) -> &mut ::std::string::String {
-        &mut self.certificate
-    }
-
-    // Take field
-    pub fn take_certificate(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.certificate, ::std::string::String::new())
     }
 }
 
@@ -5421,38 +3676,6 @@ impl ::protobuf::Message for QuicOutboundSettings {
         QuicOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "address",
-                |m: &QuicOutboundSettings| { &m.address },
-                |m: &mut QuicOutboundSettings| { &mut m.address },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "port",
-                |m: &QuicOutboundSettings| { &m.port },
-                |m: &mut QuicOutboundSettings| { &mut m.port },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "server_name",
-                |m: &QuicOutboundSettings| { &m.server_name },
-                |m: &mut QuicOutboundSettings| { &mut m.server_name },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "certificate",
-                |m: &QuicOutboundSettings| { &m.certificate },
-                |m: &mut QuicOutboundSettings| { &mut m.certificate },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<QuicOutboundSettings>(
-                "QuicOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static QuicOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<QuicOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(QuicOutboundSettings::new)
@@ -5469,19 +3692,13 @@ impl ::protobuf::Clear for QuicOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for QuicOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for QuicOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct ChainOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -5506,24 +3723,6 @@ impl ChainOutboundSettings {
 
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
-    }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -5597,23 +3796,6 @@ impl ::protobuf::Message for ChainOutboundSettings {
         ChainOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &ChainOutboundSettings| { &m.actors },
-                |m: &mut ChainOutboundSettings| { &mut m.actors },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<ChainOutboundSettings>(
-                "ChainOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static ChainOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<ChainOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(ChainOutboundSettings::new)
@@ -5627,19 +3809,13 @@ impl ::protobuf::Clear for ChainOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for ChainOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for ChainOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct RetryOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -5666,38 +3842,12 @@ impl RetryOutboundSettings {
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
     }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
-    }
 
     // uint32 attempts = 2;
 
 
     pub fn get_attempts(&self) -> u32 {
         self.attempts
-    }
-    pub fn clear_attempts(&mut self) {
-        self.attempts = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_attempts(&mut self, v: u32) {
-        self.attempts = v;
     }
 }
 
@@ -5784,28 +3934,6 @@ impl ::protobuf::Message for RetryOutboundSettings {
         RetryOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &RetryOutboundSettings| { &m.actors },
-                |m: &mut RetryOutboundSettings| { &mut m.actors },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "attempts",
-                |m: &RetryOutboundSettings| { &m.attempts },
-                |m: &mut RetryOutboundSettings| { &mut m.attempts },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<RetryOutboundSettings>(
-                "RetryOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static RetryOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<RetryOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(RetryOutboundSettings::new)
@@ -5820,19 +3948,13 @@ impl ::protobuf::Clear for RetryOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for RetryOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for RetryOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct FailOverOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -5865,38 +3987,12 @@ impl FailOverOutboundSettings {
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
     }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
-    }
 
     // uint32 fail_timeout = 2;
 
 
     pub fn get_fail_timeout(&self) -> u32 {
         self.fail_timeout
-    }
-    pub fn clear_fail_timeout(&mut self) {
-        self.fail_timeout = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_fail_timeout(&mut self, v: u32) {
-        self.fail_timeout = v;
     }
 
     // bool health_check = 3;
@@ -5905,28 +4001,12 @@ impl FailOverOutboundSettings {
     pub fn get_health_check(&self) -> bool {
         self.health_check
     }
-    pub fn clear_health_check(&mut self) {
-        self.health_check = false;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_health_check(&mut self, v: bool) {
-        self.health_check = v;
-    }
 
     // uint32 check_interval = 4;
 
 
     pub fn get_check_interval(&self) -> u32 {
         self.check_interval
-    }
-    pub fn clear_check_interval(&mut self) {
-        self.check_interval = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_check_interval(&mut self, v: u32) {
-        self.check_interval = v;
     }
 
     // bool failover = 5;
@@ -5935,28 +4015,12 @@ impl FailOverOutboundSettings {
     pub fn get_failover(&self) -> bool {
         self.failover
     }
-    pub fn clear_failover(&mut self) {
-        self.failover = false;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_failover(&mut self, v: bool) {
-        self.failover = v;
-    }
 
     // bool fallback_cache = 6;
 
 
     pub fn get_fallback_cache(&self) -> bool {
         self.fallback_cache
-    }
-    pub fn clear_fallback_cache(&mut self) {
-        self.fallback_cache = false;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_fallback_cache(&mut self, v: bool) {
-        self.fallback_cache = v;
     }
 
     // uint32 cache_size = 7;
@@ -5965,28 +4029,12 @@ impl FailOverOutboundSettings {
     pub fn get_cache_size(&self) -> u32 {
         self.cache_size
     }
-    pub fn clear_cache_size(&mut self) {
-        self.cache_size = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_cache_size(&mut self, v: u32) {
-        self.cache_size = v;
-    }
 
     // uint32 cache_timeout = 8;
 
 
     pub fn get_cache_timeout(&self) -> u32 {
         self.cache_timeout
-    }
-    pub fn clear_cache_timeout(&mut self) {
-        self.cache_timeout = 0;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_cache_timeout(&mut self, v: u32) {
-        self.cache_timeout = v;
     }
 }
 
@@ -6151,58 +4199,6 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         FailOverOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &FailOverOutboundSettings| { &m.actors },
-                |m: &mut FailOverOutboundSettings| { &mut m.actors },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "fail_timeout",
-                |m: &FailOverOutboundSettings| { &m.fail_timeout },
-                |m: &mut FailOverOutboundSettings| { &mut m.fail_timeout },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
-                "health_check",
-                |m: &FailOverOutboundSettings| { &m.health_check },
-                |m: &mut FailOverOutboundSettings| { &mut m.health_check },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "check_interval",
-                |m: &FailOverOutboundSettings| { &m.check_interval },
-                |m: &mut FailOverOutboundSettings| { &mut m.check_interval },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
-                "failover",
-                |m: &FailOverOutboundSettings| { &m.failover },
-                |m: &mut FailOverOutboundSettings| { &mut m.failover },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
-                "fallback_cache",
-                |m: &FailOverOutboundSettings| { &m.fallback_cache },
-                |m: &mut FailOverOutboundSettings| { &mut m.fallback_cache },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "cache_size",
-                |m: &FailOverOutboundSettings| { &m.cache_size },
-                |m: &mut FailOverOutboundSettings| { &mut m.cache_size },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeUint32>(
-                "cache_timeout",
-                |m: &FailOverOutboundSettings| { &m.cache_timeout },
-                |m: &mut FailOverOutboundSettings| { &mut m.cache_timeout },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<FailOverOutboundSettings>(
-                "FailOverOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static FailOverOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<FailOverOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(FailOverOutboundSettings::new)
@@ -6223,19 +4219,13 @@ impl ::protobuf::Clear for FailOverOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for FailOverOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for FailOverOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct SelectOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -6260,24 +4250,6 @@ impl SelectOutboundSettings {
 
     pub fn get_actors(&self) -> &[::std::string::String] {
         &self.actors
-    }
-    pub fn clear_actors(&mut self) {
-        self.actors.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_actors(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.actors = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_actors(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.actors
-    }
-
-    // Take field
-    pub fn take_actors(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.actors, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -6351,23 +4323,6 @@ impl ::protobuf::Message for SelectOutboundSettings {
         SelectOutboundSettings::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "actors",
-                |m: &SelectOutboundSettings| { &m.actors },
-                |m: &mut SelectOutboundSettings| { &mut m.actors },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<SelectOutboundSettings>(
-                "SelectOutboundSettings",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static SelectOutboundSettings {
         static instance: ::protobuf::rt::LazyV2<SelectOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
         instance.get(SelectOutboundSettings::new)
@@ -6381,19 +4336,13 @@ impl ::protobuf::Clear for SelectOutboundSettings {
     }
 }
 
-impl ::std::fmt::Debug for SelectOutboundSettings {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for SelectOutboundSettings {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Outbound {
     // message fields
     pub tag: ::std::string::String,
@@ -6422,50 +4371,12 @@ impl Outbound {
     pub fn get_tag(&self) -> &str {
         &self.tag
     }
-    pub fn clear_tag(&mut self) {
-        self.tag.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_tag(&mut self, v: ::std::string::String) {
-        self.tag = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_tag(&mut self) -> &mut ::std::string::String {
-        &mut self.tag
-    }
-
-    // Take field
-    pub fn take_tag(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.tag, ::std::string::String::new())
-    }
 
     // string protocol = 2;
 
 
     pub fn get_protocol(&self) -> &str {
         &self.protocol
-    }
-    pub fn clear_protocol(&mut self) {
-        self.protocol.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_protocol(&mut self, v: ::std::string::String) {
-        self.protocol = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_protocol(&mut self) -> &mut ::std::string::String {
-        &mut self.protocol
-    }
-
-    // Take field
-    pub fn take_protocol(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.protocol, ::std::string::String::new())
     }
 
     // string bind = 3;
@@ -6474,50 +4385,12 @@ impl Outbound {
     pub fn get_bind(&self) -> &str {
         &self.bind
     }
-    pub fn clear_bind(&mut self) {
-        self.bind.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_bind(&mut self, v: ::std::string::String) {
-        self.bind = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_bind(&mut self) -> &mut ::std::string::String {
-        &mut self.bind
-    }
-
-    // Take field
-    pub fn take_bind(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.bind, ::std::string::String::new())
-    }
 
     // bytes settings = 4;
 
 
     pub fn get_settings(&self) -> &[u8] {
         &self.settings
-    }
-    pub fn clear_settings(&mut self) {
-        self.settings.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_settings(&mut self, v: ::std::vec::Vec<u8>) {
-        self.settings = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_settings(&mut self) -> &mut ::std::vec::Vec<u8> {
-        &mut self.settings
-    }
-
-    // Take field
-    pub fn take_settings(&mut self) -> ::std::vec::Vec<u8> {
-        ::std::mem::replace(&mut self.settings, ::std::vec::Vec::new())
     }
 }
 
@@ -6618,38 +4491,6 @@ impl ::protobuf::Message for Outbound {
         Outbound::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "tag",
-                |m: &Outbound| { &m.tag },
-                |m: &mut Outbound| { &mut m.tag },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "protocol",
-                |m: &Outbound| { &m.protocol },
-                |m: &mut Outbound| { &mut m.protocol },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "bind",
-                |m: &Outbound| { &m.bind },
-                |m: &mut Outbound| { &mut m.bind },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBytes>(
-                "settings",
-                |m: &Outbound| { &m.settings },
-                |m: &mut Outbound| { &mut m.settings },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Outbound>(
-                "Outbound",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Outbound {
         static instance: ::protobuf::rt::LazyV2<Outbound> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Outbound::new)
@@ -6666,19 +4507,13 @@ impl ::protobuf::Clear for Outbound {
     }
 }
 
-impl ::std::fmt::Debug for Outbound {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Outbound {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Router {
     // message fields
     pub rules: ::protobuf::RepeatedField<Router_Rule>,
@@ -6705,38 +4540,12 @@ impl Router {
     pub fn get_rules(&self) -> &[Router_Rule] {
         &self.rules
     }
-    pub fn clear_rules(&mut self) {
-        self.rules.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_rules(&mut self, v: ::protobuf::RepeatedField<Router_Rule>) {
-        self.rules = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_rules(&mut self) -> &mut ::protobuf::RepeatedField<Router_Rule> {
-        &mut self.rules
-    }
-
-    // Take field
-    pub fn take_rules(&mut self) -> ::protobuf::RepeatedField<Router_Rule> {
-        ::std::mem::replace(&mut self.rules, ::protobuf::RepeatedField::new())
-    }
 
     // bool domain_resolve = 2;
 
 
     pub fn get_domain_resolve(&self) -> bool {
         self.domain_resolve
-    }
-    pub fn clear_domain_resolve(&mut self) {
-        self.domain_resolve = false;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_domain_resolve(&mut self, v: bool) {
-        self.domain_resolve = v;
     }
 }
 
@@ -6831,28 +4640,6 @@ impl ::protobuf::Message for Router {
         Router::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Router_Rule>>(
-                "rules",
-                |m: &Router| { &m.rules },
-                |m: &mut Router| { &mut m.rules },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeBool>(
-                "domain_resolve",
-                |m: &Router| { &m.domain_resolve },
-                |m: &mut Router| { &mut m.domain_resolve },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Router>(
-                "Router",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Router {
         static instance: ::protobuf::rt::LazyV2<Router> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Router::new)
@@ -6867,19 +4654,13 @@ impl ::protobuf::Clear for Router {
     }
 }
 
-impl ::std::fmt::Debug for Router {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Router {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Router_Rule {
     // message fields
     pub target_tag: ::std::string::String,
@@ -6909,49 +4690,12 @@ impl Router_Rule {
     pub fn get_target_tag(&self) -> &str {
         &self.target_tag
     }
-    pub fn clear_target_tag(&mut self) {
-        self.target_tag.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_target_tag(&mut self, v: ::std::string::String) {
-        self.target_tag = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_target_tag(&mut self) -> &mut ::std::string::String {
-        &mut self.target_tag
-    }
-
-    // Take field
-    pub fn take_target_tag(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.target_tag, ::std::string::String::new())
-    }
 
     // repeated .Router.Rule.Domain domains = 2;
 
 
     pub fn get_domains(&self) -> &[Router_Rule_Domain] {
         &self.domains
-    }
-    pub fn clear_domains(&mut self) {
-        self.domains.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_domains(&mut self, v: ::protobuf::RepeatedField<Router_Rule_Domain>) {
-        self.domains = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_domains(&mut self) -> &mut ::protobuf::RepeatedField<Router_Rule_Domain> {
-        &mut self.domains
-    }
-
-    // Take field
-    pub fn take_domains(&mut self) -> ::protobuf::RepeatedField<Router_Rule_Domain> {
-        ::std::mem::replace(&mut self.domains, ::protobuf::RepeatedField::new())
     }
 
     // repeated string ip_cidrs = 3;
@@ -6960,24 +4704,6 @@ impl Router_Rule {
     pub fn get_ip_cidrs(&self) -> &[::std::string::String] {
         &self.ip_cidrs
     }
-    pub fn clear_ip_cidrs(&mut self) {
-        self.ip_cidrs.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_ip_cidrs(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.ip_cidrs = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_ip_cidrs(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.ip_cidrs
-    }
-
-    // Take field
-    pub fn take_ip_cidrs(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.ip_cidrs, ::protobuf::RepeatedField::new())
-    }
 
     // repeated .Router.Rule.Mmdb mmdbs = 4;
 
@@ -6985,48 +4711,12 @@ impl Router_Rule {
     pub fn get_mmdbs(&self) -> &[Router_Rule_Mmdb] {
         &self.mmdbs
     }
-    pub fn clear_mmdbs(&mut self) {
-        self.mmdbs.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_mmdbs(&mut self, v: ::protobuf::RepeatedField<Router_Rule_Mmdb>) {
-        self.mmdbs = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_mmdbs(&mut self) -> &mut ::protobuf::RepeatedField<Router_Rule_Mmdb> {
-        &mut self.mmdbs
-    }
-
-    // Take field
-    pub fn take_mmdbs(&mut self) -> ::protobuf::RepeatedField<Router_Rule_Mmdb> {
-        ::std::mem::replace(&mut self.mmdbs, ::protobuf::RepeatedField::new())
-    }
 
     // repeated string port_ranges = 5;
 
 
     pub fn get_port_ranges(&self) -> &[::std::string::String] {
         &self.port_ranges
-    }
-    pub fn clear_port_ranges(&mut self) {
-        self.port_ranges.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_port_ranges(&mut self, v: ::protobuf::RepeatedField<::std::string::String>) {
-        self.port_ranges = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_port_ranges(&mut self) -> &mut ::protobuf::RepeatedField<::std::string::String> {
-        &mut self.port_ranges
-    }
-
-    // Take field
-    pub fn take_port_ranges(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
-        ::std::mem::replace(&mut self.port_ranges, ::protobuf::RepeatedField::new())
     }
 }
 
@@ -7152,43 +4842,6 @@ impl ::protobuf::Message for Router_Rule {
         Router_Rule::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "target_tag",
-                |m: &Router_Rule| { &m.target_tag },
-                |m: &mut Router_Rule| { &mut m.target_tag },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Router_Rule_Domain>>(
-                "domains",
-                |m: &Router_Rule| { &m.domains },
-                |m: &mut Router_Rule| { &mut m.domains },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "ip_cidrs",
-                |m: &Router_Rule| { &m.ip_cidrs },
-                |m: &mut Router_Rule| { &mut m.ip_cidrs },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Router_Rule_Mmdb>>(
-                "mmdbs",
-                |m: &Router_Rule| { &m.mmdbs },
-                |m: &mut Router_Rule| { &mut m.mmdbs },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "port_ranges",
-                |m: &Router_Rule| { &m.port_ranges },
-                |m: &mut Router_Rule| { &mut m.port_ranges },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Router_Rule>(
-                "Router.Rule",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Router_Rule {
         static instance: ::protobuf::rt::LazyV2<Router_Rule> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Router_Rule::new)
@@ -7206,19 +4859,13 @@ impl ::protobuf::Clear for Router_Rule {
     }
 }
 
-impl ::std::fmt::Debug for Router_Rule {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Router_Rule {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Router_Rule_Domain {
     // message fields
     pub field_type: Router_Rule_Domain_Type,
@@ -7245,39 +4892,12 @@ impl Router_Rule_Domain {
     pub fn get_field_type(&self) -> Router_Rule_Domain_Type {
         self.field_type
     }
-    pub fn clear_field_type(&mut self) {
-        self.field_type = Router_Rule_Domain_Type::PLAIN;
-    }
-
-    // Param is passed by value, moved
-    pub fn set_field_type(&mut self, v: Router_Rule_Domain_Type) {
-        self.field_type = v;
-    }
 
     // string value = 2;
 
 
     pub fn get_value(&self) -> &str {
         &self.value
-    }
-    pub fn clear_value(&mut self) {
-        self.value.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_value(&mut self, v: ::std::string::String) {
-        self.value = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_value(&mut self) -> &mut ::std::string::String {
-        &mut self.value
-    }
-
-    // Take field
-    pub fn take_value(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.value, ::std::string::String::new())
     }
 }
 
@@ -7360,28 +4980,6 @@ impl ::protobuf::Message for Router_Rule_Domain {
         Router_Rule_Domain::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeEnum<Router_Rule_Domain_Type>>(
-                "type",
-                |m: &Router_Rule_Domain| { &m.field_type },
-                |m: &mut Router_Rule_Domain| { &mut m.field_type },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "value",
-                |m: &Router_Rule_Domain| { &m.value },
-                |m: &mut Router_Rule_Domain| { &mut m.value },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Router_Rule_Domain>(
-                "Router.Rule.Domain",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Router_Rule_Domain {
         static instance: ::protobuf::rt::LazyV2<Router_Rule_Domain> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Router_Rule_Domain::new)
@@ -7393,12 +4991,6 @@ impl ::protobuf::Clear for Router_Rule_Domain {
         self.field_type = Router_Rule_Domain_Type::PLAIN;
         self.value.clear();
         self.unknown_fields.clear();
-    }
-}
-
-impl ::std::fmt::Debug for Router_Rule_Domain {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
     }
 }
 
@@ -7437,13 +5029,6 @@ impl ::protobuf::ProtobufEnum for Router_Rule_Domain_Type {
         ];
         values
     }
-
-    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            ::protobuf::reflect::EnumDescriptor::new_pb_name::<Router_Rule_Domain_Type>("Router.Rule.Domain.Type", file_descriptor_proto())
-        })
-    }
 }
 
 impl ::std::marker::Copy for Router_Rule_Domain_Type {
@@ -7461,7 +5046,7 @@ impl ::protobuf::reflect::ProtobufValue for Router_Rule_Domain_Type {
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Router_Rule_Mmdb {
     // message fields
     pub file: ::std::string::String,
@@ -7488,50 +5073,12 @@ impl Router_Rule_Mmdb {
     pub fn get_file(&self) -> &str {
         &self.file
     }
-    pub fn clear_file(&mut self) {
-        self.file.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_file(&mut self, v: ::std::string::String) {
-        self.file = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_file(&mut self) -> &mut ::std::string::String {
-        &mut self.file
-    }
-
-    // Take field
-    pub fn take_file(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.file, ::std::string::String::new())
-    }
 
     // string country_code = 2;
 
 
     pub fn get_country_code(&self) -> &str {
         &self.country_code
-    }
-    pub fn clear_country_code(&mut self) {
-        self.country_code.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_country_code(&mut self, v: ::std::string::String) {
-        self.country_code = v;
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_country_code(&mut self) -> &mut ::std::string::String {
-        &mut self.country_code
-    }
-
-    // Take field
-    pub fn take_country_code(&mut self) -> ::std::string::String {
-        ::std::mem::replace(&mut self.country_code, ::std::string::String::new())
     }
 }
 
@@ -7614,28 +5161,6 @@ impl ::protobuf::Message for Router_Rule_Mmdb {
         Router_Rule_Mmdb::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "file",
-                |m: &Router_Rule_Mmdb| { &m.file },
-                |m: &mut Router_Rule_Mmdb| { &mut m.file },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
-                "country_code",
-                |m: &Router_Rule_Mmdb| { &m.country_code },
-                |m: &mut Router_Rule_Mmdb| { &mut m.country_code },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Router_Rule_Mmdb>(
-                "Router.Rule.Mmdb",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Router_Rule_Mmdb {
         static instance: ::protobuf::rt::LazyV2<Router_Rule_Mmdb> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Router_Rule_Mmdb::new)
@@ -7650,19 +5175,13 @@ impl ::protobuf::Clear for Router_Rule_Mmdb {
     }
 }
 
-impl ::std::fmt::Debug for Router_Rule_Mmdb {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Router_Rule_Mmdb {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
 }
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Config {
     // message fields
     pub log: ::protobuf::SingularPtrField<Log>,
@@ -7693,56 +5212,12 @@ impl Config {
     pub fn get_log(&self) -> &Log {
         self.log.as_ref().unwrap_or_else(|| <Log as ::protobuf::Message>::default_instance())
     }
-    pub fn clear_log(&mut self) {
-        self.log.clear();
-    }
-
-    pub fn has_log(&self) -> bool {
-        self.log.is_some()
-    }
-
-    // Param is passed by value, moved
-    pub fn set_log(&mut self, v: Log) {
-        self.log = ::protobuf::SingularPtrField::some(v);
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_log(&mut self) -> &mut Log {
-        if self.log.is_none() {
-            self.log.set_default();
-        }
-        self.log.as_mut().unwrap()
-    }
-
-    // Take field
-    pub fn take_log(&mut self) -> Log {
-        self.log.take().unwrap_or_else(|| Log::new())
-    }
 
     // repeated .Inbound inbounds = 2;
 
 
     pub fn get_inbounds(&self) -> &[Inbound] {
         &self.inbounds
-    }
-    pub fn clear_inbounds(&mut self) {
-        self.inbounds.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_inbounds(&mut self, v: ::protobuf::RepeatedField<Inbound>) {
-        self.inbounds = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_inbounds(&mut self) -> &mut ::protobuf::RepeatedField<Inbound> {
-        &mut self.inbounds
-    }
-
-    // Take field
-    pub fn take_inbounds(&mut self) -> ::protobuf::RepeatedField<Inbound> {
-        ::std::mem::replace(&mut self.inbounds, ::protobuf::RepeatedField::new())
     }
 
     // repeated .Outbound outbounds = 3;
@@ -7751,56 +5226,12 @@ impl Config {
     pub fn get_outbounds(&self) -> &[Outbound] {
         &self.outbounds
     }
-    pub fn clear_outbounds(&mut self) {
-        self.outbounds.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_outbounds(&mut self, v: ::protobuf::RepeatedField<Outbound>) {
-        self.outbounds = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_outbounds(&mut self) -> &mut ::protobuf::RepeatedField<Outbound> {
-        &mut self.outbounds
-    }
-
-    // Take field
-    pub fn take_outbounds(&mut self) -> ::protobuf::RepeatedField<Outbound> {
-        ::std::mem::replace(&mut self.outbounds, ::protobuf::RepeatedField::new())
-    }
 
     // .Router router = 4;
 
 
     pub fn get_router(&self) -> &Router {
         self.router.as_ref().unwrap_or_else(|| <Router as ::protobuf::Message>::default_instance())
-    }
-    pub fn clear_router(&mut self) {
-        self.router.clear();
-    }
-
-    pub fn has_router(&self) -> bool {
-        self.router.is_some()
-    }
-
-    // Param is passed by value, moved
-    pub fn set_router(&mut self, v: Router) {
-        self.router = ::protobuf::SingularPtrField::some(v);
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_router(&mut self) -> &mut Router {
-        if self.router.is_none() {
-            self.router.set_default();
-        }
-        self.router.as_mut().unwrap()
-    }
-
-    // Take field
-    pub fn take_router(&mut self) -> Router {
-        self.router.take().unwrap_or_else(|| Router::new())
     }
 
     // .Dns dns = 5;
@@ -7809,64 +5240,12 @@ impl Config {
     pub fn get_dns(&self) -> &Dns {
         self.dns.as_ref().unwrap_or_else(|| <Dns as ::protobuf::Message>::default_instance())
     }
-    pub fn clear_dns(&mut self) {
-        self.dns.clear();
-    }
-
-    pub fn has_dns(&self) -> bool {
-        self.dns.is_some()
-    }
-
-    // Param is passed by value, moved
-    pub fn set_dns(&mut self, v: Dns) {
-        self.dns = ::protobuf::SingularPtrField::some(v);
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_dns(&mut self) -> &mut Dns {
-        if self.dns.is_none() {
-            self.dns.set_default();
-        }
-        self.dns.as_mut().unwrap()
-    }
-
-    // Take field
-    pub fn take_dns(&mut self) -> Dns {
-        self.dns.take().unwrap_or_else(|| Dns::new())
-    }
 
     // .Api api = 6;
 
 
     pub fn get_api(&self) -> &Api {
         self.api.as_ref().unwrap_or_else(|| <Api as ::protobuf::Message>::default_instance())
-    }
-    pub fn clear_api(&mut self) {
-        self.api.clear();
-    }
-
-    pub fn has_api(&self) -> bool {
-        self.api.is_some()
-    }
-
-    // Param is passed by value, moved
-    pub fn set_api(&mut self, v: Api) {
-        self.api = ::protobuf::SingularPtrField::some(v);
-    }
-
-    // Mutable pointer to the field.
-    // If field is not initialized, it is initialized with default value first.
-    pub fn mut_api(&mut self) -> &mut Api {
-        if self.api.is_none() {
-            self.api.set_default();
-        }
-        self.api.as_mut().unwrap()
-    }
-
-    // Take field
-    pub fn take_api(&mut self) -> Api {
-        self.api.take().unwrap_or_else(|| Api::new())
     }
 }
 
@@ -8033,48 +5412,6 @@ impl ::protobuf::Message for Config {
         Config::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Log>>(
-                "log",
-                |m: &Config| { &m.log },
-                |m: &mut Config| { &mut m.log },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Inbound>>(
-                "inbounds",
-                |m: &Config| { &m.inbounds },
-                |m: &mut Config| { &mut m.inbounds },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Outbound>>(
-                "outbounds",
-                |m: &Config| { &m.outbounds },
-                |m: &mut Config| { &mut m.outbounds },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Router>>(
-                "router",
-                |m: &Config| { &m.router },
-                |m: &mut Config| { &mut m.router },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Dns>>(
-                "dns",
-                |m: &Config| { &m.dns },
-                |m: &mut Config| { &mut m.dns },
-            ));
-            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<Api>>(
-                "api",
-                |m: &Config| { &m.api },
-                |m: &mut Config| { &mut m.api },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<Config>(
-                "Config",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static Config {
         static instance: ::protobuf::rt::LazyV2<Config> = ::protobuf::rt::LazyV2::INIT;
         instance.get(Config::new)
@@ -8093,125 +5430,8 @@ impl ::protobuf::Clear for Config {
     }
 }
 
-impl ::std::fmt::Debug for Config {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for Config {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
-}
-
-static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x20src/config/internal/config.proto\"3\n\x03Api\x12\x18\n\x07address\
-    \x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\x18\x02\x20\x01(\rR\
-    \x04port\"\xbd\x01\n\x03Dns\x12\x18\n\x07servers\x18\x01\x20\x03(\tR\x07\
-    servers\x12\x12\n\x04bind\x18\x02\x20\x01(\tR\x04bind\x12%\n\x05hosts\
-    \x18\x03\x20\x03(\x0b2\x0f.Dns.HostsEntryR\x05hosts\x1a\x1d\n\x03Ips\x12\
-    \x16\n\x06values\x18\x01\x20\x03(\tR\x06values\x1aB\n\nHostsEntry\x12\
-    \x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x12\x1e\n\x05value\x18\x02\x20\
-    \x01(\x0b2\x08.Dns.IpsR\x05value:\x028\x01\"\xcc\x01\n\x03Log\x12\x20\n\
-    \x05level\x18\x01\x20\x01(\x0e2\n.Log.LevelR\x05level\x12#\n\x06output\
-    \x18\x02\x20\x01(\x0e2\x0b.Log.OutputR\x06output\x12\x1f\n\x0boutput_fil\
-    e\x18\x03\x20\x01(\tR\noutputFile\"<\n\x05Level\x12\t\n\x05TRACE\x10\0\
-    \x12\t\n\x05DEBUG\x10\x01\x12\x08\n\x04INFO\x10\x02\x12\x08\n\x04WARN\
-    \x10\x03\x12\t\n\x05ERROR\x10\x04\"\x1f\n\x06Output\x12\x0b\n\x07CONSOLE\
-    \x10\0\x12\x08\n\x04FILE\x10\x01\"\x80\x02\n\x12TunInboundSettings\x12\
-    \x0e\n\x02fd\x18\x01\x20\x01(\x05R\x02fd\x12\x12\n\x04auto\x18\t\x20\x01\
-    (\x08R\x04auto\x12\x12\n\x04name\x18\x02\x20\x01(\tR\x04name\x12\x18\n\
-    \x07address\x18\x03\x20\x01(\tR\x07address\x12\x18\n\x07gateway\x18\x04\
-    \x20\x01(\tR\x07gateway\x12\x18\n\x07netmask\x18\x05\x20\x01(\tR\x07netm\
-    ask\x12\x10\n\x03mtu\x18\x06\x20\x01(\x05R\x03mtu\x12(\n\x10fake_dns_exc\
-    lude\x18\x07\x20\x03(\tR\x0efakeDnsExclude\x12(\n\x10fake_dns_include\
-    \x18\x08\x20\x03(\tR\x0efakeDnsInclude\"P\n\x1aShadowsocksInboundSetting\
-    s\x12\x16\n\x06method\x18\x01\x20\x01(\tR\x06method\x12\x1a\n\x08passwor\
-    d\x18\x02\x20\x01(\tR\x08password\"3\n\x15TrojanInboundSettings\x12\x1a\
-    \n\x08password\x18\x03\x20\x01(\tR\x08password\".\n\x18WebSocketInboundS\
-    ettings\x12\x12\n\x04path\x18\x01\x20\x01(\tR\x04path\"-\n\x13AMuxInboun\
-    dSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"`\n\x13Quic\
-    InboundSettings\x12\x20\n\x0bcertificate\x18\x01\x20\x01(\tR\x0bcertific\
-    ate\x12'\n\x0fcertificate_key\x18\x02\x20\x01(\tR\x0ecertificateKey\".\n\
-    \x14ChainInboundSettings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06acto\
-    rs\"\x81\x01\n\x07Inbound\x12\x10\n\x03tag\x18\x01\x20\x01(\tR\x03tag\
-    \x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\x08protocol\x12\x18\n\x07addr\
-    ess\x18\x03\x20\x01(\tR\x07address\x12\x12\n\x04port\x18\x04\x20\x01(\rR\
-    \x04port\x12\x1a\n\x08settings\x18\x05\x20\x01(\x0cR\x08settings\"H\n\
-    \x18RedirectOutboundSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\
-    \x07address\x12\x12\n\x04port\x18\x02\x20\x01(\rR\x04port\"E\n\x15SocksO\
-    utboundSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\
-    \x12\n\x04port\x18\x02\x20\x01(\rR\x04port\"\x7f\n\x1bShadowsocksOutboun\
-    dSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\
-    \x04port\x18\x02\x20\x01(\rR\x04port\x12\x16\n\x06method\x18\x03\x20\x01\
-    (\tR\x06method\x12\x1a\n\x08password\x18\x04\x20\x01(\tR\x08password\"b\
-    \n\x16TrojanOutboundSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\
-    \x07address\x12\x12\n\x04port\x18\x02\x20\x01(\rR\x04port\x12\x1a\n\x08p\
-    assword\x18\x03\x20\x01(\tR\x08password\"u\n\x15VMessOutboundSettings\
-    \x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\x04port\
-    \x18\x02\x20\x01(\rR\x04port\x12\x12\n\x04uuid\x18\x03\x20\x01(\tR\x04uu\
-    id\x12\x1a\n\x08security\x18\x04\x20\x01(\tR\x08security\"J\n\x13TlsOutb\
-    oundSettings\x12\x1f\n\x0bserver_name\x18\x01\x20\x01(\tR\nserverName\
-    \x12\x12\n\x04alpn\x18\x02\x20\x03(\tR\x04alpn\"\xae\x01\n\x19WebSocketO\
-    utboundSettings\x12\x12\n\x04path\x18\x01\x20\x01(\tR\x04path\x12A\n\x07\
-    headers\x18\x02\x20\x03(\x0b2'.WebSocketOutboundSettings.HeadersEntryR\
-    \x07headers\x1a:\n\x0cHeadersEntry\x12\x10\n\x03key\x18\x01\x20\x01(\tR\
-    \x03key\x12\x14\n\x05value\x18\x02\x20\x01(\tR\x05value:\x028\x01\"?\n\
-    \x15HTTP2OutboundSettings\x12\x12\n\x04path\x18\x01\x20\x01(\tR\x04path\
-    \x12\x12\n\x04host\x18\x02\x20\x01(\tR\x04host\"O\n\x16TryAllOutboundSet\
-    tings\x12\x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1d\n\ndelay\
-    _base\x18\x02\x20\x01(\rR\tdelayBase\"0\n\x16RandomOutboundSettings\x12\
-    \x16\n\x06actors\x18\x01\x20\x03(\tR\x06actors\"\x9f\x01\n\x14AMuxOutbou\
-    ndSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07address\x12\x12\n\
-    \x04port\x18\x02\x20\x01(\rR\x04port\x12\x16\n\x06actors\x18\x03\x20\x03\
-    (\tR\x06actors\x12\x1f\n\x0bmax_accepts\x18\x04\x20\x01(\rR\nmaxAccepts\
-    \x12\x20\n\x0bconcurrency\x18\x05\x20\x01(\rR\x0bconcurrency\"\x87\x01\n\
-    \x14QuicOutboundSettings\x12\x18\n\x07address\x18\x01\x20\x01(\tR\x07add\
-    ress\x12\x12\n\x04port\x18\x02\x20\x01(\rR\x04port\x12\x1f\n\x0bserver_n\
-    ame\x18\x03\x20\x01(\tR\nserverName\x12\x20\n\x0bcertificate\x18\x04\x20\
-    \x01(\tR\x0bcertificate\"/\n\x15ChainOutboundSettings\x12\x16\n\x06actor\
-    s\x18\x01\x20\x03(\tR\x06actors\"K\n\x15RetryOutboundSettings\x12\x16\n\
-    \x06actors\x18\x01\x20\x03(\tR\x06actors\x12\x1a\n\x08attempts\x18\x02\
-    \x20\x01(\rR\x08attempts\"\xa6\x02\n\x18FailOverOutboundSettings\x12\x16\
-    \n\x06actors\x18\x01\x20\x03(\tR\x06actors\x12!\n\x0cfail_timeout\x18\
-    \x02\x20\x01(\rR\x0bfailTimeout\x12!\n\x0chealth_check\x18\x03\x20\x01(\
-    \x08R\x0bhealthCheck\x12%\n\x0echeck_interval\x18\x04\x20\x01(\rR\rcheck\
-    Interval\x12\x1a\n\x08failover\x18\x05\x20\x01(\x08R\x08failover\x12%\n\
-    \x0efallback_cache\x18\x06\x20\x01(\x08R\rfallbackCache\x12\x1d\n\ncache\
-    _size\x18\x07\x20\x01(\rR\tcacheSize\x12#\n\rcache_timeout\x18\x08\x20\
-    \x01(\rR\x0ccacheTimeout\"0\n\x16SelectOutboundSettings\x12\x16\n\x06act\
-    ors\x18\x01\x20\x03(\tR\x06actors\"h\n\x08Outbound\x12\x10\n\x03tag\x18\
-    \x01\x20\x01(\tR\x03tag\x12\x1a\n\x08protocol\x18\x02\x20\x01(\tR\x08pro\
-    tocol\x12\x12\n\x04bind\x18\x03\x20\x01(\tR\x04bind\x12\x1a\n\x08setting\
-    s\x18\x04\x20\x01(\x0cR\x08settings\"\xc5\x03\n\x06Router\x12\"\n\x05rul\
-    es\x18\x01\x20\x03(\x0b2\x0c.Router.RuleR\x05rules\x12%\n\x0edomain_reso\
-    lve\x18\x02\x20\x01(\x08R\rdomainResolve\x1a\xef\x02\n\x04Rule\x12\x1d\n\
-    \ntarget_tag\x18\x01\x20\x01(\tR\ttargetTag\x12-\n\x07domains\x18\x02\
-    \x20\x03(\x0b2\x13.Router.Rule.DomainR\x07domains\x12\x19\n\x08ip_cidrs\
-    \x18\x03\x20\x03(\tR\x07ipCidrs\x12'\n\x05mmdbs\x18\x04\x20\x03(\x0b2\
-    \x11.Router.Rule.MmdbR\x05mmdbs\x12\x1f\n\x0bport_ranges\x18\x05\x20\x03\
-    (\tR\nportRanges\x1au\n\x06Domain\x12,\n\x04type\x18\x01\x20\x01(\x0e2\
-    \x18.Router.Rule.Domain.TypeR\x04type\x12\x14\n\x05value\x18\x02\x20\x01\
-    (\tR\x05value\"'\n\x04Type\x12\t\n\x05PLAIN\x10\0\x12\n\n\x06DOMAIN\x10\
-    \x01\x12\x08\n\x04FULL\x10\x02\x1a=\n\x04Mmdb\x12\x12\n\x04file\x18\x01\
-    \x20\x01(\tR\x04file\x12!\n\x0ccountry_code\x18\x02\x20\x01(\tR\x0bcount\
-    ryCode\"\xc0\x01\n\x06Config\x12\x16\n\x03log\x18\x01\x20\x01(\x0b2\x04.\
-    LogR\x03log\x12$\n\x08inbounds\x18\x02\x20\x03(\x0b2\x08.InboundR\x08inb\
-    ounds\x12'\n\toutbounds\x18\x03\x20\x03(\x0b2\t.OutboundR\toutbounds\x12\
-    \x1f\n\x06router\x18\x04\x20\x01(\x0b2\x07.RouterR\x06router\x12\x16\n\
-    \x03dns\x18\x05\x20\x01(\x0b2\x04.DnsR\x03dns\x12\x16\n\x03api\x18\x06\
-    \x20\x01(\x0b2\x04.ApiR\x03apib\x06proto3\
-";
-
-static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
-
-fn parse_descriptor_proto() -> ::protobuf::descriptor::FileDescriptorProto {
-    ::protobuf::Message::parse_from_bytes(file_descriptor_proto_data).unwrap()
-}
-
-pub fn file_descriptor_proto() -> &'static ::protobuf::descriptor::FileDescriptorProto {
-    file_descriptor_proto_lazy.get(|| {
-        parse_descriptor_proto()
-    })
 }

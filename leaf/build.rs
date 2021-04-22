@@ -163,6 +163,13 @@ fn main() {
         protoc_rust::Codegen::new()
             .out_dir("src/config/internal")
             .inputs(&["src/config/internal/config.proto"])
+            .customize(protoc_rust::Customize {
+                expose_oneof: Some(true),
+                expose_fields: Some(true),
+                generate_accessors: Some(false),
+                lite_runtime: Some(true),
+                ..Default::default()
+            })
             .run()
             .expect("protoc");
 
@@ -170,12 +177,26 @@ fn main() {
         protoc_rust::Codegen::new()
             .out_dir("src/config")
             .inputs(&["src/config/geosite.proto"])
+            .customize(protoc_rust::Customize {
+                expose_oneof: Some(true),
+                expose_fields: Some(true),
+                generate_accessors: Some(false),
+                lite_runtime: Some(true),
+                ..Default::default()
+            })
             .run()
             .expect("protoc");
 
         protoc_rust::Codegen::new()
             .out_dir("src/app/outbound")
             .inputs(&["src/app/outbound/selector_cache.proto"])
+            .customize(protoc_rust::Customize {
+                expose_oneof: Some(true),
+                expose_fields: Some(true),
+                generate_accessors: Some(false),
+                lite_runtime: Some(true),
+                ..Default::default()
+            })
             .run()
             .expect("protoc");
     }

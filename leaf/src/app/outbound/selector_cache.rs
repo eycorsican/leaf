@@ -23,7 +23,7 @@
 /// of protobuf runtime.
 // const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_2_22_1;
 
-#[derive(PartialEq,Clone,Default)]
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct SelectorCache {
     // message fields
     pub items: ::std::collections::HashMap<::std::string::String, ::std::string::String>,
@@ -48,24 +48,6 @@ impl SelectorCache {
 
     pub fn get_items(&self) -> &::std::collections::HashMap<::std::string::String, ::std::string::String> {
         &self.items
-    }
-    pub fn clear_items(&mut self) {
-        self.items.clear();
-    }
-
-    // Param is passed by value, moved
-    pub fn set_items(&mut self, v: ::std::collections::HashMap<::std::string::String, ::std::string::String>) {
-        self.items = v;
-    }
-
-    // Mutable pointer to the field.
-    pub fn mut_items(&mut self) -> &mut ::std::collections::HashMap<::std::string::String, ::std::string::String> {
-        &mut self.items
-    }
-
-    // Take field
-    pub fn take_items(&mut self) -> ::std::collections::HashMap<::std::string::String, ::std::string::String> {
-        ::std::mem::replace(&mut self.items, ::std::collections::HashMap::new())
     }
 }
 
@@ -135,23 +117,6 @@ impl ::protobuf::Message for SelectorCache {
         SelectorCache::new()
     }
 
-    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
-        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
-        descriptor.get(|| {
-            let mut fields = ::std::vec::Vec::new();
-            fields.push(::protobuf::reflect::accessor::make_map_accessor::<_, ::protobuf::types::ProtobufTypeString, ::protobuf::types::ProtobufTypeString>(
-                "items",
-                |m: &SelectorCache| { &m.items },
-                |m: &mut SelectorCache| { &mut m.items },
-            ));
-            ::protobuf::reflect::MessageDescriptor::new_pb_name::<SelectorCache>(
-                "SelectorCache",
-                fields,
-                file_descriptor_proto()
-            )
-        })
-    }
-
     fn default_instance() -> &'static SelectorCache {
         static instance: ::protobuf::rt::LazyV2<SelectorCache> = ::protobuf::rt::LazyV2::INIT;
         instance.get(SelectorCache::new)
@@ -165,33 +130,8 @@ impl ::protobuf::Clear for SelectorCache {
     }
 }
 
-impl ::std::fmt::Debug for SelectorCache {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        ::protobuf::text_format::fmt(self, f)
-    }
-}
-
 impl ::protobuf::reflect::ProtobufValue for SelectorCache {
     fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
         ::protobuf::reflect::ReflectValueRef::Message(self)
     }
-}
-
-static file_descriptor_proto_data: &'static [u8] = b"\
-    \n%src/app/outbound/selector_cache.proto\"z\n\rSelectorCache\x12/\n\x05i\
-    tems\x18\x01\x20\x03(\x0b2\x19.SelectorCache.ItemsEntryR\x05items\x1a8\n\
-    \nItemsEntry\x12\x10\n\x03key\x18\x01\x20\x01(\tR\x03key\x12\x14\n\x05va\
-    lue\x18\x02\x20\x01(\tR\x05value:\x028\x01b\x06proto3\
-";
-
-static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
-
-fn parse_descriptor_proto() -> ::protobuf::descriptor::FileDescriptorProto {
-    ::protobuf::Message::parse_from_bytes(file_descriptor_proto_data).unwrap()
-}
-
-pub fn file_descriptor_proto() -> &'static ::protobuf::descriptor::FileDescriptorProto {
-    file_descriptor_proto_lazy.get(|| {
-        parse_descriptor_proto()
-    })
 }
