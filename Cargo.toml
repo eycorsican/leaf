@@ -3,7 +3,6 @@ members = [
     "leaf",
     "leaf-bin",
     "leaf-ffi",
-    "tun2socks-bin",
 ]
 default-members = ["leaf-bin"]
 
