@@ -332,7 +332,7 @@ async fn tcp_dial_task(
 pub async fn dial_tcp_stream(
     dns_client: SyncDnsClient,
     bind_addr: &SocketAddr,
-    address: &str,
+    address: &String,
     port: &u16,
 ) -> io::Result<Box<dyn ProxyStream>> {
     let mut resolver = Resolver::new(dns_client.clone(), bind_addr, address, port)
@@ -395,7 +395,7 @@ pub trait TcpConnector: Send + Sync + Unpin {
         &self,
         dns_client: SyncDnsClient,
         bind_addr: &SocketAddr,
-        address: &str,
+        address: &String,
         port: &u16,
     ) -> io::Result<Box<dyn ProxyStream>> {
         dial_tcp_stream(dns_client, bind_addr, address, port).await

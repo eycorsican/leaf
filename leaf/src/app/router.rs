@@ -452,7 +452,7 @@ impl Router {
                 self.dns_client
                     .read()
                     .await
-                    .lookup(sess.destination.host())
+                    .lookup(sess.destination.domain().unwrap())
                     .map_err(|e| anyhow!("lookup {} failed: {}", sess.destination.host(), e))
                     .await?
             };

@@ -160,15 +160,15 @@ impl DnsClient {
 
     async fn query_task(
         &self,
-        request: Box<[u8]>,
-        domain: &str,
+        request: Vec<u8>,
+        host: &str,
         server: &SocketAddr,
         bind_addr: &SocketAddr,
     ) -> Result<Vec<IpAddr>> {
         let socket = self.create_udp_socket(bind_addr, server).await?;
         let mut last_err = None;
         for _i in 0..*option::MAX_DNS_RETRIES {
-            debug!("looking up domain {} on {}", domain, server);
+            debug!("looking up host {} on {}", host, server);
             let start = tokio::time::Instant::now();
             match socket.send_to(&request, server).await {
                 Ok(_) => {
@@ -216,11 +216,11 @@ impl DnsClient {
                                     debug!(
                                         "return {} ips for {} from {} in {}ms",
                                         addrs.len(),
-                                        domain,
+                                        host,
                                         server,
                                         elapsed.as_millis(),
                                     );
-                                    trace!("ips for {}:\n{:#?}", domain, &addrs);
+                                    trace!("ips for {}:\n{:#?}", host, &addrs);
                                     return Ok(addrs);
                                 } else {
                                     // response with 0 records
@@ -262,26 +262,34 @@ impl DnsClient {
         msg
     }
 
-    async fn cache_insert(&self, domain: String, ips: Vec<IpAddr>) {
+    async fn cache_insert(&self, host: &str, ips: &Vec<IpAddr>) {
         if ips.is_empty() {
             return;
         }
         match ips[0] {
-            IpAddr::V4(..) => self.ipv4_cache.lock().await.put(domain, ips),
-            IpAddr::V6(..) => self.ipv6_cache.lock().await.put(domain, ips),
+            IpAddr::V4(..) => self
+                .ipv4_cache
+                .lock()
+                .await
+                .put(host.to_owned(), ips.clone()),
+            IpAddr::V6(..) => self
+                .ipv6_cache
+                .lock()
+                .await
+                .put(host.to_owned(), ips.clone()),
         };
     }
 
-    pub async fn lookup(&self, domain: String) -> Result<Vec<IpAddr>> {
-        self.lookup_with_bind(domain, &self.bind_addr).await
+    pub async fn lookup(&self, host: &String) -> Result<Vec<IpAddr>> {
+        self.lookup_with_bind(host, &self.bind_addr).await
     }
 
     pub async fn lookup_with_bind(
         &self,
-        domain: String,
+        host: &String,
         bind_addr: &SocketAddr,
     ) -> Result<Vec<IpAddr>> {
-        if let Ok(ip) = domain.parse::<IpAddr>() {
+        if let Ok(ip) = host.parse::<IpAddr>() {
             return Ok(vec![ip]);
         }
 
@@ -289,27 +297,27 @@ impl DnsClient {
 
         match (*crate::option::ENABLE_IPV6, *crate::option::PREFER_IPV6) {
             (true, true) => {
-                if let Some(ips) = self.ipv6_cache.lock().await.get(&domain) {
+                if let Some(ips) = self.ipv6_cache.lock().await.get(host) {
                     let mut ips = ips.to_vec();
                     cached_ips.append(&mut ips);
                 }
-                if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
+                if let Some(ips) = self.ipv4_cache.lock().await.get(host) {
                     let mut ips = ips.to_vec();
                     cached_ips.append(&mut ips);
                 }
             }
             (true, false) => {
-                if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
+                if let Some(ips) = self.ipv4_cache.lock().await.get(host) {
                     let mut ips = ips.to_vec();
                     cached_ips.append(&mut ips);
                 }
-                if let Some(ips) = self.ipv6_cache.lock().await.get(&domain) {
+                if let Some(ips) = self.ipv6_cache.lock().await.get(host) {
                     let mut ips = ips.to_vec();
                     cached_ips.append(&mut ips);
                 }
             }
             _ => {
-                if let Some(ips) = self.ipv4_cache.lock().await.get(&domain) {
+                if let Some(ips) = self.ipv4_cache.lock().await.get(host) {
                     let mut ips = ips.to_vec();
                     cached_ips.append(&mut ips);
                 }
@@ -324,21 +332,21 @@ impl DnsClient {
         // and insert the static IPs to the cache because there's a chance
         // for the IPs in the cache to be re-ordered.
         if !self.hosts.is_empty() {
-            if let Some(ips) = self.hosts.get(&domain) {
+            if let Some(ips) = self.hosts.get(host) {
                 if !ips.is_empty() {
                     if ips.len() > 1 {
-                        self.cache_insert(domain.clone(), ips.to_vec()).await;
+                        self.cache_insert(host, ips).await;
                     }
                     return Ok(ips.to_vec());
                 }
             }
         }
 
-        let mut fqdn = domain.clone();
+        let mut fqdn = host.to_owned();
         fqdn.push('.');
         let name = match Name::from_str(&fqdn) {
             Ok(n) => n,
-            Err(e) => return Err(anyhow!("invalid domain name [{}]: {}", &domain, e)),
+            Err(e) => return Err(anyhow!("invalid domain name [{}]: {}", host, e)),
         };
 
         let mut query_tasks = Vec::new();
@@ -352,12 +360,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(
-                        msg_buf.clone().into_boxed_slice(),
-                        &domain,
-                        server,
-                        bind_addr,
-                    );
+                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -370,12 +373,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(
-                        msg_buf.clone().into_boxed_slice(),
-                        &domain,
-                        server,
-                        bind_addr,
-                    );
+                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -389,12 +387,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(
-                        msg_buf.clone().into_boxed_slice(),
-                        &domain,
-                        server,
-                        bind_addr,
-                    );
+                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -407,12 +400,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(
-                        msg_buf.clone().into_boxed_slice(),
-                        &domain,
-                        server,
-                        bind_addr,
-                    );
+                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -426,12 +414,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(
-                        msg_buf.clone().into_boxed_slice(),
-                        &domain,
-                        server,
-                        bind_addr,
-                    );
+                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -445,7 +428,7 @@ impl DnsClient {
         for v in futures::future::join_all(query_tasks).await {
             match v {
                 Ok(mut v) => {
-                    self.cache_insert(domain.clone(), v.0.clone()).await;
+                    self.cache_insert(host, &v.0).await;
                     ips.append(&mut v.0);
                 }
                 Err(e) => last_err = Some(anyhow!("all dns servers failed, last error: {}", e)),

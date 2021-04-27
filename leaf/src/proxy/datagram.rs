@@ -87,7 +87,7 @@ impl OutboundDatagramSendHalf for SimpleOutboundDatagramSendHalf {
                     self.1
                         .read()
                         .await
-                        .lookup_with_bind(domain.to_owned(), &self.2)
+                        .lookup_with_bind(domain, &self.2)
                         .map_err(|e| {
                             io::Error::new(
                                 io::ErrorKind::Other,

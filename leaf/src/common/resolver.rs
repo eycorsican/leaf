@@ -14,14 +14,14 @@ impl Resolver {
     pub async fn new<'a>(
         dns_client: SyncDnsClient,
         bind_addr: &'a SocketAddr,
-        address: &'a str,
+        address: &'a String,
         port: &'a u16,
     ) -> Result<Self> {
         let mut ips = {
             dns_client
                 .read()
                 .await
-                .lookup_with_bind(address.to_string(), bind_addr)
+                .lookup_with_bind(address, bind_addr)
                 .map_err(|e| anyhow!("lookup {} failed: {}", address, e))
                 .await?
         };

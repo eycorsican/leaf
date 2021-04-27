@@ -155,7 +155,7 @@ impl Manager {
             self.dns_client
                 .read()
                 .await
-                .lookup_with_bind(self.address.to_owned(), &self.bind_addr)
+                .lookup_with_bind(&self.address, &self.bind_addr)
                 .map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::Other,

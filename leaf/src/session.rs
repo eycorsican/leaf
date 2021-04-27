@@ -161,6 +161,7 @@ impl SocksAddr {
             Self::Domain(domain, _port) => 1 + 1 + domain.len() + 2,
         }
     }
+
     pub fn port(&self) -> u16 {
         match self {
             SocksAddr::Ip(addr) => addr.port(),
@@ -176,7 +177,7 @@ impl SocksAddr {
     }
 
     pub fn domain(&self) -> Option<&String> {
-        if let SocksAddr::Domain(domain, _) = self {
+        if let SocksAddr::Domain(ref domain, _) = self {
             Some(domain)
         } else {
             None
