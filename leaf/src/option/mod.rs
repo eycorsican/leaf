@@ -78,6 +78,10 @@ lazy_static! {
         get_env_var_or("LINK_BUFFER_SIZE", 2)
     };
 
+    pub static ref OUTBOUND_DIAL_TIMEOUT: u64 = {
+        get_env_var_or("OUTBOUND_DIAL_TIMEOUT", 4)
+    };
+
     /// Maximum outbound dial concurrency.
     pub static ref OUTBOUND_DIAL_CONCURRENCY: usize = {
         get_env_var_or("OUTBOUND_DIAL_CONCURRENCY", 1)

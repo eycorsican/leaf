@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::net::{Ipv4Addr, Ipv6Addr};
+use std::time::Duration;
 use std::{
     io,
     net::{IpAddr, SocketAddr},
@@ -14,6 +15,7 @@ use log::*;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, UdpSocket};
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 
 #[cfg(target_os = "android")]
 use {
@@ -323,7 +325,11 @@ async fn tcp_dial_task(
     protect_socket(socket.as_raw_fd()).await?;
 
     trace!("tcp dialing {}", &dial_addr);
-    let stream = socket.connect(dial_addr).await?;
+    let stream = timeout(
+        Duration::from_secs(*option::OUTBOUND_DIAL_TIMEOUT),
+        socket.connect(dial_addr),
+    )
+    .await??;
     trace!("tcp connected {} <-> {}", stream.local_addr()?, &dial_addr);
     Ok((Box::new(SimpleProxyStream(stream)), dial_addr))
 }

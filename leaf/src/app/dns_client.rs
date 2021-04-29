@@ -24,6 +24,7 @@ pub struct DnsClient {
     bind_addr: SocketAddr,
     servers: Vec<SocketAddr>,
     hosts: HashMap<String, Vec<IpAddr>>,
+    // TODO apply ttl to cached entries
     ipv4_cache: Arc<TokioMutex<LruCache<String, Vec<IpAddr>>>>,
     ipv6_cache: Arc<TokioMutex<LruCache<String, Vec<IpAddr>>>>,
 }
