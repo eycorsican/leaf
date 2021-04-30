@@ -20,6 +20,9 @@ local:
 local-dev:
 	cargo build -p leaf-bin
 
+mipsel:
+	./misc/build_cross.sh mipsel-unknown-linux-musl
+
 test:
 	cargo test -p leaf -- --nocapture
 

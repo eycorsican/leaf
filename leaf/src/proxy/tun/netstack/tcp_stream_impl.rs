@@ -2,14 +2,11 @@ use std::{cmp::min, io, net::SocketAddr, os::raw, pin::Pin, sync::Arc};
 
 use anyhow::Result;
 use bytes::BytesMut;
-use futures::{
-    ready,
-    task::{Context, Poll},
-};
+use futures::task::{Context, Poll};
 use log::*;
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
-    sync::mpsc::{unbounded_channel, UnboundedReceiver},
+    sync::mpsc::unbounded_channel,
 };
 
 use crate::common::mutex::AtomicMutex;
@@ -31,13 +28,13 @@ pub extern "C" fn tcp_recv_cb(
     let TcpStreamContextInner {
         local_addr,
         remote_addr,
-        ref mut tx,
+        ref mut read_tx,
         ..
-    } = *unsafe { TcpStreamContext::lock_from_lwip_callback(arg as *const TcpStreamContext) };
+    } = *unsafe { TcpStreamContext::assume_locked(arg as *const TcpStreamContext) };
 
     if p.is_null() {
-        trace!("tcp eof {}", local_addr);
-        let _ = tx.take();
+        trace!("netstack tcp eof {}", local_addr);
+        let _ = read_tx.take();
         return err_enum_t_ERR_OK as err_t;
     }
 
@@ -49,17 +46,17 @@ pub extern "C" fn tcp_recv_cb(
         buf.set_len(pbuflen as usize);
     };
 
-    if let Some(Err(err)) = tx.as_ref().map(|tx| tx.send(buf)) {
+    if let Some(Err(err)) = read_tx.as_ref().map(|tx| tx.send(buf)) {
         // rx is closed
         // TODO remove this message
         trace!(
-            "recv {} bytes data on {} -> {} failed: {}",
+            "netstack tcp recv {} bytes data on {} -> {} failed: {}",
             pbuflen,
             local_addr,
             remote_addr,
             err
         );
-        return err_enum_t_ERR_CONN as err_t;
+        return unsafe { tcp_shutdown(tpcb, 1, 0) };
     }
 
     unsafe { pbuf_free(p) };
@@ -71,8 +68,7 @@ pub extern "C" fn tcp_sent_cb(arg: *mut raw::c_void, tpcb: *mut tcp_pcb, len: u1
     // SAFETY: tcp_sent_cb is called from tcp_input only when
     // an ACK packet is received. Thus lwip_lock must be locked.
     // See also `<NetStackImpl as AsyncWrite>::poll_write`.
-    let ctx =
-        &*unsafe { TcpStreamContext::lock_from_lwip_callback(arg as *const TcpStreamContext) };
+    let ctx = &*unsafe { TcpStreamContext::assume_locked(arg as *const TcpStreamContext) };
     if let Some(waker) = ctx.write_waker.as_ref() {
         waker.wake_by_ref();
     }
@@ -86,13 +82,13 @@ pub extern "C" fn tcp_err_cb(arg: *mut ::std::os::raw::c_void, err: err_t) {
     // Thus lwip_lock must be locked before calling any of these.
     let TcpStreamContextInner {
         local_addr,
-        tx,
+        read_tx,
         errored,
         ..
-    } = &mut *unsafe { TcpStreamContext::lock_from_lwip_callback(arg as *const TcpStreamContext) };
-    trace!("tcp err {} {}", err, local_addr);
+    } = &mut *unsafe { TcpStreamContext::assume_locked(arg as *const TcpStreamContext) };
+    trace!("netstack tcp err {} {}", err, local_addr);
     *errored = true;
-    let _ = tx.take();
+    let _ = read_tx.take();
 }
 
 pub struct TcpStreamImpl {
@@ -100,7 +96,6 @@ pub struct TcpStreamImpl {
     src_addr: SocketAddr,
     dest_addr: SocketAddr,
     pcb: *mut tcp_pcb,
-    rx: UnboundedReceiver<Vec<u8>>,
     write_buf: BytesMut,
     callback_ctx: TcpStreamContext,
 }
@@ -115,7 +110,7 @@ impl TcpStreamImpl {
             // lwIP will propagate the pressure back by announcing a decreased window size.
             // Thus our unbounded channel will never be overwhelmed. To achieve this, we must
             // call `tcp_recved` when the data from our internal buffer are consumed.
-            let (tx, rx) = unbounded_channel();
+            let (read_tx, read_rx) = unbounded_channel();
             let src_addr = util::to_socket_addr(&(*pcb).remote_ip, (*pcb).remote_port)?;
             let dest_addr = util::to_socket_addr(&(*pcb).local_ip, (*pcb).local_port)?;
             let stream = Box::new(TcpStreamImpl {
@@ -123,9 +118,8 @@ impl TcpStreamImpl {
                 src_addr,
                 dest_addr,
                 pcb,
-                rx,
                 write_buf: BytesMut::new(),
-                callback_ctx: TcpStreamContext::new(src_addr, dest_addr, tx),
+                callback_ctx: TcpStreamContext::new(src_addr, dest_addr, read_tx, read_rx),
             });
             let arg = &stream.callback_ctx as *const _;
             tcp_arg(pcb, arg as *mut raw::c_void);
@@ -135,7 +129,7 @@ impl TcpStreamImpl {
 
             stream.apply_pcb_opts();
 
-            trace!("tcp new {}", stream.local_addr());
+            trace!("netstack tcp new {}", stream.local_addr());
 
             Ok(stream)
         }
@@ -158,23 +152,8 @@ impl TcpStreamImpl {
     }
 }
 
-impl Drop for TcpStreamImpl {
-    fn drop(&mut self) {
-        trace!("tcp drop {}", self.local_addr());
-        let guard = self.lwip_lock.lock();
-        if !self.callback_ctx.lock(&guard).errored {
-            unsafe {
-                let err = tcp_close(self.pcb);
-                if err != err_enum_t_ERR_OK as err_t {
-                    warn!("tcp_close err {}", err);
-                }
-                tcp_arg(self.pcb, std::ptr::null_mut());
-                tcp_recv(self.pcb, None);
-                tcp_sent(self.pcb, None);
-                tcp_err(self.pcb, None);
-            }
-        }
-    }
+fn broken_pipe() -> io::Error {
+    io::Error::new(io::ErrorKind::BrokenPipe, "broken pipe")
 }
 
 impl AsyncRead for TcpStreamImpl {
@@ -183,41 +162,44 @@ impl AsyncRead for TcpStreamImpl {
         cx: &mut Context,
         buf: &mut ReadBuf,
     ) -> Poll<io::Result<()>> {
-        if !self.write_buf.is_empty() {
-            let to_read = min(buf.remaining(), self.write_buf.len());
-            let piece = self.write_buf.split_to(to_read);
+        let me = &mut *self;
+        let guard = me.lwip_lock.lock();
+        let TcpStreamContextInner {
+            ref mut read_rx,
+            errored,
+            ..
+        } = *me.callback_ctx.with_lock(&guard);
+        // handle any previously overflowed data
+        if !me.write_buf.is_empty() {
+            let to_read = min(buf.remaining(), me.write_buf.len());
+            let piece = me.write_buf.split_to(to_read);
             buf.put_slice(&piece[..to_read]);
-            unsafe {
-                let _g = self.lwip_lock.lock();
-                tcp_recved(self.pcb, to_read as u16_t);
-            }
+            unsafe { tcp_recved(me.pcb, to_read as u16_t) };
             return Poll::Ready(Ok(()));
         }
-        let res = {
-            let guard = self.lwip_lock.lock();
-            let errored = self.callback_ctx.lock(&guard).errored;
-            errored
-        };
-        if res {
-            return Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                "read on broken pipe",
-            )));
-        }
-        match ready!(self.rx.poll_recv(cx)) {
-            Some(data) => {
+        match Pin::new(read_rx).poll_recv(cx) {
+            Poll::Ready(Some(data)) => {
                 let to_read = min(buf.remaining(), data.len());
                 buf.put_slice(&data[..to_read]);
                 if to_read < data.len() {
-                    self.write_buf.extend_from_slice(&data[to_read..]);
+                    // overflow
+                    me.write_buf.extend_from_slice(&data[to_read..]);
                 }
-                unsafe {
-                    let _g = self.lwip_lock.lock();
-                    tcp_recved(self.pcb, to_read as u16_t);
-                }
+                unsafe { tcp_recved(me.pcb, to_read as u16_t) };
                 Poll::Ready(Ok(()))
             }
-            None => Poll::Ready(Ok(())),
+            Poll::Ready(None) => {
+                Poll::Ready(Ok(())) // eof
+            }
+            // no more buffered data
+            Poll::Pending => {
+                // report error after all buffered/overflowed data are handled
+                if errored {
+                    Poll::Ready(Err(broken_pipe()))
+                } else {
+                    Poll::Pending
+                }
+            }
         }
     }
 }
@@ -225,73 +207,123 @@ impl AsyncRead for TcpStreamImpl {
 unsafe impl Sync for TcpStreamImpl {}
 unsafe impl Send for TcpStreamImpl {}
 
+impl Drop for TcpStreamImpl {
+    fn drop(&mut self) {
+        let guard = self.lwip_lock.lock();
+        let TcpStreamContextInner {
+            local_addr,
+            errored,
+            ..
+        } = *self.callback_ctx.with_lock(&guard);
+        trace!("netstack tcp drop {}", local_addr);
+        if !errored {
+            let err = unsafe {
+                tcp_arg(self.pcb, std::ptr::null_mut());
+                tcp_recv(self.pcb, None);
+                tcp_sent(self.pcb, None);
+                tcp_err(self.pcb, None);
+                tcp_close(self.pcb)
+            };
+            if err != err_enum_t_ERR_OK as err_t {
+                warn!("netstack tcp_close error {}", err);
+            }
+        }
+    }
+}
+
 impl AsyncWrite for TcpStreamImpl {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
         let guard = self.lwip_lock.lock();
         let TcpStreamContextInner {
-            write_waker: ref mut waker,
+            ref mut write_waker,
             errored,
             ..
-        } = *self.callback_ctx.lock(&guard);
+        } = *self.callback_ctx.with_lock(&guard);
         if errored {
-            return Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::BrokenPipe,
-                "write on broken pipe",
-            )));
+            return Poll::Ready(Err(broken_pipe()));
         }
-        let mut to_write = buf.len();
-        unsafe {
-            let snd_buf_size = (*self.pcb).snd_buf as usize;
-            if snd_buf_size < to_write {
-                to_write = snd_buf_size;
+        let to_write = min(buf.len(), unsafe { (*self.pcb).snd_buf as usize });
+        if to_write == 0 {
+            if write_waker
+                .as_ref()
+                .map(|w| !w.will_wake(cx.waker()))
+                .unwrap_or(true)
+            {
+                write_waker.replace(cx.waker().clone());
             }
-            if to_write == 0 {
-                if waker
-                    .as_ref()
-                    .map(|w| !w.will_wake(cx.waker()))
-                    .unwrap_or(true)
-                {
-                    waker.replace(cx.waker().clone());
-                }
-                return Poll::Pending;
-            }
-            let err = tcp_write(
+            return Poll::Pending;
+        }
+        let err = unsafe {
+            tcp_write(
                 self.pcb,
                 buf.as_ptr() as *const raw::c_void,
                 to_write as u16_t,
                 TCP_WRITE_FLAG_COPY as u8,
-            );
+            )
+        };
+        if err == err_enum_t_ERR_OK as err_t {
+            let err = unsafe { tcp_output(self.pcb) };
             if err == err_enum_t_ERR_OK as err_t {
-                let err = tcp_output(self.pcb);
-                if err != err_enum_t_ERR_OK as err_t {
-                    warn!("tcp_output err {}", err);
-                }
-            } else if err == err_enum_t_ERR_MEM as err_t {
-                warn!("tcp err_mem");
-                if waker
-                    .as_ref()
-                    .map(|w| !w.will_wake(cx.waker()))
-                    .unwrap_or(true)
-                {
-                    waker.replace(cx.waker().clone());
-                }
-                return Poll::Pending;
+                Poll::Ready(Ok(to_write))
             } else {
-                return Poll::Ready(Err(io::Error::new(
+                Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::Interrupted,
-                    format!("tcp_write error {:?}", err),
-                )));
+                    format!("netstack tcp_output error {}", err),
+                )))
             }
+        } else if err == err_enum_t_ERR_MEM as err_t {
+            warn!("netstack tcp err_mem");
+            if write_waker
+                .as_ref()
+                .map(|w| !w.will_wake(cx.waker()))
+                .unwrap_or(true)
+            {
+                write_waker.replace(cx.waker().clone());
+            }
+            Poll::Pending
+        } else {
+            Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                format!("netstack tcp_write error {}", err),
+            )))
         }
-        Poll::Ready(Ok(to_write))
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
-        // FIXME perhaps call tcp_output?
-        Poll::Ready(Ok(()))
+        let guard = self.lwip_lock.lock();
+        if self.callback_ctx.with_lock(&guard).errored {
+            return Poll::Ready(Err(broken_pipe()));
+        }
+        let err = unsafe { tcp_output(self.pcb) };
+        if err != err_enum_t_ERR_OK as err_t {
+            Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                format!("netstack tcp_output error {}", err),
+            )))
+        } else {
+            Poll::Ready(Ok(()))
+        }
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
-        Poll::Ready(Ok(()))
+        let guard = self.lwip_lock.lock();
+        let TcpStreamContextInner {
+            local_addr,
+            errored,
+            ..
+        } = *self.callback_ctx.with_lock(&guard);
+        if errored {
+            return Poll::Ready(Err(broken_pipe()));
+        }
+        trace!("netstack tcp shutdown {}", local_addr);
+        let err = unsafe { tcp_shutdown(self.pcb, 0, 1) };
+        if err != err_enum_t_ERR_OK as err_t {
+            Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                format!("netstack tcp_shutdown tx error {}", err),
+            )))
+        } else {
+            Poll::Ready(Ok(()))
+        }
     }
 }

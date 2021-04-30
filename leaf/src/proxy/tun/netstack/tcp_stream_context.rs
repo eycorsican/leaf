@@ -5,18 +5,16 @@ use std::{
     ops::{Deref, DerefMut},
     sync::atomic::{AtomicBool, Ordering},
 };
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::common::mutex::AtomicMutexGuard;
 
 pub struct TcpStreamContextInner {
     pub local_addr: SocketAddr,
     pub remote_addr: SocketAddr,
-    pub tx: Option<UnboundedSender<Vec<u8>>>,
+    pub read_tx: Option<UnboundedSender<Vec<u8>>>,
+    pub read_rx: UnboundedReceiver<Vec<u8>>,
     pub errored: bool,
-    // perhaps a listener level write waker is more appropriate?
-    //
-    // can should wake all connection writes when memory is available.
     pub write_waker: Option<Waker>,
 }
 
@@ -58,13 +56,15 @@ impl TcpStreamContext {
     pub fn new(
         local_addr: SocketAddr,
         remote_addr: SocketAddr,
-        tx: UnboundedSender<Vec<u8>>,
+        read_tx: UnboundedSender<Vec<u8>>,
+        read_rx: UnboundedReceiver<Vec<u8>>,
     ) -> Self {
         TcpStreamContext {
             inner: UnsafeCell::new(TcpStreamContextInner {
                 local_addr,
                 remote_addr,
-                tx: Some(tx),
+                read_tx: Some(read_tx),
+                read_rx,
                 errored: false,
                 write_waker: None,
             }),
@@ -72,20 +72,16 @@ impl TcpStreamContext {
         }
     }
 
-    fn lock_raw(&self) -> TcpStreamContextRef {
-        if self.borrowed.swap(true, Ordering::Acquire) {
-            panic!("TcpStreamContext locked twice within a locked period")
-        }
-        TcpStreamContextRef { ctx: self }
-    }
-
     /// Access to inner data with lwip_lock locked.
     ///
     /// # Panics
     ///
     /// Panics if another reference to inner data exists.
-    pub fn lock<'a>(&'a self, _guard: &'a AtomicMutexGuard) -> TcpStreamContextRef<'a> {
-        self.lock_raw()
+    pub fn with_lock<'a>(&'a self, _guard: &'a AtomicMutexGuard) -> TcpStreamContextRef<'a> {
+        if self.borrowed.swap(true, Ordering::Acquire) {
+            panic!("TcpStreamContext locked twice within a locked period")
+        }
+        TcpStreamContextRef { ctx: self }
     }
 
     /// Access to inner data within a lwIP callback where lwip_lock is guaranteed to be locked.
@@ -93,7 +89,7 @@ impl TcpStreamContext {
     /// # Panics
     ///
     /// Panics if another reference to inner data exists.
-    pub unsafe fn lock_from_lwip_callback<'a>(ptr: *const Self) -> TcpStreamContextRef<'a> {
-        (&*ptr).lock_raw()
+    pub unsafe fn assume_locked<'a>(ptr: *const Self) -> TcpStreamContextRef<'a> {
+        TcpStreamContextRef { ctx: &*ptr }
     }
 }
