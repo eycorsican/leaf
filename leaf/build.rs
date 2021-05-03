@@ -131,15 +131,7 @@ fn generate_mobile_bindings() {
 }
 
 fn main() {
-    #[cfg(all(
-        feature = "inbound-tun",
-        any(
-            target_os = "ios",
-            target_os = "android",
-            target_os = "macos",
-            target_os = "linux"
-        )
-    ))]
+    #[cfg(feature = "inbound-tun")]
     {
         let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
         if os == "ios" || os == "android" || os == "linux" || os == "macos" {
