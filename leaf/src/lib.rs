@@ -526,6 +526,11 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     rt.shutdown_background();
 
+    RUNTIME_MANAGER
+        .lock()
+        .map_err(|_| Error::RuntimeManager)?
+        .remove(&rt_id);
+
     log::trace!("leaf shutdown");
 
     Ok(())

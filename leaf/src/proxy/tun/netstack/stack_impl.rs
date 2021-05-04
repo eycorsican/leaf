@@ -60,6 +60,8 @@ impl NetStackImpl {
     ) -> Box<Self> {
         LWIP_INIT.call_once(|| unsafe { lwip_init() });
 
+        unsafe { super::STACK_CLOSED.store(false, Ordering::Relaxed) };
+
         unsafe {
             (*netif_list).output = Some(output_ip4);
             (*netif_list).output_ip6 = Some(output_ip6);
@@ -321,9 +323,7 @@ impl NetStackImpl {
 
 impl Drop for NetStackImpl {
     fn drop(&mut self) {
-        unsafe {
-            super::STACK_CLOSED.store(true, Ordering::Relaxed);
-        }
+        unsafe { super::STACK_CLOSED.store(true, Ordering::Relaxed) };
     }
 }
 
