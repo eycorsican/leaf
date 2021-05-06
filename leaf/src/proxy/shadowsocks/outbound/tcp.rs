@@ -2,11 +2,12 @@ use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
 use bytes::BytesMut;
+use tokio::io::AsyncWriteExt;
 
 use super::shadow::ShadowedStream;
 use crate::{
     app::SyncDnsClient,
-    proxy::{BufHeadProxyStream, OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpConnector, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
 
@@ -51,11 +52,12 @@ impl TcpOutboundHandler for Handler {
             )
             .await?
         };
-        let stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
+        let mut stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
         let mut buf = BytesMut::new();
         sess.destination
             .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
-        // FIXME receive-only conns
-        Ok(Box::new(BufHeadProxyStream::new(stream, buf.freeze())))
+        // FIXME combine header and first payload
+        stream.write_all(&buf).await?;
+        Ok(Box::new(SimpleProxyStream(stream)))
     }
 }

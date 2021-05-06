@@ -4,10 +4,11 @@ use std::net::SocketAddr;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use sha2::{Digest, Sha224};
+use tokio::io::AsyncWriteExt;
 
 use crate::{
     app::SyncDnsClient,
-    proxy::{BufHeadProxyStream, OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpConnector, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
 
@@ -36,7 +37,7 @@ impl TcpOutboundHandler for Handler {
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>> {
-        let stream = if let Some(stream) = stream {
+        let mut stream = if let Some(stream) = stream {
             stream
         } else {
             self.dial_tcp_stream(
@@ -56,7 +57,8 @@ impl TcpOutboundHandler for Handler {
         sess.destination
             .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
         buf.put_slice(b"\r\n");
-        // FIXME receive-only conns
-        Ok(Box::new(BufHeadProxyStream::new(stream, buf.freeze())))
+        // FIXME combine header and first payload
+        stream.write_all(&buf).await?;
+        Ok(Box::new(SimpleProxyStream(stream)))
     }
 }
