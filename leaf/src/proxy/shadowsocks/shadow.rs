@@ -154,7 +154,11 @@ where
                     // read and decipher payload length
                     let me = &mut *self;
                     let read_size = 2 + me.cipher.tag_len();
-                    ready!(me.poll_read_exact(cx, read_size))?;
+                    if let Err(e) = ready!(me.poll_read_exact(cx, read_size)) {
+                        if e.kind() == io::ErrorKind::UnexpectedEof {
+                            return Poll::Ready(Ok(()));
+                        }
+                    }
                     let dec = me.dec.as_mut().expect("uninitialized cipher");
                     dec.decrypt(&mut me.read_buf).map_err(|_| crypto_err())?;
                     let payload_len = BigEndian::read_u16(&me.read_buf) as usize;
