@@ -36,15 +36,32 @@ socks-port = 1080
 
 [Proxy]
 Direct = direct
-Proxy = ss, 1.2.3.4, 8123, encrypt-method=aes-256-gcm, password=123456
-
-[Rule]
-IP-CIDR, 8.8.8.8/32, Proxy
-DOMAIN-SUFFIX, google.com, Proxy
-FINAL, Direct
 ```
 
 More configuration examples can be found [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md).
+
+## TUN Mode and Gateway Mode
+
+### TUN Mode
+
+This syntax (`tun = auto`) is supported on macOS and Linux.
+
+```ini
+[General]
+dns-server = 223.5.5.5
+tun = auto
+
+[Proxy]
+Direct = direct
+```
+
+### Gateway Mode
+
+Running in gateway mode requires a configuration with TUN mode enabled. Gateway mode can be enabled by an environment variable.
+
+```sh
+GATEWAY_MODE=true leaf -c config.conf
+```
 
 ## Windows
 
