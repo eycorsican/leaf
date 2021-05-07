@@ -157,6 +157,8 @@ where
                     if let Err(e) = ready!(me.poll_read_exact(cx, read_size)) {
                         if e.kind() == io::ErrorKind::UnexpectedEof {
                             return Poll::Ready(Ok(()));
+                        } else {
+                            return Poll::Ready(Err(e));
                         }
                     }
                     let dec = me.dec.as_mut().expect("uninitialized cipher");
