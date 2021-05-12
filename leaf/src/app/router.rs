@@ -380,16 +380,17 @@ impl Router {
                 for mmdb in rr.mmdbs.iter() {
                     let reader = match mmdb_readers.get(&mmdb.file) {
                         Some(r) => r.clone(),
-                        None => {
-                            if let Ok(r) = maxminddb::Reader::open_mmap(&mmdb.file) {
+                        None => match maxminddb::Reader::open_mmap(&mmdb.file) {
+                            Ok(r) => {
                                 let r = Arc::new(r);
                                 mmdb_readers.insert((&mmdb.file).to_owned(), r.clone());
                                 r
-                            } else {
-                                warn!("open mmdb file {} failed", mmdb.file);
+                            }
+                            Err(e) => {
+                                warn!("open mmdb file {} failed: {:?}", mmdb.file, e);
                                 continue;
                             }
-                        }
+                        },
                     };
                     cond_and.add(Box::new(MmdbMatcher::new(
                         reader,
