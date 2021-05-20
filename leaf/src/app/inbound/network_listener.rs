@@ -5,7 +5,7 @@ use anyhow::Result;
 
 use futures::stream::StreamExt;
 use log::*;
-use tokio::net::{TcpListener, TcpStream, UdpSocket};
+use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 
@@ -14,7 +14,7 @@ use crate::app::nat_manager::{NatManager, UdpPacket};
 use crate::proxy::InboundHandler;
 use crate::proxy::{
     InboundDatagram, InboundTransport, SimpleInboundDatagram, SimpleProxyStream,
-    SingleInboundTransport,
+    SingleInboundTransport, TcpListener,
 };
 use crate::session::{Network, Session, SocksAddr};
 use crate::Runner;
