@@ -48,7 +48,7 @@ use crate::proxy::vmess;
 use crate::proxy::ws;
 
 use crate::{
-    app::dns_client::DnsClient,
+    app::dns_client::{parse_bind_addr, DnsClient},
     config::{self, Outbound},
     proxy::{self, OutboundHandler, ProxyHandlerType},
 };
@@ -80,7 +80,7 @@ impl OutboundManager {
                 default_handler.replace(String::from(&outbound.tag));
                 debug!("default handler [{}]", &outbound.tag);
             }
-            let bind_addr = SocketAddr::new(outbound.bind.parse::<IpAddr>()?, 0);
+            let bind_addr = parse_bind_addr(&outbound.bind)?;
             match outbound.protocol.as_str() {
                 #[cfg(feature = "outbound-direct")]
                 "direct" => {
@@ -381,7 +381,7 @@ impl OutboundManager {
                 if handlers.contains_key(&tag) {
                     continue;
                 }
-                let bind_addr = SocketAddr::new(outbound.bind.parse::<IpAddr>()?, 0);
+                let bind_addr = parse_bind_addr(&outbound.bind)?;
                 match outbound.protocol.as_str() {
                     #[cfg(feature = "outbound-tryall")]
                     "tryall" => {

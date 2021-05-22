@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{AddrParseError, IpAddr, SocketAddr, SocketAddrV6};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,6 +19,26 @@ use trust_dns_proto::{
 };
 
 use crate::{option, proxy::UdpConnector};
+
+pub fn parse_bind_addr(bind: &str) -> Result<SocketAddr> {
+    let mut split = bind.split('%');
+    let ip_addr = split.next().ok_or(anyhow!("Empty bind address"))?;
+    match split.next() {
+        Some(scope_id) => {
+            let _: Option<()> = split
+                .next()
+                .map(|_| Err(anyhow!("Unexpected % in bind address")))
+                .transpose()?;
+            Ok(SocketAddr::V6(SocketAddrV6::new(
+                ip_addr.parse()?,
+                0,
+                0,
+                scope_id.parse()?,
+            )))
+        }
+        None => Ok(SocketAddr::new(ip_addr.parse()?, 0)),
+    }
+}
 
 pub struct DnsClient {
     bind_addr: SocketAddr,
@@ -76,7 +96,7 @@ impl DnsClient {
 
         Ok(DnsClient {
             servers,
-            bind_addr: SocketAddr::new(dns.bind.parse::<IpAddr>()?, 0),
+            bind_addr: parse_bind_addr(&dns.bind)?,
             hosts,
             ipv4_cache,
             ipv6_cache,
@@ -93,7 +113,7 @@ impl DnsClient {
         let hosts = Self::load_hosts(&dns);
         self.servers = servers;
         self.hosts = hosts;
-        self.bind_addr = SocketAddr::new(dns.bind.parse::<IpAddr>()?, 0);
+        self.bind_addr = parse_bind_addr(&dns.bind)?;
         Ok(())
     }
 
