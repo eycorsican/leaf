@@ -1,5 +1,6 @@
 pub mod crypto;
 pub mod mutex;
+pub mod net;
 pub mod resolver;
 pub mod sniff;
 

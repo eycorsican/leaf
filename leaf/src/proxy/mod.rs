@@ -1,10 +1,6 @@
 use std::ffi::CString;
-use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
-use std::{
-    io,
-    net::{IpAddr, SocketAddr},
-};
+use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
 use futures::future::select_ok;
@@ -127,8 +123,7 @@ lazy_static! {
 }
 
 pub enum OutboundBind {
-    Ipv4(Ipv4Addr),
-    Ipv6(Ipv6Addr),
+    Ip(SocketAddr),
     Interface(String),
 }
 
@@ -213,9 +208,9 @@ async fn bind_socket<T: BindSocket>(
     if let Some(binds) = OUTBOUND_BINDS.lock().await.as_ref() {
         for bind in binds.iter() {
             match bind {
-                OutboundBind::Interface(iface) => unsafe {
+                OutboundBind::Interface(iface) => {
                     #[cfg(target_os = "macos")]
-                    {
+                    unsafe {
                         let ifa = CString::new(iface.as_bytes()).unwrap();
                         let ifidx: libc::c_uint = libc::if_nametoindex(ifa.as_ptr());
                         if ifidx == 0 {
@@ -253,7 +248,7 @@ async fn bind_socket<T: BindSocket>(
                         return Ok(());
                     }
                     #[cfg(target_os = "linux")]
-                    {
+                    unsafe {
                         let ifa = CString::new(iface.as_bytes()).unwrap();
                         let ret = libc::setsockopt(
                             socket.as_raw_fd(),
@@ -275,18 +270,10 @@ async fn bind_socket<T: BindSocket>(
                             "binding to interface is not supported on this platform",
                         ));
                     }
-                },
-                OutboundBind::Ipv4(ip) => {
-                    if let SocketAddr::V4(..) = indicator {
-                        trace!("socket bind {}", ip);
-                        return socket.bind(&SocketAddr::new(IpAddr::V4(ip.to_owned()), 0));
-                    }
                 }
-                OutboundBind::Ipv6(ip) => {
-                    if let SocketAddr::V6(..) = indicator {
-                        trace!("socket bind {}", ip);
-                        return socket.bind(&SocketAddr::new(IpAddr::V6(ip.to_owned()), 0));
-                    }
+                OutboundBind::Ip(addr) => {
+                    trace!("socket bind {}", addr);
+                    return socket.bind(addr);
                 }
             }
         }

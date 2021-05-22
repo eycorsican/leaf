@@ -401,16 +401,12 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         sys::NetInfo::default()
     };
 
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
     if !(&*option::OUTBOUND_INTERFACE).is_empty() {
         use proxy::OutboundBind;
-        use std::net::{Ipv4Addr, Ipv6Addr};
         let mut outbound_binds = Vec::new();
         for item in (&*option::OUTBOUND_INTERFACE).split(',').map(str::trim) {
-            if let Ok(ip) = item.parse::<Ipv4Addr>() {
-                outbound_binds.push(OutboundBind::Ipv4(ip));
-            } else if let Ok(ip) = item.parse::<Ipv6Addr>() {
-                outbound_binds.push(OutboundBind::Ipv6(ip));
+            if let Ok(addr) = common::net::parse_bind_addr(item) {
+                outbound_binds.push(OutboundBind::Ip(addr));
             } else {
                 outbound_binds.push(OutboundBind::Interface(item.to_owned()));
             }
