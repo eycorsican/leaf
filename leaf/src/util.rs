@@ -70,6 +70,14 @@ pub fn run_with_options(
 }
 
 pub async fn test_outbound(tag: &str, config: &Config) {
+    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::str::FromStr;
+    use trust_dns_proto::{
+        op::{header::MessageType, op_code::OpCode, query::Query, Message},
+        rr::{record_type::RecordType, Name},
+    };
+
     let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns).unwrap()));
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client).unwrap();
     let handler = if let Some(v) = outbound_manager.get(tag) {
@@ -78,12 +86,16 @@ pub async fn test_outbound(tag: &str, config: &Config) {
         println!("outbound {} not found", tag);
         return;
     };
+    println!("testing outbound {}", &handler.tag());
+
+    println!("");
+
+    println!("testing TCP...");
+    let start = tokio::time::Instant::now();
     let sess = Session {
         destination: SocksAddr::Domain("www.google.com".to_string(), 80),
         ..Default::default()
     };
-    println!("testing outbound {}", &handler.tag());
-    let start = tokio::time::Instant::now();
     match handler.handle_tcp(&sess, None).await {
         Ok(mut stream) => {
             if let Err(e) = stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await {
@@ -103,6 +115,52 @@ pub async fn test_outbound(tag: &str, config: &Config) {
                 }
                 Err(e) => {
                     println!("read from outbound {} failed: {}", &handler.tag(), e);
+                }
+            }
+        }
+        Err(e) => {
+            println!("dispatch to outbound {} failed: {}", &handler.tag(), e);
+        }
+    }
+
+    println!("");
+
+    println!("testing UDP...");
+    let start = tokio::time::Instant::now();
+    let sess = Session {
+        destination: SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53)),
+        ..Default::default()
+    };
+    match handler.handle_udp(&sess, None).await {
+        Ok(socket) => {
+            let addr = SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
+            let mut msg = Message::new();
+            let name = Name::from_str("www.google.com.").unwrap();
+            let query = Query::query(name, RecordType::A);
+            msg.add_query(query);
+            let mut rng = StdRng::from_entropy();
+            let id: u16 = rng.gen();
+            msg.set_id(id);
+            msg.set_op_code(OpCode::Query);
+            msg.set_message_type(MessageType::Query);
+            msg.set_recursion_desired(true);
+            let msg_buf = msg.to_vec().unwrap();
+            let (mut recv, mut send) = socket.split();
+            if let Err(e) = send.send_to(&msg_buf, &addr).await {
+                println!("send message to {} failed: {}", &handler.tag(), e);
+            }
+            let mut buf = [0u8; 1500];
+            match recv.recv_from(&mut buf).await {
+                Ok(_) => {
+                    let elapsed = tokio::time::Instant::now().duration_since(start);
+                    println!(
+                        "received response from outbound {} in {}ms",
+                        &handler.tag(),
+                        elapsed.as_millis()
+                    );
+                }
+                Err(e) => {
+                    println!("receive from outbound {} failed: {}", &handler.tag(), e);
                 }
             }
         }
