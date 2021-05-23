@@ -71,6 +71,19 @@ async fn handle_inbound_datagram(
                 break;
             }
             Ok((n, dgram_src, dst_addr)) => {
+                if n == 0 {
+                    // Means a proxy layer error, e.g. the ss handler failed to
+                    // decrypt a message.
+                    //
+                    // TODO use error matching for this purpose?
+                    //
+                    // The problem here is we don't want to exit the receive loop
+                    // because of a proxy protocol error if the underlying socket
+                    // is UDP-based. But we do wnat to exit the loop and the task
+                    // spawned above if the underlying socket is TCP-based. More
+                    // careful investigation needed.
+                    continue;
+                }
                 let dst_addr = if let Some(dst_addr) = dst_addr {
                     dst_addr
                 } else {

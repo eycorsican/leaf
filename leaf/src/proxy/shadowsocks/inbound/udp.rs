@@ -74,8 +74,20 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
         recv_buf.resize(2 * 1024, 0);
         let (n, src_addr, _) = self.1.recv_from(&mut recv_buf).await?;
         recv_buf.resize(n, 0);
-        let plaintext = self.0.decrypt(recv_buf).map_err(|_| shadow::crypto_err())?;
-        let dst_addr = SocksAddr::try_from((&plaintext[..], SocksAddrWireType::PortLast))?;
+        let plaintext = match self.0.decrypt(recv_buf) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("decrypt ss message failed: {}", e);
+                return Ok((0, src_addr, None));
+            }
+        };
+        let dst_addr = match SocksAddr::try_from((&plaintext[..], SocksAddrWireType::PortLast)) {
+            Ok(v) => v,
+            Err(e) => {
+                warn!("read addr from ss message failed: {}", e);
+                return Ok((0, src_addr, None));
+            }
+        };
         let header_size = dst_addr.size();
         let payload_size = plaintext.len() - header_size;
         let to_recv = min(buf.len(), payload_size);
