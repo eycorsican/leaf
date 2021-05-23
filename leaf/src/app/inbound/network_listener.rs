@@ -67,10 +67,8 @@ async fn handle_inbound_datagram(
     loop {
         match client_sock_recv.recv_from(&mut buf).await {
             Err(e) => {
-                // In case the proxy layer encounters an error, e.g. the ss handler
-                // failed to decrypt a message, an error will be returned.
                 debug!("udp recv error: {}", e);
-                continue;
+                break;
             }
             Ok((n, dgram_src, dst_addr)) => {
                 let dst_addr = if let Some(dst_addr) = dst_addr {
