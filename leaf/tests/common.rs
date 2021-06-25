@@ -140,6 +140,21 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         assert_eq!(msg, &buf[..n]);
         assert_eq!(&raddr, &sess.destination);
 
+        // Test if we can handle a second UDP session. This can fail in stream
+        // transports if the stream ID has not been correctly set.
+        let dgram = handler.handle_udp(&sess, None).await.unwrap();
+        let (mut r, mut s) = dgram.split();
+        let msg = b"ghi";
+        let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
+        assert_eq!(msg.len(), n);
+        let mut buf = vec![0u8; 2 * 1024];
+        let (n, raddr) = timeout(Duration::from_secs(1), r.recv_from(&mut buf))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(msg, &buf[..n]);
+        assert_eq!(&raddr, &sess.destination);
+
         // Cancel the background task.
         bg_task_handle.abort();
     };

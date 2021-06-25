@@ -10,7 +10,10 @@ use futures::{
     Future,
 };
 
-use crate::proxy::{InboundDatagram, InboundTransport, SingleInboundTransport, UdpInboundHandler};
+use crate::{
+    proxy::{InboundDatagram, InboundTransport, SingleInboundTransport, UdpInboundHandler},
+    session::Session,
+};
 
 use super::QuicProxyStream;
 
@@ -77,9 +80,15 @@ impl Stream for Incoming {
         for (idx, new_conn) in self.new_conns.iter_mut().enumerate() {
             match Pin::new(&mut new_conn.bi_streams).poll_next(cx) {
                 Poll::Ready(Some(Ok((send, recv)))) => {
+                    let mut sess = Session {
+                        source: new_conn.connection.remote_address(),
+                        ..Default::default()
+                    };
+                    // TODO Check whether the index suitable for this purpose.
+                    sess.stream_id = Some(send.id().index());
                     stream.replace(SingleInboundTransport::Stream(
                         Box::new(QuicProxyStream { recv, send }),
-                        Default::default(), // FIXME
+                        sess,
                     ));
                     break;
                 }

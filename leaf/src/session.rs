@@ -25,7 +25,7 @@ impl std::fmt::Display for Network {
     }
 }
 
-pub type StreamId = u16;
+pub type StreamId = u64;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct DatagramSource {

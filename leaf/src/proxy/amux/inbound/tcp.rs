@@ -40,7 +40,7 @@ impl Stream for Incoming {
         Poll::Ready(
             ready!(Pin::new(&mut self.acceptor).poll_next(cx)).map(|stream| {
                 let mut sess = self.sess.clone();
-                sess.stream_id = Some(stream.id());
+                sess.stream_id = Some(stream.id().into());
                 SingleInboundTransport::Stream(Box::new(SimpleProxyStream(stream)), sess)
             }),
         )
