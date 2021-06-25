@@ -58,6 +58,8 @@ pub mod random;
 pub mod redirect;
 #[cfg(feature = "outbound-retry")]
 pub mod retry;
+#[cfg(feature = "outbound-rr")]
+pub mod rr;
 #[cfg(feature = "outbound-select")]
 pub mod select;
 #[cfg(any(feature = "inbound-shadowsocks", feature = "outbound-shadowsocks"))]

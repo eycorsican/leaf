@@ -134,6 +134,10 @@ message RandomOutboundSettings {
 	repeated string actors = 1;
 }
 
+message RROutboundSettings {
+	repeated string actors = 1;
+}
+
 message AMuxOutboundSettings {
 	string address = 1;
 	uint32 port = 2;

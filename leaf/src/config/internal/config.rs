@@ -3323,6 +3323,123 @@ impl ::protobuf::reflect::ProtobufValue for RandomOutboundSettings {
 }
 
 #[derive(PartialEq,Clone,Default,Debug)]
+pub struct RROutboundSettings {
+    // message fields
+    pub actors: ::protobuf::RepeatedField<::std::string::String>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a RROutboundSettings {
+    fn default() -> &'a RROutboundSettings {
+        <RROutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl RROutboundSettings {
+    pub fn new() -> RROutboundSettings {
+        ::std::default::Default::default()
+    }
+
+    // repeated string actors = 1;
+
+
+    pub fn get_actors(&self) -> &[::std::string::String] {
+        &self.actors
+    }
+}
+
+impl ::protobuf::Message for RROutboundSettings {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.actors)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        for value in &self.actors {
+            my_size += ::protobuf::rt::string_size(1, &value);
+        };
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        for v in &self.actors {
+            os.write_string(1, &v)?;
+        };
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> RROutboundSettings {
+        RROutboundSettings::new()
+    }
+
+    fn default_instance() -> &'static RROutboundSettings {
+        static instance: ::protobuf::rt::LazyV2<RROutboundSettings> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(RROutboundSettings::new)
+    }
+}
+
+impl ::protobuf::Clear for RROutboundSettings {
+    fn clear(&mut self) {
+        self.actors.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for RROutboundSettings {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct AMuxOutboundSettings {
     // message fields
     pub address: ::std::string::String,

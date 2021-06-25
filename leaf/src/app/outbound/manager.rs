@@ -1,6 +1,7 @@
 use std::{
     collections::{hash_map, HashMap},
     convert::From,
+    sync::atomic::AtomicUsize,
     sync::Arc,
 };
 
@@ -18,6 +19,8 @@ use crate::proxy::failover;
 use crate::proxy::random;
 #[cfg(feature = "outbound-retry")]
 use crate::proxy::retry;
+#[cfg(feature = "outbound-rr")]
+use crate::proxy::rr;
 #[cfg(feature = "outbound-select")]
 use crate::proxy::select;
 #[cfg(feature = "outbound-tryall")]
@@ -449,6 +452,50 @@ impl OutboundManager {
                             actors: actors.clone(),
                         });
                         let udp = Box::new(random::UdpHandler { actors });
+                        let handler = proxy::outbound::Handler::new(
+                            tag.clone(),
+                            colored::Color::TrueColor {
+                                r: 182,
+                                g: 235,
+                                b: 250,
+                            },
+                            ProxyHandlerType::Ensemble,
+                            Some(tcp),
+                            Some(udp),
+                        );
+                        trace!(
+                            "add handler [{}] with actors: {}",
+                            &tag,
+                            settings.actors.join(",")
+                        );
+                        handlers.insert(tag.clone(), handler);
+                    }
+                    #[cfg(feature = "outbound-rr")]
+                    "rr" => {
+                        let settings =
+                            config::RROutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
+                        let mut actors = Vec::new();
+                        for actor in settings.actors.iter() {
+                            if let Some(a) = handlers.get(actor) {
+                                actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
+                            }
+                        }
+                        if actors.is_empty() {
+                            continue;
+                        }
+                        let tcp = Box::new(rr::TcpHandler {
+                            actors: actors.clone(),
+                            next: AtomicUsize::new(0),
+                        });
+                        let udp = Box::new(rr::UdpHandler {
+                            actors,
+                            next: AtomicUsize::new(0),
+                        });
                         let handler = proxy::outbound::Handler::new(
                             tag.clone(),
                             colored::Color::TrueColor {

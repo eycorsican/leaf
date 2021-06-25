@@ -1030,6 +1030,17 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     outbound.settings = settings;
                     outbounds.push(outbound);
                 }
+                "rr" => {
+                    let mut settings = internal::RROutboundSettings::new();
+                    if let Some(ext_actors) = &ext_proxy_group.actors {
+                        for ext_actor in ext_actors {
+                            settings.actors.push(ext_actor.to_string());
+                        }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
                 "failover" => {
                     let mut settings = internal::FailOverOutboundSettings::new();
                     if let Some(ext_actors) = &ext_proxy_group.actors {

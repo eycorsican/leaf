@@ -64,6 +64,7 @@ all-endpoints = [
     "outbound-h2",
     "outbound-failover",
     "outbound-random",
+    "outbound-rr",
     "outbound-tryall",
     "outbound-chain",
     "outbound-retry",
@@ -95,6 +96,7 @@ outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 outbound-h2 = ["h2", "http", "url"]
 outbound-failover = ["lru_time_cache"]
 outbound-random = []
+outbound-rr= []
 outbound-tryall = []
 outbound-chain = []
 outbound-retry = []
