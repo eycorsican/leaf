@@ -11,6 +11,7 @@ use crate::{
     proxy::{OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
+use tokio::io::BufStream;
 
 pub struct Handler {
     pub address: String,
@@ -47,15 +48,16 @@ impl TcpOutboundHandler for Handler {
             )
             .await?
         };
+        let mut buf_stream = BufStream::new(&mut stream);
         match &sess.destination {
             SocksAddr::Ip(a) => {
-                let _ = async_socks5::connect(&mut stream, a.to_owned(), None)
+                let _ = async_socks5::connect(&mut buf_stream, a.to_owned(), None)
                     .map_err(|x| Error::new(ErrorKind::Other, x))
                     .await?;
             }
             SocksAddr::Domain(domain, port) => {
                 let _ =
-                    async_socks5::connect(&mut stream, (domain.to_owned(), port.to_owned()), None)
+                    async_socks5::connect(&mut buf_stream, (domain.to_owned(), port.to_owned()), None)
                         .map_err(|x| Error::new(ErrorKind::Other, x))
                         .await?;
             }
