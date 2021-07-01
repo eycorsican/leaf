@@ -21,7 +21,7 @@ fn default_thread_stack_size() -> usize {
 
 #[cfg(not(debug_assertions))]
 fn default_thread_stack_size() -> usize {
-    128 * 1024
+    256 * 1024
 }
 
 #[derive(FromArgs)]

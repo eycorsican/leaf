@@ -7,9 +7,9 @@ use log::*;
 use crate::{
     app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, SimpleOutboundDatagram, UdpConnector, UdpOutboundHandler,
-        UdpTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
+        OutboundDatagramSendHalf, OutboundTransport, SimpleOutboundDatagram, UdpConnector,
+        UdpOutboundHandler,
     },
     session::{Session, SocksAddr, SocksAddrWireType},
 };
@@ -29,7 +29,7 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         if !self.address.is_empty() && self.port != 0 {
             Some(OutboundConnect::Proxy(
                 self.address.clone(),
@@ -41,11 +41,11 @@ impl UdpOutboundHandler for Handler {
         }
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Packet
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Datagram
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         transport: Option<OutboundTransport>,
@@ -55,9 +55,7 @@ impl UdpOutboundHandler for Handler {
         let socket = if let Some(OutboundTransport::Datagram(socket)) = transport {
             socket
         } else {
-            let socket = self
-                .create_udp_socket(&self.bind_addr, &sess.source)
-                .await?;
+            let socket = self.new_udp_socket(&self.bind_addr, &sess.source).await?;
             Box::new(SimpleOutboundDatagram::new(
                 socket,
                 None,
@@ -152,7 +150,7 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
         let mut buf2 = BytesMut::new();
         target.write_buf(&mut buf2, SocksAddrWireType::PortLast)?;
-        buf2.put_slice(&buf);
+        buf2.put_slice(buf);
 
         let ciphertext = self.dgram.encrypt(buf2).map_err(|_| shadow::crypto_err())?;
         match self.send_half.send_to(&ciphertext, &self.server_addr).await {

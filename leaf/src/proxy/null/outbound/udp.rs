@@ -9,16 +9,19 @@ use crate::{
     session::Session,
 };
 
-pub struct Handler;
+pub struct Handler {
+    pub connect: Option<OutboundConnect>,
+    pub transport_type: DatagramTransportType,
+}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+        self.connect.clone()
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Datagram
+        self.transport_type
     }
 
     async fn handle<'a>(
@@ -26,6 +29,6 @@ impl UdpOutboundHandler for Handler {
         _sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        Err(io::Error::new(io::ErrorKind::Other, "dropped"))
+        Err(io::Error::new(io::ErrorKind::Other, "null handler"))
     }
 }

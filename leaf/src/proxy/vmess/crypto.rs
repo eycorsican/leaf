@@ -13,7 +13,7 @@ use crate::common::crypto::{
 };
 
 pub fn generate_chacha20poly1305_key(key: &[u8]) -> Vec<u8> {
-    let key_1 = Md5::digest(&key).to_vec();
+    let key_1 = Md5::digest(key).to_vec();
     let key_2 = Md5::digest(&key_1).to_vec();
     [key_1, key_2].concat()
 }
@@ -58,7 +58,7 @@ pub struct VMessAEADSequence {
 
 impl VMessAEADSequence {
     pub fn new(nonce: Vec<u8>, size: usize) -> Self {
-        assert_eq!(nonce.len() >= size, true);
+        assert!(nonce.len() >= size);
         VMessAEADSequence {
             nonce,
             size,
@@ -110,7 +110,7 @@ impl ShakeSizeParser {
     }
 
     pub fn decode(&mut self, b: &[u8]) -> u16 {
-        assert_eq!(b.len() >= 2, true);
+        assert!(b.len() >= 2);
         let mask = self.next();
         let size = BigEndian::read_u16(b);
         mask ^ size

@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 
 pub fn parse_bind_addr(bind: &str) -> Result<SocketAddr> {
     let mut split = bind.split('%');
-    let ip_addr = split.next().ok_or(anyhow!("Empty bind address"))?;
+    let ip_addr = split.next().ok_or_else(|| anyhow!("Empty bind address"))?;
     match split.next() {
         Some(scope_id) => {
             let _: Option<()> = split

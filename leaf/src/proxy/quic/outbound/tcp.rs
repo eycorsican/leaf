@@ -147,7 +147,7 @@ impl Manager {
         endpoint.default_client_config(self.client_config.clone());
         // FIXME A better indicator.
         let socket = self
-            .create_udp_socket(&self.bind_addr, &self.bind_addr)
+            .new_udp_socket(&self.bind_addr, &self.bind_addr)
             .await?;
         let (endpoint, _) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
 
@@ -234,11 +234,11 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::NoConnect)
     }
 
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,

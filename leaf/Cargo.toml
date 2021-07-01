@@ -22,7 +22,7 @@ default-ring = [
     # quinn supports only rustls as tls backend for now
     "inbound-quic",
     "outbound-quic",
-    "api",
+    # "api",
 ]
 
 default-openssl = [
@@ -30,7 +30,7 @@ default-openssl = [
     "all-endpoints",
     "openssl-aead",
     "openssl-tls",
-    "api",
+    # "api",
 ]
 
 # Grouping all features
@@ -45,30 +45,30 @@ all-endpoints = [
     # "inbound-quic",
     "inbound-ws",
     "inbound-trojan",
-    "inbound-http",
+    # "inbound-http",
     "inbound-shadowsocks",
     "inbound-socks",
     "inbound-tun",
     # outbounds
     "outbound-direct",
     "outbound-drop",
-    "outbound-redirect",
+    # "outbound-redirect",
     "outbound-shadowsocks",
     "outbound-socks",
     "outbound-trojan",
-    "outbound-vmess",
+    # "outbound-vmess",
     "outbound-tls",
     "outbound-ws",
     "outbound-amux",
     # "outbound-quic",
-    "outbound-h2",
+    # "outbound-h2",
     "outbound-failover",
     "outbound-random",
     "outbound-rr",
     "outbound-tryall",
     "outbound-chain",
     "outbound-retry",
-    "outbound-select",
+    # "outbound-select",
 ]
 
 # Ring-related

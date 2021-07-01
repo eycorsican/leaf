@@ -11,7 +11,7 @@ use crate::{
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
         OutboundTransport, SimpleOutboundDatagram, UdpConnector, UdpOutboundHandler,
-        UdpTransportType,
+        DatagramTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -28,21 +28,21 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Packet
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Datagram
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
         let socket = self
-            .create_udp_socket(&self.bind_addr, &sess.source)
+            .new_udp_socket(&self.bind_addr, &sess.source)
             .await?;
         let socket = Box::new(SimpleOutboundDatagram::new(
             socket,

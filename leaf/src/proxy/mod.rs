@@ -36,6 +36,8 @@ pub mod inbound;
 pub mod outbound;
 pub mod stream;
 
+pub mod null;
+
 #[cfg(any(feature = "inbound-amux", feature = "outbound-amux"))]
 pub mod amux;
 #[cfg(any(feature = "inbound-chain", feature = "outbound-chain"))]
@@ -93,18 +95,11 @@ pub use datagram::{
 };
 pub use stream::{BufHeadProxyStream, SimpleProxyStream};
 
-#[derive(Clone)]
-pub enum ProxyHandlerType {
-    Direct,
-    Endpoint,
-    Ensemble,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum UdpTransportType {
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DatagramTransportType {
     Stream,
-    Packet,
-    Unknown,
+    Datagram,
+    Undefined,
 }
 
 pub trait Tag {
@@ -113,10 +108,6 @@ pub trait Tag {
 
 pub trait Color {
     fn color(&self) -> colored::Color;
-}
-
-pub trait HandlerTyped {
-    fn handler_type(&self) -> ProxyHandlerType;
 }
 
 #[cfg(target_os = "android")]
@@ -216,7 +207,8 @@ async fn bind_socket<T: BindSocket>(
                         let ifa = CString::new(iface.as_bytes()).unwrap();
                         let ifidx: libc::c_uint = libc::if_nametoindex(ifa.as_ptr());
                         if ifidx == 0 {
-                            return Err(io::Error::last_os_error());
+                            trace!("bind socket failed: {}", io::Error::last_os_error());
+                            continue;
                         }
 
                         let ret = match indicator {
@@ -244,7 +236,8 @@ async fn bind_socket<T: BindSocket>(
                             }
                         };
                         if ret == -1 {
-                            return Err(io::Error::last_os_error());
+                            trace!("bind socket failed: {}", io::Error::last_os_error());
+                            continue;
                         }
                         trace!("socket bind {}", iface);
                         return Ok(());
@@ -260,7 +253,8 @@ async fn bind_socket<T: BindSocket>(
                             ifa.as_bytes().len() as libc::socklen_t,
                         );
                         if ret == -1 {
-                            return Err(io::Error::last_os_error());
+                            trace!("bind socket failed: {}", io::Error::last_os_error());
+                            continue;
                         }
                         trace!("socket bind {}", iface);
                         return Ok(());
@@ -274,8 +268,11 @@ async fn bind_socket<T: BindSocket>(
                     }
                 }
                 OutboundBind::Ip(addr) => {
+                    if let Err(e) = socket.bind(addr) {
+                        trace!("bind socket failed: {}", e);
+                        continue;
+                    }
                     trace!("socket bind {}", addr);
-                    return socket.bind(addr);
                 }
             }
         }
@@ -299,10 +296,7 @@ async fn bind_socket<T: BindSocket>(
 }
 
 // New UDP socket.
-async fn create_udp_socket(
-    bind_addr: &SocketAddr,
-    indicator: &SocketAddr,
-) -> io::Result<UdpSocket> {
+async fn new_udp_socket(bind_addr: &SocketAddr, indicator: &SocketAddr) -> io::Result<UdpSocket> {
     use socket2::{Domain, Socket, Type};
     let socket = match indicator {
         SocketAddr::V4(..) => Socket::new(Domain::IPV4, Type::DGRAM, None)?,
@@ -363,7 +357,7 @@ async fn tcp_dial_task(
 }
 
 // Dials a TCP stream.
-pub async fn dial_tcp_stream(
+pub async fn new_tcp_stream(
     dns_client: SyncDnsClient,
     bind_addr: &SocketAddr,
     address: &String,
@@ -425,14 +419,14 @@ pub async fn dial_tcp_stream(
 #[async_trait]
 pub trait TcpConnector: Send + Sync + Unpin {
     /// Dials a TCP connection.
-    async fn dial_tcp_stream(
+    async fn new_tcp_stream(
         &self,
         dns_client: SyncDnsClient,
         bind_addr: &SocketAddr,
         address: &String,
         port: &u16,
     ) -> io::Result<Box<dyn ProxyStream>> {
-        dial_tcp_stream(dns_client, bind_addr, address, port).await
+        new_tcp_stream(dns_client, bind_addr, address, port).await
     }
 }
 
@@ -440,12 +434,12 @@ pub trait TcpConnector: Send + Sync + Unpin {
 #[async_trait]
 pub trait UdpConnector: Send + Sync + Unpin {
     /// Creates a UDP socket.
-    async fn create_udp_socket(
+    async fn new_udp_socket(
         &self,
         bind_addr: &SocketAddr,
         indicator: &SocketAddr,
     ) -> io::Result<UdpSocket> {
-        create_udp_socket(bind_addr, indicator).await
+        new_udp_socket(bind_addr, indicator).await
     }
 }
 
@@ -454,13 +448,11 @@ pub trait ProxyStream: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
 
 /// An outbound handler for both UDP and TCP outgoing connections.
 pub trait OutboundHandler:
-    Tag + Color + HandlerTyped + TcpOutboundHandler + UdpOutboundHandler + Send + Unpin
+    Tag + Color + TcpOutboundHandler + UdpOutboundHandler + Send + Unpin
 {
-    fn has_tcp(&self) -> bool;
-    fn has_udp(&self) -> bool;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OutboundConnect {
     Proxy(String, u16, SocketAddr),
     Direct(SocketAddr),
@@ -472,11 +464,11 @@ pub enum OutboundConnect {
 pub trait TcpOutboundHandler: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect>;
+    fn connect_addr(&self) -> Option<OutboundConnect>;
 
     /// Handles a session with the given stream. On success, returns a
     /// stream wraps the incoming stream.
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
@@ -517,19 +509,19 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
 pub trait UdpOutboundHandler: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
-    fn udp_connect_addr(&self) -> Option<OutboundConnect>;
+    fn connect_addr(&self) -> Option<OutboundConnect>;
 
     /// Returns the transport type of this handler.
     ///
     /// For example, for a SOCKS5 handler, the UDP transport type is
-    /// `UdpTransportType::Packet`, but for a trojan handler, the transport
-    /// type is `UdpTransportType::Stream` because trojan transport UDP
+    /// `DatagramTransportType::Datagram`, but for a trojan handler, the transport
+    /// type is `DatagramTransportType::Stream` because trojan transport UDP
     /// packets over TCP connections.
-    fn udp_transport_type(&self) -> UdpTransportType;
+    fn transport_type(&self) -> DatagramTransportType;
 
     /// Handles a session with the transport. On success, returns an outbound
     /// datagram wraps the incoming transport.
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         transport: Option<OutboundTransport>,
@@ -554,7 +546,7 @@ pub trait InboundHandler:
 /// An inbound handler for incoming TCP connections.
 #[async_trait]
 pub trait TcpInboundHandler: Send + Sync + Unpin {
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: Session,
         stream: Box<dyn ProxyStream>,
@@ -564,12 +556,8 @@ pub trait TcpInboundHandler: Send + Sync + Unpin {
 /// An inbound handler for incoming UDP connections.
 #[async_trait]
 pub trait UdpInboundHandler: Send + Sync + Unpin {
-    // TODO Returns an InboundTransport to support UDP-based reliable transports
-    // such as QUIC.
-    async fn handle_udp<'a>(
-        &'a self,
-        socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<InboundTransport>;
+    async fn handle<'a>(&'a self, socket: Box<dyn InboundDatagram>)
+        -> io::Result<InboundTransport>;
 }
 
 /// An unreliable transport for inbound handlers.
@@ -620,7 +608,7 @@ pub trait InboundDatagramSendHalf: Sync + Send + Unpin {
     ) -> io::Result<usize>;
 }
 
-pub enum SingleInboundTransport {
+pub enum BaseInboundTransport {
     /// The reliable transport.
     Stream(Box<dyn ProxyStream>, Session),
     /// The unreliable transport.
@@ -629,7 +617,7 @@ pub enum SingleInboundTransport {
     Empty,
 }
 
-pub type IncomingTransport = Box<dyn Stream<Item = SingleInboundTransport> + Send + Unpin>;
+pub type IncomingTransport = Box<dyn Stream<Item = BaseInboundTransport> + Send + Unpin>;
 
 /// An inbound transport represents either a reliable or unreliable transport.
 pub enum InboundTransport {

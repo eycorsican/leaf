@@ -29,7 +29,7 @@ pub fn setup_logger(config: &config::Log) -> Result<()> {
                     .debug(Color::White)
                     .trace(Color::BrightBlack);
 
-                let colors_level = colors_line.clone().info(Color::Green);
+                let colors_level = colors_line.info(Color::Green);
                 out.finish(format_args!(
                     // "{color_line}[{date}][{level}{color_line}][{target}] {message}\x1B[0m",
                     "{color_line}[{date}][{level}{color_line}] {message}\x1B[0m",

@@ -16,18 +16,18 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>> {
         if let Some(a) = self.selector.read().await.get_selected() {
             debug!("select handles tcp [{}] to [{}]", sess.destination, a.tag());
-            a.handle_tcp(sess, stream).await
+            TcpOutboundHandler::handle(a.as_ref(), sess, stream).await
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "no selected outbound"))
         }

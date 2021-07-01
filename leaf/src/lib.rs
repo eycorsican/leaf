@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::io;
-use std::net::{IpAddr, SocketAddr};
 use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -78,6 +77,7 @@ pub struct RuntimeManager {
 }
 
 impl RuntimeManager {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         #[cfg(feature = "auto-reload")] rt_id: RuntimeId,
         config_path: Option<String>,
@@ -166,7 +166,7 @@ impl RuntimeManager {
             log::warn!("sending shutdown signal failed: {}", e);
             return false;
         }
-        return true;
+        true
     }
 
     pub fn blocking_shutdown(&self) -> bool {
@@ -455,6 +455,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     #[cfg(feature = "api")]
     {
+        use std::net::{IpAddr, SocketAddr};
         let listen_addr = if !(&*option::API_LISTEN).is_empty() {
             Some(
                 (&*option::API_LISTEN)

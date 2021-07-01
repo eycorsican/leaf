@@ -1,9 +1,9 @@
 ios:
-	cargo lipo --release --targets aarch64-apple-ios --manifest-path leaf-ffi/Cargo.toml --no-default-features --features "default-openssl"
+	cargo lipo --release -p leaf-ffi
 	cbindgen --config leaf-ffi/cbindgen.toml leaf-ffi/src/lib.rs > target/universal/release/leaf.h
 
 ios-dev:
-	cargo lipo --targets aarch64-apple-ios --manifest-path leaf-ffi/Cargo.toml --no-default-features --features "default-openssl"
+	cargo lipo -p leaf-ffi
 	cbindgen --config leaf-ffi/cbindgen.toml leaf-ffi/src/lib.rs > target/universal/debug/leaf.h
 
 lib:
@@ -22,6 +22,9 @@ local-dev:
 
 mipsel:
 	./misc/build_cross.sh mipsel-unknown-linux-musl
+
+mips:
+	./misc/build_cross.sh mips-unknown-linux-musl
 
 test:
 	cargo test -p leaf -- --nocapture

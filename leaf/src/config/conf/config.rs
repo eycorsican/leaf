@@ -1125,7 +1125,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
         for ext_rule in ext_rules.iter_mut() {
             let mut rule = internal::Router_Rule::new();
 
-            let target_tag = std::mem::replace(&mut ext_rule.target, String::new());
+            let target_tag = std::mem::take(&mut ext_rule.target);
             rule.target_tag = target_tag;
 
             // handle FINAL rule first
@@ -1146,7 +1146,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
 
             // the remaining rules must have a filter
             let ext_filter = if let Some(f) = ext_rule.filter.as_mut() {
-                std::mem::replace(f, String::new())
+                std::mem::take(f)
             } else {
                 continue;
             };
@@ -1255,8 +1255,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
     config.router = router;
     config.dns = protobuf::SingularPtrField::some(dns);
     config.api = api;
-
-    drop(conf); // make sure no partial moved fields
 
     Ok(config)
 }

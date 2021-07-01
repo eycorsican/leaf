@@ -16,7 +16,7 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         mut sess: Session,
         stream: Box<dyn ProxyStream>,

@@ -14,8 +14,7 @@ pub fn get_default_ipv4_gateway() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("gateway"))
-        .next()
+        .find(|l| l.contains("gateway"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
@@ -37,15 +36,14 @@ pub fn get_default_ipv6_gateway() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("gateway"))
-        .next()
+        .find(|l| l.contains("gateway"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
         .collect();
     assert!(cols.len() == 2);
     let parts: Vec<&str> = cols[1].split('%').map(str::trim).collect();
-    assert!(parts.len() >= 1);
+    assert!(!parts.is_empty());
     let res = parts[0].to_string();
     Ok(res)
 }
@@ -61,8 +59,7 @@ pub fn get_default_interface() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("interface"))
-        .next()
+        .find(|l| l.contains("interface"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
@@ -203,17 +200,11 @@ pub fn get_ipv4_forwarding() -> Result<bool> {
         .output()
         .expect("failed to execute command");
     let out = String::from_utf8_lossy(&out.stdout).to_string();
-    let res = if out
+    Ok(out
         .trim()
         .parse::<i8>()
         .expect("unexpected ip_forward value")
-        == 0
-    {
-        false
-    } else {
-        true
-    };
-    Ok(res)
+        != 0)
 }
 
 pub fn get_ipv6_forwarding() -> Result<bool> {
@@ -223,17 +214,11 @@ pub fn get_ipv6_forwarding() -> Result<bool> {
         .output()
         .expect("failed to execute command");
     let out = String::from_utf8_lossy(&out.stdout).to_string();
-    let res = if out
+    Ok(out
         .trim()
         .parse::<i8>()
         .expect("unexpected ip_forward value")
-        == 0
-    {
-        false
-    } else {
-        true
-    };
-    Ok(res)
+        != 0)
 }
 
 pub fn set_ipv4_forwarding(val: bool) -> Result<()> {

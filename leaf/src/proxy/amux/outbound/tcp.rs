@@ -91,7 +91,7 @@ impl MuxManager {
             }
         }
         let mut conn = self
-            .dial_tcp_stream(
+            .new_tcp_stream(
                 self.dns_client.clone(),
                 &self.bind_addr,
                 &self.address,
@@ -103,7 +103,7 @@ impl MuxManager {
             sess.destination = addr;
         }
         for (_, a) in self.actors.iter().enumerate() {
-            conn = a.handle_tcp(&sess, Some(conn)).await?;
+            conn = TcpOutboundHandler::handle(a.as_ref(), &sess, Some(conn)).await?;
         }
         let mut connector = MuxSession::connector(conn, self.max_accepts, self.concurrency);
         let s = match connector.new_stream().await {
@@ -146,11 +146,11 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::NoConnect)
     }
 
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,

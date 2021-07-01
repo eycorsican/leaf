@@ -8,7 +8,9 @@ use futures::{
     task::{Context, Poll},
 };
 
-use crate::proxy::{InboundHandler, InboundTransport, IncomingTransport, SingleInboundTransport};
+use crate::proxy::{
+    BaseInboundTransport, InboundHandler, InboundTransport, IncomingTransport, TcpInboundHandler,
+};
 
 mod tcp;
 mod udp;
@@ -39,7 +41,7 @@ impl Incoming {
 
 impl Stream for Incoming {
     // TODO io::Result<(...)>
-    type Item = SingleInboundTransport;
+    type Item = BaseInboundTransport;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
@@ -49,12 +51,14 @@ impl Stream for Incoming {
                     let transport = ready!(Stream::poll_next(Pin::new(&mut self.incoming), cx));
                     match transport {
                         // Only reliable transports are eligible to handle TCP requests.
-                        Some(SingleInboundTransport::Stream(stream, sess)) => {
+                        Some(BaseInboundTransport::Stream(stream, sess)) => {
                             assert!(!self.actors.is_empty()); // FIXME
                             let sess = sess.clone();
                             let a = self.actors[0].clone();
                             // Create the task for handling the first actor.
-                            let t = Box::pin(async move { a.handle_tcp(sess, stream).await });
+                            let t = Box::pin(async move {
+                                TcpInboundHandler::handle(a.as_ref(), sess, stream).await
+                            });
                             self.state = State::Pending(0, t);
                         }
                         Some(_) => {
@@ -73,21 +77,22 @@ impl Stream for Incoming {
                             // return it.
                             if idx + 1 >= self.actors.len() {
                                 self.state = State::WaitingIncoming;
-                                return Poll::Ready(Some(SingleInboundTransport::Stream(
+                                return Poll::Ready(Some(BaseInboundTransport::Stream(
                                     new_stream, new_sess,
                                 )));
                             }
                             // Otherwise proceed with a new task for the next actor.
                             let new_sess = new_sess.clone();
                             let a = self.actors[idx + 1].clone();
-                            let t =
-                                Box::pin(async move { a.handle_tcp(new_sess, new_stream).await });
+                            let t = Box::pin(async move {
+                                TcpInboundHandler::handle(a.as_ref(), new_sess, new_stream).await
+                            });
                             self.state = State::Pending(idx + 1, t);
                         }
                         Ok(InboundTransport::Datagram(socket)) => {
                             // FIXME Assume the last one, but not necessary the last one?
                             self.state = State::WaitingIncoming;
-                            return Poll::Ready(Some(SingleInboundTransport::Datagram(socket)));
+                            return Poll::Ready(Some(BaseInboundTransport::Datagram(socket)));
                         }
                         _ => {
                             log::warn!("unexpected non-stream transport");

@@ -59,7 +59,7 @@ impl Handler {
                                 ..Default::default()
                             };
                             let start = tokio::time::Instant::now();
-                            match a.handle_tcp(&sess, None).await {
+                            match TcpOutboundHandler::handle(a.as_ref(), &sess, None).await {
                                 Ok(mut stream) => {
                                     if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
                                         return Measure(i, u128::MAX - 2); // handshake is ok
@@ -162,11 +162,11 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
@@ -187,7 +187,7 @@ impl TcpOutboundHandler for Handler {
                 // TODO Remove the entry immediately if timeout or fail?
                 let task = timeout(
                     time::Duration::from_secs(self.fail_timeout as u64),
-                    (&self.actors[*idx]).handle_tcp(sess, None),
+                    TcpOutboundHandler::handle(self.actors[*idx].as_ref(), sess, None),
                 );
                 if let Ok(Ok(v)) = task.await {
                     return Ok(v);
@@ -209,7 +209,7 @@ impl TcpOutboundHandler for Handler {
             );
             match timeout(
                 time::Duration::from_secs(self.fail_timeout as u64),
-                (&self.actors[actor_idx]).handle_tcp(sess, None),
+                TcpOutboundHandler::handle(self.actors[actor_idx].as_ref(), sess, None),
             )
             .await
             {

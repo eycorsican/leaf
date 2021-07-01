@@ -8,6 +8,8 @@ use tokio::net::{TcpListener, ToSocketAddrs, UdpSocket};
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 
+use leaf::proxy::{TcpOutboundHandler, UdpOutboundHandler};
+
 pub async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
     let listener = TcpListener::bind(addr).await.unwrap();
     loop {
@@ -85,7 +87,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
 
     // Simulates an application request.
     let app_task = async move {
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Make use of a socks outbound to initiate a socks request to a leaf instance.
         let settings = leaf::config::json::SocksOutboundSettings {
@@ -120,14 +122,18 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
 
         // Test TCP
-        let mut s = handler.handle_tcp(&sess, None).await.unwrap();
+        let mut s = TcpOutboundHandler::handle(handler.as_ref(), &sess, None)
+            .await
+            .unwrap();
         s.write_all(b"abc").await.unwrap();
         let mut buf = Vec::new();
         let n = s.read_buf(&mut buf).await.unwrap();
         assert_eq!("abc".to_string(), String::from_utf8_lossy(&buf[..n]));
 
         // Test UDP
-        let dgram = handler.handle_udp(&sess, None).await.unwrap();
+        let dgram = UdpOutboundHandler::handle(handler.as_ref(), &sess, None)
+            .await
+            .unwrap();
         let (mut r, mut s) = dgram.split();
         let msg = b"def";
         let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
@@ -142,7 +148,9 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
 
         // Test if we can handle a second UDP session. This can fail in stream
         // transports if the stream ID has not been correctly set.
-        let dgram = handler.handle_udp(&sess, None).await.unwrap();
+        let dgram = UdpOutboundHandler::handle(handler.as_ref(), &sess, None)
+            .await
+            .unwrap();
         let (mut r, mut s) = dgram.split();
         let msg = b"ghi";
         let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();

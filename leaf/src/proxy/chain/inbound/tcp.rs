@@ -16,13 +16,13 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         mut sess: Session,
         mut stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport> {
         for (i, a) in self.actors.iter().enumerate() {
-            let transport = a.handle_tcp(sess.clone(), stream).await?;
+            let transport = TcpInboundHandler::handle(a.as_ref(), sess.clone(), stream).await?;
             match transport {
                 InboundTransport::Stream(new_stream, new_sess) => {
                     stream = new_stream;

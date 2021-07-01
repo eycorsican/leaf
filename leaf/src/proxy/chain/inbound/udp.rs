@@ -13,12 +13,12 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         mut socket: Box<dyn InboundDatagram>,
     ) -> io::Result<InboundTransport> {
         for (i, a) in self.actors.iter().enumerate() {
-            let transport = a.handle_udp(socket).await?;
+            let transport = UdpInboundHandler::handle(a.as_ref(), socket).await?;
             match transport {
                 InboundTransport::Stream(..) => {
                     unimplemented!();

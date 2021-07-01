@@ -11,6 +11,8 @@ use log::*;
 use protobuf::Message;
 use tokio::sync::RwLock;
 
+use crate::proxy::null;
+
 #[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;
 #[cfg(feature = "outbound-failover")]
@@ -53,7 +55,7 @@ use crate::{
     app::dns_client::DnsClient,
     common,
     config::{self, Outbound},
-    proxy::{self, OutboundHandler, ProxyHandlerType},
+    proxy::{self, outbound::HandlerBuilder, OutboundHandler},
 };
 
 use super::selector::OutboundSelector;
@@ -87,31 +89,34 @@ impl OutboundManager {
             match outbound.protocol.as_str() {
                 #[cfg(feature = "outbound-direct")]
                 "direct" => {
-                    let tcp = Box::new(direct::TcpHandler::new(bind_addr, dns_client.clone()));
-                    let udp = Box::new(direct::UdpHandler::new(bind_addr, dns_client.clone()));
-                    let handler = proxy::outbound::Handler::new(
+                    handlers.insert(
                         tag.clone(),
-                        colored::Color::Green,
-                        ProxyHandlerType::Direct,
-                        Some(tcp),
-                        Some(udp),
+                        HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .color(colored::Color::Green)
+                            .tcp_handler(Box::new(direct::TcpHandler::new(
+                                bind_addr,
+                                dns_client.clone(),
+                            )))
+                            .udp_handler(Box::new(direct::UdpHandler::new(
+                                bind_addr,
+                                dns_client.clone(),
+                            )))
+                            .build(),
                     );
-                    trace!("add handler [{}]", &tag);
-                    handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-drop")]
                 "drop" => {
-                    let tcp = Box::new(drop::TcpHandler {});
-                    let udp = Box::new(drop::UdpHandler {});
-                    let handler = proxy::outbound::Handler::new(
+                    handlers.insert(
                         tag.clone(),
-                        colored::Color::Red,
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        Some(udp),
+                        HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(Box::new(drop::TcpHandler))
+                            .udp_handler(Box::new(drop::UdpHandler))
+                            .build(),
                     );
-                    trace!("add handler [{}]", &tag);
-                    handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-redirect")]
                 "redirect" => {
@@ -130,15 +135,13 @@ impl OutboundManager {
                         bind_addr,
                         dns_client: dns_client.clone(),
                     });
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::BrightYellow,
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        Some(udp),
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-socks")]
                 "socks" => {
@@ -157,19 +160,13 @@ impl OutboundManager {
                         bind_addr,
                         dns_client: dns_client.clone(),
                     });
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::TrueColor {
-                            r: 252,
-                            g: 107,
-                            b: 3,
-                        },
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        Some(udp),
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-shadowsocks")]
                 "shadowsocks" => {
@@ -192,15 +189,13 @@ impl OutboundManager {
                         bind_addr,
                         dns_client: dns_client.clone(),
                     });
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::Blue,
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        Some(udp),
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-trojan")]
                 "trojan" => {
@@ -221,15 +216,13 @@ impl OutboundManager {
                         bind_addr,
                         dns_client: dns_client.clone(),
                     });
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::Cyan,
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        Some(udp),
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-vmess")]
                 "vmess" => {
@@ -252,15 +245,13 @@ impl OutboundManager {
                         bind_addr,
                         dns_client: dns_client.clone(),
                     });
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::Magenta,
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        Some(udp),
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-tls")]
                 "tls" => {
@@ -275,19 +266,17 @@ impl OutboundManager {
                         settings.server_name.clone(),
                         alpns.clone(),
                     ));
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::TrueColor {
-                            r: 252,
-                            g: 107,
-                            b: 3,
-                        },
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        None,
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let udp = Box::new(null::outbound::UdpHandler {
+                        connect: None,
+                        transport_type: proxy::DatagramTransportType::Stream,
+                    });
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-ws")]
                 "ws" => {
@@ -299,19 +288,17 @@ impl OutboundManager {
                         headers: settings.headers.clone(),
                         dns_client: dns_client.clone(),
                     });
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::TrueColor {
-                            r: 252,
-                            g: 107,
-                            b: 3,
-                        },
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        None,
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let udp = Box::new(null::outbound::UdpHandler {
+                        connect: None,
+                        transport_type: proxy::DatagramTransportType::Stream,
+                    });
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-quic")]
                 "quic" => {
@@ -336,19 +323,17 @@ impl OutboundManager {
                         bind_addr,
                         dns_client.clone(),
                     ));
-                    let handler = proxy::outbound::Handler::new(
-                        tag.clone(),
-                        colored::Color::TrueColor {
-                            r: 252,
-                            g: 107,
-                            b: 3,
-                        },
-                        ProxyHandlerType::Endpoint,
-                        Some(tcp),
-                        None,
-                    );
-                    trace!("add handler [{}]", &tag);
+                    let udp = Box::new(null::outbound::UdpHandler {
+                        connect: Some(proxy::OutboundConnect::NoConnect),
+                        transport_type: proxy::DatagramTransportType::Stream,
+                    });
+                    let handler = HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build();
                     handlers.insert(tag.clone(), handler);
+                    trace!("added handler [{}]", &tag);
                 }
                 #[cfg(feature = "outbound-h2")]
                 "h2" => {
@@ -366,7 +351,6 @@ impl OutboundManager {
                             g: 107,
                             b: 3,
                         },
-                        ProxyHandlerType::Endpoint,
                         Some(tcp),
                         None,
                     );
@@ -412,23 +396,17 @@ impl OutboundManager {
                             actors,
                             delay_base: settings.delay_base,
                         });
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 182,
-                                g: 235,
-                                b: 250,
-                            },
-                            ProxyHandlerType::Ensemble,
-                            Some(tcp),
-                            Some(udp),
-                        );
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(tcp)
+                            .udp_handler(udp)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
                         trace!(
-                            "add handler [{}] with actors: {}",
+                            "added handler [{}] with actors: {}",
                             &tag,
                             settings.actors.join(",")
                         );
-                        handlers.insert(tag.clone(), handler);
                     }
                     #[cfg(feature = "outbound-random")]
                     "random" => {
@@ -452,23 +430,17 @@ impl OutboundManager {
                             actors: actors.clone(),
                         });
                         let udp = Box::new(random::UdpHandler { actors });
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 182,
-                                g: 235,
-                                b: 250,
-                            },
-                            ProxyHandlerType::Ensemble,
-                            Some(tcp),
-                            Some(udp),
-                        );
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(tcp)
+                            .udp_handler(udp)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
                         trace!(
-                            "add handler [{}] with actors: {}",
+                            "added handler [{}] with actors: {}",
                             &tag,
                             settings.actors.join(",")
                         );
-                        handlers.insert(tag.clone(), handler);
                     }
                     #[cfg(feature = "outbound-rr")]
                     "rr" => {
@@ -496,23 +468,17 @@ impl OutboundManager {
                             actors,
                             next: AtomicUsize::new(0),
                         });
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 182,
-                                g: 235,
-                                b: 250,
-                            },
-                            ProxyHandlerType::Ensemble,
-                            Some(tcp),
-                            Some(udp),
-                        );
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(tcp)
+                            .udp_handler(udp)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
                         trace!(
-                            "add handler [{}] with actors: {}",
+                            "added handler [{}] with actors: {}",
                             &tag,
                             settings.actors.join(",")
                         );
-                        handlers.insert(tag.clone(), handler);
                     }
                     #[cfg(feature = "outbound-failover")]
                     "failover" => {
@@ -549,25 +515,19 @@ impl OutboundManager {
                             settings.check_interval,
                             settings.failover,
                         );
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 182,
-                                g: 235,
-                                b: 250,
-                            },
-                            ProxyHandlerType::Ensemble,
-                            Some(Box::new(tcp)),
-                            Some(Box::new(udp)),
-                        );
-                        trace!(
-                            "add handler [{}] with actors: {}",
-                            &tag,
-                            settings.actors.join(",")
-                        );
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(Box::new(tcp))
+                            .udp_handler(Box::new(udp))
+                            .build();
                         handlers.insert(tag.clone(), handler);
                         abort_handles.append(&mut tcp_abort_handles);
                         abort_handles.append(&mut udp_abort_handles);
+                        trace!(
+                            "added handler [{}] with actors: {}",
+                            &tag,
+                            settings.actors.join(",")
+                        );
                     }
                     #[cfg(feature = "outbound-amux")]
                     "amux" => {
@@ -593,24 +553,22 @@ impl OutboundManager {
                             bind_addr,
                             dns_client.clone(),
                         );
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 226,
-                                g: 103,
-                                b: 245,
-                            },
-                            ProxyHandlerType::Ensemble,
-                            Some(Box::new(tcp)),
-                            None,
-                        );
+                        let udp = Box::new(null::outbound::UdpHandler {
+                            connect: Some(proxy::OutboundConnect::NoConnect),
+                            transport_type: proxy::DatagramTransportType::Stream,
+                        });
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(Box::new(tcp))
+                            .udp_handler(udp)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
+                        abort_handles.append(&mut tcp_abort_handles);
                         trace!(
-                            "add handler [{}] with actors: {}",
+                            "added handler [{}] with actors: {}",
                             &tag,
                             settings.actors.join(",")
                         );
-                        handlers.insert(tag.clone(), handler);
-                        abort_handles.append(&mut tcp_abort_handles);
                     }
                     #[cfg(feature = "outbound-chain")]
                     "chain" => {
@@ -638,19 +596,17 @@ impl OutboundManager {
                             actors: actors.clone(),
                             dns_client: dns_client.clone(),
                         });
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::Blue,
-                            ProxyHandlerType::Ensemble,
-                            Some(tcp),
-                            Some(udp),
-                        );
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(tcp)
+                            .udp_handler(udp)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
                         trace!(
-                            "add handler [{}] with actors: {}",
+                            "added handler [{}] with actors: {}",
                             &tag,
                             settings.actors.join(",")
                         );
-                        handlers.insert(tag.clone(), handler);
                     }
                     #[cfg(feature = "outbound-retry")]
                     "retry" => {
@@ -678,23 +634,17 @@ impl OutboundManager {
                             actors,
                             attempts: settings.attempts as usize,
                         });
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 182,
-                                g: 235,
-                                b: 250,
-                            },
-                            ProxyHandlerType::Ensemble,
-                            Some(tcp),
-                            Some(udp),
-                        );
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(tcp)
+                            .udp_handler(udp)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
                         trace!(
-                            "add handler [{}] with actors: {}",
+                            "added handler [{}] with actors: {}",
                             &tag,
                             settings.actors.join(",")
                         );
-                        handlers.insert(tag.clone(), handler);
                     }
                     _ => continue,
                 }
@@ -753,23 +703,17 @@ impl OutboundManager {
                             selector: selector.clone(),
                         });
                         selectors.insert(tag.clone(), selector);
-                        let handler = proxy::outbound::Handler::new(
-                            tag.clone(),
-                            colored::Color::TrueColor {
-                                r: 182,
-                                g: 235,
-                                b: 250,
-                            },
-                            ProxyHandlerType::Ensemble,
-                            Some(tcp),
-                            Some(udp),
-                        );
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .tcp_handler(tcp)
+                            .udp_handler(udp)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
                         trace!(
-                            "add handler [{}] with actors: {}",
+                            "added handler [{}] with actors: {}",
                             &tag,
                             settings.actors.join(",")
                         );
-                        handlers.insert(tag.clone(), handler);
                     }
                     _ => continue,
                 }

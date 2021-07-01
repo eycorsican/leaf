@@ -22,7 +22,7 @@ use trust_dns_proto::{
 use crate::{
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler,
-        UdpTransportType,
+        DatagramTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -69,7 +69,7 @@ impl Handler {
                                 ..Default::default()
                             };
                             let start = tokio::time::Instant::now();
-                            match a.handle_udp(&sess, None).await {
+                            match UdpOutboundHandler::handle(a.as_ref(), &sess, None).await {
                                 Ok(socket) => {
                                     let addr = SocksAddr::Ip(SocketAddr::new(
                                         IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
@@ -189,15 +189,15 @@ impl Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Unknown
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Undefined
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
@@ -220,7 +220,7 @@ impl UdpOutboundHandler for Handler {
             );
             match timeout(
                 time::Duration::from_secs(self.fail_timeout as u64),
-                (&self.actors[i]).handle_udp(sess, None),
+                UdpOutboundHandler::handle(self.actors[i].as_ref(), sess, None),
             )
             .await
             {

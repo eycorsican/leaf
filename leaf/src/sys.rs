@@ -41,11 +41,10 @@ pub fn get_net_info() -> NetInfo {
         .iter()
         .find(|ifa| ifa.name == iface && !ifa.ips.is_empty())
     {
-        if let Some(ipn) = ifa.ips.iter().find(|ipn| ipn.is_ipv4()) {
-            Some(ipn.ip().to_string())
-        } else {
-            None
-        }
+        ifa.ips
+            .iter()
+            .find(|ipn| ipn.is_ipv4())
+            .map(|ipn| ipn.ip().to_string())
     } else {
         None
     };
@@ -54,11 +53,10 @@ pub fn get_net_info() -> NetInfo {
             .iter()
             .find(|ifa| ifa.name == iface && !ifa.ips.is_empty())
         {
-            if let Some(ipn) = ifa.ips.iter().find(|ipn| ipn.is_ipv6()) {
-                Some(ipn.ip().to_string())
-            } else {
-                None
-            }
+            ifa.ips
+                .iter()
+                .find(|ipn| ipn.is_ipv6())
+                .map(|ipn| ipn.ip().to_string())
         } else {
             None
         }

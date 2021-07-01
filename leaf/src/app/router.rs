@@ -76,7 +76,7 @@ impl IpCidrMatcher {
     fn new(ips: &mut protobuf::RepeatedField<String>) -> Self {
         let mut cidrs = Vec::new();
         for ip in ips.iter_mut() {
-            let ip = std::mem::replace(ip, String::new());
+            let ip = std::mem::take(ip);
             match ip.parse::<IpCidr>() {
                 Ok(cidr) => cidrs.push(cidr),
                 Err(err) => {
@@ -231,7 +231,7 @@ impl Condition for DomainSuffixMatcher {
     fn apply(&self, sess: &Session) -> bool {
         if sess.destination.is_domain() {
             if let Some(domain) = sess.destination.domain() {
-                if is_sub_domain(&domain, &self.value) {
+                if is_sub_domain(domain, &self.value) {
                     debug!("[{}] matches domain suffix [{}]", domain, &self.value);
                     return true;
                 }
@@ -273,7 +273,7 @@ impl DomainMatcher {
     fn new(domains: &mut protobuf::RepeatedField<config::Router_Rule_Domain>) -> Self {
         let mut cond_or = ConditionOr::new();
         for rr_domain in domains.iter_mut() {
-            let filter = std::mem::replace(&mut rr_domain.value, String::new());
+            let filter = std::mem::take(&mut rr_domain.value);
             match rr_domain.field_type {
                 config::Router_Rule_Domain_Type::PLAIN => {
                     cond_or.add(Box::new(DomainKeywordMatcher::new(filter)));
@@ -408,7 +408,7 @@ impl Router {
                 continue;
             }
 
-            let tag = std::mem::replace(&mut rr.target_tag, String::new());
+            let tag = std::mem::take(&mut rr.target_tag);
             rules.push(Rule::new(tag, Box::new(cond_and)));
         }
     }

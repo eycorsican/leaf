@@ -27,12 +27,10 @@ pub fn new(
 ) -> Result<Runner> {
     let settings = TunInboundSettings::parse_from_bytes(&inbound.settings)?;
 
-    let cfg = if settings.fd >= 0 {
-        let mut cfg = tun::Configuration::default();
+    let mut cfg = tun::Configuration::default();
+    if settings.fd >= 0 {
         cfg.raw_fd(settings.fd);
-        cfg
     } else if settings.auto {
-        let mut cfg = tun::Configuration::default();
         cfg.name(&*option::DEFAULT_TUN_NAME)
             .address(&*option::DEFAULT_TUN_IPV4_ADDR)
             .destination(&*option::DEFAULT_TUN_IPV4_GW)
@@ -49,9 +47,7 @@ pub fn new(
         }
 
         cfg.up();
-        cfg
     } else {
-        let mut cfg = tun::Configuration::default();
         cfg.name(settings.name)
             .address(settings.address)
             .destination(settings.gateway)
@@ -68,8 +64,7 @@ pub fn new(
         }
 
         cfg.up();
-        cfg
-    };
+    }
 
     // FIXME it's a bad design to have 2 lists in config while we need only one
     let fake_dns_exclude = settings.fake_dns_exclude;

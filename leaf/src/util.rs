@@ -7,6 +7,7 @@ use tokio::sync::RwLock;
 use crate::{
     app::{dns_client::DnsClient, outbound::manager::OutboundManager},
     config::Config,
+    proxy::{TcpOutboundHandler, UdpOutboundHandler},
     session::{Session, SocksAddr},
 };
 
@@ -88,7 +89,7 @@ pub async fn test_outbound(tag: &str, config: &Config) {
     };
     println!("testing outbound {}", &handler.tag());
 
-    println!("");
+    println!();
 
     println!("testing TCP...");
     let start = tokio::time::Instant::now();
@@ -96,7 +97,7 @@ pub async fn test_outbound(tag: &str, config: &Config) {
         destination: SocksAddr::Domain("www.google.com".to_string(), 80),
         ..Default::default()
     };
-    match handler.handle_tcp(&sess, None).await {
+    match TcpOutboundHandler::handle(handler.as_ref(), &sess, None).await {
         Ok(mut stream) => {
             if let Err(e) = stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await {
                 println!("write to outbound {} failed: {}", &handler.tag(), e);
@@ -123,7 +124,7 @@ pub async fn test_outbound(tag: &str, config: &Config) {
         }
     }
 
-    println!("");
+    println!();
 
     println!("testing UDP...");
     let start = tokio::time::Instant::now();
@@ -131,7 +132,7 @@ pub async fn test_outbound(tag: &str, config: &Config) {
         destination: SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53)),
         ..Default::default()
     };
-    match handler.handle_udp(&sess, None).await {
+    match UdpOutboundHandler::handle(handler.as_ref(), &sess, None).await {
         Ok(socket) => {
             let addr = SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
             let mut msg = Message::new();

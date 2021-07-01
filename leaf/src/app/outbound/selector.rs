@@ -39,7 +39,7 @@ pub fn persist_selected_to_cache(id: String, selected: String) -> Result<()> {
     } else {
         super::selector_cache::SelectorCache::new()
     };
-    cache.items.insert(id.clone(), selected.clone());
+    cache.items.insert(id, selected);
     let content = cache.write_to_bytes()?;
     std::fs::write(&cache_file, content)?;
     Ok(())

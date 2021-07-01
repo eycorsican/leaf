@@ -23,17 +23,17 @@ impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyStream>> {
         Ok(Box::new(SimpleProxyStream(
-            self.dial_tcp_stream(
+            self.new_tcp_stream(
                 self.dns_client.clone(),
                 &self.bind_addr,
                 &self.address,

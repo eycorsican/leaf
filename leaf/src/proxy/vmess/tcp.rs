@@ -30,7 +30,7 @@ impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(
             self.address.clone(),
             self.port,
@@ -38,7 +38,7 @@ impl TcpOutboundHandler for Handler {
         ))
     }
 
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
@@ -107,7 +107,7 @@ impl TcpOutboundHandler for Handler {
         let mut stream = if let Some(stream) = stream {
             stream
         } else {
-            self.dial_tcp_stream(
+            self.new_tcp_stream(
                 self.dns_client.clone(),
                 &self.bind_addr,
                 &self.address,

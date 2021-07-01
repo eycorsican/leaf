@@ -13,7 +13,7 @@ use crate::{
     app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, TcpConnector, UdpConnector, UdpOutboundHandler, UdpTransportType,
+        OutboundTransport, TcpConnector, UdpConnector, UdpOutboundHandler, DatagramTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -30,7 +30,7 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(
             self.address.clone(),
             self.port,
@@ -38,27 +38,25 @@ impl UdpOutboundHandler for Handler {
         ))
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Packet
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Datagram
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> Result<Box<dyn OutboundDatagram>> {
         // TODO support chaining, this requires implementing our own socks5 client
         let stream = self
-            .dial_tcp_stream(
+            .new_tcp_stream(
                 self.dns_client.clone(),
                 &self.bind_addr,
                 &self.address,
                 &self.port,
             )
             .await?;
-        let socket = self
-            .create_udp_socket(&self.bind_addr, &sess.source)
-            .await?;
+        let socket = self.new_udp_socket(&self.bind_addr, &sess.source).await?;
         let socket = SocksDatagram::associate(stream, socket, None::<Auth>, None::<AddrKind>)
             .map_err(|x| Error::new(ErrorKind::Other, x))
             .await?;

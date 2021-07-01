@@ -37,7 +37,7 @@ pub fn load_site_rule(filter: &str) -> Result<(String, String)> {
 
 pub fn add_external_rule(rule: &mut internal::Router_Rule, ext_external: &str) -> Result<()> {
     if ext_external.starts_with("mmdb") {
-        let (file, code) = match load_mmdb_rule(&ext_external) {
+        let (file, code) = match load_mmdb_rule(ext_external) {
             Ok((f, c)) => (f, c),
             Err(e) => {
                 return Err(anyhow!("load mmdb rule failed: {}", e));
@@ -50,7 +50,7 @@ pub fn add_external_rule(rule: &mut internal::Router_Rule, ext_external: &str) -
     }
 
     if ext_external.starts_with("site") {
-        let (file, code) = match load_site_rule(&ext_external) {
+        let (file, code) = match load_site_rule(ext_external) {
             Ok((f, c)) => (f, c),
             Err(e) => {
                 return Err(anyhow!("load site rule failed: {}", e));
@@ -85,7 +85,7 @@ pub fn add_external_rule(rule: &mut internal::Router_Rule, ext_external: &str) -
                             continue;
                         }
                     };
-                    let value = std::mem::replace(&mut domain.value, String::new());
+                    let value = std::mem::take(&mut domain.value);
                     domain_rule.value = value;
                     rule.domains.push(domain_rule);
                 }

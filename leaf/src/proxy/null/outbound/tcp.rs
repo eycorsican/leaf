@@ -7,12 +7,14 @@ use crate::{
     session::Session,
 };
 
-pub struct Handler;
+pub struct Handler {
+    pub connect: Option<OutboundConnect>,
+}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+        self.connect.clone()
     }
 
     async fn handle<'a>(
@@ -20,6 +22,6 @@ impl TcpOutboundHandler for Handler {
         _sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>> {
-        Err(io::Error::new(io::ErrorKind::Other, "dropped"))
+        Err(io::Error::new(io::ErrorKind::Other, "null handler"))
     }
 }

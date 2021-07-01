@@ -10,7 +10,7 @@ use futures::{
 
 use crate::{
     proxy::{
-        InboundHandler, InboundTransport, ProxyStream, SimpleProxyStream, SingleInboundTransport,
+        BaseInboundTransport, InboundHandler, InboundTransport, ProxyStream, SimpleProxyStream,
         TcpInboundHandler,
     },
     session::Session,
@@ -34,14 +34,14 @@ impl Incoming {
 }
 
 impl Stream for Incoming {
-    type Item = SingleInboundTransport;
+    type Item = BaseInboundTransport;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(
             ready!(Pin::new(&mut self.acceptor).poll_next(cx)).map(|stream| {
                 let mut sess = self.sess.clone();
                 sess.stream_id = Some(stream.id().into());
-                SingleInboundTransport::Stream(Box::new(SimpleProxyStream(stream)), sess)
+                BaseInboundTransport::Stream(Box::new(SimpleProxyStream(stream)), sess)
             }),
         )
     }
@@ -53,13 +53,13 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         mut sess: Session,
         mut stream: Box<dyn ProxyStream>,
     ) -> io::Result<InboundTransport> {
         for (_, a) in self.actors.iter().enumerate() {
-            match a.handle_tcp(sess, stream).await? {
+            match TcpInboundHandler::handle(a.as_ref(), sess, stream).await? {
                 InboundTransport::Stream(new_stream, new_sess) => {
                     stream = new_stream;
                     sess = new_sess;

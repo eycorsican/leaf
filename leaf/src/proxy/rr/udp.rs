@@ -8,7 +8,7 @@ use log::*;
 use crate::{
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler,
-        UdpTransportType,
+        DatagramTransportType,
     },
     session::Session,
 };
@@ -20,15 +20,15 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Unknown
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Undefined
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
@@ -42,6 +42,6 @@ impl UdpOutboundHandler for Handler {
         };
         self.next.store(next, Ordering::Relaxed);
         debug!("rr handles tcp [{}] to [{}]", sess.destination, a.tag());
-        a.handle_udp(sess, None).await
+        UdpOutboundHandler::handle(a.as_ref(), sess, None).await
     }
 }

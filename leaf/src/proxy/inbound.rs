@@ -50,13 +50,13 @@ impl InboundHandler for Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: Session,
         stream: Box<dyn ProxyStream>,
     ) -> std::io::Result<InboundTransport> {
         if let Some(handler) = &self.tcp_handler {
-            handler.handle_tcp(sess, stream).await
+            handler.handle(sess, stream).await
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "no TCP handler"))
         }
@@ -65,12 +65,12 @@ impl TcpInboundHandler for Handler {
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         socket: Box<dyn InboundDatagram>,
     ) -> io::Result<InboundTransport> {
         if let Some(handler) = &self.udp_handler {
-            handler.handle_udp(socket).await
+            handler.handle(socket).await
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "no UDP handler"))
         }

@@ -6,7 +6,7 @@ use crate::{
     app::SyncDnsClient,
     proxy::{
         OutboundConnect, OutboundDatagram, OutboundTransport, SimpleOutboundDatagram, UdpConnector,
-        UdpOutboundHandler, UdpTransportType,
+        UdpOutboundHandler, DatagramTransportType,
     },
     session::{Session, SocksAddr},
 };
@@ -29,22 +29,20 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Direct(self.bind_addr))
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Packet
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Datagram
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        let socket = self
-            .create_udp_socket(&self.bind_addr, &sess.source)
-            .await?;
+        let socket = self.new_udp_socket(&self.bind_addr, &sess.source).await?;
         let destination = match &sess.destination {
             SocksAddr::Domain(domain, port) => {
                 Some(SocksAddr::Domain(domain.to_owned(), port.to_owned()))

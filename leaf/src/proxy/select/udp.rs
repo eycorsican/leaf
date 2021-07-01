@@ -8,7 +8,7 @@ use tokio::sync::RwLock;
 use crate::{
     app::outbound::selector::OutboundSelector,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundTransport, UdpOutboundHandler, UdpTransportType,
+        OutboundConnect, OutboundDatagram, OutboundTransport, UdpOutboundHandler, DatagramTransportType,
     },
     session::Session,
 };
@@ -19,22 +19,22 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Unknown
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Undefined
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
         if let Some(a) = self.selector.read().await.get_selected() {
             debug!("select handles tcp [{}] to [{}]", sess.destination, a.tag());
-            a.handle_udp(sess, transport).await
+            UdpOutboundHandler::handle(a.as_ref(), sess, transport).await
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "no selected outbound"))
         }

@@ -40,7 +40,7 @@ impl Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: Session,
         stream: Box<dyn ProxyStream>,

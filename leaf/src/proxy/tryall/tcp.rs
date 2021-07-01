@@ -15,11 +15,11 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn tcp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
 
-    async fn handle_tcp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
@@ -33,7 +33,7 @@ impl TcpOutboundHandler for Handler {
                     ))
                     .await;
                 }
-                a.handle_tcp(sess, None).await
+                TcpOutboundHandler::handle(a.as_ref(), sess, None).await
             };
             tasks.push(Box::pin(t));
         }

@@ -9,8 +9,8 @@ use uuid::Uuid;
 use crate::{
     app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, TcpConnector, UdpOutboundHandler, UdpTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
+        OutboundDatagramSendHalf, OutboundTransport, TcpConnector, UdpOutboundHandler,
     },
     session::{Session, SocksAddr},
 };
@@ -32,7 +32,7 @@ impl TcpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn udp_connect_addr(&self) -> Option<OutboundConnect> {
+    fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(
             self.address.clone(),
             self.port,
@@ -40,11 +40,11 @@ impl UdpOutboundHandler for Handler {
         ))
     }
 
-    fn udp_transport_type(&self) -> UdpTransportType {
-        UdpTransportType::Stream
+    fn transport_type(&self) -> DatagramTransportType {
+        DatagramTransportType::Stream
     }
 
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         transport: Option<OutboundTransport>,
@@ -112,7 +112,7 @@ impl UdpOutboundHandler for Handler {
         let mut stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream
         } else {
-            self.dial_tcp_stream(
+            self.new_tcp_stream(
                 self.dns_client.clone(),
                 &self.bind_addr,
                 &self.address,
@@ -186,6 +186,6 @@ where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
     async fn send_to(&mut self, buf: &[u8], _target: &SocksAddr) -> io::Result<usize> {
-        self.0.write_all(&buf).map_ok(|_| buf.len()).await
+        self.0.write_all(buf).map_ok(|_| buf.len()).await
     }
 }

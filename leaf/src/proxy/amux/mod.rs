@@ -349,8 +349,7 @@ impl<S: AsyncWrite + Unpin> Sink<MuxFrame> for MuxConnection<S> {
         // ready!(Pin::new(&mut me.inner.write_all(&me.write_buf)).poll(cx))?;
 
         while !me.write_buf.is_empty() {
-            let buf = &me.write_buf;
-            let n = ready!(Pin::new(&mut me.inner).poll_write(cx, &buf))?;
+            let n = ready!(Pin::new(&mut me.inner).poll_write(cx, &me.write_buf))?;
             if n == 0 {
                 return Poll::Ready(Err(broken_pipe()));
             }

@@ -883,7 +883,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
             // a map for caching external site so we need not load a same file multiple times
             for ext_rule in ext_rules.iter_mut() {
                 let mut rule = internal::Router_Rule::new();
-                let target_tag = std::mem::replace(&mut ext_rule.target, String::new());
+                let target_tag = std::mem::take(&mut ext_rule.target);
                 rule.target_tag = target_tag;
                 if let Some(ext_ips) = ext_rule.ip.as_mut() {
                     for ext_ip in ext_ips.drain(0..) {

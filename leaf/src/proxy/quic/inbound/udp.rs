@@ -11,7 +11,7 @@ use futures::{
 };
 
 use crate::{
-    proxy::{InboundDatagram, InboundTransport, SingleInboundTransport, UdpInboundHandler},
+    proxy::{InboundDatagram, InboundTransport, BaseInboundTransport, UdpInboundHandler},
     session::Session,
 };
 
@@ -36,7 +36,7 @@ impl Incoming {
 }
 
 impl Stream for Incoming {
-    type Item = SingleInboundTransport;
+    type Item = BaseInboundTransport;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // FIXME don't iterate and poll all
@@ -86,7 +86,7 @@ impl Stream for Incoming {
                     };
                     // TODO Check whether the index suitable for this purpose.
                     sess.stream_id = Some(send.id().index());
-                    stream.replace(SingleInboundTransport::Stream(
+                    stream.replace(BaseInboundTransport::Stream(
                         Box::new(QuicProxyStream { recv, send }),
                         sess,
                     ));
@@ -141,7 +141,7 @@ impl Handler {
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         socket: Box<dyn InboundDatagram>,
     ) -> io::Result<InboundTransport> {

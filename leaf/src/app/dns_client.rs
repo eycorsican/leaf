@@ -71,8 +71,8 @@ impl DnsClient {
         } else {
             return Err(anyhow!("empty dns config"));
         };
-        let servers = Self::load_servers(&dns)?;
-        let hosts = Self::load_hosts(&dns);
+        let servers = Self::load_servers(dns)?;
+        let hosts = Self::load_hosts(dns);
         let ipv4_cache = Arc::new(TokioMutex::new(LruCache::<String, CacheEntry>::new(
             *option::DNS_CACHE_SIZE,
         )));
@@ -95,8 +95,8 @@ impl DnsClient {
         } else {
             return Err(anyhow!("empty dns config"));
         };
-        let servers = Self::load_servers(&dns)?;
-        let hosts = Self::load_hosts(&dns);
+        let servers = Self::load_servers(dns)?;
+        let hosts = Self::load_hosts(dns);
         self.servers = servers;
         self.hosts = hosts;
         self.bind_addr = common::net::parse_bind_addr(&dns.bind)?;
@@ -172,7 +172,7 @@ impl DnsClient {
         server: &SocketAddr,
         bind_addr: &SocketAddr,
     ) -> Result<CacheEntry> {
-        let socket = self.create_udp_socket(bind_addr, server).await?;
+        let socket = self.new_udp_socket(bind_addr, server).await?;
         let mut last_err = None;
         for _i in 0..*option::MAX_DNS_RETRIES {
             debug!("looking up host {} on {}", host, server);

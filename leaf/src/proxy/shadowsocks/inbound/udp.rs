@@ -25,7 +25,7 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
-    async fn handle_udp<'a>(
+    async fn handle<'a>(
         &'a self,
         socket: Box<dyn InboundDatagram>,
     ) -> io::Result<InboundTransport> {

@@ -349,6 +349,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(any(feature = "ring-aead", feature = "openssl-aead"))]
     fn test_aead_enc_dec() {
         struct ShadowsocksNonceSequence(Vec<u8>);
 
