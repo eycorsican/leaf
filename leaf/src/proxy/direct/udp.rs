@@ -1,36 +1,21 @@
-use std::{io, net::SocketAddr};
+use std::io;
 
 use async_trait::async_trait;
 
 use crate::{
-    app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundTransport, SimpleOutboundDatagram, UdpConnector,
-        UdpOutboundHandler, DatagramTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundTransport,
+        UdpOutboundHandler,
     },
-    session::{Session, SocksAddr},
+    session::Session,
 };
 
-pub struct Handler {
-    bind_addr: SocketAddr,
-    dns_client: SyncDnsClient,
-}
-
-impl Handler {
-    pub fn new(bind_addr: SocketAddr, dns_client: SyncDnsClient) -> Self {
-        Handler {
-            bind_addr,
-            dns_client,
-        }
-    }
-}
-
-impl UdpConnector for Handler {}
+pub struct Handler;
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Direct(self.bind_addr))
+        Some(OutboundConnect::Direct)
     }
 
     fn transport_type(&self) -> DatagramTransportType {
@@ -39,21 +24,13 @@ impl UdpOutboundHandler for Handler {
 
     async fn handle<'a>(
         &'a self,
-        sess: &'a Session,
-        _transport: Option<OutboundTransport>,
+        _sess: &'a Session,
+        transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        let socket = self.new_udp_socket(&self.bind_addr, &sess.source).await?;
-        let destination = match &sess.destination {
-            SocksAddr::Domain(domain, port) => {
-                Some(SocksAddr::Domain(domain.to_owned(), port.to_owned()))
-            }
-            _ => None,
-        };
-        Ok(Box::new(SimpleOutboundDatagram::new(
-            socket,
-            destination,
-            self.dns_client.clone(),
-            self.bind_addr,
-        )))
+        if let Some(OutboundTransport::Datagram(dgram)) = transport {
+            Ok(dgram)
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "invalid input"))
+        }
     }
 }

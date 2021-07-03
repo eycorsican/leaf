@@ -13,7 +13,6 @@ pub struct Resolver {
 impl Resolver {
     pub async fn new<'a>(
         dns_client: SyncDnsClient,
-        bind_addr: &'a SocketAddr,
         address: &'a String,
         port: &'a u16,
     ) -> Result<Self> {
@@ -21,7 +20,7 @@ impl Resolver {
             dns_client
                 .read()
                 .await
-                .lookup_with_bind(address, bind_addr)
+                .lookup(address)
                 .map_err(|e| anyhow!("lookup {} failed: {}", address, e))
                 .await?
         };

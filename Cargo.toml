@@ -3,6 +3,7 @@ members = [
     "leaf",
     "leaf-bin",
     "leaf-ffi",
+    "leaf-plugins/shadowsocks",
 ]
 default-members = ["leaf-bin"]
 

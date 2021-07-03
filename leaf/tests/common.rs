@@ -8,7 +8,7 @@ use tokio::net::{TcpListener, ToSocketAddrs, UdpSocket};
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 
-use leaf::proxy::{TcpOutboundHandler, UdpOutboundHandler};
+use leaf::proxy::{SimpleProxyStream, TcpOutboundHandler, UdpOutboundHandler};
 
 pub async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
     let listener = TcpListener::bind(addr).await.unwrap();
@@ -99,7 +99,6 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         let outbounds = vec![leaf::config::json::Outbound {
             protocol: "socks".to_string(),
             tag: Some("socks".to_string()),
-            bind: None,
             settings: Some(raw_settings),
         }];
         let mut config = leaf::config::json::Config {
@@ -122,7 +121,11 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
 
         // Test TCP
-        let mut s = TcpOutboundHandler::handle(handler.as_ref(), &sess, None)
+        let stream = tokio::net::TcpStream::connect(format!("{}:{}", socks_addr, socks_port))
+            .await
+            .unwrap();
+        let stream = Box::new(SimpleProxyStream(stream));
+        let mut s = TcpOutboundHandler::handle(handler.as_ref(), &sess, Some(stream))
             .await
             .unwrap();
         s.write_all(b"abc").await.unwrap();

@@ -1,19 +1,16 @@
 mod common;
 
-// app(socks) -> (socks)client(ws+trojan) -> (ws+trojan)server(direct) -> echo
+// app(socks) -> (socks)client(retry(shadowsocks)) -> (shadowsocks)server(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
-    feature = "outbound-ws",
-    feature = "outbound-trojan",
-    feature = "inbound-ws",
-    feature = "inbound-trojan",
+    feature = "outbound-shadowsocks",
+    feature = "inbound-shadowsocks",
     feature = "outbound-direct",
-    feature = "inbound-chain",
-    feature = "outbound-chain",
+    feature = "outbound-retry",
 ))]
 #[test]
-fn test_in_chain_1() {
+fn test_retry() {
     let config1 = r#"
     {
         "inbounds": [
@@ -25,27 +22,20 @@ fn test_in_chain_1() {
         ],
         "outbounds": [
             {
-                "protocol": "chain",
+                "protocol": "retry",
                 "settings": {
                     "actors": [
-                        "ws",
-                        "trojan"
+                        "ss_out"
                     ]
                 }
             },
             {
-                "protocol": "ws",
-                "tag": "ws",
-                "settings": {
-                    "path": "/leaf"
-                }
-            },
-            {
-                "protocol": "trojan",
-                "tag": "trojan",
+                "protocol": "shadowsocks",
+                "tag": "ss_out",
                 "settings": {
                     "address": "127.0.0.1",
                     "port": 3001,
+                    "method": "chacha20-ietf-poly1305",
                     "password": "password"
                 }
             }
@@ -57,27 +47,11 @@ fn test_in_chain_1() {
     {
         "inbounds": [
             {
-                "protocol": "chain",
+                "protocol": "shadowsocks",
                 "address": "127.0.0.1",
                 "port": 3001,
                 "settings": {
-                    "actors": [
-                        "ws",
-                        "trojan"
-                    ]
-                }
-            },
-            {
-                "protocol": "ws",
-                "tag": "ws",
-                "settings": {
-                    "path": "/leaf"
-                }
-            },
-            {
-                "protocol": "trojan",
-                "tag": "trojan",
-                "settings": {
+                    "method": "chacha20-ietf-poly1305",
                     "password": "password"
                 }
             }

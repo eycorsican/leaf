@@ -11,7 +11,6 @@ message Dns {
 	}
 
 	repeated string servers = 1;
-	string bind = 2;
 	map<string, Ips> hosts = 3;
 }
 
@@ -103,13 +102,6 @@ message TrojanOutboundSettings {
 	string password = 3;
 }
 
-message VMessOutboundSettings {
-	string address = 1;
-	uint32 port = 2;
-	string uuid = 3;
-	string security = 4;
-}
-
 message TlsOutboundSettings {
 	string server_name = 1;
 	repeated string alpn = 2;
@@ -118,11 +110,6 @@ message TlsOutboundSettings {
 message WebSocketOutboundSettings {
 	string path = 1;
 	map<string, string> headers = 2;
-}
-
-message HTTP2OutboundSettings {
-	string path = 1;
-	string host = 2;
 }
 
 message TryAllOutboundSettings {
@@ -179,10 +166,14 @@ message SelectOutboundSettings {
 	repeated string actors = 1;
 }
 
+message PluginOutboundSettings {
+	string path = 1;
+	string args = 2;
+}
+
 message Outbound {
 	string tag = 1;
 	string protocol = 2; // TODO use enum
-	string bind = 3;
 	bytes settings = 4;
 }
 

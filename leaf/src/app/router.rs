@@ -453,7 +453,11 @@ impl Router {
                 self.dns_client
                     .read()
                     .await
-                    .lookup(sess.destination.domain().unwrap())
+                    .lookup(
+                        sess.destination
+                            .domain()
+                            .ok_or_else(|| anyhow!("illegal domain name"))?,
+                    )
                     .map_err(|e| anyhow!("lookup {} failed: {}", sess.destination.host(), e))
                     .await?
             };

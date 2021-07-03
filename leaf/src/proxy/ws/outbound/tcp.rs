@@ -8,7 +8,6 @@ use tungstenite::protocol::WebSocketConfig;
 use url::Url;
 
 use crate::{
-    app::SyncDnsClient,
     proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
     session::Session,
 };
@@ -18,7 +17,6 @@ use super::stream;
 pub struct Handler {
     pub path: String,
     pub headers: HashMap<String, String>,
-    pub dns_client: SyncDnsClient,
 }
 
 struct Request<'a> {

@@ -52,16 +52,14 @@ all-endpoints = [
     # outbounds
     "outbound-direct",
     "outbound-drop",
-    # "outbound-redirect",
+    "outbound-redirect",
     "outbound-shadowsocks",
     "outbound-socks",
     "outbound-trojan",
-    # "outbound-vmess",
     "outbound-tls",
     "outbound-ws",
     "outbound-amux",
     # "outbound-quic",
-    # "outbound-h2",
     "outbound-failover",
     "outbound-random",
     "outbound-rr",
@@ -90,10 +88,8 @@ outbound-redirect = []
 outbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 outbound-socks = ["async-socks5"]
 outbound-trojan = ["sha2", "hex"]
-outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util"]
 outbound-tls = []
 outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
-outbound-h2 = ["h2", "http", "url"]
 outbound-failover = ["lru_time_cache"]
 outbound-random = []
 outbound-rr= []
@@ -134,6 +130,8 @@ anyhow = "1.0"
 rand = "0.8"
 socket2 = "0.4"
 directories = "3.0"
+async-ffi = "0.2"
+libloading = "0.7"
 
 # config-json
 serde_json = { version = "1.0", features = ["raw_value"], optional = true }
@@ -176,35 +174,19 @@ tokio-openssl = { version = "0.6", optional = true }
 tungstenite = { version = "0.13", default-features = false, optional = true }
 tokio-tungstenite = { version = "0.14", optional = true }
 
-# WebSocket/HTTP/2
+# WebSocket
 url = { version = "2.2", optional = true }
+http = { version = "0.2", optional = true }
 
 # HTTP inbound
 hyper = { version = "0.14", default-features = false, features = ["server", "http1"], optional = true }
 
-# HTTP/2
-h2 = { version = "0.3", features = ["stream"], optional = true }
-http = { version = "0.2", optional = true }
-
 # SOCKS outbound
 async-socks5 = { version = "0.5", optional = true }
 
-# VMess
-lz_fnv = { version = "0.1", optional = true }
-cfb-mode = { version = "0.6", optional = true }
-hmac = { version = "0.10", optional = true }
-aes = { version = "0.6", optional = true }
-sha3 = { version = "0.9", optional = true }
-digest = { version = "0.9", optional = true }
-
-# VMess
-uuid = { version = "0.8", optional = true }
-
-# VMess/Shadowsocks
-md-5 = { version = "0.9", optional = true }
-
 # Shadowsocks
 hkdf = { version = "0.10", optional = true }
+md-5 = { version = "0.9", optional = true }
 sha-1 = { version = "0.9", optional = true }
 
 # Trojan

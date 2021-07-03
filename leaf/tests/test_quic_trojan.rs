@@ -9,6 +9,8 @@ mod common;
     feature = "inbound-quic",
     feature = "inbound-trojan",
     feature = "outbound-direct",
+    feature = "inbound-chain",
+    feature = "outbound-chain",
 ))]
 #[test]
 fn test_quic_trojan() {

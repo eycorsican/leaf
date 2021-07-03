@@ -7,6 +7,7 @@ mod common;
     feature = "outbound-shadowsocks",
     feature = "inbound-shadowsocks",
     feature = "outbound-direct",
+    feature = "outbound-chain",
 ))]
 #[test]
 fn test_out_chain_2() {

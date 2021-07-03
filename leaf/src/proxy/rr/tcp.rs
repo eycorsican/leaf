@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use log::*;
 
 use crate::{
+    app::SyncDnsClient,
     proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
@@ -12,6 +13,7 @@ use crate::{
 pub struct Handler {
     pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub next: AtomicUsize,
+    pub dns_client: SyncDnsClient,
 }
 
 #[async_trait]
@@ -34,6 +36,7 @@ impl TcpOutboundHandler for Handler {
         };
         self.next.store(next, Ordering::Relaxed);
         debug!("rr handles tcp [{}] to [{}]", sess.destination, a.tag());
-        TcpOutboundHandler::handle(a.as_ref(), sess, None).await
+        let stream = crate::proxy::connect_tcp_outbound(sess, self.dns_client.clone(), a).await?;
+        TcpOutboundHandler::handle(a.as_ref(), sess, stream).await
     }
 }

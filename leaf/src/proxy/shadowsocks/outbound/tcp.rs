@@ -1,4 +1,4 @@
-use std::{io, net::SocketAddr};
+use std::io;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
@@ -6,8 +6,7 @@ use tokio::io::AsyncWriteExt;
 
 use super::shadow::ShadowedStream;
 use crate::{
-    app::SyncDnsClient,
-    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpConnector, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
 
@@ -16,24 +15,12 @@ pub struct Handler {
     pub port: u16,
     pub cipher: String,
     pub password: String,
-    pub bind_addr: SocketAddr,
-    pub dns_client: SyncDnsClient,
 }
-
-impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        if !self.address.is_empty() && self.port != 0 {
-            Some(OutboundConnect::Proxy(
-                self.address.clone(),
-                self.port,
-                self.bind_addr,
-            ))
-        } else {
-            None
-        }
+        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
 
     async fn handle<'a>(
@@ -41,17 +28,7 @@ impl TcpOutboundHandler for Handler {
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>> {
-        let stream = if let Some(stream) = stream {
-            stream
-        } else {
-            self.new_tcp_stream(
-                self.dns_client.clone(),
-                &self.bind_addr,
-                &self.address,
-                &self.port,
-            )
-            .await?
-        };
+        let stream = stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
         let mut stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
         let mut buf = BytesMut::new();
         sess.destination

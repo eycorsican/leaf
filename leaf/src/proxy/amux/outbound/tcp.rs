@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::io;
-use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -28,7 +27,6 @@ pub struct MuxManager {
     pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub max_accepts: usize,
     pub concurrency: usize,
-    pub bind_addr: SocketAddr,
     pub dns_client: SyncDnsClient,
     // TODO Verify whether the run loops in connectors are aborted after
     // a config reload.
@@ -43,7 +41,6 @@ impl MuxManager {
         actors: Vec<Arc<dyn OutboundHandler>>,
         max_accepts: usize,
         concurrency: usize,
-        bind_addr: SocketAddr,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
@@ -69,7 +66,6 @@ impl MuxManager {
                 actors,
                 max_accepts,
                 concurrency,
-                bind_addr,
                 dns_client,
                 connectors,
                 monitor_task: Mutex::new(Some(monitor_task)),
@@ -91,12 +87,7 @@ impl MuxManager {
             }
         }
         let mut conn = self
-            .new_tcp_stream(
-                self.dns_client.clone(),
-                &self.bind_addr,
-                &self.address,
-                &self.port,
-            )
+            .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)
             .await?;
         let mut sess = sess.clone();
         if let Ok(addr) = SocksAddr::try_from((&self.address, self.port)) {
@@ -128,18 +119,10 @@ impl Handler {
         actors: Vec<Arc<dyn OutboundHandler>>,
         max_accepts: usize,
         concurrency: usize,
-        bind_addr: SocketAddr,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
-        let (manager, abort_handles) = MuxManager::new(
-            address,
-            port,
-            actors,
-            max_accepts,
-            concurrency,
-            bind_addr,
-            dns_client,
-        );
+        let (manager, abort_handles) =
+            MuxManager::new(address, port, actors, max_accepts, concurrency, dns_client);
         (Handler { manager }, abort_handles)
     }
 }

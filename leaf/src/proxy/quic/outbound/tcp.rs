@@ -33,7 +33,6 @@ struct Manager {
     address: String,
     port: u16,
     server_name: Option<String>,
-    bind_addr: SocketAddr,
     dns_client: SyncDnsClient,
     client_config: quinn::ClientConfig,
     connections: Mutex<Vec<Connection>>,
@@ -45,7 +44,6 @@ impl Manager {
         port: u16,
         server_name: Option<String>,
         certificate: Option<String>,
-        bind_addr: SocketAddr,
         dns_client: SyncDnsClient,
     ) -> Self {
         let mut client_config = quinn::ClientConfig::default();
@@ -100,7 +98,6 @@ impl Manager {
             address,
             port,
             server_name,
-            bind_addr,
             dns_client,
             client_config,
             connections: Mutex::new(Vec::new()),
@@ -147,7 +144,7 @@ impl Manager {
         endpoint.default_client_config(self.client_config.clone());
         // FIXME A better indicator.
         let socket = self
-            .new_udp_socket(&self.bind_addr, &self.bind_addr)
+            .new_udp_socket(&*crate::option::UNSPECIFIED_BIND_ADDR)
             .await?;
         let (endpoint, _) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
 
@@ -155,7 +152,7 @@ impl Manager {
             self.dns_client
                 .read()
                 .await
-                .lookup_with_bind(&self.address, &self.bind_addr)
+                .lookup(&self.address)
                 .map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::Other,
@@ -208,18 +205,10 @@ impl Handler {
         port: u16,
         server_name: Option<String>,
         certificate: Option<String>,
-        bind_addr: SocketAddr,
         dns_client: SyncDnsClient,
     ) -> Self {
         Self {
-            manager: Manager::new(
-                address,
-                port,
-                server_name,
-                certificate,
-                bind_addr,
-                dns_client,
-            ),
+            manager: Manager::new(address, port, server_name, certificate, dns_client),
         }
     }
 

@@ -18,7 +18,7 @@ use trust_dns_proto::{
     rr::{record_data::RData, record_type::RecordType, Name},
 };
 
-use crate::{common, option, proxy::UdpConnector};
+use crate::{option, proxy::UdpConnector};
 
 #[derive(Clone, Debug)]
 struct CacheEntry {
@@ -28,7 +28,6 @@ struct CacheEntry {
 }
 
 pub struct DnsClient {
-    bind_addr: SocketAddr,
     servers: Vec<SocketAddr>,
     hosts: HashMap<String, Vec<IpAddr>>,
     ipv4_cache: Arc<TokioMutex<LruCache<String, CacheEntry>>>,
@@ -82,7 +81,6 @@ impl DnsClient {
 
         Ok(DnsClient {
             servers,
-            bind_addr: common::net::parse_bind_addr(&dns.bind)?,
             hosts,
             ipv4_cache,
             ipv6_cache,
@@ -99,7 +97,6 @@ impl DnsClient {
         let hosts = Self::load_hosts(dns);
         self.servers = servers;
         self.hosts = hosts;
-        self.bind_addr = common::net::parse_bind_addr(&dns.bind)?;
         Ok(())
     }
 
@@ -170,9 +167,8 @@ impl DnsClient {
         request: Vec<u8>,
         host: &str,
         server: &SocketAddr,
-        bind_addr: &SocketAddr,
     ) -> Result<CacheEntry> {
-        let socket = self.new_udp_socket(bind_addr, server).await?;
+        let socket = self.new_udp_socket(server).await?;
         let mut last_err = None;
         for _i in 0..*option::MAX_DNS_RETRIES {
             debug!("looking up host {} on {}", host, server);
@@ -290,10 +286,6 @@ impl DnsClient {
         };
     }
 
-    pub async fn lookup(&self, host: &String) -> Result<Vec<IpAddr>> {
-        self.lookup_with_bind(host, &self.bind_addr).await
-    }
-
     async fn get_cached(&self, host: &String) -> Result<Vec<IpAddr>> {
         let mut cached_ips = Vec::new();
 
@@ -369,11 +361,7 @@ impl DnsClient {
         }
     }
 
-    pub async fn lookup_with_bind(
-        &self,
-        host: &String,
-        bind_addr: &SocketAddr,
-    ) -> Result<Vec<IpAddr>> {
+    pub async fn lookup(&self, host: &String) -> Result<Vec<IpAddr>> {
         if let Ok(ip) = host.parse::<IpAddr>() {
             return Ok(vec![ip]);
         }
@@ -425,7 +413,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
+                    let t = self.query_task(msg_buf.clone(), host, server);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -438,7 +426,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
+                    let t = self.query_task(msg_buf.clone(), host, server);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -452,7 +440,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
+                    let t = self.query_task(msg_buf.clone(), host, server);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -465,7 +453,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
+                    let t = self.query_task(msg_buf.clone(), host, server);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());
@@ -479,7 +467,7 @@ impl DnsClient {
                 };
                 let mut tasks = Vec::new();
                 for server in &self.servers {
-                    let t = self.query_task(msg_buf.clone(), host, server, bind_addr);
+                    let t = self.query_task(msg_buf.clone(), host, server);
                     tasks.push(Box::pin(t));
                 }
                 let query_task = select_ok(tasks.into_iter());

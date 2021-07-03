@@ -385,7 +385,11 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         &mut config.router,
         dns_client.clone(),
     )));
-    let dispatcher = Arc::new(Dispatcher::new(outbound_manager.clone(), router.clone()));
+    let dispatcher = Arc::new(Dispatcher::new(
+        outbound_manager.clone(),
+        router.clone(),
+        dns_client.clone(),
+    ));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
         InboundManager::new(&config.inbounds, dispatcher, nat_manager).map_err(Error::Config)?;
@@ -400,21 +404,6 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     } else {
         sys::NetInfo::default()
     };
-
-    if !(&*option::OUTBOUND_INTERFACE).is_empty() {
-        use proxy::OutboundBind;
-        let mut outbound_binds = Vec::new();
-        for item in (&*option::OUTBOUND_INTERFACE).split(',').map(str::trim) {
-            if let Ok(addr) = common::net::parse_bind_addr(item) {
-                outbound_binds.push(OutboundBind::Ip(addr));
-            } else {
-                outbound_binds.push(OutboundBind::Interface(item.to_owned()));
-            }
-        }
-        if !outbound_binds.is_empty() {
-            rt.block_on(proxy::set_outbound_binds(outbound_binds));
-        }
-    }
 
     #[cfg(all(
         feature = "inbound-tun",

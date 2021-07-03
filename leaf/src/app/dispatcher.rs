@@ -10,6 +10,7 @@ use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 use crate::{
+    app::SyncDnsClient,
     common::sniff,
     option,
     proxy::{
@@ -53,16 +54,19 @@ fn log_request(
 pub struct Dispatcher {
     outbound_manager: Arc<RwLock<OutboundManager>>,
     router: Arc<RwLock<Router>>,
+    dns_client: SyncDnsClient,
 }
 
 impl Dispatcher {
     pub fn new(
         outbound_manager: Arc<RwLock<OutboundManager>>,
         router: Arc<RwLock<Router>>,
+        dns_client: SyncDnsClient,
     ) -> Self {
         Dispatcher {
             outbound_manager,
             router,
+            dns_client,
         }
     }
 
@@ -156,7 +160,21 @@ impl Dispatcher {
         };
 
         let handshake_start = tokio::time::Instant::now();
-        match TcpOutboundHandler::handle(h.as_ref(), sess, None).await {
+        let stream =
+            match crate::proxy::connect_tcp_outbound(sess, self.dns_client.clone(), &h).await {
+                Ok(s) => s,
+                Err(e) => {
+                    debug!(
+                        "dispatch tcp {} -> {} to [{}] failed: {}",
+                        &sess.source,
+                        &sess.destination,
+                        &h.tag(),
+                        e
+                    );
+                    return;
+                }
+            };
+        match TcpOutboundHandler::handle(h.as_ref(), sess, stream).await {
             Ok(rhs) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
@@ -460,7 +478,9 @@ impl Dispatcher {
         };
 
         let handshake_start = tokio::time::Instant::now();
-        match UdpOutboundHandler::handle(h.as_ref(), sess, None).await {
+        let transport =
+            crate::proxy::connect_udp_outbound(sess, self.dns_client.clone(), &h).await?;
+        match UdpOutboundHandler::handle(h.as_ref(), sess, transport).await {
             Ok(c) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 

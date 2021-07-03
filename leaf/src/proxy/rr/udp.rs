@@ -6,9 +6,10 @@ use async_trait::async_trait;
 use log::*;
 
 use crate::{
+    app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler,
-        DatagramTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundHandler,
+        OutboundTransport, UdpOutboundHandler,
     },
     session::Session,
 };
@@ -16,6 +17,7 @@ use crate::{
 pub struct Handler {
     pub actors: Vec<Arc<dyn OutboundHandler>>,
     pub next: AtomicUsize,
+    pub dns_client: SyncDnsClient,
 }
 
 #[async_trait]
@@ -42,6 +44,8 @@ impl UdpOutboundHandler for Handler {
         };
         self.next.store(next, Ordering::Relaxed);
         debug!("rr handles tcp [{}] to [{}]", sess.destination, a.tag());
-        UdpOutboundHandler::handle(a.as_ref(), sess, None).await
+        let transport =
+            crate::proxy::connect_udp_outbound(sess, self.dns_client.clone(), a).await?;
+        UdpOutboundHandler::handle(a.as_ref(), sess, transport).await
     }
 }

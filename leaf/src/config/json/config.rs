@@ -18,7 +18,6 @@ pub struct Api {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Dns {
     pub servers: Option<Vec<String>>,
-    pub bind: Option<String>,
     pub hosts: Option<HashMap<String, Vec<String>>>,
 }
 
@@ -112,14 +111,6 @@ pub struct TrojanOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct VMessOutboundSettings {
-    pub address: Option<String>,
-    pub port: Option<u16>,
-    pub uuid: Option<String>,
-    pub security: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct TryAllOutboundSettings {
     pub actors: Option<Vec<String>>,
     #[serde(rename = "delayBase")]
@@ -142,12 +133,6 @@ pub struct TlsOutboundSettings {
 pub struct WebSocketOutboundSettings {
     pub path: Option<String>,
     pub headers: Option<HashMap<String, String>>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct HTTP2OutboundSettings {
-    pub path: Option<String>,
-    pub host: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -204,10 +189,15 @@ pub struct SelectOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct PluginOutboundSettings {
+    pub path: Option<String>,
+    pub args: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Outbound {
     pub protocol: String,
     pub tag: Option<String>,
-    pub bind: Option<String>,
     pub settings: Option<Box<RawValue>>,
 }
 
@@ -479,11 +469,6 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
             if let Some(ext_tag) = &ext_outbound.tag {
                 outbound.tag = ext_tag.to_owned();
             }
-            if let Some(ext_bind) = &ext_outbound.bind {
-                outbound.bind = ext_bind.to_owned();
-            } else {
-                outbound.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
-            }
             match outbound.protocol.as_str() {
                 "direct" | "drop" => {
                     outbounds.push(outbound);
@@ -571,32 +556,6 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     outbound.settings = settings;
                     outbounds.push(outbound);
                 }
-                "vmess" => {
-                    if ext_outbound.settings.is_none() {
-                        return Err(anyhow!("invalid vmess outbound settings"));
-                    }
-                    let mut settings = internal::VMessOutboundSettings::new();
-                    let ext_settings: VMessOutboundSettings =
-                        serde_json::from_str(ext_outbound.settings.as_ref().unwrap().get())
-                            .unwrap();
-                    if let Some(ext_address) = ext_settings.address {
-                        settings.address = ext_address; // TODO checks
-                    }
-                    if let Some(ext_port) = ext_settings.port {
-                        settings.port = ext_port as u32; // TODO checks
-                    }
-                    if let Some(ext_uuid) = ext_settings.uuid {
-                        settings.uuid = ext_uuid;
-                    }
-                    if let Some(ext_security) = ext_settings.security {
-                        settings.security = ext_security;
-                    } else {
-                        settings.security = "chacha20-ietf-poly1305".to_string();
-                    }
-                    let settings = settings.write_to_bytes().unwrap();
-                    outbound.settings = settings;
-                    outbounds.push(outbound);
-                }
                 "tls" => {
                     let mut settings = internal::TlsOutboundSettings::new();
                     if ext_outbound.settings.is_some() {
@@ -634,25 +593,6 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     }
                     if let Some(ext_headers) = ext_settings.headers {
                         settings.headers = ext_headers;
-                    }
-                    let settings = settings.write_to_bytes().unwrap();
-                    outbound.settings = settings;
-                    outbounds.push(outbound);
-                }
-                "h2" | "http2" => {
-                    outbound.protocol = "h2".to_string(); // use h2 anyway
-                    if ext_outbound.settings.is_none() {
-                        return Err(anyhow!("invalid h2 outbound settings"));
-                    }
-                    let mut settings = internal::HTTP2OutboundSettings::new();
-                    let ext_settings: HTTP2OutboundSettings =
-                        serde_json::from_str(ext_outbound.settings.as_ref().unwrap().get())
-                            .unwrap();
-                    if let Some(ext_path) = ext_settings.path {
-                        settings.path = ext_path; // TODO checks
-                    }
-                    if let Some(ext_host) = ext_settings.host {
-                        settings.host = ext_host; // TODO checks
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
@@ -868,6 +808,24 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     outbound.settings = settings;
                     outbounds.push(outbound);
                 }
+                "plugin" => {
+                    if ext_outbound.settings.is_none() {
+                        return Err(anyhow!("invalid plugin outbound settings"));
+                    }
+                    let mut settings = internal::PluginOutboundSettings::new();
+                    let ext_settings: PluginOutboundSettings =
+                        serde_json::from_str(ext_outbound.settings.as_ref().unwrap().get())
+                            .unwrap();
+                    if let Some(ext_path) = ext_settings.path {
+                        settings.path = ext_path; // TODO checks
+                    }
+                    if let Some(ext_args) = ext_settings.args {
+                        settings.args = ext_args; // TODO checks
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
                 _ => {
                     // skip outbound with unknown protocol
                 }
@@ -953,9 +911,6 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
     let mut servers = protobuf::RepeatedField::new();
     let mut hosts = HashMap::new();
     if let Some(ext_dns) = &json.dns {
-        if let Some(ext_bind) = ext_dns.bind.as_ref() {
-            dns.bind = ext_bind.to_owned();
-        }
         if let Some(ext_servers) = ext_dns.servers.as_ref() {
             for ext_server in ext_servers {
                 servers.push(ext_server.to_owned());
@@ -972,9 +927,6 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                 hosts.insert(name.to_owned(), ips);
             }
         }
-    }
-    if dns.bind.is_empty() {
-        dns.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
     }
     if servers.len() == 0 {
         servers.push("114.114.114.114".to_string());

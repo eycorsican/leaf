@@ -6,15 +6,17 @@ use log::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 use crate::{
+    app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler,
-        DatagramTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundHandler,
+        OutboundTransport, UdpOutboundHandler,
     },
     session::Session,
 };
 
 pub struct Handler {
     pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub dns_client: SyncDnsClient,
 }
 
 #[async_trait]
@@ -39,6 +41,9 @@ impl UdpOutboundHandler for Handler {
             sess.destination,
             self.actors[i].tag()
         );
-        UdpOutboundHandler::handle(self.actors[i].as_ref(), sess, None).await
+        let transport =
+            crate::proxy::connect_udp_outbound(sess, self.dns_client.clone(), &self.actors[i])
+                .await?;
+        UdpOutboundHandler::handle(self.actors[i].as_ref(), sess, transport).await
     }
 }

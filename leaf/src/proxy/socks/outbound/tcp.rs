@@ -1,34 +1,22 @@
-use std::{
-    io::{Error, ErrorKind, Result},
-    net::SocketAddr,
-};
+use std::io::{self, Error, ErrorKind, Result};
 
 use async_trait::async_trait;
 use futures::future::TryFutureExt;
 
 use crate::{
-    app::SyncDnsClient,
-    proxy::{OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
 
 pub struct Handler {
     pub address: String,
     pub port: u16,
-    pub bind_addr: SocketAddr,
-    pub dns_client: SyncDnsClient,
 }
-
-impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(
-            self.address.clone(),
-            self.port,
-            self.bind_addr,
-        ))
+        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
 
     async fn handle<'a>(
@@ -36,17 +24,8 @@ impl TcpOutboundHandler for Handler {
         sess: &'a Session,
         stream: Option<Box<dyn ProxyStream>>,
     ) -> Result<Box<dyn ProxyStream>> {
-        let mut stream = if let Some(stream) = stream {
-            stream
-        } else {
-            self.new_tcp_stream(
-                self.dns_client.clone(),
-                &self.bind_addr,
-                &self.address,
-                &self.port,
-            )
-            .await?
-        };
+        let mut stream =
+            stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
         match &sess.destination {
             SocksAddr::Ip(a) => {
                 let _ = async_socks5::connect(&mut stream, a.to_owned(), None)

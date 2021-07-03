@@ -1,17 +1,12 @@
-use std::{
-    io,
-    net::{IpAddr, SocketAddr},
-};
+use std::{io, net::IpAddr};
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
 
 use crate::{
-    app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, SimpleOutboundDatagram, UdpConnector, UdpOutboundHandler,
-        DatagramTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
+        OutboundDatagramSendHalf, OutboundTransport, UdpOutboundHandler,
     },
     session::{Session, SocksAddr},
 };
@@ -20,16 +15,12 @@ use crate::{
 pub struct Handler {
     pub address: String,
     pub port: u16,
-    pub bind_addr: SocketAddr,
-    pub dns_client: SyncDnsClient,
 }
-
-impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
 
     fn transport_type(&self) -> DatagramTransportType {
@@ -39,17 +30,13 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _transport: Option<OutboundTransport>,
+        transport: Option<OutboundTransport>,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        let socket = self
-            .new_udp_socket(&self.bind_addr, &sess.source)
-            .await?;
-        let socket = Box::new(SimpleOutboundDatagram::new(
-            socket,
-            None,
-            self.dns_client.clone(),
-            self.bind_addr,
-        ));
+        let dgram = if let Some(OutboundTransport::Datagram(dgram)) = transport {
+            dgram
+        } else {
+            return Err(io::Error::new(io::ErrorKind::Other, "invalid input"));
+        };
         let target = SocksAddr::from((
             self.address.parse::<IpAddr>().map_err(|e| {
                 io::Error::new(io::ErrorKind::Other, format!("parse IpAddr failed: {}", e))
@@ -57,7 +44,7 @@ impl UdpOutboundHandler for Handler {
             self.port,
         ));
         Ok(Box::new(Datagram {
-            socket,
+            socket: dgram,
             destination: sess.destination.clone(),
             target,
         }))

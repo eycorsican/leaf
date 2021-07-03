@@ -1,13 +1,9 @@
-use std::io::Result;
-use std::net::SocketAddr;
+use std::io;
 
 use async_trait::async_trait;
 
 use crate::{
-    app::SyncDnsClient,
-    proxy::{
-        stream::SimpleProxyStream, OutboundConnect, ProxyStream, TcpConnector, TcpOutboundHandler,
-    },
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -15,31 +11,19 @@ use crate::{
 pub struct Handler {
     pub address: String,
     pub port: u16,
-    pub bind_addr: SocketAddr,
-    pub dns_client: SyncDnsClient,
 }
-
-impl TcpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
 
     async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> Result<Box<dyn ProxyStream>> {
-        Ok(Box::new(SimpleProxyStream(
-            self.new_tcp_stream(
-                self.dns_client.clone(),
-                &self.bind_addr,
-                &self.address,
-                &self.port,
-            )
-            .await?,
-        )))
+        stream: Option<Box<dyn ProxyStream>>,
+    ) -> io::Result<Box<dyn ProxyStream>> {
+        stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))
     }
 }

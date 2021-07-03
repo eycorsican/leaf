@@ -11,6 +11,7 @@ use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
 
 use crate::{
+    app::SyncDnsClient,
     proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
@@ -21,6 +22,7 @@ pub struct Handler {
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
     pub cache: Option<Arc<TokioMutex<LruCache<String, usize>>>>,
+    pub dns_client: SyncDnsClient,
 }
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -37,6 +39,7 @@ impl Handler {
         fallback_cache: bool,
         cache_size: usize,
         cache_timeout: u64, // in minutes
+        dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
         let mut schedule = Vec::new();
@@ -47,19 +50,28 @@ impl Handler {
 
         let schedule2 = schedule.clone();
         let actors2 = actors.clone();
+        let dns_client2 = dns_client.clone();
         let task = if health_check {
             let fut = async move {
                 loop {
                     let mut measures: Vec<Measure> = Vec::new();
                     for (i, a) in (&actors2).iter().enumerate() {
                         debug!("health checking tcp for [{}] index [{}]", a.tag(), i);
+                        let dns_client3 = dns_client2.clone();
                         let single_measure = async move {
                             let sess = Session {
                                 destination: SocksAddr::Domain("www.google.com".to_string(), 80),
                                 ..Default::default()
                             };
                             let start = tokio::time::Instant::now();
-                            match TcpOutboundHandler::handle(a.as_ref(), &sess, None).await {
+                            let stream =
+                                match crate::proxy::connect_tcp_outbound(&sess, dns_client3, &a)
+                                    .await
+                                {
+                                    Ok(s) => s,
+                                    Err(_) => return Measure(i, u128::MAX),
+                                };
+                            match TcpOutboundHandler::handle(a.as_ref(), &sess, stream).await {
                                 Ok(mut stream) => {
                                     if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
                                         return Measure(i, u128::MAX - 2); // handshake is ok
@@ -154,6 +166,7 @@ impl Handler {
                 schedule,
                 health_check_task: TokioMutex::new(task),
                 cache,
+                dns_client,
             },
             abort_handles,
         )
@@ -185,10 +198,16 @@ impl TcpOutboundHandler for Handler {
                     self.actors[*idx].tag()
                 );
                 // TODO Remove the entry immediately if timeout or fail?
-                let task = timeout(
-                    time::Duration::from_secs(self.fail_timeout as u64),
-                    TcpOutboundHandler::handle(self.actors[*idx].as_ref(), sess, None),
-                );
+                let handle = async {
+                    let stream = crate::proxy::connect_tcp_outbound(
+                        sess,
+                        self.dns_client.clone(),
+                        &self.actors[*idx],
+                    )
+                    .await?;
+                    TcpOutboundHandler::handle(self.actors[*idx].as_ref(), sess, stream).await
+                };
+                let task = timeout(time::Duration::from_secs(self.fail_timeout as u64), handle);
                 if let Ok(Ok(v)) = task.await {
                     return Ok(v);
                 }
@@ -207,12 +226,17 @@ impl TcpOutboundHandler for Handler {
                 sess.destination,
                 self.actors[actor_idx].tag()
             );
-            match timeout(
-                time::Duration::from_secs(self.fail_timeout as u64),
-                TcpOutboundHandler::handle(self.actors[actor_idx].as_ref(), sess, None),
-            )
-            .await
-            {
+
+            let handle = async {
+                let stream = crate::proxy::connect_tcp_outbound(
+                    sess,
+                    self.dns_client.clone(),
+                    &self.actors[actor_idx],
+                )
+                .await?;
+                TcpOutboundHandler::handle(self.actors[actor_idx].as_ref(), sess, stream).await
+            };
+            match timeout(time::Duration::from_secs(self.fail_timeout as u64), handle).await {
                 // return before timeout
                 Ok(t) => match t {
                     Ok(v) => {

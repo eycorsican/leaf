@@ -20,9 +20,10 @@ use trust_dns_proto::{
 };
 
 use crate::{
+    app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundHandler, OutboundTransport, UdpOutboundHandler,
-        DatagramTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundHandler,
+        OutboundTransport, UdpOutboundHandler,
     },
     session::{Session, SocksAddr},
 };
@@ -32,6 +33,7 @@ pub struct Handler {
     pub fail_timeout: u32,
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
+    pub dns_client: SyncDnsClient,
 }
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -44,6 +46,7 @@ impl Handler {
         health_check: bool,
         check_interval: u32,
         failover: bool,
+        dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
         let mut schedule = Vec::new();
@@ -54,12 +57,14 @@ impl Handler {
 
         let schedule2 = schedule.clone();
         let actors2 = actors.clone();
+        let dns_client2 = dns_client.clone();
         let task = if health_check {
             let fut = async move {
                 loop {
                     let mut measures: Vec<Measure> = Vec::new();
                     for (i, a) in (&actors2).iter().enumerate() {
                         debug!("health checking udp for [{}] index [{}]", a.tag(), i);
+                        let dns_client3 = dns_client2.clone();
                         let single_measure = async move {
                             let sess = Session {
                                 destination: SocksAddr::Ip(SocketAddr::new(
@@ -69,7 +74,14 @@ impl Handler {
                                 ..Default::default()
                             };
                             let start = tokio::time::Instant::now();
-                            match UdpOutboundHandler::handle(a.as_ref(), &sess, None).await {
+                            let transport =
+                                match crate::proxy::connect_udp_outbound(&sess, dns_client3, &a)
+                                    .await
+                                {
+                                    Ok(t) => t,
+                                    Err(_) => return Measure(i, u128::MAX),
+                                };
+                            match UdpOutboundHandler::handle(a.as_ref(), &sess, transport).await {
                                 Ok(socket) => {
                                     let addr = SocksAddr::Ip(SocketAddr::new(
                                         IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
@@ -181,6 +193,7 @@ impl Handler {
                 fail_timeout,
                 schedule,
                 health_check_task: TokioMutex::new(task),
+                dns_client,
             },
             abort_handles,
         )
@@ -218,12 +231,17 @@ impl UdpOutboundHandler for Handler {
                 sess.destination,
                 self.actors[i].tag()
             );
-            match timeout(
-                time::Duration::from_secs(self.fail_timeout as u64),
-                UdpOutboundHandler::handle(self.actors[i].as_ref(), sess, None),
-            )
-            .await
-            {
+
+            let handle = async {
+                let transport = crate::proxy::connect_udp_outbound(
+                    sess,
+                    self.dns_client.clone(),
+                    &self.actors[i],
+                )
+                .await?;
+                UdpOutboundHandler::handle(self.actors[i].as_ref(), sess, transport).await
+            };
+            match timeout(time::Duration::from_secs(self.fail_timeout as u64), handle).await {
                 // return before timeout
                 Ok(t) => match t {
                     // return ok

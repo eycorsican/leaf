@@ -4,7 +4,6 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use anyhow::anyhow;
 use anyhow::Result;
 use protobuf::Message;
 use regex::Regex;
@@ -55,8 +54,6 @@ pub struct Proxy {
     // shadowsocks, trojan
     pub password: Option<String>,
 
-    // vmess
-    pub username: Option<String>,
     pub ws: Option<bool>,
     pub tls: Option<bool>,
     pub ws_path: Option<String>,
@@ -82,7 +79,6 @@ impl Default for Proxy {
             port: None,
             encrypt_method: Some("chacha20-ietf-poly1305".to_string()),
             password: None,
-            username: None,
             ws: Some(false),
             tls: Some(false),
             ws_path: None,
@@ -346,9 +342,6 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 "password" => {
                     proxy.password = Some(v.to_string());
                 }
-                "username" => {
-                    proxy.username = Some(v.to_string());
-                }
                 "ws" => proxy.ws = if v == "true" { Some(true) } else { Some(false) },
                 "tls" => proxy.tls = if v == "true" { Some(true) } else { Some(false) },
                 "ws-path" => {
@@ -385,7 +378,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
         }
 
-        // built-in protocols have no address port, username, password
+        // built-in protocols have no address port, password
         match proxy.protocol.as_str() {
             "direct" => {
                 proxies.push(proxy);
@@ -739,7 +732,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
             };
             outbound.protocol = ext_protocol.to_string();
             outbound.tag = ext_proxy.tag.clone();
-            outbound.bind = ext_proxy.interface.clone();
             match outbound.protocol.as_str() {
                 "direct" | "drop" => {
                     outbounds.push(outbound);
@@ -780,7 +772,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     // tls
                     let mut tls_outbound = internal::Outbound::new();
                     tls_outbound.protocol = "tls".to_string();
-                    tls_outbound.bind = ext_proxy.interface.clone();
                     let mut tls_settings = internal::TlsOutboundSettings::new();
                     if let Some(ext_sni) = &ext_proxy.sni {
                         tls_settings.server_name = ext_sni.clone();
@@ -792,7 +783,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     // ws
                     let mut ws_outbound = internal::Outbound::new();
                     ws_outbound.protocol = "ws".to_string();
-                    ws_outbound.bind = ext_proxy.interface.clone();
                     let mut ws_settings = internal::WebSocketOutboundSettings::new();
                     if let Some(ext_ws_path) = &ext_proxy.ws_path {
                         ws_settings.path = ext_ws_path.clone();
@@ -831,7 +821,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     }
                     let amux_settings = amux_settings.write_to_bytes().unwrap();
                     amux_outbound.settings = amux_settings;
-                    amux_outbound.bind = ext_proxy.interface.clone();
                     amux_outbound.protocol = "amux".to_string();
                     amux_outbound.tag = format!("{}_amux_xxx", ext_proxy.tag.clone());
                     // quic
@@ -849,7 +838,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     }
                     let quic_settings = quic_settings.write_to_bytes().unwrap();
                     quic_outbound.settings = quic_settings;
-                    quic_outbound.bind = ext_proxy.interface.clone();
                     quic_outbound.protocol = "quic".to_string();
                     quic_outbound.tag = format!("{}_quic_xxx", ext_proxy.tag.clone());
 
@@ -887,7 +875,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     chain_settings.actors.push(outbound.tag.clone());
                     let chain_settings = chain_settings.write_to_bytes().unwrap();
                     chain_outbound.settings = chain_settings;
-                    chain_outbound.bind = ext_proxy.interface.clone();
                     chain_outbound.protocol = "chain".to_string();
 
                     // always push chain first, in case there isn't final rule,
@@ -906,91 +893,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                "vmess" => {
-                    // tls
-                    let mut tls_outbound = internal::Outbound::new();
-                    tls_outbound.protocol = "tls".to_string();
-                    tls_outbound.bind = ext_proxy.interface.clone();
-                    let mut tls_settings = internal::TlsOutboundSettings::new();
-                    if let Some(ext_sni) = &ext_proxy.sni {
-                        tls_settings.server_name = ext_sni.clone();
-                    }
-                    let tls_settings = tls_settings.write_to_bytes().unwrap();
-                    tls_outbound.settings = tls_settings;
-                    tls_outbound.tag = format!("{}_tls_xxx", ext_proxy.tag.clone());
-
-                    // ws
-                    let mut ws_outbound = internal::Outbound::new();
-                    ws_outbound.protocol = "ws".to_string();
-                    ws_outbound.bind = ext_proxy.interface.clone();
-                    let mut ws_settings = internal::WebSocketOutboundSettings::new();
-                    if let Some(ext_ws_path) = &ext_proxy.ws_path {
-                        ws_settings.path = ext_ws_path.clone();
-                    } else {
-                        ws_settings.path = "/".to_string();
-                    }
-                    if let Some(ext_ws_host) = &ext_proxy.ws_host {
-                        let mut headers = HashMap::new();
-                        headers.insert("Host".to_string(), ext_ws_host.clone());
-                        ws_settings.headers = headers;
-                    }
-                    let ws_settings = ws_settings.write_to_bytes().unwrap();
-                    ws_outbound.settings = ws_settings;
-                    ws_outbound.tag = format!("{}_ws_xxx", ext_proxy.tag.clone());
-
-                    // vmess
-                    let mut settings = internal::VMessOutboundSettings::new();
-                    if ext_proxy.address.is_none()
-                        || ext_proxy.port.is_none()
-                        || ext_proxy.username.is_none()
-                    {
-                        return Err(anyhow!("invalid vmess outbound settings"));
-                    }
-                    if let Some(ext_encrypt_method) = &ext_proxy.encrypt_method {
-                        settings.security = ext_encrypt_method.clone();
-                    } else {
-                        settings.security = "chacha20-ietf-poly1305".to_string();
-                    }
-                    if let Some(ext_address) = &ext_proxy.address {
-                        settings.address = ext_address.clone();
-                    }
-                    if let Some(ext_port) = &ext_proxy.port {
-                        settings.port = *ext_port as u32;
-                    }
-                    if let Some(ext_username) = &ext_proxy.username {
-                        settings.uuid = ext_username.clone();
-                    }
-                    let settings = settings.write_to_bytes().unwrap();
-                    outbound.settings = settings;
-                    outbound.tag = format!("{}_vmess_xxx", ext_proxy.tag.clone());
-
-                    // chain
-                    let mut chain_outbound = internal::Outbound::new();
-                    chain_outbound.tag = ext_proxy.tag.clone();
-                    let mut chain_settings = internal::ChainOutboundSettings::new();
-                    if ext_proxy.tls.unwrap() {
-                        chain_settings.actors.push(tls_outbound.tag.clone());
-                    }
-                    if ext_proxy.ws.unwrap() {
-                        chain_settings.actors.push(ws_outbound.tag.clone());
-                    }
-                    chain_settings.actors.push(outbound.tag.clone());
-                    let chain_settings = chain_settings.write_to_bytes().unwrap();
-                    chain_outbound.settings = chain_settings;
-                    chain_outbound.bind = ext_proxy.interface.clone();
-                    chain_outbound.protocol = "chain".to_string();
-
-                    // always push chain first, in case there isn't final rule,
-                    // the chain outbound will be the default one to use
-                    outbounds.push(chain_outbound);
-                    if ext_proxy.tls.unwrap() {
-                        outbounds.push(tls_outbound);
-                    }
-                    if ext_proxy.ws.unwrap() {
-                        outbounds.push(ws_outbound);
-                    }
-                    outbounds.push(outbound);
-                }
                 _ => {}
             }
         }
@@ -1001,7 +903,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
             let mut outbound = internal::Outbound::new();
             outbound.protocol = ext_proxy_group.protocol.clone();
             outbound.tag = ext_proxy_group.tag.clone();
-            outbound.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
             match outbound.protocol.as_str() {
                 "tryall" => {
                     let mut settings = internal::TryAllOutboundSettings::new();
@@ -1206,11 +1107,6 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
     let mut servers = protobuf::RepeatedField::new();
     let mut hosts = HashMap::new();
     if let Some(ext_general) = &conf.general {
-        if let Some(ext_dns_interface) = &ext_general.dns_interface {
-            dns.bind = ext_dns_interface.clone();
-        } else {
-            dns.bind = (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string();
-        }
         if let Some(ext_dns_servers) = &ext_general.dns_server {
             for ext_dns_server in ext_dns_servers {
                 servers.push(ext_dns_server.clone());

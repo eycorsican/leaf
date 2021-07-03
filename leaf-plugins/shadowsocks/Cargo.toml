@@ -1,0 +1,16 @@
+[package]
+name = "shadowsocks"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+leaf = { path = "../../leaf", features = ["outbound-shadowsocks", "inbound-shadowsocks"] }
+async-trait = "0.1"
+tokio = { version = "1", features = ["net"] }
+async-ffi = "0.2"
+bytes = "1"

@@ -19,7 +19,6 @@ pub struct SimpleOutboundDatagram {
     inner: UdpSocket,
     destination: Option<SocksAddr>,
     dns_client: SyncDnsClient,
-    bind_addr: SocketAddr,
 }
 
 impl SimpleOutboundDatagram {
@@ -27,13 +26,11 @@ impl SimpleOutboundDatagram {
         inner: UdpSocket,
         destination: Option<SocksAddr>,
         dns_client: SyncDnsClient,
-        bind_addr: SocketAddr,
     ) -> Self {
         SimpleOutboundDatagram {
             inner,
             destination,
             dns_client,
-            bind_addr,
         }
     }
 }
@@ -49,11 +46,7 @@ impl OutboundDatagram for SimpleOutboundDatagram {
         let s = r.clone();
         (
             Box::new(SimpleOutboundDatagramRecvHalf(r, self.destination)),
-            Box::new(SimpleOutboundDatagramSendHalf(
-                s,
-                self.dns_client,
-                self.bind_addr,
-            )),
+            Box::new(SimpleOutboundDatagramSendHalf(s, self.dns_client)),
         )
     }
 }
@@ -76,7 +69,7 @@ impl OutboundDatagramRecvHalf for SimpleOutboundDatagramRecvHalf {
     }
 }
 
-pub struct SimpleOutboundDatagramSendHalf(Arc<UdpSocket>, SyncDnsClient, SocketAddr);
+pub struct SimpleOutboundDatagramSendHalf(Arc<UdpSocket>, SyncDnsClient);
 
 #[async_trait]
 impl OutboundDatagramSendHalf for SimpleOutboundDatagramSendHalf {
@@ -87,7 +80,7 @@ impl OutboundDatagramSendHalf for SimpleOutboundDatagramSendHalf {
                     self.1
                         .read()
                         .await
-                        .lookup_with_bind(domain, &self.2)
+                        .lookup(domain)
                         .map_err(|e| {
                             io::Error::new(
                                 io::ErrorKind::Other,

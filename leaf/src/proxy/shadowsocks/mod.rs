@@ -1,5 +1,5 @@
 mod crypto;
-mod shadow;
+pub mod shadow;
 
 #[cfg(feature = "inbound-shadowsocks")]
 pub mod inbound;

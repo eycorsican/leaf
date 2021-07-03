@@ -1,6 +1,5 @@
 use std::cmp::min;
 use std::io;
-use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
@@ -11,10 +10,9 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 
 use crate::{
-    app::SyncDnsClient,
     proxy::{
-        OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-        OutboundTransport, TcpConnector, UdpOutboundHandler, DatagramTransportType,
+        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
+        OutboundDatagramSendHalf, OutboundTransport, UdpOutboundHandler,
     },
     session::{Session, SocksAddr, SocksAddrWireType},
 };
@@ -23,20 +21,12 @@ pub struct Handler {
     pub address: String,
     pub port: u16,
     pub password: String,
-    pub bind_addr: SocketAddr,
-    pub dns_client: SyncDnsClient,
 }
-
-impl TcpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(
-            self.address.clone(),
-            self.port,
-            self.bind_addr,
-        ))
+        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
 
     fn transport_type(&self) -> DatagramTransportType {
@@ -51,13 +41,7 @@ impl UdpOutboundHandler for Handler {
         let stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream
         } else {
-            self.new_tcp_stream(
-                self.dns_client.clone(),
-                &self.bind_addr,
-                &self.address,
-                &self.port,
-            )
-            .await?
+            return Err(io::Error::new(io::ErrorKind::Other, "invalid input"));
         };
         let mut buf = BytesMut::new();
         let password = Sha224::digest(self.password.as_bytes());

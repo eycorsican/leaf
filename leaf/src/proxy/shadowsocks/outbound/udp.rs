@@ -1,15 +1,13 @@
-use std::{cmp::min, convert::TryFrom, io, net::SocketAddr, sync::Arc};
+use std::{cmp::min, convert::TryFrom, io, sync::Arc};
 
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use log::*;
 
 use crate::{
-    app::SyncDnsClient,
     proxy::{
         DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
-        OutboundDatagramSendHalf, OutboundTransport, SimpleOutboundDatagram, UdpConnector,
-        UdpOutboundHandler,
+        OutboundDatagramSendHalf, OutboundTransport, UdpOutboundHandler,
     },
     session::{Session, SocksAddr, SocksAddrWireType},
 };
@@ -21,24 +19,12 @@ pub struct Handler {
     pub port: u16,
     pub cipher: String,
     pub password: String,
-    pub bind_addr: SocketAddr,
-    pub dns_client: SyncDnsClient,
 }
-
-impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        if !self.address.is_empty() && self.port != 0 {
-            Some(OutboundConnect::Proxy(
-                self.address.clone(),
-                self.port,
-                self.bind_addr,
-            ))
-        } else {
-            None
-        }
+        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
 
     fn transport_type(&self) -> DatagramTransportType {
@@ -55,13 +41,7 @@ impl UdpOutboundHandler for Handler {
         let socket = if let Some(OutboundTransport::Datagram(socket)) = transport {
             socket
         } else {
-            let socket = self.new_udp_socket(&self.bind_addr, &sess.source).await?;
-            Box::new(SimpleOutboundDatagram::new(
-                socket,
-                None,
-                self.dns_client.clone(),
-                self.bind_addr,
-            ))
+            return Err(io::Error::new(io::ErrorKind::Other, "invalid input"));
         };
 
         let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;
