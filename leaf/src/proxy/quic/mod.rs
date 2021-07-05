@@ -3,8 +3,6 @@ use std::{io, pin::Pin};
 use futures::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use crate::proxy::ProxyStream;
-
 #[cfg(feature = "inbound-quic")]
 pub mod inbound;
 #[cfg(feature = "outbound-quic")]
@@ -13,11 +11,6 @@ pub mod outbound;
 pub struct QuicProxyStream<R, W> {
     recv: R,
     send: W,
-}
-
-impl<R: AsyncRead + Send + Sync + Unpin, W: AsyncWrite + Send + Sync + Unpin> ProxyStream
-    for QuicProxyStream<R, W>
-{
 }
 
 impl<R: AsyncRead + Unpin, W: AsyncWrite + Unpin> AsyncRead for QuicProxyStream<R, W> {

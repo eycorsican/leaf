@@ -10,10 +10,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     app::SyncDnsClient,
-    proxy::{
-        OutboundConnect, OutboundHandler, ProxyStream, SimpleProxyStream, TcpConnector,
-        TcpOutboundHandler,
-    },
+    proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpConnector, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
 
@@ -138,8 +135,6 @@ impl TcpOutboundHandler for Handler {
         sess: &'a Session,
         _stream: Option<Box<dyn ProxyStream>>,
     ) -> io::Result<Box<dyn ProxyStream>> {
-        Ok(Box::new(SimpleProxyStream(
-            self.manager.new_stream(sess).await?,
-        )))
+        Ok(Box::new(self.manager.new_stream(sess).await?))
     }
 }

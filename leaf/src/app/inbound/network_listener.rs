@@ -14,7 +14,7 @@ use crate::app::nat_manager::{NatManager, UdpPacket};
 use crate::proxy::InboundHandler;
 use crate::proxy::{
     BaseInboundTransport, InboundDatagram, InboundTransport, SimpleInboundDatagram,
-    SimpleProxyStream, TcpInboundHandler, TcpListener, UdpInboundHandler,
+    TcpInboundHandler, TcpListener, UdpInboundHandler,
 };
 use crate::session::{Network, Session, SocksAddr};
 use crate::Runner;
@@ -142,7 +142,7 @@ async fn handle_inbound_stream(
         ..Default::default()
     };
 
-    match TcpInboundHandler::handle(h.as_ref(), sess, Box::new(SimpleProxyStream(stream))).await {
+    match TcpInboundHandler::handle(h.as_ref(), sess, Box::new(stream)).await {
         Ok(res) => match res {
             InboundTransport::Stream(stream, mut sess) => {
                 dispatcher.dispatch_tcp(&mut sess, stream).await;

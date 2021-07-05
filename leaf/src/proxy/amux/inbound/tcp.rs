@@ -10,8 +10,7 @@ use futures::{
 
 use crate::{
     proxy::{
-        BaseInboundTransport, InboundHandler, InboundTransport, ProxyStream, SimpleProxyStream,
-        TcpInboundHandler,
+        BaseInboundTransport, InboundHandler, InboundTransport, ProxyStream, TcpInboundHandler,
     },
     session::Session,
 };
@@ -41,7 +40,7 @@ impl Stream for Incoming {
             ready!(Pin::new(&mut self.acceptor).poll_next(cx)).map(|stream| {
                 let mut sess = self.sess.clone();
                 sess.stream_id = Some(stream.id().into());
-                BaseInboundTransport::Stream(Box::new(SimpleProxyStream(stream)), sess)
+                BaseInboundTransport::Stream(Box::new(stream), sess)
             }),
         )
     }

@@ -6,7 +6,7 @@ use sha2::{Digest, Sha224};
 use tokio::io::AsyncWriteExt;
 
 use crate::{
-    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
 
@@ -40,6 +40,6 @@ impl TcpOutboundHandler for Handler {
         buf.put_slice(b"\r\n");
         // FIXME combine header and first payload
         stream.write_all(&buf).await?;
-        Ok(Box::new(SimpleProxyStream(stream)))
+        Ok(Box::new(stream))
     }
 }

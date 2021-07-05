@@ -8,7 +8,7 @@ use tungstenite::protocol::WebSocketConfig;
 use url::Url;
 
 use crate::{
-    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -76,7 +76,7 @@ impl TcpOutboundHandler for Handler {
                 })
                 .await?;
             let ws_stream = stream::WebSocketToStream::new(socket);
-            Ok(Box::new(SimpleProxyStream(ws_stream)))
+            Ok(Box::new(ws_stream))
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "invalid input"))
         }

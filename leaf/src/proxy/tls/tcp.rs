@@ -19,7 +19,7 @@ use {
 };
 
 use crate::{
-    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::Session,
 };
 
@@ -105,7 +105,7 @@ impl TcpOutboundHandler for Handler {
                 let dnsname = DNSNameRef::try_from_ascii_str(&name).map_err(tls_err)?;
                 let tls_stream = config.connect(dnsname, stream).map_err(tls_err).await?;
                 // FIXME check negotiated alpn
-                Ok(Box::new(SimpleProxyStream(tls_stream)))
+                Ok(Box::new(tls_stream))
             }
             #[cfg(feature = "openssl-tls")]
             {
@@ -119,7 +119,7 @@ impl TcpOutboundHandler for Handler {
                         tls_err(e)
                     })
                     .await?;
-                Ok(Box::new(SimpleProxyStream(stream)))
+                Ok(Box::new(stream))
             }
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "invalid tls input"))

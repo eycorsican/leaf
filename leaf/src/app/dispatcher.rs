@@ -13,9 +13,7 @@ use crate::{
     app::SyncDnsClient,
     common::sniff,
     option,
-    proxy::{
-        OutboundDatagram, ProxyStream, SimpleProxyStream, TcpOutboundHandler, UdpOutboundHandler,
-    },
+    proxy::{OutboundDatagram, ProxyStream, TcpOutboundHandler, UdpOutboundHandler},
     session::{Network, Session, SocksAddr},
 };
 
@@ -107,9 +105,9 @@ impl Dispatcher {
                         return;
                     }
                 }
-                Box::new(SimpleProxyStream(lhs))
+                Box::new(lhs)
             } else {
-                Box::new(SimpleProxyStream(lhs))
+                Box::new(lhs)
             };
 
         let outbound = {

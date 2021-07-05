@@ -3,7 +3,7 @@ use std::io;
 use async_trait::async_trait;
 
 use crate::{
-    proxy::{InboundTransport, ProxyStream, SimpleProxyStream, TcpInboundHandler},
+    proxy::{InboundTransport, ProxyStream, TcpInboundHandler},
     session::{Session, SocksAddr, SocksAddrWireType},
 };
 
@@ -25,9 +25,6 @@ impl TcpInboundHandler for Handler {
         let destination = SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
         sess.destination = destination;
 
-        Ok(InboundTransport::Stream(
-            Box::new(SimpleProxyStream(stream)),
-            sess,
-        ))
+        Ok(InboundTransport::Stream(Box::new(stream), sess))
     }
 }

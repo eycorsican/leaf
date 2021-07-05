@@ -4,10 +4,7 @@ use std::{io, sync::Arc};
 use async_trait::async_trait;
 
 use crate::{
-    proxy::{
-        stream::SimpleProxyStream, OutboundConnect, OutboundHandler, ProxyStream,
-        TcpOutboundHandler,
-    },
+    proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddr},
 };
 
@@ -65,7 +62,7 @@ impl TcpOutboundHandler for Handler {
             stream.replace(TcpOutboundHandler::handle(a.as_ref(), &new_sess, s).await?);
         }
         if let Some(stream) = stream {
-            Ok(Box::new(SimpleProxyStream(stream)))
+            Ok(Box::new(stream))
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "invalid input"))
         }

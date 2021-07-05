@@ -88,7 +88,7 @@ pub use datagram::{
     SimpleInboundDatagram, SimpleInboundDatagramRecvHalf, SimpleInboundDatagramSendHalf,
     SimpleOutboundDatagram, SimpleOutboundDatagramRecvHalf, SimpleOutboundDatagramSendHalf,
 };
-pub use stream::{BufHeadProxyStream, SimpleProxyStream};
+pub use stream::BufHeadProxyStream;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DatagramTransportType {
@@ -324,7 +324,7 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(Box<dyn ProxyStream
     apply_socket_opts(&stream)?;
 
     trace!("tcp connected {} <-> {}", stream.local_addr()?, &dial_addr);
-    Ok((Box::new(SimpleProxyStream(stream)), dial_addr))
+    Ok((Box::new(stream), dial_addr))
 }
 
 pub async fn connect_tcp_outbound(
@@ -468,6 +468,8 @@ pub trait UdpConnector: Send + Sync + Unpin {
 
 /// A reliable transport for both inbound and outbound handlers.
 pub trait ProxyStream: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
+
+impl<S> ProxyStream for S where S: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
 
 /// An outbound handler for both UDP and TCP outgoing connections.
 pub trait OutboundHandler:

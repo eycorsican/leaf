@@ -6,7 +6,7 @@ use tokio::io::AsyncWriteExt;
 
 use super::shadow::ShadowedStream;
 use crate::{
-    proxy::{OutboundConnect, ProxyStream, SimpleProxyStream, TcpOutboundHandler},
+    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
     session::{Session, SocksAddrWireType},
 };
 
@@ -35,6 +35,6 @@ impl TcpOutboundHandler for Handler {
             .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
         // FIXME combine header and first payload
         stream.write_all(&buf).await?;
-        Ok(Box::new(SimpleProxyStream(stream)))
+        Ok(Box::new(stream))
     }
 }

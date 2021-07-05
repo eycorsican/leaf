@@ -6,7 +6,7 @@ use tokio_tungstenite::accept_hdr_async;
 use tungstenite::handshake::server::{Callback, ErrorResponse, Request, Response};
 
 use crate::{
-    proxy::{InboundTransport, ProxyStream, SimpleProxyStream, TcpInboundHandler},
+    proxy::{InboundTransport, ProxyStream, TcpInboundHandler},
     session::Session,
 };
 
@@ -52,9 +52,6 @@ impl TcpInboundHandler for Handler {
             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("accept ws failed: {}", e)))
             .await?;
         let ws_stream = stream::WebSocketToStream::new(socket);
-        Ok(InboundTransport::Stream(
-            Box::new(SimpleProxyStream(ws_stream)),
-            sess,
-        ))
+        Ok(InboundTransport::Stream(Box::new(ws_stream), sess))
     }
 }
