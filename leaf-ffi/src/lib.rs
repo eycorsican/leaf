@@ -95,6 +95,8 @@ pub extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32 {
             config: leaf::Config::File(config_path.to_string()),
             #[cfg(feature = "auto-reload")]
             auto_reload: false,
+            #[cfg(target_os = "android")]
+            socket_protect_path: None,
             runtime_opt: leaf::RuntimeOption::SingleThread,
         };
         if let Err(e) = leaf::start(rt_id, opts) {

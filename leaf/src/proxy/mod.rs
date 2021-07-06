@@ -134,7 +134,7 @@ async fn protect_socket<S: AsRawFd>(socket: S) -> io::Result<()> {
         if stream.read_i32().await? != 0 {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("failed to protect outbound socket {}", fd),
+                format!("failed to protect outbound socket {}", socket.as_raw_fd()),
             ));
         }
     }
@@ -281,7 +281,7 @@ pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
     bind_socket(&socket, indicator).await?;
 
     #[cfg(target_os = "android")]
-    protect_socket(&socket).await?;
+    protect_socket(socket.as_raw_fd()).await?;
 
     UdpSocket::from_std(socket.into())
 }
@@ -312,7 +312,7 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(Box<dyn ProxyStream
     bind_socket(&socket, &dial_addr).await?;
 
     #[cfg(target_os = "android")]
-    protect_socket(&socket).await?;
+    protect_socket(socket.as_raw_fd()).await?;
 
     trace!("tcp dialing {}", &dial_addr);
     let stream = timeout(
