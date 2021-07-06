@@ -54,13 +54,13 @@ use crate::proxy::ws;
 use crate::{
     app::SyncDnsClient,
     config::{self, Outbound},
-    proxy::{self, outbound::HandlerBuilder, OutboundHandler},
+    proxy::{self, outbound::HandlerBuilder, *},
 };
 
 use super::selector::OutboundSelector;
 
 pub struct OutboundManager {
-    handlers: HashMap<String, Arc<dyn OutboundHandler>>,
+    handlers: HashMap<String, AnyOutboundHandler>,
     external_handlers: super::plugin::ExternalHandlers,
     selectors: Arc<super::Selectors>,
     default_handler: Option<String>,
@@ -72,7 +72,7 @@ impl OutboundManager {
     fn load_handlers(
         outbounds: &protobuf::RepeatedField<Outbound>,
         dns_client: SyncDnsClient,
-        handlers: &mut HashMap<String, Arc<dyn OutboundHandler>>,
+        handlers: &mut HashMap<String, AnyOutboundHandler>,
         external_handlers: &mut super::plugin::ExternalHandlers,
         default_handler: &mut Option<String>,
         abort_handles: &mut Vec<AbortHandle>,
@@ -297,8 +297,8 @@ impl OutboundManager {
                         dns_client.clone(),
                     ));
                     let udp = Box::new(null::outbound::UdpHandler {
-                        connect: Some(proxy::OutboundConnect::NoConnect),
-                        transport_type: proxy::DatagramTransportType::Stream,
+                        connect: Some(OutboundConnect::NoConnect),
+                        transport_type: DatagramTransportType::Stream,
                     });
                     let handler = HandlerBuilder::default()
                         .tag(tag.clone())
@@ -535,8 +535,8 @@ impl OutboundManager {
                             dns_client.clone(),
                         );
                         let udp = Box::new(null::outbound::UdpHandler {
-                            connect: Some(proxy::OutboundConnect::NoConnect),
-                            transport_type: proxy::DatagramTransportType::Stream,
+                            connect: Some(OutboundConnect::NoConnect),
+                            transport_type: DatagramTransportType::Stream,
                         });
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())
@@ -662,7 +662,7 @@ impl OutboundManager {
 
     fn load_selectors(
         outbounds: &protobuf::RepeatedField<Outbound>,
-        handlers: &mut HashMap<String, Arc<dyn OutboundHandler>>,
+        handlers: &mut HashMap<String, AnyOutboundHandler>,
         external_handlers: &mut super::plugin::ExternalHandlers,
         selectors: &mut super::Selectors,
     ) -> Result<()> {
@@ -743,7 +743,7 @@ impl OutboundManager {
         }
 
         // Load new outbounds.
-        let mut handlers: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
+        let mut handlers: HashMap<String, AnyOutboundHandler> = HashMap::new();
 
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
@@ -794,7 +794,7 @@ impl OutboundManager {
         outbounds: &protobuf::RepeatedField<Outbound>,
         dns_client: SyncDnsClient,
     ) -> Result<Self> {
-        let mut handlers: HashMap<String, Arc<dyn OutboundHandler>> = HashMap::new();
+        let mut handlers: HashMap<String, AnyOutboundHandler> = HashMap::new();
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles: Vec<AbortHandle> = Vec::new();
@@ -824,11 +824,11 @@ impl OutboundManager {
         })
     }
 
-    pub fn add(&mut self, tag: String, handler: Arc<dyn OutboundHandler>) {
+    pub fn add(&mut self, tag: String, handler: AnyOutboundHandler) {
         self.handlers.insert(tag, handler);
     }
 
-    pub fn get(&self, tag: &str) -> Option<Arc<dyn OutboundHandler>> {
+    pub fn get(&self, tag: &str) -> Option<AnyOutboundHandler> {
         self.handlers.get(tag).map(Clone::clone)
     }
 
@@ -848,11 +848,11 @@ impl OutboundManager {
 }
 
 pub struct Handlers<'a> {
-    inner: hash_map::Values<'a, String, Arc<dyn OutboundHandler>>,
+    inner: hash_map::Values<'a, String, AnyOutboundHandler>,
 }
 
 impl<'a> Iterator for Handlers<'a> {
-    type Item = &'a Arc<dyn OutboundHandler>;
+    type Item = &'a AnyOutboundHandler;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()

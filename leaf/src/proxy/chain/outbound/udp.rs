@@ -1,14 +1,10 @@
 use std::convert::TryFrom;
 use std::io;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 
 use crate::{
-    proxy::{
-        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundHandler,
-        OutboundTransport, ProxyStream, TcpOutboundHandler, UdpOutboundHandler,
-    },
+    proxy::*,
     session::{Session, SocksAddr},
 };
 
@@ -20,7 +16,7 @@ fn invalid_chain(reason: &str) -> io::Error {
 }
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub actors: Vec<AnyOutboundHandler>,
 }
 
 impl Handler {
@@ -119,6 +115,9 @@ impl Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
+    type UStream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         for a in self.actors.iter() {
             if let Some(addr) = UdpOutboundHandler::connect_addr(a.as_ref()) {
@@ -140,8 +139,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
+    ) -> io::Result<Self::Datagram> {
         match transport {
             Some(transport) => match transport {
                 OutboundTransport::Datagram(dgram) => self.handle(sess, None, Some(dgram)).await,

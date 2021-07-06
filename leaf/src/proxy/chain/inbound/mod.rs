@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{io, pin::Pin};
 
 use futures::stream::Stream;
@@ -8,9 +7,7 @@ use futures::{
     task::{Context, Poll},
 };
 
-use crate::proxy::{
-    BaseInboundTransport, InboundHandler, InboundTransport, IncomingTransport, TcpInboundHandler,
-};
+use crate::proxy::*;
 
 mod tcp;
 mod udp;
@@ -20,17 +17,17 @@ pub use udp::Handler as UdpHandler;
 
 enum State {
     WaitingIncoming,
-    Pending(usize, BoxFuture<'static, io::Result<InboundTransport>>),
+    Pending(usize, BoxFuture<'static, io::Result<AnyInboundTransport>>),
 }
 
 pub struct Incoming {
-    incoming: IncomingTransport,
-    actors: Vec<Arc<dyn InboundHandler>>,
+    incoming: AnyIncomingTransport,
+    actors: Vec<AnyInboundHandler>,
     state: State,
 }
 
 impl Incoming {
-    pub fn new(incoming: IncomingTransport, actors: Vec<Arc<dyn InboundHandler>>) -> Self {
+    pub fn new(incoming: AnyIncomingTransport, actors: Vec<AnyInboundHandler>) -> Self {
         Incoming {
             incoming,
             actors,
@@ -41,7 +38,7 @@ impl Incoming {
 
 impl Stream for Incoming {
     // TODO io::Result<(...)>
-    type Item = BaseInboundTransport;
+    type Item = AnyBaseInboundTransport;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
@@ -51,7 +48,7 @@ impl Stream for Incoming {
                     let transport = ready!(Stream::poll_next(Pin::new(&mut self.incoming), cx));
                     match transport {
                         // Only reliable transports are eligible to handle TCP requests.
-                        Some(BaseInboundTransport::Stream(stream, sess)) => {
+                        Some(AnyBaseInboundTransport::Stream(stream, sess)) => {
                             assert!(!self.actors.is_empty()); // FIXME
                             let sess = sess.clone();
                             let a = self.actors[0].clone();
@@ -77,7 +74,7 @@ impl Stream for Incoming {
                             // return it.
                             if idx + 1 >= self.actors.len() {
                                 self.state = State::WaitingIncoming;
-                                return Poll::Ready(Some(BaseInboundTransport::Stream(
+                                return Poll::Ready(Some(AnyBaseInboundTransport::Stream(
                                     new_stream, new_sess,
                                 )));
                             }
@@ -92,7 +89,7 @@ impl Stream for Incoming {
                         Ok(InboundTransport::Datagram(socket)) => {
                             // FIXME Assume the last one, but not necessary the last one?
                             self.state = State::WaitingIncoming;
-                            return Poll::Ready(Some(BaseInboundTransport::Datagram(socket)));
+                            return Poll::Ready(Some(AnyBaseInboundTransport::Datagram(socket)));
                         }
                         _ => {
                             log::warn!("unexpected non-stream transport");

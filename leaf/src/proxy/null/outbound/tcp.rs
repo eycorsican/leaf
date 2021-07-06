@@ -2,10 +2,7 @@ use std::io;
 
 use async_trait::async_trait;
 
-use crate::{
-    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
-    session::Session,
-};
+use crate::{proxy::*, session::Session};
 
 pub struct Handler {
     pub connect: Option<OutboundConnect>,
@@ -13,6 +10,8 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.connect.clone()
     }
@@ -20,8 +19,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+        _stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         Err(io::Error::new(io::ErrorKind::Other, "null handler"))
     }
 }

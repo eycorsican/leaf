@@ -1,12 +1,8 @@
 use std::io;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use super::InboundHandler;
-use super::{
-    InboundDatagram, InboundTransport, ProxyStream, Tag, TcpInboundHandler, UdpInboundHandler,
-};
+use super::*;
 
 use crate::session::Session;
 
@@ -14,15 +10,15 @@ use crate::session::Session;
 /// handler.
 pub struct Handler {
     tag: String,
-    tcp_handler: Option<Arc<dyn TcpInboundHandler>>,
-    udp_handler: Option<Arc<dyn UdpInboundHandler>>,
+    tcp_handler: Option<AnyTcpInboundHandler>,
+    udp_handler: Option<AnyUdpInboundHandler>,
 }
 
 impl Handler {
     pub fn new(
         tag: String,
-        tcp: Option<Arc<dyn TcpInboundHandler>>,
-        udp: Option<Arc<dyn UdpInboundHandler>>,
+        tcp: Option<AnyTcpInboundHandler>,
+        udp: Option<AnyUdpInboundHandler>,
     ) -> Self {
         Handler {
             tag,
@@ -50,11 +46,14 @@ impl InboundHandler for Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
+    type TStream = AnyStream;
+    type TDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
         sess: Session,
-        stream: Box<dyn ProxyStream>,
-    ) -> std::io::Result<InboundTransport> {
+        stream: Self::TStream,
+    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
         if let Some(handler) = &self.tcp_handler {
             handler.handle(sess, stream).await
         } else {
@@ -65,10 +64,13 @@ impl TcpInboundHandler for Handler {
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
+    type UStream = AnyStream;
+    type UDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
-        socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<InboundTransport> {
+        socket: Self::UDatagram,
+    ) -> std::io::Result<InboundTransport<Self::UStream, Self::UDatagram>> {
         if let Some(handler) = &self.udp_handler {
             handler.handle(socket).await
         } else {

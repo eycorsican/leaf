@@ -11,11 +11,7 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::{
-    proxy::TcpInboundHandler,
-    proxy::{
-        InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, InboundTransport,
-        ProxyStream,
-    },
+    proxy::*,
     session::{DatagramSource, Session, SocksAddr, SocksAddrWireType},
 };
 
@@ -125,11 +121,14 @@ impl Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
+    type TStream = AnyStream;
+    type TDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
         mut sess: Session,
-        mut stream: Box<dyn ProxyStream>,
-    ) -> std::io::Result<InboundTransport> {
+        mut stream: Self::TStream,
+    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
         let mut buf = BytesMut::new();
         // read key
         buf.resize(56, 0);

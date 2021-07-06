@@ -12,12 +12,12 @@ use tokio::time::timeout;
 
 use crate::{
     app::SyncDnsClient,
-    proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpOutboundHandler},
+    proxy::*,
     session::{Session, SocksAddr},
 };
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub actors: Vec<AnyOutboundHandler>,
     pub fail_timeout: u32,
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
@@ -31,7 +31,7 @@ struct Measure(usize, u128); // (index, duration in millis)
 impl Handler {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        actors: Vec<Arc<dyn OutboundHandler>>,
+        actors: Vec<AnyOutboundHandler>,
         fail_timeout: u32, // in secs
         health_check: bool,
         check_interval: u32, // in secs
@@ -175,6 +175,8 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -182,8 +184,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+        _stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         if let Some(task) = self.health_check_task.lock().await.take() {
             tokio::spawn(task);
         }

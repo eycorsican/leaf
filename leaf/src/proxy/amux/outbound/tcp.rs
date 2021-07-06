@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     app::SyncDnsClient,
-    proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpConnector, TcpOutboundHandler},
+    proxy::*,
     session::{Session, SocksAddr},
 };
 
@@ -21,7 +21,7 @@ use super::MuxStream;
 pub struct MuxManager {
     pub address: String,
     pub port: u16,
-    pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub actors: Vec<AnyOutboundHandler>,
     pub max_accepts: usize,
     pub concurrency: usize,
     pub dns_client: SyncDnsClient,
@@ -35,7 +35,7 @@ impl MuxManager {
     pub fn new(
         address: String,
         port: u16,
-        actors: Vec<Arc<dyn OutboundHandler>>,
+        actors: Vec<AnyOutboundHandler>,
         max_accepts: usize,
         concurrency: usize,
         dns_client: SyncDnsClient,
@@ -49,7 +49,6 @@ impl MuxManager {
             loop {
                 connectors2.lock().await.retain(|c| !c.is_done());
                 log::trace!("active connectors {}", connectors2.lock().await.len());
-                use std::time::Duration;
                 tokio::time::sleep(Duration::from_secs(10)).await;
             }
         };
@@ -113,7 +112,7 @@ impl Handler {
     pub fn new(
         address: String,
         port: u16,
-        actors: Vec<Arc<dyn OutboundHandler>>,
+        actors: Vec<AnyOutboundHandler>,
         max_accepts: usize,
         concurrency: usize,
         dns_client: SyncDnsClient,
@@ -126,6 +125,8 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::NoConnect)
     }
@@ -133,8 +134,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+        _stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         Ok(Box::new(self.manager.new_stream(sess).await?))
     }
 }

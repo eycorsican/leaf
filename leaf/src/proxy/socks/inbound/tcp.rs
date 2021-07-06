@@ -6,7 +6,7 @@ use log::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{
-    proxy::{InboundTransport, ProxyStream, TcpInboundHandler},
+    proxy::*,
     session::{Session, SocksAddr, SocksAddrWireType},
 };
 
@@ -14,11 +14,14 @@ pub struct Handler;
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
+    type TStream = AnyStream;
+    type TDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
         mut sess: Session,
-        mut stream: Box<dyn ProxyStream>,
-    ) -> std::io::Result<InboundTransport> {
+        mut stream: Self::TStream,
+    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
         let mut buf = BytesMut::with_capacity(1024);
 
         // handle auth

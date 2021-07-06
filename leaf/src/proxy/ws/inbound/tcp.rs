@@ -5,10 +5,7 @@ use futures::TryFutureExt;
 use tokio_tungstenite::accept_hdr_async;
 use tungstenite::handshake::server::{Callback, ErrorResponse, Request, Response};
 
-use crate::{
-    proxy::{InboundTransport, ProxyStream, TcpInboundHandler},
-    session::Session,
-};
+use crate::{proxy::*, session::Session};
 
 use super::stream;
 
@@ -40,11 +37,14 @@ impl Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
+    type TStream = AnyStream;
+    type TDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
         sess: Session,
-        stream: Box<dyn ProxyStream>,
-    ) -> std::io::Result<InboundTransport> {
+        stream: Self::TStream,
+    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
         let cb = SimpleCallback {
             path: self.path.clone(), // TODO optimize the copy
         };

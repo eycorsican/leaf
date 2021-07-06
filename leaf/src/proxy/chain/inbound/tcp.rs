@@ -1,26 +1,25 @@
 use std::io;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::{
-    proxy::{InboundHandler, InboundTransport, ProxyStream, TcpInboundHandler},
-    session::Session,
-};
+use crate::{proxy::*, session::Session};
 
 use super::Incoming;
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn InboundHandler>>,
+    pub actors: Vec<AnyInboundHandler>,
 }
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
+    type TStream = AnyStream;
+    type TDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
         mut sess: Session,
-        mut stream: Box<dyn ProxyStream>,
-    ) -> std::io::Result<InboundTransport> {
+        mut stream: Self::TStream,
+    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
         for (i, a) in self.actors.iter().enumerate() {
             let transport = TcpInboundHandler::handle(a.as_ref(), sess.clone(), stream).await?;
             match transport {

@@ -9,10 +9,7 @@ use bytes::{BufMut, BytesMut};
 use log::*;
 
 use crate::{
-    proxy::{
-        DatagramSource, InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf,
-        InboundTransport, UdpInboundHandler,
-    },
+    proxy::*,
     session::{SocksAddr, SocksAddrWireType},
 };
 
@@ -25,10 +22,13 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
+    type UStream = AnyStream;
+    type UDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
-        socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<InboundTransport> {
+        socket: Self::UDatagram,
+    ) -> io::Result<InboundTransport<Self::UStream, Self::UDatagram>> {
         let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;
         Ok(InboundTransport::Datagram(Box::new(Datagram {
             dgram,

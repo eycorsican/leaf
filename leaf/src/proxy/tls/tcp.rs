@@ -18,10 +18,7 @@ use {
     tokio_openssl::SslStream,
 };
 
-use crate::{
-    proxy::{OutboundConnect, ProxyStream, TcpOutboundHandler},
-    session::Session,
-};
+use crate::{proxy::*, session::Session};
 
 pub struct Handler {
     server_name: String,
@@ -82,6 +79,8 @@ where
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -89,8 +88,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+        stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         // TODO optimize, dont need copy
         let name = if !&self.server_name.is_empty() {
             self.server_name.clone()

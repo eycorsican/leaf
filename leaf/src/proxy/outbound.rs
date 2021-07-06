@@ -1,36 +1,33 @@
-use std::io::Result;
+use std::io;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
 use crate::session::Session;
 
-use super::{
-    Color, DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundHandler,
-    OutboundTransport, ProxyStream, Tag, TcpOutboundHandler, UdpOutboundHandler,
-};
+use super::*;
 
 /// An outbound handler groups a TCP outbound handler and a UDP outbound
 /// handler.
 pub struct Handler {
     tag: String,
     color: colored::Color,
-    tcp_handler: Box<dyn TcpOutboundHandler>,
-    udp_handler: Box<dyn UdpOutboundHandler>,
+    tcp_handler: AnyTcpOutboundHandler,
+    udp_handler: AnyUdpOutboundHandler,
 }
 
 impl Handler {
     pub(self) fn new(
         tag: String,
         color: colored::Color,
-        tcp: Box<dyn TcpOutboundHandler>,
-        udp: Box<dyn UdpOutboundHandler>,
+        tcp_handler: AnyTcpOutboundHandler,
+        udp_handler: AnyUdpOutboundHandler,
     ) -> Arc<Self> {
         Arc::new(Handler {
             tag,
             color,
-            tcp_handler: tcp,
-            udp_handler: udp,
+            tcp_handler,
+            udp_handler,
         })
     }
 }
@@ -51,6 +48,8 @@ impl Color for Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.tcp_handler.connect_addr()
     }
@@ -58,14 +57,17 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> Result<Box<dyn ProxyStream>> {
+        stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         self.tcp_handler.handle(sess, stream).await
     }
 }
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
+    type UStream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.udp_handler.connect_addr()
     }
@@ -77,8 +79,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> Result<Box<dyn OutboundDatagram>> {
+        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
+    ) -> io::Result<Self::Datagram> {
         self.udp_handler.handle(sess, transport).await
     }
 }
@@ -86,8 +88,8 @@ impl UdpOutboundHandler for Handler {
 pub struct HandlerBuilder {
     tag: String,
     color: colored::Color,
-    tcp_handler: Box<dyn TcpOutboundHandler>,
-    udp_handler: Box<dyn UdpOutboundHandler>,
+    tcp_handler: AnyTcpOutboundHandler,
+    udp_handler: AnyUdpOutboundHandler,
 }
 
 impl HandlerBuilder {
@@ -113,12 +115,12 @@ impl HandlerBuilder {
         self
     }
 
-    pub fn tcp_handler(mut self, v: Box<dyn TcpOutboundHandler>) -> Self {
+    pub fn tcp_handler(mut self, v: AnyTcpOutboundHandler) -> Self {
         self.tcp_handler = v;
         self
     }
 
-    pub fn udp_handler(mut self, v: Box<dyn UdpOutboundHandler>) -> Self {
+    pub fn udp_handler(mut self, v: AnyUdpOutboundHandler) -> Self {
         self.udp_handler = v;
         self
     }

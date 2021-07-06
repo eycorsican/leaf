@@ -8,7 +8,7 @@ use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
 use crate::config;
 use crate::proxy;
-use crate::proxy::InboundHandler;
+use crate::proxy::AnyInboundHandler;
 use crate::Runner;
 
 #[cfg(feature = "inbound-amux")]
@@ -63,7 +63,7 @@ impl InboundManager {
         dispatcher: Arc<Dispatcher>,
         nat_manager: Arc<NatManager>,
     ) -> Result<Self> {
-        let mut handlers: HashMap<String, Arc<dyn InboundHandler>> = HashMap::new();
+        let mut handlers: HashMap<String, AnyInboundHandler> = HashMap::new();
 
         for inbound in inbounds.iter() {
             let tag = String::from(&inbound.tag);

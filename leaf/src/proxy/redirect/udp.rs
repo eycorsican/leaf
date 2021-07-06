@@ -4,10 +4,7 @@ use async_trait::async_trait;
 use futures::TryFutureExt;
 
 use crate::{
-    proxy::{
-        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
-        OutboundDatagramSendHalf, OutboundTransport, UdpOutboundHandler,
-    },
+    proxy::*,
     session::{Session, SocksAddr},
 };
 
@@ -19,6 +16,9 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
+    type UStream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
@@ -30,8 +30,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
+    ) -> io::Result<Self::Datagram> {
         let dgram = if let Some(OutboundTransport::Datagram(dgram)) = transport {
             dgram
         } else {

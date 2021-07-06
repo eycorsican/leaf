@@ -303,7 +303,7 @@ fn apply_socket_opts<S: AsRawSocket>(socket: &S) -> io::Result<()> {
 }
 
 // A single TCP dial.
-async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(Box<dyn ProxyStream>, SocketAddr)> {
+async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(AnyStream, SocketAddr)> {
     let socket = match dial_addr {
         SocketAddr::V4(..) => TcpSocket::new_v4()?,
         SocketAddr::V6(..) => TcpSocket::new_v6()?,
@@ -330,8 +330,8 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(Box<dyn ProxyStream
 pub async fn connect_tcp_outbound(
     sess: &Session,
     dns_client: SyncDnsClient,
-    handler: &Arc<dyn OutboundHandler>,
-) -> io::Result<Option<Box<dyn ProxyStream>>> {
+    handler: &AnyOutboundHandler,
+) -> io::Result<Option<AnyStream>> {
     match TcpOutboundHandler::connect_addr(handler.as_ref()) {
         Some(OutboundConnect::Proxy(addr, port)) => {
             Ok(Some(new_tcp_stream(dns_client, &addr, &port).await?))
@@ -351,8 +351,8 @@ pub async fn connect_tcp_outbound(
 pub async fn connect_udp_outbound(
     sess: &Session,
     dns_client: SyncDnsClient,
-    handler: &Arc<dyn OutboundHandler>,
-) -> io::Result<Option<OutboundTransport>> {
+    handler: &AnyOutboundHandler,
+) -> io::Result<Option<AnyOutboundTransport>> {
     match UdpOutboundHandler::connect_addr(handler.as_ref()) {
         Some(OutboundConnect::Proxy(addr, port)) => {
             match UdpOutboundHandler::transport_type(handler.as_ref()) {
@@ -390,7 +390,7 @@ pub async fn new_tcp_stream(
     dns_client: SyncDnsClient,
     address: &String,
     port: &u16,
-) -> io::Result<Box<dyn ProxyStream>> {
+) -> io::Result<AnyStream> {
     let mut resolver = Resolver::new(dns_client.clone(), address, port)
         .map_err(|e| {
             io::Error::new(
@@ -452,7 +452,7 @@ pub trait TcpConnector: Send + Sync + Unpin {
         dns_client: SyncDnsClient,
         address: &String,
         port: &u16,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+    ) -> io::Result<AnyStream> {
         new_tcp_stream(dns_client, address, port).await
     }
 }
@@ -471,11 +471,17 @@ pub trait ProxyStream: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
 
 impl<S> ProxyStream for S where S: AsyncRead + AsyncWrite + Send + Sync + Unpin {}
 
+pub type AnyStream = Box<dyn ProxyStream>;
+
 /// An outbound handler for both UDP and TCP outgoing connections.
 pub trait OutboundHandler:
-    Tag + Color + TcpOutboundHandler + UdpOutboundHandler + Send + Unpin
+    TcpOutboundHandler + UdpOutboundHandler + Tag + Color + Send + Unpin
 {
 }
+
+pub type AnyOutboundHandler = Arc<
+    dyn OutboundHandler<Stream = AnyStream, UStream = AnyStream, Datagram = AnyOutboundDatagram>,
+>;
 
 #[derive(Debug, Clone)]
 pub enum OutboundConnect {
@@ -487,6 +493,8 @@ pub enum OutboundConnect {
 /// An outbound handler for outgoing TCP conections.
 #[async_trait]
 pub trait TcpOutboundHandler: Send + Sync + Unpin {
+    type Stream;
+
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> Option<OutboundConnect>;
@@ -496,9 +504,11 @@ pub trait TcpOutboundHandler: Send + Sync + Unpin {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>>;
+        stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream>;
 }
+
+type AnyTcpOutboundHandler = Box<dyn TcpOutboundHandler<Stream = AnyStream>>;
 
 /// An unreliable transport for outbound handlers.
 pub trait OutboundDatagram: Send + Unpin {
@@ -510,6 +520,8 @@ pub trait OutboundDatagram: Send + Unpin {
         Box<dyn OutboundDatagramSendHalf>,
     );
 }
+
+pub type AnyOutboundDatagram = Box<dyn OutboundDatagram>;
 
 /// The receive half.
 #[async_trait]
@@ -532,6 +544,9 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
 /// An outbound handler for outgoing UDP connections.
 #[async_trait]
 pub trait UdpOutboundHandler: Send + Sync + Unpin {
+    type UStream;
+    type Datagram;
+
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> Option<OutboundConnect>;
@@ -549,41 +564,69 @@ pub trait UdpOutboundHandler: Send + Sync + Unpin {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> io::Result<Box<dyn OutboundDatagram>>;
+        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
+    ) -> io::Result<Self::Datagram>;
 }
+
+type AnyUdpOutboundHandler =
+    Box<dyn UdpOutboundHandler<UStream = AnyStream, Datagram = AnyOutboundDatagram>>;
 
 /// An outbound transport represents either a reliable or unreliable transport.
-pub enum OutboundTransport {
+pub enum OutboundTransport<S, D> {
     /// The reliable transport.
-    Stream(Box<dyn ProxyStream>),
+    Stream(S),
     /// The unreliable transport.
-    Datagram(Box<dyn OutboundDatagram>),
+    Datagram(D),
 }
 
+pub type AnyOutboundTransport = OutboundTransport<AnyStream, AnyOutboundDatagram>;
+
 pub trait InboundHandler:
-    Tag + TcpInboundHandler + UdpInboundHandler + Send + Sync + Unpin
+    TcpInboundHandler + UdpInboundHandler + Tag + Send + Sync + Unpin
 {
     fn has_tcp(&self) -> bool;
     fn has_udp(&self) -> bool;
 }
 
+pub type AnyInboundHandler = Arc<
+    dyn InboundHandler<
+        TStream = AnyStream,
+        TDatagram = AnyInboundDatagram,
+        UStream = AnyStream,
+        UDatagram = AnyInboundDatagram,
+    >,
+>;
+
 /// An inbound handler for incoming TCP connections.
 #[async_trait]
 pub trait TcpInboundHandler: Send + Sync + Unpin {
+    type TStream;
+    type TDatagram;
+
     async fn handle<'a>(
         &'a self,
         sess: Session,
-        stream: Box<dyn ProxyStream>,
-    ) -> std::io::Result<InboundTransport>;
+        stream: Self::TStream,
+    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>>;
 }
+
+pub type AnyTcpInboundHandler =
+    Arc<dyn TcpInboundHandler<TStream = AnyStream, TDatagram = AnyInboundDatagram>>;
 
 /// An inbound handler for incoming UDP connections.
 #[async_trait]
 pub trait UdpInboundHandler: Send + Sync + Unpin {
-    async fn handle<'a>(&'a self, socket: Box<dyn InboundDatagram>)
-        -> io::Result<InboundTransport>;
+    type UStream;
+    type UDatagram;
+
+    async fn handle<'a>(
+        &'a self,
+        socket: Self::UDatagram,
+    ) -> io::Result<InboundTransport<Self::UStream, Self::UDatagram>>;
 }
+
+pub type AnyUdpInboundHandler =
+    Arc<dyn UdpInboundHandler<UStream = AnyStream, UDatagram = AnyInboundDatagram>>;
 
 /// An unreliable transport for inbound handlers.
 pub trait InboundDatagram: Send + Sync + Unpin {
@@ -598,6 +641,8 @@ pub trait InboundDatagram: Send + Sync + Unpin {
     /// Turns the datagram into a [`std::net::UdpSocket`].
     fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket>;
 }
+
+pub type AnyInboundDatagram = Box<dyn InboundDatagram>;
 
 /// The receive half.
 #[async_trait]
@@ -633,24 +678,31 @@ pub trait InboundDatagramSendHalf: Sync + Send + Unpin {
     ) -> io::Result<usize>;
 }
 
-pub enum BaseInboundTransport {
+pub enum BaseInboundTransport<S, D> {
     /// The reliable transport.
-    Stream(Box<dyn ProxyStream>, Session),
+    Stream(S, Session),
     /// The unreliable transport.
-    Datagram(Box<dyn InboundDatagram>),
+    Datagram(D),
     /// None.
     Empty,
 }
 
-pub type IncomingTransport = Box<dyn Stream<Item = BaseInboundTransport> + Send + Unpin>;
+pub type AnyBaseInboundTransport = BaseInboundTransport<AnyStream, AnyInboundDatagram>;
+
+pub type IncomingTransport<S, D> =
+    Box<dyn Stream<Item = BaseInboundTransport<S, D>> + Send + Unpin>;
+
+pub type AnyIncomingTransport = IncomingTransport<AnyStream, AnyInboundDatagram>;
 
 /// An inbound transport represents either a reliable or unreliable transport.
-pub enum InboundTransport {
+pub enum InboundTransport<S, D> {
     /// The reliable transport.
-    Stream(Box<dyn ProxyStream>, Session),
+    Stream(S, Session),
     /// The unreliable transport.
-    Datagram(Box<dyn InboundDatagram>),
-    Incoming(IncomingTransport),
+    Datagram(D),
+    Incoming(IncomingTransport<S, D>),
     /// None.
     Empty,
 }
+
+pub type AnyInboundTransport = InboundTransport<AnyStream, AnyInboundDatagram>;

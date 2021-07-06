@@ -21,15 +21,12 @@ use trust_dns_proto::{
 
 use crate::{
     app::SyncDnsClient,
-    proxy::{
-        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundHandler,
-        OutboundTransport, UdpOutboundHandler,
-    },
+    proxy::*,
     session::{Session, SocksAddr},
 };
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub actors: Vec<AnyOutboundHandler>,
     pub fail_timeout: u32,
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
@@ -41,7 +38,7 @@ struct Measure(usize, u128); // (index, duration in millis)
 
 impl Handler {
     pub fn new(
-        actors: Vec<Arc<dyn OutboundHandler>>,
+        actors: Vec<AnyOutboundHandler>,
         fail_timeout: u32,
         health_check: bool,
         check_interval: u32,
@@ -202,6 +199,9 @@ impl Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
+    type UStream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -213,8 +213,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _transport: Option<OutboundTransport>,
-    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        _transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
+    ) -> io::Result<Self::Datagram> {
         if let Some(task) = self.health_check_task.lock().await.take() {
             tokio::spawn(task);
         }

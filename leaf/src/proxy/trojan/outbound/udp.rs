@@ -10,10 +10,7 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 
 use crate::{
-    proxy::{
-        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
-        OutboundDatagramSendHalf, OutboundTransport, UdpOutboundHandler,
-    },
+    proxy::*,
     session::{Session, SocksAddr, SocksAddrWireType},
 };
 
@@ -25,6 +22,9 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
+    type UStream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
@@ -36,8 +36,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
+    ) -> io::Result<Self::Datagram> {
         let stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream
         } else {

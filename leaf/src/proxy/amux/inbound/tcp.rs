@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{io, pin::Pin};
 
 use async_trait::async_trait;
@@ -8,12 +7,7 @@ use futures::{
     task::{Context, Poll},
 };
 
-use crate::{
-    proxy::{
-        BaseInboundTransport, InboundHandler, InboundTransport, ProxyStream, TcpInboundHandler,
-    },
-    session::Session,
-};
+use crate::{proxy::*, session::Session};
 
 use super::MuxAcceptor;
 use super::MuxSession;
@@ -33,30 +27,33 @@ impl Incoming {
 }
 
 impl Stream for Incoming {
-    type Item = BaseInboundTransport;
+    type Item = AnyBaseInboundTransport;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Poll::Ready(
             ready!(Pin::new(&mut self.acceptor).poll_next(cx)).map(|stream| {
                 let mut sess = self.sess.clone();
                 sess.stream_id = Some(stream.id().into());
-                BaseInboundTransport::Stream(Box::new(stream), sess)
+                AnyBaseInboundTransport::Stream(Box::new(stream), sess)
             }),
         )
     }
 }
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn InboundHandler>>,
+    pub actors: Vec<AnyInboundHandler>,
 }
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
+    type TStream = AnyStream;
+    type TDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
         mut sess: Session,
-        mut stream: Box<dyn ProxyStream>,
-    ) -> io::Result<InboundTransport> {
+        mut stream: Self::TStream,
+    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
         for (_, a) in self.actors.iter().enumerate() {
             match TcpInboundHandler::handle(a.as_ref(), sess, stream).await? {
                 InboundTransport::Stream(new_stream, new_sess) => {

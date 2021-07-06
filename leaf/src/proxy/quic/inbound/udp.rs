@@ -10,10 +10,7 @@ use futures::{
     Future,
 };
 
-use crate::{
-    proxy::{InboundDatagram, InboundTransport, BaseInboundTransport, UdpInboundHandler},
-    session::Session,
-};
+use crate::{proxy::*, session::Session};
 
 use super::QuicProxyStream;
 
@@ -36,7 +33,7 @@ impl Incoming {
 }
 
 impl Stream for Incoming {
-    type Item = BaseInboundTransport;
+    type Item = AnyBaseInboundTransport;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // FIXME don't iterate and poll all
@@ -86,7 +83,7 @@ impl Stream for Incoming {
                     };
                     // TODO Check whether the index suitable for this purpose.
                     sess.stream_id = Some(send.id().index());
-                    stream.replace(BaseInboundTransport::Stream(
+                    stream.replace(AnyBaseInboundTransport::Stream(
                         Box::new(QuicProxyStream { recv, send }),
                         sess,
                     ));
@@ -141,10 +138,13 @@ impl Handler {
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
+    type UStream = AnyStream;
+    type UDatagram = AnyInboundDatagram;
+
     async fn handle<'a>(
         &'a self,
-        socket: Box<dyn InboundDatagram>,
-    ) -> io::Result<InboundTransport> {
+        socket: Self::UDatagram,
+    ) -> io::Result<InboundTransport<Self::UStream, Self::UDatagram>> {
         let mut transport_config = quinn::TransportConfig::default();
         transport_config
             .max_concurrent_uni_streams(0)

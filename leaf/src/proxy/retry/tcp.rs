@@ -1,22 +1,20 @@
-use std::{io, sync::Arc};
+use std::io;
 
 use async_trait::async_trait;
 use log::*;
 
-use crate::{
-    app::SyncDnsClient,
-    proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpOutboundHandler},
-    session::Session,
-};
+use crate::{app::SyncDnsClient, proxy::*, session::Session};
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub actors: Vec<AnyOutboundHandler>,
     pub attempts: usize,
     pub dns_client: SyncDnsClient,
 }
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -24,8 +22,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+        _stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         for _ in 0..self.attempts {
             for a in self.actors.iter() {
                 debug!("retry handles tcp [{}] to [{}]", sess.destination, a.tag());

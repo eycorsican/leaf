@@ -1,23 +1,21 @@
+use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{io, sync::Arc};
 
 use async_trait::async_trait;
 use log::*;
 
-use crate::{
-    app::SyncDnsClient,
-    proxy::{OutboundConnect, OutboundHandler, ProxyStream, TcpOutboundHandler},
-    session::Session,
-};
+use crate::{app::SyncDnsClient, proxy::*, session::Session};
 
 pub struct Handler {
-    pub actors: Vec<Arc<dyn OutboundHandler>>,
+    pub actors: Vec<AnyOutboundHandler>,
     pub next: AtomicUsize,
     pub dns_client: SyncDnsClient,
 }
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -25,8 +23,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+        _stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         let current = self.next.load(Ordering::Relaxed);
         let a = &self.actors[current];
         let next = if current >= self.actors.len() - 1 {

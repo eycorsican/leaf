@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use protobuf::Message;
 
-use crate::proxy::OutboundHandler;
+use crate::proxy::AnyOutboundHandler;
 use anyhow::{anyhow, Result};
 
 fn get_cache_file_path() -> Result<PathBuf> {
@@ -48,12 +47,12 @@ pub fn persist_selected_to_cache(id: String, selected: String) -> Result<()> {
 /// OutboundSelector typically associates to a `select` outbound.
 pub struct OutboundSelector {
     id: String,
-    handlers: HashMap<String, Arc<dyn OutboundHandler>>,
+    handlers: HashMap<String, AnyOutboundHandler>,
     selected: Option<String>,
 }
 
 impl OutboundSelector {
-    pub fn new(id: String, handlers: HashMap<String, Arc<dyn OutboundHandler>>) -> Self {
+    pub fn new(id: String, handlers: HashMap<String, AnyOutboundHandler>) -> Self {
         Self {
             id,
             handlers,
@@ -61,7 +60,7 @@ impl OutboundSelector {
         }
     }
 
-    pub fn get_selected(&self) -> Option<Arc<dyn OutboundHandler>> {
+    pub fn get_selected(&self) -> Option<AnyOutboundHandler> {
         if let Some(tag) = self.selected.as_ref() {
             if let Some(h) = self.handlers.get(tag) {
                 return Some(h.clone());

@@ -7,13 +7,7 @@ use async_ffi::BorrowingFfiFuture;
 use async_trait::async_trait;
 use libloading::Library;
 
-use crate::{
-    proxy::{
-        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundTransport, ProxyStream,
-        TcpOutboundHandler, UdpOutboundHandler,
-    },
-    session::Session,
-};
+use crate::{proxy::*, session::Session};
 
 pub struct PluginSpec {
     pub add_handler_fn: unsafe fn(&mut dyn PluginRegistrar, &str, args: &str),
@@ -23,22 +17,28 @@ pub trait PluginRegistrar {
     fn add_handler(
         &mut self,
         tag: &str,
-        tcp_handler: Arc<dyn ExternalTcpOutboundHandler>,
-        udp_handler: Arc<dyn ExternalUdpOutboundHandler>,
+        tcp_handler: AnyExternalTcpOutboundHandler,
+        udp_handler: AnyExternalUdpOutboundHandler,
     );
 }
 
 pub trait ExternalTcpOutboundHandler: Send + Sync + Unpin {
+    type Stream;
+
     fn connect_addr(&self) -> Option<OutboundConnect>;
 
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Box<dyn ProxyStream>>>;
+        stream: Option<Self::Stream>,
+    ) -> BorrowingFfiFuture<'a, io::Result<Self::Stream>>;
 }
+pub type AnyExternalTcpOutboundHandler = Arc<dyn ExternalTcpOutboundHandler<Stream = AnyStream>>;
 
 pub trait ExternalUdpOutboundHandler: Send + Sync + Unpin {
+    type Stream;
+    type Datagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect>;
 
     fn transport_type(&self) -> DatagramTransportType;
@@ -46,8 +46,8 @@ pub trait ExternalUdpOutboundHandler: Send + Sync + Unpin {
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Box<dyn OutboundDatagram>>>;
+        transport: Option<OutboundTransport<Self::Stream, Self::Datagram>>,
+    ) -> BorrowingFfiFuture<'a, io::Result<Self::Datagram>>;
 }
 
 struct PluginRegistrarImpl {
@@ -70,8 +70,8 @@ impl PluginRegistrar for PluginRegistrarImpl {
     fn add_handler(
         &mut self,
         tag: &str,
-        tcp_handler: Arc<dyn ExternalTcpOutboundHandler>,
-        udp_handler: Arc<dyn ExternalUdpOutboundHandler>,
+        tcp_handler: AnyExternalTcpOutboundHandler,
+        udp_handler: AnyExternalUdpOutboundHandler,
     ) {
         let tcp_proxy = TcpOutboundHandlerProxy {
             handler: tcp_handler,
@@ -87,17 +87,19 @@ impl PluginRegistrar for PluginRegistrarImpl {
 }
 
 pub struct TcpOutboundHandlerProxy {
-    handler: Arc<dyn ExternalTcpOutboundHandler>,
+    handler: AnyExternalTcpOutboundHandler,
     _lib: Arc<Library>,
 }
 
 impl TcpOutboundHandlerProxy {
-    fn get_handler(&self) -> Arc<dyn ExternalTcpOutboundHandler> {
+    fn get_handler(&self) -> AnyExternalTcpOutboundHandler {
         self.handler.clone()
     }
 }
 
 impl ExternalTcpOutboundHandler for TcpOutboundHandlerProxy {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.handler.connect_addr()
     }
@@ -105,24 +107,27 @@ impl ExternalTcpOutboundHandler for TcpOutboundHandlerProxy {
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Box<dyn ProxyStream>>> {
+        stream: Option<Self::Stream>,
+    ) -> BorrowingFfiFuture<'a, io::Result<Self::Stream>> {
         self.handler.handle(sess, stream)
     }
 }
 
 pub struct UdpOutboundHandlerProxy {
-    handler: Arc<dyn ExternalUdpOutboundHandler>,
+    handler: AnyExternalUdpOutboundHandler,
     _lib: Arc<Library>,
 }
 
 impl UdpOutboundHandlerProxy {
-    fn get_handler(&self) -> Arc<dyn ExternalUdpOutboundHandler> {
+    fn get_handler(&self) -> AnyExternalUdpOutboundHandler {
         self.handler.clone()
     }
 }
 
 impl ExternalUdpOutboundHandler for UdpOutboundHandlerProxy {
+    type Stream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.handler.connect_addr()
     }
@@ -134,11 +139,14 @@ impl ExternalUdpOutboundHandler for UdpOutboundHandlerProxy {
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Box<dyn OutboundDatagram>>> {
+        transport: Option<OutboundTransport<Self::Stream, Self::Datagram>>,
+    ) -> BorrowingFfiFuture<'a, io::Result<Self::Datagram>> {
         self.handler.handle(sess, transport)
     }
 }
+
+pub type AnyExternalUdpOutboundHandler =
+    Arc<dyn ExternalUdpOutboundHandler<Stream = AnyStream, Datagram = AnyOutboundDatagram>>;
 
 #[derive(Default)]
 pub struct ExternalHandlers {
@@ -172,19 +180,21 @@ impl ExternalHandlers {
         Ok(())
     }
 
-    pub fn get_tcp_handler(&self, name: &str) -> Option<Arc<dyn ExternalTcpOutboundHandler>> {
+    pub fn get_tcp_handler(&self, name: &str) -> Option<AnyExternalTcpOutboundHandler> {
         self.tcp_handlers.get(name).map(|h| h.get_handler())
     }
 
-    pub fn get_udp_handler(&self, name: &str) -> Option<Arc<dyn ExternalUdpOutboundHandler>> {
+    pub fn get_udp_handler(&self, name: &str) -> Option<AnyExternalUdpOutboundHandler> {
         self.udp_handlers.get(name).map(|h| h.get_handler())
     }
 }
 
-pub struct ExternalTcpOutboundHandlerProxy(pub Arc<dyn ExternalTcpOutboundHandler>);
+pub struct ExternalTcpOutboundHandlerProxy(pub AnyExternalTcpOutboundHandler);
 
 #[async_trait]
 impl TcpOutboundHandler for ExternalTcpOutboundHandlerProxy {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.0.connect_addr()
     }
@@ -192,16 +202,19 @@ impl TcpOutboundHandler for ExternalTcpOutboundHandlerProxy {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> io::Result<Box<dyn ProxyStream>> {
+        stream: Option<Self::Stream>,
+    ) -> io::Result<Self::Stream> {
         self.0.handle(sess, stream).await
     }
 }
 
-pub struct ExternalUdpOutboundHandlerProxy(pub Arc<dyn ExternalUdpOutboundHandler>);
+pub struct ExternalUdpOutboundHandlerProxy(pub AnyExternalUdpOutboundHandler);
 
 #[async_trait]
 impl UdpOutboundHandler for ExternalUdpOutboundHandlerProxy {
+    type UStream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.0.connect_addr()
     }
@@ -213,8 +226,8 @@ impl UdpOutboundHandler for ExternalUdpOutboundHandlerProxy {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> io::Result<Box<dyn OutboundDatagram>> {
+        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
+    ) -> io::Result<Self::Datagram> {
         self.0.handle(sess, transport).await
     }
 }

@@ -9,7 +9,7 @@ use hyper::{server::conn::Http, service::Service, Body, Request, Response};
 use log::*;
 
 use crate::{
-    proxy::{InboundTransport, ProxyStream, SimpleProxyStream, TcpInboundHandler},
+    proxy::*,
     session::{Session, SocksAddr},
 };
 

@@ -12,10 +12,7 @@ use leaf::{
         ExternalTcpOutboundHandler, ExternalUdpOutboundHandler, PluginRegistrar, PluginSpec,
     },
     proxy::shadowsocks::shadow::{self, ShadowedDatagram, ShadowedStream},
-    proxy::{
-        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundDatagramRecvHalf,
-        OutboundDatagramSendHalf, OutboundTransport, ProxyStream, SimpleProxyStream,
-    },
+    proxy::*,
     session::{Session, SocksAddr, SocksAddrWireType},
 };
 use tokio::io::AsyncWriteExt;
@@ -55,6 +52,8 @@ pub struct TcpHandler {
 }
 
 impl ExternalTcpOutboundHandler for TcpHandler {
+    type Stream = AnyStream;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
@@ -62,8 +61,8 @@ impl ExternalTcpOutboundHandler for TcpHandler {
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Box<dyn ProxyStream>>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Box<dyn ProxyStream>>> {
+        stream: Option<Self::Stream>,
+    ) -> BorrowingFfiFuture<'a, io::Result<Self::Stream>> {
         async move {
             let mut stream = ShadowedStream::new(stream.unwrap(), &self.cipher, &self.password)?;
             let mut buf = BytesMut::new();
@@ -71,7 +70,7 @@ impl ExternalTcpOutboundHandler for TcpHandler {
                 .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
             // FIXME combine header and first payload
             stream.write_all(&buf).await?;
-            Ok(Box::new(SimpleProxyStream(stream)) as Box<dyn ProxyStream>)
+            Ok(Box::new(stream) as Box<dyn ProxyStream>)
         }
         .into_ffi()
     }
@@ -86,6 +85,9 @@ pub struct UdpHandler {
 
 #[async_trait]
 impl ExternalUdpOutboundHandler for UdpHandler {
+    type Stream = AnyStream;
+    type Datagram = AnyOutboundDatagram;
+
     fn connect_addr(&self) -> Option<OutboundConnect> {
         if !self.address.is_empty() && self.port != 0 {
             Some(OutboundConnect::Proxy(self.address.clone(), self.port))
@@ -101,8 +103,8 @@ impl ExternalUdpOutboundHandler for UdpHandler {
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Box<dyn OutboundDatagram>>> {
+        transport: Option<OutboundTransport<Self::Stream, Self::Datagram>>,
+    ) -> BorrowingFfiFuture<'a, io::Result<Self::Datagram>> {
         async move {
             let server_addr = SocksAddr::try_from((&self.address, self.port))?;
 
