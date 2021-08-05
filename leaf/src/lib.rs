@@ -189,7 +189,7 @@ impl RuntimeManager {
             log::trace!("starting new watcher for config file: {}", config_path);
             let rt_id = self.rt_id;
             let mut watcher: RecommendedWatcher =
-                Watcher::new_immediate(move |res: NotifyResult<event::Event>| {
+                notify::recommended_watcher(move |res: NotifyResult<event::Event>| {
                     match res {
                         // FIXME Not sure what are the most appropriate events to
                         // filter on different platforms.
@@ -245,7 +245,10 @@ impl RuntimeManager {
                 })
                 .map_err(Error::Watcher)?;
             watcher
-                .watch(config_path, RecursiveMode::NonRecursive)
+                .watch(
+                    std::path::Path::new(&config_path),
+                    RecursiveMode::NonRecursive,
+                )
                 .map_err(Error::Watcher)?;
             log::info!("watching changes of file: {}", config_path);
             self.watcher.lock().unwrap().replace(watcher);

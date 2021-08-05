@@ -207,7 +207,7 @@ rustls = { version = "0.19", optional = true }
 warp = { version = "0.3", default-features = false, optional = true }
 
 # Auto reload
-notify = { version = "5.0.0-pre.6", optional = true }
+notify = { version = "5.0.0-pre.11", optional = true }
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
