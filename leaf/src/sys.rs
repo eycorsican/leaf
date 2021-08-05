@@ -27,7 +27,6 @@ impl Default for NetInfo {
 
 pub fn get_net_info() -> NetInfo {
     let iface = common::cmd::get_default_interface().unwrap();
-    std::env::set_var("OUTBOUND_INTERFACE", iface.clone());
 
     let ipv4_gw = common::cmd::get_default_ipv4_gateway().unwrap();
     let ipv6_gw = if *option::ENABLE_IPV6 {

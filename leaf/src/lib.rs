@@ -408,6 +408,22 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         sys::NetInfo::default()
     };
 
+    #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
+    {
+        if let sys::NetInfo {
+            default_interface: Some(iface),
+            ..
+        } = &net_info
+        {
+            let binds = if let Ok(v) = std::env::var("OUTBOUND_INTERFACE") {
+                format!("{},{}", v, iface)
+            } else {
+                iface.clone()
+            };
+            std::env::set_var("OUTBOUND_INTERFACE", binds);
+        }
+    }
+
     #[cfg(all(
         feature = "inbound-tun",
         any(
