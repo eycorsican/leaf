@@ -56,6 +56,13 @@ pub struct QuicInboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct TlsInboundSettings {
+    pub certificate: Option<String>,
+    #[serde(rename = "certificateKey")]
+    pub certificate_key: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ChainInboundSettings {
     pub actors: Option<Vec<String>>,
 }
@@ -127,6 +134,7 @@ pub struct TlsOutboundSettings {
     #[serde(rename = "serverName")]
     pub server_name: Option<String>,
     pub alpn: Option<Vec<String>>,
+    pub certificate: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -438,6 +446,34 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     inbound.settings = settings;
                     inbounds.push(inbound);
                 }
+                "tls" => {
+                    let mut settings = internal::TlsInboundSettings::new();
+                    let ext_settings: TlsInboundSettings =
+                        serde_json::from_str(ext_inbound.settings.as_ref().unwrap().get()).unwrap();
+                    if let Some(ext_certificate) = ext_settings.certificate {
+                        let cert = Path::new(&ext_certificate);
+                        if cert.is_absolute() {
+                            settings.certificate = cert.to_string_lossy().to_string();
+                        } else {
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(cert).to_string_lossy().to_string();
+                            settings.certificate = path;
+                        }
+                    }
+                    if let Some(ext_certificate_key) = ext_settings.certificate_key {
+                        let key = Path::new(&ext_certificate_key);
+                        if key.is_absolute() {
+                            settings.certificate_key = key.to_string_lossy().to_string();
+                        } else {
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(key).to_string_lossy().to_string();
+                            settings.certificate_key = path;
+                        }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    inbound.settings = settings;
+                    inbounds.push(inbound);
+                }
                 "chain" => {
                     if ext_inbound.settings.is_none() {
                         return Err(anyhow!("invalid chain inbound settings"));
@@ -573,6 +609,16 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                         }
                         if alpns.len() > 0 {
                             settings.alpn = alpns;
+                        }
+                        if let Some(ext_certificate) = ext_settings.certificate {
+                            let cert = Path::new(&ext_certificate);
+                            if cert.is_absolute() {
+                                settings.certificate = cert.to_string_lossy().to_string();
+                            } else {
+                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                let path = asset_loc.join(cert).to_string_lossy().to_string();
+                                settings.certificate = path;
+                            }
                         }
                     }
                     let settings = settings.write_to_bytes().unwrap();

@@ -44,6 +44,7 @@ all-endpoints = [
     "inbound-amux",
     # "inbound-quic",
     "inbound-ws",
+    "inbound-tls",
     "inbound-trojan",
     # "inbound-http",
     "inbound-shadowsocks",
@@ -109,6 +110,7 @@ inbound-tun = ["tun"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
 inbound-quic = ["quinn", "rustls", "webpki-roots"]
+inbound-tls = []
 inbound-chain = []
 
 api = ["warp"]

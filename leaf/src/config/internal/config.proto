@@ -67,6 +67,11 @@ message QuicInboundSettings {
 	string certificate_key = 2;
 }
 
+message TlsInboundSettings {
+	string certificate = 1;
+	string certificate_key = 2;
+}
+
 message ChainInboundSettings {
 	repeated string actors = 1;
 }
@@ -105,6 +110,7 @@ message TrojanOutboundSettings {
 message TlsOutboundSettings {
 	string server_name = 1;
 	repeated string alpn = 2;
+	string certificate = 3;
 }
 
 message WebSocketOutboundSettings {

@@ -21,6 +21,8 @@ use crate::proxy::quic;
 use crate::proxy::shadowsocks;
 #[cfg(feature = "inbound-socks")]
 use crate::proxy::socks;
+#[cfg(feature = "inbound-tls")]
+use crate::proxy::tls;
 #[cfg(feature = "inbound-trojan")]
 use crate::proxy::trojan;
 #[cfg(feature = "inbound-ws")]
@@ -135,6 +137,18 @@ impl InboundManager {
                     ));
                     let handler =
                         Arc::new(proxy::inbound::Handler::new(tag.clone(), None, Some(udp)));
+                    handlers.insert(tag.clone(), handler);
+                }
+                #[cfg(feature = "inbound-tls")]
+                "tls" => {
+                    let settings =
+                        config::TlsInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
+                    let tcp = Arc::new(tls::inbound::TcpHandler::new(
+                        settings.certificate.clone(),
+                        settings.certificate_key.clone(),
+                    )?);
+                    let handler =
+                        Arc::new(proxy::inbound::Handler::new(tag.clone(), Some(tcp), None));
                     handlers.insert(tag.clone(), handler);
                 }
                 _ => (),

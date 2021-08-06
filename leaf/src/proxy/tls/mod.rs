@@ -1,3 +1,4 @@
-pub mod tcp;
-
-pub use tcp::Handler as TcpHandler;
+#[cfg(feature = "inbound-tls")]
+pub mod inbound;
+#[cfg(feature = "outbound-tls")]
+pub mod outbound;

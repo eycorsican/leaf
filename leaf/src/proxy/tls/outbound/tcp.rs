@@ -1,5 +1,8 @@
+use std::fs::File;
 use std::io;
+use std::io::BufReader;
 
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use log::*;
@@ -29,21 +32,32 @@ pub struct Handler {
 }
 
 impl Handler {
-    pub fn new(server_name: String, alpns: Vec<String>) -> Self {
+    pub fn new(
+        server_name: String,
+        alpns: Vec<String>,
+        certificate: Option<String>,
+    ) -> Result<Self> {
         #[cfg(feature = "rustls-tls")]
         {
             let mut config = ClientConfig::new();
             config
                 .root_store
                 .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+            if let Some(cert) = certificate {
+                let mut pem = BufReader::new(File::open(cert)?);
+                config
+                    .root_store
+                    .add_pem_file(&mut pem)
+                    .map_err(|_| anyhow!("add pem file failed"))?;
+            }
 
             for alpn in alpns {
                 config.alpn_protocols.push(alpn.as_bytes().to_vec());
             }
-            Handler {
+            Ok(Handler {
                 server_name,
                 tls_config: Arc::new(config),
-            }
+            })
         }
         #[cfg(feature = "openssl-tls")]
         {
@@ -62,10 +76,10 @@ impl Handler {
                 builder.set_alpn_protos(&wire).expect("set alpn failed");
             }
             let ssl_connector = builder.build();
-            Handler {
+            Ok(Handler {
                 server_name,
                 ssl_connector,
-            }
+            })
         }
     }
 }

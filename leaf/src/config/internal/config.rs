@@ -1553,6 +1553,141 @@ impl ::protobuf::reflect::ProtobufValue for QuicInboundSettings {
 }
 
 #[derive(PartialEq,Clone,Default,Debug)]
+pub struct TlsInboundSettings {
+    // message fields
+    pub certificate: ::std::string::String,
+    pub certificate_key: ::std::string::String,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a TlsInboundSettings {
+    fn default() -> &'a TlsInboundSettings {
+        <TlsInboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl TlsInboundSettings {
+    pub fn new() -> TlsInboundSettings {
+        ::std::default::Default::default()
+    }
+
+    // string certificate = 1;
+
+
+    pub fn get_certificate(&self) -> &str {
+        &self.certificate
+    }
+
+    // string certificate_key = 2;
+
+
+    pub fn get_certificate_key(&self) -> &str {
+        &self.certificate_key
+    }
+}
+
+impl ::protobuf::Message for TlsInboundSettings {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.certificate)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.certificate_key)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.certificate.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.certificate);
+        }
+        if !self.certificate_key.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.certificate_key);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.certificate.is_empty() {
+            os.write_string(1, &self.certificate)?;
+        }
+        if !self.certificate_key.is_empty() {
+            os.write_string(2, &self.certificate_key)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> TlsInboundSettings {
+        TlsInboundSettings::new()
+    }
+
+    fn default_instance() -> &'static TlsInboundSettings {
+        static instance: ::protobuf::rt::LazyV2<TlsInboundSettings> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(TlsInboundSettings::new)
+    }
+}
+
+impl ::protobuf::Clear for TlsInboundSettings {
+    fn clear(&mut self) {
+        self.certificate.clear();
+        self.certificate_key.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for TlsInboundSettings {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct ChainInboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,
@@ -2477,6 +2612,7 @@ pub struct TlsOutboundSettings {
     // message fields
     pub server_name: ::std::string::String,
     pub alpn: ::protobuf::RepeatedField<::std::string::String>,
+    pub certificate: ::std::string::String,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -2506,6 +2642,13 @@ impl TlsOutboundSettings {
     pub fn get_alpn(&self) -> &[::std::string::String] {
         &self.alpn
     }
+
+    // string certificate = 3;
+
+
+    pub fn get_certificate(&self) -> &str {
+        &self.certificate
+    }
 }
 
 impl ::protobuf::Message for TlsOutboundSettings {
@@ -2522,6 +2665,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 },
                 2 => {
                     ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.alpn)?;
+                },
+                3 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.certificate)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -2541,6 +2687,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         for value in &self.alpn {
             my_size += ::protobuf::rt::string_size(2, &value);
         };
+        if !self.certificate.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.certificate);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -2553,6 +2702,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         for v in &self.alpn {
             os.write_string(2, &v)?;
         };
+        if !self.certificate.is_empty() {
+            os.write_string(3, &self.certificate)?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -2597,6 +2749,7 @@ impl ::protobuf::Clear for TlsOutboundSettings {
     fn clear(&mut self) {
         self.server_name.clear();
         self.alpn.clear();
+        self.certificate.clear();
         self.unknown_fields.clear();
     }
 }

@@ -237,10 +237,16 @@ impl OutboundManager {
                     for alpn in settings.alpn.iter() {
                         alpns.push(alpn.clone());
                     }
-                    let tcp = Box::new(tls::TcpHandler::new(
+                    let certificate = if settings.certificate.is_empty() {
+                        None
+                    } else {
+                        Some(settings.certificate.clone())
+                    };
+                    let tcp = Box::new(tls::outbound::TcpHandler::new(
                         settings.server_name.clone(),
                         alpns.clone(),
-                    ));
+                        certificate,
+                    )?);
                     let udp = Box::new(null::outbound::UdpHandler {
                         connect: None,
                         transport_type: proxy::DatagramTransportType::Stream,
