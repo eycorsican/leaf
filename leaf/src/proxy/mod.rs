@@ -1,7 +1,8 @@
 use std::ffi::CString;
+use std::io;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::sync::Arc;
 use std::time::Duration;
-use std::{io, net::SocketAddr};
 
 use async_trait::async_trait;
 use futures::future::select_ok;
@@ -182,6 +183,19 @@ impl TcpListener {
 }
 
 async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::Result<()> {
+    match indicator.ip() {
+        IpAddr::V4(v4) if v4.is_loopback() => {
+            socket.bind(&SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 0).into())?;
+            trace!("socket bind loopback v4");
+            return Ok(());
+        }
+        IpAddr::V6(v6) if v6.is_loopback() => {
+            socket.bind(&SocketAddrV6::new("::1".parse().unwrap(), 0, 0, 0).into())?;
+            trace!("socket bind loopback v6");
+            return Ok(());
+        }
+        _ => {}
+    }
     let mut last_err = None;
     for bind in option::OUTBOUND_BINDS.iter() {
         match bind {
