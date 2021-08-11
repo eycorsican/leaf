@@ -56,6 +56,7 @@ pub struct Proxy {
 
     pub ws: Option<bool>,
     pub tls: Option<bool>,
+    pub tls_cert: Option<String>,
     pub ws_path: Option<String>,
     pub ws_host: Option<String>,
 
@@ -81,6 +82,7 @@ impl Default for Proxy {
             password: None,
             ws: Some(false),
             tls: Some(false),
+            tls_cert: None,
             ws_path: None,
             ws_host: None,
             sni: None,
@@ -344,6 +346,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 }
                 "ws" => proxy.ws = if v == "true" { Some(true) } else { Some(false) },
                 "tls" => proxy.tls = if v == "true" { Some(true) } else { Some(false) },
+                "tls-cert" => {
+                    proxy.tls_cert = Some(v.to_string());
+                }
                 "ws-path" => {
                     proxy.ws_path = Some(v.to_string());
                 }
@@ -775,6 +780,16 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     let mut tls_settings = internal::TlsOutboundSettings::new();
                     if let Some(ext_sni) = &ext_proxy.sni {
                         tls_settings.server_name = ext_sni.clone();
+                    }
+                    if let Some(ext_tls_cert) = &ext_proxy.tls_cert {
+                        let cert = Path::new(ext_tls_cert);
+                        if cert.is_absolute() {
+                            tls_settings.certificate = cert.to_string_lossy().to_string();
+                        } else {
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(cert).to_string_lossy().to_string();
+                            tls_settings.certificate = path;
+                        }
                     }
                     let tls_settings = tls_settings.write_to_bytes().unwrap();
                     tls_outbound.settings = tls_settings;
