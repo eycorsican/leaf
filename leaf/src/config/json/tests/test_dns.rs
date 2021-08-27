@@ -12,7 +12,7 @@ fn test_dns_hosts() {
         }
     }
     "#;
-    let mut config = crate::config::json::from_string(json_str.to_string()).unwrap();
+    let mut config = crate::config::json::json_from_string(json_str).unwrap();
     let hosts = config.dns.as_ref().unwrap().hosts.as_ref().unwrap();
     let ips = vec!["192.168.0.1".to_string(), "192.168.0.2".to_string()];
 

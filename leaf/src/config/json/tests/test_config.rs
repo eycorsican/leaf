@@ -88,5 +88,5 @@ fn test_config() {
     }
     "#;
 
-    assert!(crate::config::json::from_string(json_str.to_string()).is_ok());
+    assert!(crate::config::json::json_from_string(json_str).is_ok());
 }

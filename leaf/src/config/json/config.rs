@@ -1008,9 +1008,13 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
     Ok(config)
 }
 
-pub fn from_string(config: String) -> Result<Config> {
-    serde_json::from_str(config.as_str())
-        .map_err(|e| anyhow!("deserialize json config failed: {}", e))
+pub fn json_from_string(config: &str) -> Result<Config> {
+    serde_json::from_str(config).map_err(|e| anyhow!("deserialize json config failed: {}", e))
+}
+
+pub fn from_string(s: &str) -> Result<internal::Config> {
+    let mut config = json_from_string(s)?;
+    to_internal(&mut config)
 }
 
 pub fn from_file<P>(path: P) -> Result<internal::Config>
@@ -1018,6 +1022,6 @@ where
     P: AsRef<Path>,
 {
     let config = std::fs::read_to_string(path)?;
-    let mut config = from_string(config)?;
+    let mut config = json_from_string(&config)?;
     to_internal(&mut config)
 }

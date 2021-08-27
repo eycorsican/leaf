@@ -51,8 +51,7 @@ pub fn run_leaf_instances(
     let mut leaf_rt_ids = Vec::new();
     let mut rt_id = 0;
     for config in configs {
-        let mut config = leaf::config::json::from_string(config).unwrap();
-        let config = leaf::config::json::to_internal(&mut config).unwrap();
+        let config = leaf::config::json::from_string(&config).unwrap();
         let opts = leaf::StartOptions {
             config: leaf::Config::Internal(config),
             #[cfg(feature = "auto-reload")]

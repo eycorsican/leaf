@@ -1170,6 +1170,12 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
     Ok(config)
 }
 
+pub fn from_string(s: &str) -> Result<internal::Config> {
+    let lines = s.lines().map(|s| Ok(s.to_string())).collect();
+    let mut config = from_lines(lines)?;
+    to_internal(&mut config)
+}
+
 pub fn from_file<P>(path: P) -> Result<internal::Config>
 where
     P: AsRef<Path>,
