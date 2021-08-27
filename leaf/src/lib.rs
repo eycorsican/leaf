@@ -333,9 +333,6 @@ pub struct StartOptions {
     // Enable auto reload, take effect only when "auto-reload" feature is enabled.
     #[cfg(feature = "auto-reload")]
     pub auto_reload: bool,
-    // The service path to protect outbound sockets on Android.
-    #[cfg(target_os = "android")]
-    pub socket_protect_path: Option<String>,
     // Tokio runtime options.
     pub runtime_opt: RuntimeOption,
 }
@@ -369,11 +366,6 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     let rt = new_runtime(&opts.runtime_opt)?;
     let _g = rt.enter();
-
-    #[cfg(target_os = "android")]
-    if let Some(p) = opts.socket_protect_path.as_ref() {
-        rt.block_on(proxy::set_socket_protect_path(p.to_owned()));
-    }
 
     let mut tasks: Vec<Runner> = Vec::new();
     let mut runners = Vec::new();

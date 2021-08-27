@@ -106,32 +106,18 @@ pub trait Color {
     fn color(&self) -> colored::Color;
 }
 
-#[cfg(target_os = "android")]
-lazy_static! {
-    static ref SOCKET_PROTECT_PATH: Mutex<Option<String>> = Mutex::new(None);
-}
-
 #[derive(Debug)]
 pub enum OutboundBind {
     Ip(SocketAddr),
     Interface(String),
 }
 
-// Sets the RPC service endpoint for protecting outbound sockets on Android to
-// avoid infinite loop. The `path` is treated as a Unix domain socket endpoint.
-// The RPC service simply listens for incoming connections, reads an int32 on
-// each connection, treats it as the file descriptor to protect, writes back 0
-// on success.
 #[cfg(target_os = "android")]
-pub async fn set_socket_protect_path(path: String) {
-    SOCKET_PROTECT_PATH.lock().await.replace(path);
-}
-
-#[cfg(target_os = "android")]
-async fn protect_socket<S: AsRawFd>(socket: S) -> io::Result<()> {
-    if let Some(path) = SOCKET_PROTECT_PATH.lock().await.as_ref() {
-        let mut stream = UnixStream::connect(path).await?;
-        stream.write_i32(socket.as_raw_fd() as i32).await?;
+async fn protect_socket(fd: RawFd) -> io::Result<()> {
+    // TODO Warns about empty protect path?
+    if !option::SOCKET_PROTECT_PATH.is_empty() {
+        let mut stream = UnixStream::connect(&*option::SOCKET_PROTECT_PATH).await?;
+        stream.write_i32(fd as i32).await?;
         if stream.read_i32().await? != 0 {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -295,7 +281,7 @@ pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
     bind_socket(&socket, indicator).await?;
 
     #[cfg(target_os = "android")]
-    protect_socket(&socket).await?;
+    protect_socket(socket.as_raw_fd()).await?;
 
     UdpSocket::from_std(socket.into())
 }
@@ -326,7 +312,7 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(AnyStream, SocketAd
     bind_socket(&socket, &dial_addr).await?;
 
     #[cfg(target_os = "android")]
-    protect_socket(&socket).await?;
+    protect_socket(socket.as_raw_fd()).await?;
 
     trace!("tcp dialing {}", &dial_addr);
     let stream = timeout(
