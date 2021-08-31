@@ -115,6 +115,16 @@ pub enum OutboundBind {
 #[cfg(target_os = "android")]
 async fn protect_socket(fd: RawFd) -> io::Result<()> {
     // TODO Warns about empty protect path?
+    if let Some(addr) = &*option::SOCKET_PROTECT_SERVER {
+        let mut stream = TcpStream::connect(addr).await?;
+        stream.write_i32(fd as i32).await?;
+        if stream.read_i32().await? != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to protect outbound socket {}", fd),
+            ));
+        }
+    }
     if !option::SOCKET_PROTECT_PATH.is_empty() {
         let mut stream = UnixStream::connect(&*option::SOCKET_PROTECT_PATH).await?;
         stream.write_i32(fd as i32).await?;

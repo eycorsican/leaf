@@ -140,6 +140,10 @@ lazy_static! {
         get_env_var_or("SOCKET_PROTECT_PATH", "".to_string())
     };
 
+    pub static ref SOCKET_PROTECT_SERVER: Option<SocketAddr> = {
+        get_env_var_or("SOCKET_PROTECT_SERVER", "".to_string()).parse().ok()
+    };
+
     pub static ref GATEWAY_MODE: bool = {
         get_env_var_or("GATEWAY_MODE", false)
     };
