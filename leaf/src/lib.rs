@@ -282,6 +282,10 @@ pub fn shutdown(key: RuntimeId) -> bool {
     false
 }
 
+pub fn is_running(key: RuntimeId) -> bool {
+    RUNTIME_MANAGER.lock().unwrap().contains_key(&key)
+}
+
 pub fn test_config(config_path: &str) -> Result<(), Error> {
     config::from_file(config_path)
         .map(|_| ())
@@ -518,6 +522,8 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         .map_err(|_| Error::RuntimeManager)?
         .insert(rt_id, runtime_manager);
 
+    log::trace!("added runtime {}", &rt_id);
+
     rt.block_on(futures::future::select_all(tasks));
 
     #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
@@ -530,7 +536,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         .map_err(|_| Error::RuntimeManager)?
         .remove(&rt_id);
 
-    log::trace!("leaf shutdown");
+    log::trace!("removed runtime {}", &rt_id);
 
     Ok(())
 }
@@ -544,117 +550,34 @@ mod tests {
     fn test_restart() {
         let conf = r#"
 [General]
-logllevel = trace
+loglevel = trace
 dns-server = 1.1.1.1
 socks-interface = 127.0.0.1
 socks-port = 1080
+# tun = auto
 
 [Proxy]
 Direct = direct
 "#;
 
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::spawn(move || {
-            let opts = StartOptions {
-                config: Config::Str(conf.to_string()),
-                #[cfg(feature = "auto-reload")]
-                auto_reload: false,
-                runtime_opt: RuntimeOption::SingleThread,
-            };
-            start(0, opts);
-        });
-        thread::sleep(std::time::Duration::from_secs(2));
-        shutdown(0);
-        thread::sleep(std::time::Duration::from_secs(2));
+        for i in 1..10 {
+            thread::spawn(move || {
+                let opts = StartOptions {
+                    config: Config::Str(conf.to_string()),
+                    #[cfg(feature = "auto-reload")]
+                    auto_reload: false,
+                    runtime_opt: RuntimeOption::SingleThread,
+                };
+                start(0, opts);
+            });
+            thread::sleep(std::time::Duration::from_secs(5));
+            shutdown(0);
+            loop {
+                thread::sleep(std::time::Duration::from_secs(2));
+                if !is_running(0) {
+                    break;
+                }
+            }
+        }
     }
 }

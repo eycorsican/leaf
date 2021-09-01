@@ -42,25 +42,30 @@ impl TcpListenerImpl {
         unsafe {
             let _g = lwip_lock.lock();
             let mut tpcb = tcp_new();
+            let err = tcp_bind(tpcb, &ip_addr_any_type, 0);
+            if err != err_enum_t_ERR_OK as err_t {
+                error!("bind tcp failed");
+                panic!("");
+            }
+            let mut reason: err_t = 0;
+            tpcb = tcp_listen_with_backlog_and_err(
+                tpcb,
+                TCP_DEFAULT_LISTEN_BACKLOG as u8,
+                &mut reason,
+            );
+            if tpcb.is_null() {
+                error!("listen tcp failed: {}", reason);
+                panic!("");
+            }
             let listener = Box::new(TcpListenerImpl {
                 tpcb,
                 lwip_lock: lwip_lock.clone(),
                 waker: None,
                 queue: VecDeque::new(),
             });
-            let err = tcp_bind(tpcb, &ip_addr_any_type, 0);
-            if err != err_enum_t_ERR_OK as err_t {
-                error!("bind tcp failed");
-                panic!("");
-            }
-            tpcb = tcp_listen_with_backlog(tpcb, TCP_DEFAULT_LISTEN_BACKLOG as u8);
-            if tpcb.is_null() {
-                error!("listen tcp failed");
-                panic!("");
-            }
             let arg = &*listener as *const TcpListenerImpl as *mut raw::c_void;
-            tcp_arg(tpcb, arg);
-            tcp_accept(tpcb, Some(tcp_accept_cb));
+            tcp_arg(listener.tpcb, arg);
+            tcp_accept(listener.tpcb, Some(tcp_accept_cb));
             listener
         }
     }
@@ -72,6 +77,7 @@ unsafe impl Send for TcpListenerImpl {}
 impl Drop for TcpListenerImpl {
     fn drop(&mut self) {
         unsafe {
+            let _g = self.lwip_lock.lock();
             tcp_accept(self.tpcb, None);
             tcp_close(self.tpcb);
         }

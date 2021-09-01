@@ -49,7 +49,7 @@ impl MuxManager {
             loop {
                 connectors2.lock().await.retain(|c| !c.is_done());
                 log::trace!("active connectors {}", connectors2.lock().await.len());
-                tokio::time::sleep(Duration::from_secs(10)).await;
+                tokio::time::sleep(Duration::from_secs(120)).await;
             }
         };
         let (abortable, abort_handle) = abortable(fut);

@@ -80,7 +80,7 @@ pub fn new(
         (FakeDnsMode::Exclude, fake_dns_exclude)
     };
 
-    let tun = tun::create_as_async(&cfg).unwrap();
+    let tun = tun::create_as_async(&cfg).map_err(|e| anyhow!("create tun failed: {}", e))?;
 
     if settings.auto {
         assert!(settings.fd == -1, "tun-auto is not compatible with tun-fd");

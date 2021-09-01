@@ -1,4 +1,3 @@
-use std::sync::atomic::Ordering;
 use std::{
     io,
     net::SocketAddr,
@@ -59,8 +58,6 @@ impl NetStackImpl {
         fakedns: Arc<TokioMutex<FakeDns>>,
     ) -> Box<Self> {
         LWIP_INIT.call_once(|| unsafe { lwip_init() });
-
-        unsafe { super::STACK_CLOSED.store(false, Ordering::Relaxed) };
 
         unsafe {
             (*netif_list).output = Some(output_ip4);
@@ -323,7 +320,11 @@ impl NetStackImpl {
 
 impl Drop for NetStackImpl {
     fn drop(&mut self) {
-        unsafe { super::STACK_CLOSED.store(true, Ordering::Relaxed) };
+        log::trace!("drop netstack");
+        unsafe {
+            let _g = self.lwip_lock.lock();
+            OUTPUT_CB_PTR = 0x0;
+        };
     }
 }
 

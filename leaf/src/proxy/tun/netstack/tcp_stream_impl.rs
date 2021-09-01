@@ -217,15 +217,12 @@ impl Drop for TcpStreamImpl {
         } = *self.callback_ctx.with_lock(&guard);
         trace!("netstack tcp drop {}", local_addr);
         if !errored {
-            let err = unsafe {
+            unsafe {
                 tcp_arg(self.pcb, std::ptr::null_mut());
                 tcp_recv(self.pcb, None);
                 tcp_sent(self.pcb, None);
                 tcp_err(self.pcb, None);
-                tcp_close(self.pcb)
-            };
-            if err != err_enum_t_ERR_OK as err_t {
-                warn!("netstack tcp_close error {}", err);
+                tcp_close(self.pcb);
             }
         }
     }

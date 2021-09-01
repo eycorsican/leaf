@@ -5,6 +5,7 @@ use std::{
 };
 
 fn compile_lwip() {
+    println!("cargo:rerun-if-changed=src/proxy/tun/netstack/lwip");
     cc::Build::new()
         .file("src/proxy/tun/netstack/lwip/core/init.c")
         .file("src/proxy/tun/netstack/lwip/core/def.c")
@@ -131,8 +132,7 @@ fn generate_mobile_bindings() {
 }
 
 fn main() {
-    #[cfg(feature = "inbound-tun")]
-    {
+    if env::var("CARGO_FEATURE_INBOUND_TUN").is_ok() {
         let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
         if os == "ios" || os == "android" || os == "linux" || os == "macos" {
             compile_lwip();
