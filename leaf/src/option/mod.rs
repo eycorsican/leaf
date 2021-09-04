@@ -55,6 +55,10 @@ lazy_static! {
 }
 
 lazy_static! {
+    pub static ref USER_AGENT: String = {
+        get_env_var_or("USER_AGENT", "".to_string())
+    };
+
     pub static ref LOG_CONSOLE_OUT: bool = {
         get_env_var_or("LOG_CONSOLE_OUT", false)
     };

@@ -25,7 +25,10 @@ impl<'a> tungstenite::client::IntoClientRequest for Request<'a> {
     fn into_client_request(
         self,
     ) -> tungstenite::error::Result<tungstenite::handshake::client::Request> {
-        let mut builder = http::Request::builder().method("GET").uri(self.uri);
+        let mut builder = http::Request::builder()
+            .method("GET")
+            .uri(self.uri)
+            .header("User-Agent", &*crate::option::USER_AGENT);
         for (k, v) in self.headers.iter() {
             if k != "Host" {
                 builder = builder.header(k, v);
