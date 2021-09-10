@@ -111,7 +111,7 @@ impl FakeDns {
         }
 
         let t = query.query_type();
-        if t != RecordType::A && t != RecordType::AAAA && t != RecordType::Unknown(65) {
+        if t != RecordType::A && t != RecordType::AAAA && t != RecordType::HTTPS {
             return Err(anyhow!(
                 "unsupported query record type {:?}",
                 query.query_type()
