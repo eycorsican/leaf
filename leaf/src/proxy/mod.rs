@@ -262,12 +262,16 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                 }
             }
             OutboundBind::Ip(addr) => {
-                if let Err(e) = socket.bind(addr) {
-                    last_err = Some(e);
-                    continue;
+                if (addr.is_ipv4() && indicator.is_ipv4())
+                    || (addr.is_ipv6() && indicator.is_ipv6())
+                {
+                    if let Err(e) = socket.bind(addr) {
+                        last_err = Some(e);
+                        continue;
+                    }
+                    trace!("socket bind {}", addr);
+                    return Ok(());
                 }
-                trace!("socket bind {}", addr);
-                return Ok(());
             }
         }
     }
@@ -282,13 +286,25 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
 // New UDP socket.
 pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
     use socket2::{Domain, Socket, Type};
-    let socket = match indicator {
-        SocketAddr::V4(..) => Socket::new(Domain::IPV4, Type::DGRAM, None)?,
-        SocketAddr::V6(..) => Socket::new(Domain::IPV6, Type::DGRAM, None)?,
+    let socket = if *option::ENABLE_IPV6 {
+        // Dual-stack socket.
+        // FIXME Windows IPV6_V6ONLY?
+        Socket::new(Domain::IPV6, Type::DGRAM, None)?
+    } else {
+        match indicator {
+            SocketAddr::V4(..) => Socket::new(Domain::IPV4, Type::DGRAM, None)?,
+            SocketAddr::V6(..) => Socket::new(Domain::IPV6, Type::DGRAM, None)?,
+        }
     };
     socket.set_nonblocking(true)?;
 
-    bind_socket(&socket, indicator).await?;
+    // If the proxy request is coming from an inbound listens on the loopback,
+    // the indicator could be a loopback address, we must ignore it.
+    if indicator.ip().is_loopback() || *option::ENABLE_IPV6 {
+        bind_socket(&socket, &*option::UNSPECIFIED_BIND_ADDR).await?;
+    } else {
+        bind_socket(&socket, indicator).await?;
+    }
 
     #[cfg(target_os = "android")]
     protect_socket(socket.as_raw_fd()).await?;
@@ -305,7 +321,6 @@ fn apply_socket_opts<S: AsRawFd>(socket: &S) -> io::Result<()> {
     let sock_ref = SockRef::from(socket);
     apply_socket_opts_internal(sock_ref)
 }
-
 #[cfg(windows)]
 fn apply_socket_opts<S: AsRawSocket>(socket: &S) -> io::Result<()> {
     let sock_ref = SockRef::from(socket);
