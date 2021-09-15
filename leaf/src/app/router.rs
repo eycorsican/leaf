@@ -11,7 +11,7 @@ use memmap::Mmap;
 
 use crate::app::SyncDnsClient;
 use crate::config::{self, Router_Rule};
-use crate::session::{Session, SocksAddr};
+use crate::session::{Network, Session, SocksAddr};
 
 pub trait Condition: Send + Sync + Unpin {
     fn apply(&self, sess: &Session) -> bool;
@@ -99,6 +99,36 @@ impl Condition for IpCidrMatcher {
                         return true;
                     }
                 }
+            }
+        }
+        false
+    }
+}
+
+struct NetworkMatcher {
+    values: Vec<Network>,
+}
+
+impl NetworkMatcher {
+    fn new(networks: &mut protobuf::RepeatedField<String>) -> Self {
+        let mut values = Vec::new();
+        for net in networks.iter_mut() {
+            match std::mem::take(net).to_uppercase().as_str() {
+                "TCP" => values.push(Network::Tcp),
+                "UDP" => values.push(Network::Udp),
+                _ => (),
+            }
+        }
+        Self { values }
+    }
+}
+
+impl Condition for NetworkMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        for v in &self.values {
+            if v == &sess.network {
+                debug!("[{}] matches network [{}]", &sess.network, v);
+                return true;
             }
         }
         false
@@ -401,6 +431,10 @@ impl Router {
 
             if rr.port_ranges.len() > 0 {
                 cond_and.add(Box::new(PortMatcher::new(&rr.port_ranges)));
+            }
+
+            if rr.networks.len() > 0 {
+                cond_and.add(Box::new(NetworkMatcher::new(&mut rr.networks)));
             }
 
             if cond_and.is_empty() {

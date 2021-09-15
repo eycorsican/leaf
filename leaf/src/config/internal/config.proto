@@ -206,6 +206,7 @@ message Router {
 		repeated string ip_cidrs = 3;
 		repeated Mmdb mmdbs = 4;
 		repeated string port_ranges = 5;
+		repeated string networks = 6;
 	}
 
 	repeated Rule rules = 1;
