@@ -253,8 +253,6 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                 "error" => log.level = internal::Log_Level::ERROR,
                 _ => log.level = internal::Log_Level::WARN,
             }
-        } else {
-            log.level = internal::Log_Level::INFO;
         }
 
         if let Some(ext_output) = &ext_log.output {
@@ -265,12 +263,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     log.output_file = ext_output.clone();
                 }
             }
-        } else {
-            log.output = internal::Log_Output::CONSOLE;
         }
-    } else {
-        log.level = internal::Log_Level::INFO;
-        log.output = internal::Log_Output::CONSOLE;
     }
 
     let mut inbounds = protobuf::RepeatedField::new();

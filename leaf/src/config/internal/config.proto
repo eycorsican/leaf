@@ -16,9 +16,9 @@ message Dns {
 
 message Log {
 	enum Level {
-		TRACE = 0;
-		DEBUG = 1;
-		INFO = 2;
+		INFO = 0;
+		TRACE = 1;
+		DEBUG = 2;
 		WARN = 3;
 		ERROR = 4;
 	}
