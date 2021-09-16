@@ -4728,6 +4728,7 @@ pub struct Router_Rule {
     pub mmdbs: ::protobuf::RepeatedField<Router_Rule_Mmdb>,
     pub port_ranges: ::protobuf::RepeatedField<::std::string::String>,
     pub networks: ::protobuf::RepeatedField<::std::string::String>,
+    pub inbound_tags: ::protobuf::RepeatedField<::std::string::String>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -4785,6 +4786,13 @@ impl Router_Rule {
     pub fn get_networks(&self) -> &[::std::string::String] {
         &self.networks
     }
+
+    // repeated string inbound_tags = 7;
+
+
+    pub fn get_inbound_tags(&self) -> &[::std::string::String] {
+        &self.inbound_tags
+    }
 }
 
 impl ::protobuf::Message for Router_Rule {
@@ -4824,6 +4832,9 @@ impl ::protobuf::Message for Router_Rule {
                 6 => {
                     ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.networks)?;
                 },
+                7 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.inbound_tags)?;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -4856,6 +4867,9 @@ impl ::protobuf::Message for Router_Rule {
         for value in &self.networks {
             my_size += ::protobuf::rt::string_size(6, &value);
         };
+        for value in &self.inbound_tags {
+            my_size += ::protobuf::rt::string_size(7, &value);
+        };
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -4883,6 +4897,9 @@ impl ::protobuf::Message for Router_Rule {
         };
         for v in &self.networks {
             os.write_string(6, &v)?;
+        };
+        for v in &self.inbound_tags {
+            os.write_string(7, &v)?;
         };
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -4932,6 +4949,7 @@ impl ::protobuf::Clear for Router_Rule {
         self.mmdbs.clear();
         self.port_ranges.clear();
         self.networks.clear();
+        self.inbound_tags.clear();
         self.unknown_fields.clear();
     }
 }

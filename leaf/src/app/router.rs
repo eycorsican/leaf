@@ -105,6 +105,32 @@ impl Condition for IpCidrMatcher {
     }
 }
 
+struct InboundTagMatcher {
+    values: Vec<String>,
+}
+
+impl InboundTagMatcher {
+    fn new(tags: &mut protobuf::RepeatedField<String>) -> Self {
+        let mut values = Vec::new();
+        for t in tags.iter_mut() {
+            values.push(std::mem::take(t));
+        }
+        Self { values }
+    }
+}
+
+impl Condition for InboundTagMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        for v in &self.values {
+            if v == &sess.inbound_tag {
+                debug!("[{}] matches inbound tag [{}]", &sess.inbound_tag, v);
+                return true;
+            }
+        }
+        false
+    }
+}
+
 struct NetworkMatcher {
     values: Vec<Network>,
 }
@@ -435,6 +461,10 @@ impl Router {
 
             if rr.networks.len() > 0 {
                 cond_and.add(Box::new(NetworkMatcher::new(&mut rr.networks)));
+            }
+
+            if rr.inbound_tags.len() > 0 {
+                cond_and.add(Box::new(InboundTagMatcher::new(&mut rr.inbound_tags)));
             }
 
             if cond_and.is_empty() {

@@ -207,6 +207,7 @@ message Router {
 		repeated Mmdb mmdbs = 4;
 		repeated string port_ranges = 5;
 		repeated string networks = 6;
+		repeated string inbound_tags = 7;
 	}
 
 	repeated Rule rules = 1;
