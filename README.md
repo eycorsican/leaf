@@ -93,7 +93,7 @@ cargo build -p leaf-bin
 
 Run:
 ```sh
-./target/debug/leaf -h
+./target/debug/leaf --help
 ```
 
 ## License
