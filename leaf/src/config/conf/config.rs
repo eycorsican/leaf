@@ -931,6 +931,17 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
             outbound.protocol = ext_proxy_group.protocol.clone();
             outbound.tag = ext_proxy_group.tag.clone();
             match outbound.protocol.as_str() {
+                "chain" => {
+                    let mut settings = internal::ChainOutboundSettings::new();
+                    if let Some(ext_actors) = &ext_proxy_group.actors {
+                        for ext_actor in ext_actors {
+                            settings.actors.push(ext_actor.to_string());
+                        }
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
                 "tryall" => {
                     let mut settings = internal::TryAllOutboundSettings::new();
                     if let Some(ext_actors) = &ext_proxy_group.actors {
