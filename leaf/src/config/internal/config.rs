@@ -484,7 +484,7 @@ impl ::protobuf::Message for Log {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        if self.level != Log_Level::TRACE {
+        if self.level != Log_Level::INFO {
             my_size += ::protobuf::rt::enum_size(1, self.level);
         }
         if self.output != Log_Output::CONSOLE {
@@ -499,7 +499,7 @@ impl ::protobuf::Message for Log {
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if self.level != Log_Level::TRACE {
+        if self.level != Log_Level::INFO {
             os.write_enum(1, ::protobuf::ProtobufEnum::value(&self.level))?;
         }
         if self.output != Log_Output::CONSOLE {
@@ -550,7 +550,7 @@ impl ::protobuf::Message for Log {
 
 impl ::protobuf::Clear for Log {
     fn clear(&mut self) {
-        self.level = Log_Level::TRACE;
+        self.level = Log_Level::INFO;
         self.output = Log_Output::CONSOLE;
         self.output_file.clear();
         self.unknown_fields.clear();
@@ -565,9 +565,9 @@ impl ::protobuf::reflect::ProtobufValue for Log {
 
 #[derive(Clone,PartialEq,Eq,Debug,Hash)]
 pub enum Log_Level {
-    TRACE = 0,
-    DEBUG = 1,
-    INFO = 2,
+    INFO = 0,
+    TRACE = 1,
+    DEBUG = 2,
     WARN = 3,
     ERROR = 4,
 }
@@ -579,9 +579,9 @@ impl ::protobuf::ProtobufEnum for Log_Level {
 
     fn from_i32(value: i32) -> ::std::option::Option<Log_Level> {
         match value {
-            0 => ::std::option::Option::Some(Log_Level::TRACE),
-            1 => ::std::option::Option::Some(Log_Level::DEBUG),
-            2 => ::std::option::Option::Some(Log_Level::INFO),
+            0 => ::std::option::Option::Some(Log_Level::INFO),
+            1 => ::std::option::Option::Some(Log_Level::TRACE),
+            2 => ::std::option::Option::Some(Log_Level::DEBUG),
             3 => ::std::option::Option::Some(Log_Level::WARN),
             4 => ::std::option::Option::Some(Log_Level::ERROR),
             _ => ::std::option::Option::None
@@ -590,9 +590,9 @@ impl ::protobuf::ProtobufEnum for Log_Level {
 
     fn values() -> &'static [Self] {
         static values: &'static [Log_Level] = &[
+            Log_Level::INFO,
             Log_Level::TRACE,
             Log_Level::DEBUG,
-            Log_Level::INFO,
             Log_Level::WARN,
             Log_Level::ERROR,
         ];
@@ -605,7 +605,7 @@ impl ::std::marker::Copy for Log_Level {
 
 impl ::std::default::Default for Log_Level {
     fn default() -> Self {
-        Log_Level::TRACE
+        Log_Level::INFO
     }
 }
 

@@ -25,6 +25,7 @@ pub struct General {
     pub tun_fd: Option<i32>,
     pub tun_auto: Option<bool>,
     pub loglevel: Option<String>,
+    pub logoutput: Option<String>,
     pub dns_server: Option<Vec<String>>,
     pub dns_interface: Option<String>,
     pub always_real_ip: Option<Vec<String>>,
@@ -258,6 +259,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "loglevel" => {
                 general.loglevel = Some(parts[1].to_string());
+            }
+            "logoutput" => {
+                general.logoutput = Some(parts[1].to_string());
             }
             "dns-server" => {
                 general.dns_server = get_char_sep_slice(parts[1], ',');
@@ -636,13 +640,17 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                 "error" => log.level = internal::Log_Level::ERROR,
                 _ => log.level = internal::Log_Level::WARN,
             }
-        } else {
-            log.level = internal::Log_Level::INFO;
         }
-    } else {
-        log.level = internal::Log_Level::INFO;
+        if let Some(ext_logoutput) = &ext_general.logoutput {
+            match ext_logoutput.as_str() {
+                "console" => log.output = internal::Log_Output::CONSOLE,
+                _ => {
+                    log.output = internal::Log_Output::FILE;
+                    log.output_file = ext_logoutput.clone();
+                }
+            }
+        }
     }
-    log.output = internal::Log_Output::CONSOLE; // unimplemented
 
     let mut inbounds = protobuf::RepeatedField::new();
     if let Some(ext_general) = &conf.general {
