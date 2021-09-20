@@ -73,11 +73,6 @@ GATEWAY_MODE=true leaf -c config.conf
 
 <a href="https://apps.apple.com/us/app/leaf-lightweight-proxy/id1534109007"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/Download_on_the_App_Store_Badge.svg" height="70"></a>
 
-There are example projects demonstrating how you could easily build VPN apps for iOS and Android with leaf:
- 
-* iOS: https://github.com/eycorsican/ileaf
-* Android: https://github.com/eycorsican/aleaf
-
 ## Build
 
 Install Rust: https://www.rust-lang.org/tools/install
