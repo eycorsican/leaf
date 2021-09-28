@@ -51,7 +51,7 @@ message ShadowsocksInboundSettings {
 }
 
 message TrojanInboundSettings {
-	string password = 3;
+	repeated string passwords = 1;
 }
 
 message WebSocketInboundSettings {

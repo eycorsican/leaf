@@ -74,7 +74,9 @@ fn test_amux_trojan() {
                 "protocol": "trojan",
                 "tag": "trojan",
                 "settings": {
-                    "password": "password"
+                    "passwords": [
+                        "password"
+                    ]
                 }
             }
         ],

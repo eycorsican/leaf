@@ -35,7 +35,7 @@ pub struct ShadowsocksInboundSettings {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TrojanInboundSettings {
-    pub password: Option<String>,
+    pub passwords: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -369,10 +369,10 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     let mut settings = internal::TrojanInboundSettings::new();
                     let ext_settings: TrojanInboundSettings =
                         serde_json::from_str(ext_inbound.settings.as_ref().unwrap().get()).unwrap();
-                    if let Some(ext_password) = ext_settings.password {
-                        settings.password = ext_password;
-                    } else {
-                        settings.password = "".to_string(); // FIXME warns?
+                    if let Some(ext_passwords) = ext_settings.passwords {
+                        for ext_pass in ext_passwords {
+                            settings.passwords.push(ext_pass);
+                        }
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     inbound.settings = settings;

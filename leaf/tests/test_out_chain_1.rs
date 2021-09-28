@@ -116,7 +116,9 @@ fn test_out_chain_1() {
                 "protocol": "trojan",
                 "tag": "trojan",
                 "settings": {
-                    "password": "password"
+                    "passwords": [
+                        "password"
+                    ]
                 }
             }
         ],
@@ -154,7 +156,9 @@ fn test_out_chain_1() {
                 "protocol": "trojan",
                 "tag": "trojan",
                 "settings": {
-                    "password": "password"
+                    "passwords": [
+                        "password"
+                    ]
                 }
             }
         ],

@@ -1069,7 +1069,7 @@ impl ::protobuf::reflect::ProtobufValue for ShadowsocksInboundSettings {
 #[derive(PartialEq,Clone,Default,Debug)]
 pub struct TrojanInboundSettings {
     // message fields
-    pub password: ::std::string::String,
+    pub passwords: ::protobuf::RepeatedField<::std::string::String>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -1086,11 +1086,11 @@ impl TrojanInboundSettings {
         ::std::default::Default::default()
     }
 
-    // string password = 3;
+    // repeated string passwords = 1;
 
 
-    pub fn get_password(&self) -> &str {
-        &self.password
+    pub fn get_passwords(&self) -> &[::std::string::String] {
+        &self.passwords
     }
 }
 
@@ -1103,8 +1103,8 @@ impl ::protobuf::Message for TrojanInboundSettings {
         while !is.eof()? {
             let (field_number, wire_type) = is.read_tag_unpack()?;
             match field_number {
-                3 => {
-                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.password)?;
+                1 => {
+                    ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.passwords)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -1118,18 +1118,18 @@ impl ::protobuf::Message for TrojanInboundSettings {
     #[allow(unused_variables)]
     fn compute_size(&self) -> u32 {
         let mut my_size = 0;
-        if !self.password.is_empty() {
-            my_size += ::protobuf::rt::string_size(3, &self.password);
-        }
+        for value in &self.passwords {
+            my_size += ::protobuf::rt::string_size(1, &value);
+        };
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
     }
 
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if !self.password.is_empty() {
-            os.write_string(3, &self.password)?;
-        }
+        for v in &self.passwords {
+            os.write_string(1, &v)?;
+        };
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -1172,7 +1172,7 @@ impl ::protobuf::Message for TrojanInboundSettings {
 
 impl ::protobuf::Clear for TrojanInboundSettings {
     fn clear(&mut self) {
-        self.password.clear();
+        self.passwords.clear();
         self.unknown_fields.clear();
     }
 }

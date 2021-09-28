@@ -112,7 +112,9 @@ impl InboundManager {
                 "trojan" => {
                     let settings =
                         config::TrojanInboundSettings::parse_from_bytes(&inbound.settings).unwrap();
-                    let tcp = Arc::new(trojan::inbound::TcpHandler::new(&settings.password));
+                    let tcp = Arc::new(trojan::inbound::TcpHandler::new(
+                        settings.passwords.to_vec(),
+                    ));
                     let handler =
                         Arc::new(proxy::inbound::Handler::new(tag.clone(), Some(tcp), None));
                     handlers.insert(tag.clone(), handler);
