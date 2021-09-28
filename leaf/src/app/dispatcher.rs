@@ -24,27 +24,28 @@ use super::router::Router;
 fn log_request(
     sess: &Session,
     outbound_tag: &str,
-    outbound_tag_color: Option<colored::Color>,
-    handshake_time: u128,
+    outbound_tag_color: colored::Color,
+    handshake_time: Option<u128>,
 ) {
-    if let Some(color) = outbound_tag_color {
+    let hs = handshake_time.map_or("failed".to_string(), |hs| format!("{}ms", hs));
+    if !*crate::option::LOG_NO_COLOR {
         use colored::Colorize;
         let network_color = match sess.network {
             Network::Tcp => colored::Color::Blue,
             Network::Udp => colored::Color::Yellow,
         };
         info!(
-            "[{}] [{}] [{}] [{}ms] {}",
+            "[{}] [{}] [{}] [{}] {}",
             &sess.inbound_tag,
             sess.network.to_string().color(network_color),
-            outbound_tag.color(color),
-            handshake_time,
+            outbound_tag.color(outbound_tag_color),
+            hs,
             &sess.destination,
         );
     } else {
         info!(
-            "[{}] [{}] [{}] [{}ms] {}",
-            sess.network, &sess.inbound_tag, outbound_tag, handshake_time, &sess.destination,
+            "[{}] [{}] [{}] [{}] {}",
+            sess.network, &sess.inbound_tag, outbound_tag, hs, &sess.destination,
         );
     }
 }
@@ -86,7 +87,7 @@ impl Dispatcher {
                                 match SocksAddr::try_from((&domain, sess.destination.port())) {
                                     Ok(a) => a,
                                     Err(e) => {
-                                        debug!(
+                                        warn!(
                                             "convert sniffed domain {} to destination failed: {}",
                                             &domain, e,
                                         );
@@ -96,11 +97,9 @@ impl Dispatcher {
                         }
                     }
                     Err(e) => {
-                        trace!(
+                        debug!(
                             "sniff tcp uplink {} -> {} failed: {}",
-                            &sess.source,
-                            &sess.destination,
-                            e,
+                            &sess.source, &sess.destination, e,
                         );
                         return;
                     }
@@ -147,7 +146,7 @@ impl Dispatcher {
             h
         } else {
             // FIXME use  the default handler
-            debug!("handler not found");
+            warn!("handler not found");
             if let Err(e) = lhs.shutdown().await {
                 debug!(
                     "tcp downlink {} <- {} error: {}",
@@ -169,6 +168,7 @@ impl Dispatcher {
                         &h.tag(),
                         e
                     );
+                    log_request(sess, h.tag(), h.color(), None);
                     return;
                 }
             };
@@ -176,11 +176,7 @@ impl Dispatcher {
             Ok(rhs) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
-                if *crate::option::LOG_NO_COLOR {
-                    log_request(sess, h.tag(), None, elapsed.as_millis());
-                } else {
-                    log_request(sess, h.tag(), Some(h.color()), elapsed.as_millis());
-                }
+                log_request(sess, h.tag(), h.color(), Some(elapsed.as_millis()));
 
                 let (lr, mut lw) = tokio::io::split(lhs);
                 let (rr, mut rw) = tokio::io::split(rhs);
@@ -429,6 +425,8 @@ impl Dispatcher {
                     e
                 );
 
+                log_request(sess, h.tag(), h.color(), None);
+
                 if let Err(e) = lhs.shutdown().await {
                     debug!(
                         "tcp downlink {} <- {} error: {} [{}]",
@@ -462,6 +460,7 @@ impl Dispatcher {
                         );
                         tag
                     } else {
+                        warn!("no handler found");
                         return Err(io::Error::new(ErrorKind::Other, "no available handler"));
                     }
                 }
@@ -472,6 +471,7 @@ impl Dispatcher {
         let h = if let Some(h) = self.outbound_manager.read().await.get(&outbound) {
             h
         } else {
+            warn!("handler not found");
             return Err(io::Error::new(ErrorKind::Other, "handler not found"));
         };
 
@@ -482,11 +482,7 @@ impl Dispatcher {
             Ok(c) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
-                if *crate::option::LOG_NO_COLOR {
-                    log_request(sess, h.tag(), None, elapsed.as_millis());
-                } else {
-                    log_request(sess, h.tag(), Some(h.color()), elapsed.as_millis());
-                }
+                log_request(sess, h.tag(), h.color(), Some(elapsed.as_millis()));
 
                 Ok(c)
             }
@@ -498,6 +494,7 @@ impl Dispatcher {
                     &h.tag(),
                     e
                 );
+                log_request(sess, h.tag(), h.color(), None);
                 Err(e)
             }
         }

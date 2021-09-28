@@ -106,6 +106,7 @@ impl OutboundManager {
                         tag.clone(),
                         HandlerBuilder::default()
                             .tag(tag.clone())
+                            .color(colored::Color::Red)
                             .tcp_handler(Box::new(drop::TcpHandler))
                             .udp_handler(Box::new(drop::UdpHandler))
                             .build(),
