@@ -1,4 +1,8 @@
-use std::{io, net::SocketAddr, sync::Arc};
+use std::{
+    io,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
@@ -51,6 +55,18 @@ impl OutboundDatagram for SimpleOutboundDatagram {
     }
 }
 
+fn unmapped_ipv4(addr: SocketAddr) -> SocketAddr {
+    match addr {
+        SocketAddr::V6(ref a) => {
+            if let Some(a_v4) = a.ip().to_ipv4() {
+                return SocketAddr::new(IpAddr::V4(a_v4), a.port());
+            }
+        }
+        _ => (),
+    }
+    addr
+}
+
 pub struct SimpleOutboundDatagramRecvHalf(Arc<UdpSocket>, Option<SocksAddr>);
 
 #[async_trait]
@@ -61,7 +77,7 @@ impl OutboundDatagramRecvHalf for SimpleOutboundDatagramRecvHalf {
                 if self.1.is_some() {
                     Ok((n, self.1.as_ref().unwrap().clone()))
                 } else {
-                    Ok((n, SocksAddr::Ip(a)))
+                    Ok((n, SocksAddr::Ip(unmapped_ipv4(a))))
                 }
             }
             Err(e) => Err(e),
