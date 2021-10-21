@@ -485,6 +485,15 @@ impl OutboundManager {
                         if actors.is_empty() {
                             continue;
                         }
+                        let last_resort = if settings.last_resort.is_empty() {
+                            None
+                        } else {
+                            if let Some(a) = handlers.get(&settings.last_resort) {
+                                Some(a.clone())
+                            } else {
+                                None
+                            }
+                        };
                         let (tcp, mut tcp_abort_handles) = failover::TcpHandler::new(
                             actors.clone(),
                             settings.fail_timeout,
@@ -494,6 +503,7 @@ impl OutboundManager {
                             settings.fallback_cache,
                             settings.cache_size as usize,
                             settings.cache_timeout as u64,
+                            last_resort.clone(),
                             dns_client.clone(),
                         );
                         let (udp, mut udp_abort_handles) = failover::UdpHandler::new(
@@ -502,6 +512,7 @@ impl OutboundManager {
                             settings.health_check,
                             settings.check_interval,
                             settings.failover,
+                            last_resort,
                             dns_client.clone(),
                         );
                         let handler = HandlerBuilder::default()

@@ -30,6 +30,7 @@ pub struct Handler {
     pub fail_timeout: u32,
     pub schedule: Arc<TokioMutex<Vec<usize>>>,
     pub health_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
+    pub last_resort: Option<AnyOutboundHandler>,
     pub dns_client: SyncDnsClient,
 }
 
@@ -118,6 +119,7 @@ impl Handler {
         health_check: bool,
         check_interval: u32,
         failover: bool,
+        last_resort: Option<AnyOutboundHandler>,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
@@ -130,6 +132,7 @@ impl Handler {
         let schedule2 = schedule.clone();
         let actors2 = actors.clone();
         let dns_client2 = dns_client.clone();
+        let last_resort2 = last_resort.clone();
         let task = if health_check {
             let fut = async move {
                 loop {
@@ -173,14 +176,27 @@ impl Handler {
 
                     let mut schedule = schedule2.lock().await;
                     schedule.clear();
-                    if !failover {
-                        // if failover is disabled, put only 1 actor in schedule
-                        schedule.push(measures[0].0);
-                        trace!("put {} in schedule", measures[0].0);
-                    } else {
-                        for m in measures {
-                            schedule.push(m.0);
-                            trace!("put {} in schedule", m.0);
+
+                    fn all_failed(measures: &Vec<Measure>) -> bool {
+                        let threshold = time::Duration::from_secs(5).as_millis();
+                        for m in measures.iter() {
+                            if m.1 < threshold {
+                                return false;
+                            }
+                        }
+                        true
+                    }
+
+                    if !(last_resort2.is_some() && all_failed(&measures)) {
+                        if !failover {
+                            // if failover is disabled, put only 1 actor in schedule
+                            schedule.push(measures[0].0);
+                            trace!("put {} in schedule", measures[0].0);
+                        } else {
+                            for m in measures {
+                                schedule.push(m.0);
+                                trace!("put {} in schedule", m.0);
+                            }
                         }
                     }
 
@@ -203,6 +219,7 @@ impl Handler {
                 fail_timeout,
                 schedule,
                 health_check_task: TokioMutex::new(task),
+                last_resort,
                 dns_client,
             },
             abort_handles,
@@ -233,6 +250,24 @@ impl UdpOutboundHandler for Handler {
         }
 
         let schedule = self.schedule.lock().await.clone();
+
+        if schedule.is_empty() && self.last_resort.is_some() {
+            let handle = async {
+                let transport = crate::proxy::connect_udp_outbound(
+                    sess,
+                    self.dns_client.clone(),
+                    &self.last_resort.as_ref().unwrap(),
+                )
+                .await?;
+                UdpOutboundHandler::handle(
+                    self.last_resort.as_ref().unwrap().as_ref(),
+                    sess,
+                    transport,
+                )
+                .await
+            };
+            return handle.await;
+        }
 
         for i in schedule {
             if i >= self.actors.len() {

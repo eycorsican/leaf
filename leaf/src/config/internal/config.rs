@@ -3907,6 +3907,7 @@ pub struct FailOverOutboundSettings {
     pub fallback_cache: bool,
     pub cache_size: u32,
     pub cache_timeout: u32,
+    pub last_resort: ::std::string::String,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -3978,6 +3979,13 @@ impl FailOverOutboundSettings {
     pub fn get_cache_timeout(&self) -> u32 {
         self.cache_timeout
     }
+
+    // string last_resort = 9;
+
+
+    pub fn get_last_resort(&self) -> &str {
+        &self.last_resort
+    }
 }
 
 impl ::protobuf::Message for FailOverOutboundSettings {
@@ -4041,6 +4049,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                     let tmp = is.read_uint32()?;
                     self.cache_timeout = tmp;
                 },
+                9 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.last_resort)?;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -4077,6 +4088,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.cache_timeout != 0 {
             my_size += ::protobuf::rt::value_size(8, self.cache_timeout, ::protobuf::wire_format::WireTypeVarint);
         }
+        if !self.last_resort.is_empty() {
+            my_size += ::protobuf::rt::string_size(9, &self.last_resort);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -4106,6 +4120,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         }
         if self.cache_timeout != 0 {
             os.write_uint32(8, self.cache_timeout)?;
+        }
+        if !self.last_resort.is_empty() {
+            os.write_string(9, &self.last_resort)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -4157,6 +4174,7 @@ impl ::protobuf::Clear for FailOverOutboundSettings {
         self.fallback_cache = false;
         self.cache_size = 0;
         self.cache_timeout = 0;
+        self.last_resort.clear();
         self.unknown_fields.clear();
     }
 }

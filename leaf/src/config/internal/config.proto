@@ -166,6 +166,7 @@ message FailOverOutboundSettings {
 	bool fallback_cache = 6;
 	uint32 cache_size = 7;
 	uint32 cache_timeout = 8;
+	string last_resort = 9;
 }
 
 message SelectOutboundSettings {
