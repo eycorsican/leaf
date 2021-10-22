@@ -881,6 +881,16 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_sni) = &ext_proxy.sni {
                         quic_settings.server_name = ext_sni.clone();
                     }
+                    if let Some(ext_tls_cert) = &ext_proxy.tls_cert {
+                        let cert = Path::new(ext_tls_cert);
+                        if cert.is_absolute() {
+                            quic_settings.certificate = cert.to_string_lossy().to_string();
+                        } else {
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(cert).to_string_lossy().to_string();
+                            quic_settings.certificate = path;
+                        }
+                    }
                     let quic_settings = quic_settings.write_to_bytes().unwrap();
                     quic_outbound.settings = quic_settings;
                     quic_outbound.protocol = "quic".to_string();
