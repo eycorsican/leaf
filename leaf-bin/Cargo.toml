@@ -2,7 +2,7 @@
 name = "leaf-bin"
 version = "0.3.1"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [[bin]]
 name = "leaf"
