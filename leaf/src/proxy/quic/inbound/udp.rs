@@ -145,17 +145,6 @@ impl UdpInboundHandler for Handler {
         &'a self,
         socket: Self::UDatagram,
     ) -> io::Result<InboundTransport<Self::UStream, Self::UDatagram>> {
-        let mut transport_config = quinn::TransportConfig::default();
-        transport_config
-            .max_concurrent_uni_streams(0)
-            .map_err(quic_err)?
-            .max_idle_timeout(Some(std::time::Duration::from_secs(300)))
-            .map_err(quic_err)?;
-        let mut server_config = quinn::ServerConfig::default();
-        server_config.transport = Arc::new(transport_config); // TODO share
-        let mut server_config = quinn::ServerConfigBuilder::new(server_config);
-        // server_config.protocols(ALPN_QUIC_HTTP);
-
         let (cert, key) =
             fs::read(&self.certificate).and_then(|x| Ok((x, fs::read(&self.certificate_key)?)))?;
 
@@ -163,28 +152,63 @@ impl UdpInboundHandler for Handler {
             .extension()
             .map(|ext| ext.to_str())
         {
-            Some(Some(ext)) if ext == "der" => quinn::CertificateChain::from_certs(vec![
-                quinn::Certificate::from_der(&cert).map_err(quic_err)?,
-            ]),
-            _ => quinn::CertificateChain::from_pem(&cert).map_err(quic_err)?,
+            Some(Some(ext)) if ext == "der" => {
+                vec![rustls::Certificate(cert)]
+            }
+            _ => rustls_pemfile::certs(&mut &*cert)
+                .map_err(quic_err)?
+                .into_iter()
+                .map(rustls::Certificate)
+                .collect(),
         };
 
         let key = match Path::new(&self.certificate_key)
             .extension()
             .map(|ext| ext.to_str())
         {
-            Some(Some(ext)) if ext == "der" => {
-                quinn::PrivateKey::from_der(&key).map_err(quic_err)?
+            Some(Some(ext)) if ext == "der" => rustls::PrivateKey(key),
+            _ => {
+                let pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut &*key).map_err(quic_err)?;
+                match pkcs8.into_iter().next() {
+                    Some(x) => rustls::PrivateKey(x),
+                    None => {
+                        let rsa = rustls_pemfile::rsa_private_keys(&mut &*key).map_err(quic_err)?;
+                        match rsa.into_iter().next() {
+                            Some(x) => rustls::PrivateKey(x),
+                            None => {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::Other,
+                                    "no private keys found",
+                                ));
+                            }
+                        }
+                    }
+                }
             }
-            _ => quinn::PrivateKey::from_pem(&key).map_err(quic_err)?,
         };
 
-        server_config.certificate(cert, key).map_err(quic_err)?;
+        let mut server_crypto = rustls::ServerConfig::builder()
+            .with_safe_defaults()
+            .with_no_client_auth()
+            .with_single_cert(cert, key)
+            .map_err(quic_err)?;
 
-        let mut endpoint = quinn::Endpoint::builder();
-        endpoint.listen(server_config.build());
+        let mut transport_config = quinn::TransportConfig::default();
+        transport_config
+            .max_concurrent_uni_streams(quinn::VarInt::from_u32(0))
+            .max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
+                300_000,
+            )))); // ms
+        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(server_crypto));
+        server_config.transport = Arc::new(transport_config); // TODO share
 
-        let (_, incoming) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
+        let (_, incoming) = quinn::Endpoint::new(
+            quinn::EndpointConfig::default(),
+            Some(server_config),
+            socket.into_std()?,
+        )
+        .map_err(quic_err)?;
+        // let (_, incoming) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
         Ok(InboundTransport::Incoming(Box::new(Incoming::new(
             incoming,
         ))))

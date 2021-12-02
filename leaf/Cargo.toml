@@ -72,7 +72,7 @@ all-endpoints = [
 
 # Ring-related
 ring-aead = ["ring"]
-rustls-tls = ["tokio-rustls", "webpki-roots"]
+rustls-tls = ["tokio-rustls", "webpki-roots", "rustls-pemfile"]
 
 # Openssl-related, for platforms not supported by ring, such as mips
 openssl-aead = ["openssl"]
@@ -131,7 +131,7 @@ lazy_static = "1.4.0"
 anyhow = "1.0"
 rand = "0.8"
 socket2 = "0.4"
-directories = "3.0"
+directories = "4.0"
 async-ffi = "0.2"
 libloading = "0.7"
 
@@ -150,13 +150,13 @@ openssl = { version = "0.10", features = ["vendored"], optional = true }
 ring = { version = "0.16", optional = true }
 
 # Router
-maxminddb = { version = "0.17", features = ["mmap"] }
-memmap = "0.7"
+maxminddb = { version = "0.21", features = ["mmap"] }
+memmap2 = "0.3"
 cidr = { version = "0.1", default-features = false }
 
 # DNS
 trust-dns-proto = { version = "0.20", default-features = false }
-lru = "0.6"
+lru = "0.7"
 
 # Logging
 log = { version = "0.4", features = ["std"] }
@@ -165,16 +165,17 @@ chrono = "0.4"
 colored = "2.0"
 
 # TLS/rustls/QUIC
-tokio-rustls = { version = "0.22", optional = true }
-webpki-roots = { version = "0.21", optional = true }
+tokio-rustls = { version = "0.23", optional = true }
+webpki-roots = { version = "0.22", optional = true }
+rustls-pemfile = { version = "0.2", optional = true }
 
 # TLS/openssl
 openssl-probe = { version = "0.1", optional = true }
 tokio-openssl = { version = "0.6", optional = true }
 
 # WebSocket
-tungstenite = { version = "0.13", default-features = false, optional = true }
-tokio-tungstenite = { version = "0.14", optional = true }
+tungstenite = { version = "0.16", default-features = false, optional = true }
+tokio-tungstenite = { version = "0.16", optional = true }
 
 # WebSocket
 url = { version = "2.2", optional = true }
@@ -187,7 +188,7 @@ hyper = { version = "0.14", default-features = false, features = ["server", "htt
 async-socks5 = { version = "0.5", optional = true }
 
 # Shadowsocks
-hkdf = { version = "0.10", optional = true }
+hkdf = { version = "0.11", optional = true }
 md-5 = { version = "0.9", optional = true }
 sha-1 = { version = "0.9", optional = true }
 
@@ -202,21 +203,21 @@ lru_time_cache = { version = "0.11", optional = true }
 tokio-util = { version = "0.6", default-features = false, features = ["io"], optional = true }
 
 # QUIC
-quinn = { version = "0.7", default-features = false, features = ["tls-rustls"], optional = true }
-rustls = { version = "0.19", optional = true }
+quinn = { version = "0.8", default-features = false, features = ["tls-rustls"], optional = true }
+rustls = { version = "0.20", optional = true }
 
 # API
 warp = { version = "0.3", default-features = false, optional = true }
 
 # Auto reload
-notify = { version = "5.0.0-pre.11", optional = true }
+notify = { version = "5.0.0-pre.13", optional = true }
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
-pnet_datalink = { version = "0.27", package = "pnet_datalink" }
+pnet_datalink = { version = "0.28", package = "pnet_datalink" }
 libc = "0.2"
 
 # Used in mobile logger
@@ -228,5 +229,5 @@ rcgen = "0.8"
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.58"
+bindgen = "0.59"
 protoc-rust = "2"

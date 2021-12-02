@@ -42,53 +42,44 @@ impl Manager {
         certificate: Option<String>,
         dns_client: SyncDnsClient,
     ) -> Self {
-        let mut client_config = quinn::ClientConfig::default();
-
-        let mut crypto_config = rustls::ClientConfig::with_ciphersuites(&QUIC_CIPHER_SUITES);
-        crypto_config.versions = vec![rustls::ProtocolVersion::TLSv1_3];
-        crypto_config.enable_early_data = true;
-        crypto_config
-            .root_store
-            .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-        client_config.crypto = Arc::new(crypto_config);
-
-        let mut transport_config = quinn::TransportConfig::default();
-        transport_config
-            .max_idle_timeout(Some(std::time::Duration::from_secs(300)))
-            .map_err(quic_err)
-            .unwrap();
-        client_config.transport = Arc::new(transport_config); // TODO share
-
+        let mut roots = rustls::RootCertStore::empty();
         if let Some(cert_path) = certificate.as_ref() {
             match fs::read(cert_path) {
                 Ok(cert) => {
-                    let cert = match Path::new(cert_path).extension().map(|ext| ext.to_str()) {
-                        Some(Some(ext)) if ext == "der" => quinn::Certificate::from_der(&cert)
-                            .map_err(quic_err)
-                            .unwrap(),
+                    match Path::new(&cert_path).extension().map(|ext| ext.to_str()) {
+                        Some(Some(ext)) if ext == "der" => {
+                            roots.add(&rustls::Certificate(cert)).unwrap(); // FIXME
+                        }
                         _ => {
-                            if let Some(c) = quinn::CertificateChain::from_pem(&cert)
-                                .map_err(quic_err)
-                                .unwrap()
-                                .iter()
-                                .next()
-                            {
-                                quinn::Certificate::from(c.clone())
-                            } else {
-                                panic!("no certificate found in chain");
+                            let certs: Vec<rustls::Certificate> =
+                                rustls_pemfile::certs(&mut &*cert)
+                                    .unwrap()
+                                    .into_iter()
+                                    .map(rustls::Certificate)
+                                    .collect();
+                            for cert in certs {
+                                roots.add(&cert).unwrap();
                             }
                         }
-                    };
-                    client_config
-                        .add_certificate_authority(cert)
-                        .map_err(quic_err)
-                        .unwrap();
+                    }
                 }
                 Err(e) => {
                     panic!("read certificate {} failed: {}", cert_path, e);
                 }
             }
         }
+
+        let mut client_crypto = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+
+        let mut client_config = quinn::ClientConfig::new(Arc::new(client_crypto));
+        let mut transport_config = quinn::TransportConfig::default();
+        transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
+            300_000,
+        )))); // ms
+        client_config.transport = Arc::new(transport_config);
 
         Manager {
             address,
@@ -100,12 +91,6 @@ impl Manager {
         }
     }
 }
-
-static QUIC_CIPHER_SUITES: [&rustls::SupportedCipherSuite; 3] = [
-    &rustls::ciphersuite::TLS13_AES_256_GCM_SHA384,
-    &rustls::ciphersuite::TLS13_AES_128_GCM_SHA256,
-    &rustls::ciphersuite::TLS13_CHACHA20_POLY1305_SHA256,
-];
 
 impl Manager {
     pub async fn new_stream(
@@ -136,13 +121,14 @@ impl Manager {
             }
         }
 
-        let mut endpoint = quinn::Endpoint::builder();
-        endpoint.default_client_config(self.client_config.clone());
         // FIXME A better indicator.
         let socket = self
             .new_udp_socket(&*crate::option::UNSPECIFIED_BIND_ADDR)
             .await?;
-        let (endpoint, _) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
+        let (mut endpoint, _) =
+            quinn::Endpoint::new(quinn::EndpointConfig::default(), None, socket.into_std()?)
+                .map_err(quic_err)?;
+        endpoint.set_default_client_config(self.client_config.clone());
 
         let ips = {
             self.dns_client
@@ -172,7 +158,7 @@ impl Manager {
         };
 
         let new_conn = endpoint
-            .connect(&connect_addr, server_name)
+            .connect(connect_addr, server_name)
             .map_err(quic_err)?
             .await
             .map_err(quic_err)?;

@@ -10,7 +10,10 @@ use log::*;
 #[cfg(feature = "rustls-tls")]
 use {
     std::sync::Arc,
-    tokio_rustls::{rustls::ClientConfig, webpki::DNSNameRef, TlsConnector},
+    tokio_rustls::{
+        rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore, ServerName},
+        webpki, TlsConnector,
+    },
 };
 
 #[cfg(feature = "openssl-tls")]
@@ -39,17 +42,35 @@ impl Handler {
     ) -> Result<Self> {
         #[cfg(feature = "rustls-tls")]
         {
-            let mut config = ClientConfig::new();
-            config
-                .root_store
-                .add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
+            let mut root_cert_store = RootCertStore::empty();
             if let Some(cert) = certificate {
                 let mut pem = BufReader::new(File::open(cert)?);
-                config
-                    .root_store
-                    .add_pem_file(&mut pem)
-                    .map_err(|_| anyhow!("add pem file failed"))?;
+                let certs = rustls_pemfile::certs(&mut pem)?;
+                let trust_anchors = certs.iter().map(|cert| {
+                    let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap(); // FIXME
+                    OwnedTrustAnchor::from_subject_spki_name_constraints(
+                        ta.subject,
+                        ta.spki,
+                        ta.name_constraints,
+                    )
+                });
+                root_cert_store.add_server_trust_anchors(trust_anchors);
+            } else {
+                root_cert_store.add_server_trust_anchors(
+                    webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                        OwnedTrustAnchor::from_subject_spki_name_constraints(
+                            ta.subject,
+                            ta.spki,
+                            ta.name_constraints,
+                        )
+                    }),
+                );
             }
+
+            let mut config = ClientConfig::builder()
+                .with_safe_defaults()
+                .with_root_certificates(root_cert_store)
+                .with_no_client_auth();
 
             for alpn in alpns {
                 config.alpn_protocols.push(alpn.as_bytes().to_vec());
@@ -114,9 +135,10 @@ impl TcpOutboundHandler for Handler {
         if let Some(stream) = stream {
             #[cfg(feature = "rustls-tls")]
             {
-                let config = TlsConnector::from(self.tls_config.clone());
-                let dnsname = DNSNameRef::try_from_ascii_str(&name).map_err(tls_err)?;
-                let tls_stream = config.connect(dnsname, stream).map_err(tls_err).await?;
+                let connector = TlsConnector::from(self.tls_config.clone());
+                let domain = ServerName::try_from(name.as_str())
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
+                let tls_stream = connector.connect(domain, stream).map_err(tls_err).await?;
                 // FIXME check negotiated alpn
                 Ok(Box::new(tls_stream))
             }
