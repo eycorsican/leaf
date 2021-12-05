@@ -42,6 +42,7 @@ async fn health_check_task(
     h: AnyOutboundHandler,
     dns_client: SyncDnsClient,
     mut delay: Option<time::Duration>,
+    health_check_timeout: u32,
 ) -> Measure {
     if let Some(d) = delay.take() {
         tokio::time::sleep(d).await;
@@ -105,7 +106,12 @@ async fn health_check_task(
             Err(_) => Measure(i, u128::MAX),
         }
     };
-    match timeout(time::Duration::from_secs(5), measure).await {
+    match timeout(
+        time::Duration::from_secs(health_check_timeout.into()),
+        measure,
+    )
+    .await
+    {
         Ok(m) => m,
         // timeout, better than handshake error
         Err(_) => Measure(i, u128::MAX - 1),
@@ -120,6 +126,7 @@ impl Handler {
         check_interval: u32,
         failover: bool,
         last_resort: Option<AnyOutboundHandler>,
+        health_check_timeout: u32,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
@@ -151,6 +158,7 @@ impl Handler {
                             a.clone(),
                             dns_client4,
                             delay,
+                            health_check_timeout,
                         )));
                     }
                     let mut measures = futures::future::join_all(checks).await;
@@ -177,15 +185,16 @@ impl Handler {
                     let mut schedule = schedule2.lock().await;
                     schedule.clear();
 
-                    fn all_failed(measures: &Vec<Measure>) -> bool {
-                        let threshold = time::Duration::from_secs(5).as_millis();
+                    let all_failed = |measures: &Vec<Measure>| -> bool {
+                        let threshold =
+                            time::Duration::from_secs(health_check_timeout.into()).as_millis();
                         for m in measures.iter() {
                             if m.1 < threshold {
                                 return false;
                             }
                         }
                         true
-                    }
+                    };
 
                     if !(last_resort2.is_some() && all_failed(&measures)) {
                         if !failover {
