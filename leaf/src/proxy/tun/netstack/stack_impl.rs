@@ -268,36 +268,15 @@ impl NetStackImpl {
 
                 let dgram_src = DatagramSource::new(src_addr, None);
 
-                if !nat_manager.contains_key(&dgram_src).await {
-                    let sess = Session {
-                        network: Network::Udp,
-                        source: dgram_src.address,
-                        destination: socks_dst_addr.clone(),
-                        inbound_tag: inbound_tag.clone(),
-                        ..Default::default()
-                    };
-
-                    nat_manager
-                        .add_session(&sess, dgram_src, client_ch_tx.clone())
-                        .await;
-
-                    // Note that subsequent packets on this session may have different
-                    // destination addresses.
-                    debug!(
-                        "added udp session {} -> {}:{} ({})",
-                        &dgram_src,
-                        &dst_addr.ip(),
-                        &dst_addr.port(),
-                        nat_manager.size().await,
-                    );
-                }
-
                 let pkt = UdpPacket {
                     data: pkt.data,
                     src_addr: Some(SocksAddr::Ip(dgram_src.address)),
-                    dst_addr: Some(socks_dst_addr),
+                    dst_addr: Some(socks_dst_addr.clone()),
                 };
-                nat_manager.send(&dgram_src, pkt).await;
+
+                nat_manager
+                    .send(&dgram_src, socks_dst_addr, &inbound_tag, pkt, &client_ch_tx)
+                    .await;
             }
         });
 

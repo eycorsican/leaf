@@ -86,33 +86,16 @@ async fn handle_inbound_datagram(
                     warn!("inbound datagram receives message without destination");
                     continue;
                 };
-                if !nat_manager.contains_key(&dgram_src).await {
-                    let sess = Session {
-                        network: Network::Udp,
-                        source: dgram_src.address,
-                        destination: dst_addr.clone(),
-                        inbound_tag: inbound_tag.clone(),
-                        ..Default::default()
-                    };
-
-                    nat_manager
-                        .add_session(&sess, dgram_src, client_ch_tx.clone())
-                        .await;
-
-                    debug!(
-                        "added udp session {} -> {} ({})",
-                        &dgram_src,
-                        &dst_addr.to_string(),
-                        nat_manager.size().await,
-                    );
-                }
 
                 let pkt = UdpPacket {
                     data: (&buf[..n]).to_vec(),
                     src_addr: Some(SocksAddr::from(dgram_src.address)),
-                    dst_addr: Some(dst_addr),
+                    dst_addr: Some(dst_addr.clone()),
                 };
-                nat_manager.send(&dgram_src, pkt).await;
+
+                nat_manager
+                    .send(&dgram_src, dst_addr, &inbound_tag, pkt, &client_ch_tx)
+                    .await;
             }
         }
     }

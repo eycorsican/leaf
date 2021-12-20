@@ -6,12 +6,12 @@ use futures::future::{abortable, BoxFuture};
 use log::*;
 use tokio::sync::{
     mpsc::{self, Sender},
-    oneshot, Mutex as TokioMutex,
+    oneshot, Mutex, MutexGuard,
 };
 
 use crate::app::dispatcher::Dispatcher;
 use crate::option;
-use crate::session::{DatagramSource, Session, SocksAddr};
+use crate::session::{DatagramSource, Network, Session, SocksAddr};
 
 #[derive(Debug)]
 pub struct UdpPacket {
@@ -20,18 +20,31 @@ pub struct UdpPacket {
     pub dst_addr: Option<SocksAddr>,
 }
 
-type SessionMap =
-    Arc<TokioMutex<HashMap<DatagramSource, (Sender<UdpPacket>, oneshot::Sender<bool>, Instant)>>>;
+impl std::fmt::Display for UdpPacket {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let src = match self.src_addr {
+            None => "None".to_string(),
+            Some(ref addr) => addr.to_string(),
+        };
+        let dst = match self.dst_addr {
+            None => "None".to_string(),
+            Some(ref addr) => addr.to_string(),
+        };
+        write!(f, "{} <-> {}, {} bytes", src, dst, self.data.len())
+    }
+}
+
+type SessionMap = HashMap<DatagramSource, (Sender<UdpPacket>, oneshot::Sender<bool>, Instant)>;
 
 pub struct NatManager {
-    sessions: SessionMap,
+    sessions: Arc<Mutex<SessionMap>>,
     dispatcher: Arc<Dispatcher>,
-    timeout_check_task: TokioMutex<Option<BoxFuture<'static, ()>>>,
+    timeout_check_task: Mutex<Option<BoxFuture<'static, ()>>>,
 }
 
 impl NatManager {
     pub fn new(dispatcher: Arc<Dispatcher>) -> Self {
-        let sessions: SessionMap = Arc::new(TokioMutex::new(HashMap::new()));
+        let sessions: Arc<Mutex<SessionMap>> = Arc::new(Mutex::new(HashMap::new()));
         let sessions2 = sessions.clone();
 
         // The task is lazy, will not run until any sessions added.
@@ -78,17 +91,17 @@ impl NatManager {
         NatManager {
             sessions,
             dispatcher,
-            timeout_check_task: TokioMutex::new(Some(timeout_check_task)),
+            timeout_check_task: Mutex::new(Some(timeout_check_task)),
         }
     }
 
-    pub async fn contains_key(&self, key: &DatagramSource) -> bool {
-        self.sessions.lock().await.contains_key(key)
-    }
-
-    pub async fn send(&self, key: &DatagramSource, pkt: UdpPacket) {
-        let mut sessions = self.sessions.lock().await;
-        if let Some(sess) = sessions.get_mut(key) {
+    fn _send<'a>(
+        &self,
+        guard: &mut MutexGuard<'a, SessionMap>,
+        key: &DatagramSource,
+        pkt: UdpPacket,
+    ) {
+        if let Some(sess) = guard.get_mut(key) {
             if let Err(err) = sess.0.try_send(pkt) {
                 debug!("send uplink packet failed {}", err);
             }
@@ -98,15 +111,50 @@ impl NatManager {
         }
     }
 
-    pub async fn size(&self) -> usize {
-        self.sessions.lock().await.len()
+    pub async fn send<'a>(
+        &self,
+        dgram_src: &DatagramSource,
+        socks_dst: SocksAddr,
+        inbound_tag: &str,
+        pkt: UdpPacket,
+        client_ch_tx: &Sender<UdpPacket>,
+    ) {
+        let mut guard = self.sessions.lock().await;
+
+        if guard.contains_key(dgram_src) {
+            self._send(&mut guard, dgram_src, pkt);
+            return;
+        }
+
+        let sess = Session {
+            network: Network::Udp,
+            source: dgram_src.address,
+            destination: socks_dst.clone(),
+            inbound_tag: inbound_tag.to_string(),
+            ..Default::default()
+        };
+
+        self.add_session(&sess, dgram_src.clone(), client_ch_tx.clone(), &mut guard)
+            .await;
+
+        debug!(
+            "added udp session {} -> {} ({})",
+            &dgram_src,
+            &socks_dst,
+            guard.len(),
+        );
+
+        self._send(&mut guard, dgram_src, pkt);
+
+        drop(guard);
     }
 
-    pub async fn add_session(
+    pub async fn add_session<'a>(
         &self,
         sess: &Session,
         raddr: DatagramSource,
         client_ch_tx: Sender<UdpPacket>,
+        guard: &mut MutexGuard<'a, SessionMap>,
     ) {
         // Runs the lazy task for session cleanup job, this task will run only once.
         if let Some(task) = self.timeout_check_task.lock().await.take() {
@@ -116,10 +164,7 @@ impl NatManager {
         let (target_ch_tx, mut target_ch_rx) = mpsc::channel(64);
         let (downlink_abort_tx, downlink_abort_rx) = oneshot::channel();
 
-        self.sessions
-            .lock()
-            .await
-            .insert(raddr, (target_ch_tx, downlink_abort_tx, Instant::now()));
+        guard.insert(raddr, (target_ch_tx, downlink_abort_tx, Instant::now()));
 
         let dispatcher = self.dispatcher.clone();
         let sessions = self.sessions.clone();
@@ -132,7 +177,8 @@ impl NatManager {
             // new socket to communicate with the target.
             let socket = match dispatcher.dispatch_udp(&sess).await {
                 Ok(s) => s,
-                Err(_) => {
+                Err(e) => {
+                    debug!("dispatch {} failed: {}", &raddr, e);
                     sessions.lock().await.remove(&raddr);
                     return;
                 }
