@@ -52,6 +52,11 @@ struct Args {
     #[argh(option, short = 't')]
     test_outbound: Option<String>,
 
+    /// bound interface, explicitly sets the OUTBOUND_INTERFACE environment variable
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[argh(option, short = 'b')]
+    boundif: Option<String>,
+
     /// prints version
     #[argh(switch, short = 'V')]
     version: bool,
@@ -73,6 +78,11 @@ fn main() {
             println!("ok");
             exit(0);
         }
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if let Some(iface) = args.boundif {
+        std::env::set_var("OUTBOUND_INTERFACE", &iface);
     }
 
     if let Some(tag) = args.test_outbound {

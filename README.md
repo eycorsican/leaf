@@ -38,7 +38,7 @@ socks-port = 1080
 Direct = direct
 ```
 
-More configuration examples can be found [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md).
+More configuration examples can be found [here](https://github.com/eycorsican/leaf/blob/master/README.zh.md). If you want more flexible control on the config options, the JSON format should be used, up-to-date examples for the JSON format could be found in the [tests](https://github.com/eycorsican/leaf/blob/master/leaf/tests), both client-side and server-side config examples are presented there.
 
 ## TUN Mode and Gateway Mode
 
