@@ -69,7 +69,7 @@ GATEWAY_MODE=true leaf -c config.conf
 
 ## iOS & Android
 
-<a href="https://play.google.com/store/apps/details?id=com.leaf.example.aleaf"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" height="70"></a>
+<a href="https://play.google.com/store/apps/details?id=com.leaf.and.aleaf"><img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" height="70"></a>
 
 <a href="https://apps.apple.com/us/app/leaf-lightweight-proxy/id1534109007"><img src="https://upload.wikimedia.org/wikipedia/commons/3/3c/Download_on_the_App_Store_Badge.svg" height="70"></a>
 
