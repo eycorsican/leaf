@@ -19,8 +19,6 @@ use crate::proxy::chain;
 use crate::proxy::failover;
 #[cfg(feature = "outbound-random")]
 use crate::proxy::random;
-#[cfg(feature = "outbound-retry")]
-use crate::proxy::retry;
 #[cfg(feature = "outbound-rr")]
 use crate::proxy::rr;
 #[cfg(feature = "outbound-select")]
@@ -594,46 +592,6 @@ impl OutboundManager {
                         });
                         let udp = Box::new(chain::outbound::UdpHandler {
                             actors: actors.clone(),
-                        });
-                        let handler = HandlerBuilder::default()
-                            .tag(tag.clone())
-                            .tcp_handler(tcp)
-                            .udp_handler(udp)
-                            .build();
-                        handlers.insert(tag.clone(), handler);
-                        trace!(
-                            "added handler [{}] with actors: {}",
-                            &tag,
-                            settings.actors.join(",")
-                        );
-                    }
-                    #[cfg(feature = "outbound-retry")]
-                    "retry" => {
-                        let settings =
-                            config::RetryOutboundSettings::parse_from_bytes(&outbound.settings)
-                                .map_err(|e| {
-                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
-                                })?;
-                        let mut actors = Vec::new();
-                        for actor in settings.actors.iter() {
-                            if let Some(a) = handlers.get(actor) {
-                                actors.push(a.clone());
-                            } else {
-                                continue 'outbounds;
-                            }
-                        }
-                        if actors.is_empty() {
-                            continue;
-                        }
-                        let tcp = Box::new(retry::TcpHandler {
-                            actors: actors.clone(),
-                            attempts: settings.attempts as usize,
-                            dns_client: dns_client.clone(),
-                        });
-                        let udp = Box::new(retry::UdpHandler {
-                            actors,
-                            attempts: settings.attempts as usize,
-                            dns_client: dns_client.clone(),
                         });
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())

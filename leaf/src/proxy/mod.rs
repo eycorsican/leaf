@@ -56,8 +56,6 @@ pub mod quic;
 pub mod random;
 #[cfg(feature = "outbound-redirect")]
 pub mod redirect;
-#[cfg(feature = "outbound-retry")]
-pub mod retry;
 #[cfg(feature = "outbound-rr")]
 pub mod rr;
 #[cfg(feature = "outbound-select")]
