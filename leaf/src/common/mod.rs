@@ -1,4 +1,5 @@
 pub mod crypto;
+pub mod io;
 pub mod mutex;
 pub mod net;
 pub mod resolver;

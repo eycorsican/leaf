@@ -9,6 +9,7 @@ use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 use leaf::proxy::*;
+use leaf::session::Session;
 
 pub async fn run_tcp_echo_server<A: ToSocketAddrs>(addr: A) {
     let listener = TcpListener::bind(addr).await.unwrap();
@@ -67,6 +68,58 @@ pub fn run_leaf_instances(
     leaf_rt_ids
 }
 
+fn new_socks_outbound(socks_addr: &str, socks_port: u16) -> AnyOutboundHandler {
+    // Make use of a socks outbound to initiate a socks request to a leaf instance.
+    let settings = leaf::config::json::SocksOutboundSettings {
+        address: Some(socks_addr.to_string()),
+        port: Some(socks_port),
+    };
+    let settings_str = serde_json::to_string(&settings).unwrap();
+    let raw_settings = serde_json::value::RawValue::from_string(settings_str).unwrap();
+    let outbounds = vec![leaf::config::json::Outbound {
+        protocol: "socks".to_string(),
+        tag: Some("socks".to_string()),
+        settings: Some(raw_settings),
+    }];
+    let mut config = leaf::config::json::Config {
+        log: None,
+        inbounds: None,
+        outbounds: Some(outbounds),
+        router: None,
+        dns: None,
+        api: None,
+    };
+    let config = leaf::config::json::to_internal(&mut config).unwrap();
+    let dns_client = Arc::new(RwLock::new(
+        leaf::app::dns_client::DnsClient::new(&config.dns).unwrap(),
+    ));
+    let outbound_manager =
+        leaf::app::outbound::manager::OutboundManager::new(&config.outbounds, dns_client).unwrap();
+    let handler = outbound_manager.get("socks").unwrap();
+    handler
+}
+
+pub async fn new_socks_stream(socks_addr: &str, socks_port: u16, sess: &Session) -> AnyStream {
+    let handler = new_socks_outbound(socks_addr, socks_port);
+    let stream = tokio::net::TcpStream::connect(format!("{}:{}", socks_addr, socks_port))
+        .await
+        .unwrap();
+    TcpOutboundHandler::handle(handler.as_ref(), sess, Some(Box::new(stream)))
+        .await
+        .unwrap()
+}
+
+pub async fn new_socks_datagram(
+    socks_addr: &str,
+    socks_port: u16,
+    sess: &Session,
+) -> AnyOutboundDatagram {
+    let handler = new_socks_outbound(socks_addr, socks_port);
+    UdpOutboundHandler::handle(handler.as_ref(), sess, None)
+        .await
+        .unwrap()
+}
+
 // Runs multiple leaf instances, thereafter a socks request will be sent to the
 // given socks server to test the proxy chain. The proxy chain is expected to
 // correctly handle the request to it's destination.
@@ -88,53 +141,16 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
     let app_task = async move {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // Make use of a socks outbound to initiate a socks request to a leaf instance.
-        let settings = leaf::config::json::SocksOutboundSettings {
-            address: Some(socks_addr.to_string()),
-            port: Some(socks_port),
-        };
-        let settings_str = serde_json::to_string(&settings).unwrap();
-        let raw_settings = serde_json::value::RawValue::from_string(settings_str).unwrap();
-        let outbounds = vec![leaf::config::json::Outbound {
-            protocol: "socks".to_string(),
-            tag: Some("socks".to_string()),
-            settings: Some(raw_settings),
-        }];
-        let mut config = leaf::config::json::Config {
-            log: None,
-            inbounds: None,
-            outbounds: Some(outbounds),
-            router: None,
-            dns: None,
-            api: None,
-        };
-        let config = leaf::config::json::to_internal(&mut config).unwrap();
-        let dns_client = Arc::new(RwLock::new(
-            leaf::app::dns_client::DnsClient::new(&config.dns).unwrap(),
-        ));
-        let outbound_manager =
-            leaf::app::outbound::manager::OutboundManager::new(&config.outbounds, dns_client)
-                .unwrap();
-        let handler = outbound_manager.get("socks").unwrap();
         let mut sess = leaf::session::Session::default();
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
-
-        // Test TCP
-        let stream = tokio::net::TcpStream::connect(format!("{}:{}", socks_addr, socks_port))
-            .await
-            .unwrap();
-        let mut s = TcpOutboundHandler::handle(handler.as_ref(), &sess, Some(Box::new(stream)))
-            .await
-            .unwrap();
+        let mut s = new_socks_stream(socks_addr, socks_port, &sess).await;
         s.write_all(b"abc").await.unwrap();
         let mut buf = Vec::new();
         let n = s.read_buf(&mut buf).await.unwrap();
         assert_eq!("abc".to_string(), String::from_utf8_lossy(&buf[..n]));
 
         // Test UDP
-        let dgram = UdpOutboundHandler::handle(handler.as_ref(), &sess, None)
-            .await
-            .unwrap();
+        let mut dgram = new_socks_datagram(socks_addr, socks_port, &sess).await;
         let (mut r, mut s) = dgram.split();
         let msg = b"def";
         let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
@@ -149,10 +165,8 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
 
         // Test if we can handle a second UDP session. This can fail in stream
         // transports if the stream ID has not been correctly set.
-        let dgram = UdpOutboundHandler::handle(handler.as_ref(), &sess, None)
-            .await
-            .unwrap();
-        let (mut r, mut s) = dgram.split();
+        let mut dgram2 = new_socks_datagram(socks_addr, socks_port, &sess).await;
+        let (mut r, mut s) = dgram2.split();
         let msg = b"ghi";
         let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
         assert_eq!(msg.len(), n);
