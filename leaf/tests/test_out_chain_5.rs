@@ -1,6 +1,6 @@
 mod common;
 
-// app(socks) -> (socks)client(shadowsocks+ws+trojan) -> (shadowsocks)server2(direct) -> (ws+trojan)server1(direct) -> echo
+// app(socks) -> (socks)client(chain(shadowsocks+ws+trojan)) -> (shadowsocks)server2(direct) -> (chain(ws+trojan))server1(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",

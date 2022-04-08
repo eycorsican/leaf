@@ -1,6 +1,6 @@
 mod common;
 
-// app(socks) -> (socks)client(quic+trojan) -> (quic+trojan)server(direct) -> echo
+// app(socks) -> (socks)client(chain(quic+trojan)) -> (chain(quic+trojan))server(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
