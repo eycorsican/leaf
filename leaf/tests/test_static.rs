@@ -1,16 +1,16 @@
 mod common;
 
-// app(socks) -> (socks)client(random(shadowsocks)) -> (shadowsocks)server(direct) -> echo
+// app(socks) -> (socks)client(static(shadowsocks)) -> (shadowsocks)server(direct) -> echo
 #[cfg(all(
     feature = "outbound-socks",
     feature = "inbound-socks",
     feature = "outbound-shadowsocks",
     feature = "inbound-shadowsocks",
     feature = "outbound-direct",
-    feature = "outbound-random",
+    feature = "outbound-static",
 ))]
 #[test]
-fn test_random() {
+fn test_static() {
     let config1 = r#"
     {
         "inbounds": [
@@ -22,11 +22,12 @@ fn test_random() {
         ],
         "outbounds": [
             {
-                "protocol": "random",
+                "protocol": "static",
                 "settings": {
                     "actors": [
                         "ss_out"
-                    ]
+                    ],
+                    "method": "rr"
                 }
             },
             {
@@ -47,6 +48,39 @@ fn test_random() {
     {
         "inbounds": [
             {
+                "protocol": "socks",
+                "address": "127.0.0.1",
+                "port": 1086
+            }
+        ],
+        "outbounds": [
+            {
+                "protocol": "static",
+                "settings": {
+                    "actors": [
+                        "ss_out"
+                    ],
+                    "method": "random"
+                }
+            },
+            {
+                "protocol": "shadowsocks",
+                "tag": "ss_out",
+                "settings": {
+                    "address": "127.0.0.1",
+                    "port": 3001,
+                    "method": "chacha20-ietf-poly1305",
+                    "password": "password"
+                }
+            }
+        ]
+    }
+    "#;
+
+    let config3 = r#"
+    {
+        "inbounds": [
+            {
                 "protocol": "shadowsocks",
                 "address": "127.0.0.1",
                 "port": 3001,
@@ -64,6 +98,8 @@ fn test_random() {
     }
     "#;
 
-    let configs = vec![config1.to_string(), config2.to_string()];
+    let configs = vec![config1.to_string(), config3.to_string()];
+    common::test_configs(configs, "127.0.0.1", 1086);
+    let configs = vec![config2.to_string(), config3.to_string()];
     common::test_configs(configs, "127.0.0.1", 1086);
 }

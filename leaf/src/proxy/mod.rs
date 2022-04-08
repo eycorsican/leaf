@@ -52,18 +52,16 @@ pub mod failover;
 pub mod http;
 #[cfg(any(feature = "inbound-quic", feature = "outbound-quic"))]
 pub mod quic;
-#[cfg(feature = "outbound-random")]
-pub mod random;
 #[cfg(feature = "outbound-redirect")]
 pub mod redirect;
-#[cfg(feature = "outbound-rr")]
-pub mod rr;
 #[cfg(feature = "outbound-select")]
 pub mod select;
 #[cfg(any(feature = "inbound-shadowsocks", feature = "outbound-shadowsocks"))]
 pub mod shadowsocks;
 #[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
 pub mod socks;
+#[cfg(feature = "outbound-static")]
+pub mod r#static;
 #[cfg(feature = "outbound-tls")]
 pub mod tls;
 #[cfg(any(feature = "inbound-trojan", feature = "outbound-trojan"))]

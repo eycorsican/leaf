@@ -43,7 +43,7 @@ impl Handler {
         {
             let certs = load_certs(Path::new(&certificate))?;
             let mut keys = load_keys(Path::new(&certificate_key))?;
-            let config = rustls::ServerConfig::builder()
+            let config = ServerConfig::builder()
                 .with_safe_defaults()
                 .with_no_client_auth()
                 .with_single_cert(certs, keys.remove(0))

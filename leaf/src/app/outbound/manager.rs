@@ -1,7 +1,6 @@
 use std::{
     collections::{hash_map, HashMap},
     convert::From,
-    sync::atomic::AtomicUsize,
     sync::Arc,
 };
 
@@ -17,10 +16,8 @@ use crate::proxy::null;
 use crate::proxy::chain;
 #[cfg(feature = "outbound-failover")]
 use crate::proxy::failover;
-#[cfg(feature = "outbound-random")]
-use crate::proxy::random;
-#[cfg(feature = "outbound-rr")]
-use crate::proxy::rr;
+#[cfg(feature = "outbound-static")]
+use crate::proxy::r#static;
 #[cfg(feature = "outbound-select")]
 use crate::proxy::select;
 #[cfg(feature = "outbound-tryall")]
@@ -387,10 +384,10 @@ impl OutboundManager {
                             settings.actors.join(",")
                         );
                     }
-                    #[cfg(feature = "outbound-random")]
-                    "random" => {
+                    #[cfg(feature = "outbound-static")]
+                    "static" => {
                         let settings =
-                            config::RandomOutboundSettings::parse_from_bytes(&outbound.settings)
+                            config::StaticOutboundSettings::parse_from_bytes(&outbound.settings)
                                 .map_err(|e| {
                                     anyhow!("invalid [{}] outbound settings: {}", &tag, e)
                                 })?;
@@ -405,54 +402,16 @@ impl OutboundManager {
                         if actors.is_empty() {
                             continue;
                         }
-                        let tcp = Box::new(random::TcpHandler {
-                            actors: actors.clone(),
-                            dns_client: dns_client.clone(),
-                        });
-                        let udp = Box::new(random::UdpHandler {
+                        let tcp = Box::new(r#static::TcpHandler::new(
+                            actors.clone(),
+                            dns_client.clone(),
+                            &settings.method,
+                        )?);
+                        let udp = Box::new(r#static::UdpHandler::new(
                             actors,
-                            dns_client: dns_client.clone(),
-                        });
-                        let handler = HandlerBuilder::default()
-                            .tag(tag.clone())
-                            .tcp_handler(tcp)
-                            .udp_handler(udp)
-                            .build();
-                        handlers.insert(tag.clone(), handler);
-                        trace!(
-                            "added handler [{}] with actors: {}",
-                            &tag,
-                            settings.actors.join(",")
-                        );
-                    }
-                    #[cfg(feature = "outbound-rr")]
-                    "rr" => {
-                        let settings =
-                            config::RROutboundSettings::parse_from_bytes(&outbound.settings)
-                                .map_err(|e| {
-                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
-                                })?;
-                        let mut actors = Vec::new();
-                        for actor in settings.actors.iter() {
-                            if let Some(a) = handlers.get(actor) {
-                                actors.push(a.clone());
-                            } else {
-                                continue 'outbounds;
-                            }
-                        }
-                        if actors.is_empty() {
-                            continue;
-                        }
-                        let tcp = Box::new(rr::TcpHandler {
-                            actors: actors.clone(),
-                            next: AtomicUsize::new(0),
-                            dns_client: dns_client.clone(),
-                        });
-                        let udp = Box::new(rr::UdpHandler {
-                            actors,
-                            next: AtomicUsize::new(0),
-                            dns_client: dns_client.clone(),
-                        });
+                            dns_client.clone(),
+                            &settings.method,
+                        )?);
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())
                             .tcp_handler(tcp)

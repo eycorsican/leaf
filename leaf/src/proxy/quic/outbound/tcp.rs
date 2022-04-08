@@ -69,7 +69,7 @@ impl Manager {
             }
         }
 
-        let mut client_crypto = rustls::ClientConfig::builder()
+        let client_crypto = rustls::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(roots)
             .with_no_client_auth();

@@ -187,7 +187,7 @@ impl UdpInboundHandler for Handler {
             }
         };
 
-        let mut server_crypto = rustls::ServerConfig::builder()
+        let server_crypto = rustls::ServerConfig::builder()
             .with_safe_defaults()
             .with_no_client_auth()
             .with_single_cert(cert, key)

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io;
 use std::io::BufReader;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use log::*;

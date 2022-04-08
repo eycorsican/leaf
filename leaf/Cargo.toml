@@ -62,8 +62,7 @@ all-endpoints = [
     "outbound-amux",
     # "outbound-quic",
     "outbound-failover",
-    "outbound-random",
-    "outbound-rr",
+    "outbound-static",
     "outbound-tryall",
     "outbound-chain",
     # "outbound-select",
@@ -91,8 +90,7 @@ outbound-trojan = ["sha2", "hex"]
 outbound-tls = []
 outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 outbound-failover = ["lru_time_cache"]
-outbound-random = []
-outbound-rr= []
+outbound-static= []
 outbound-tryall = []
 outbound-chain = []
 outbound-amux= ["tokio-util"]
