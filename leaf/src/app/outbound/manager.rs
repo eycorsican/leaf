@@ -597,6 +597,7 @@ impl OutboundManager {
         Ok(())
     }
 
+    #[allow(unused_variables)]
     fn load_selectors(
         outbounds: &protobuf::RepeatedField<Outbound>,
         handlers: &mut HashMap<String, AnyOutboundHandler>,
@@ -605,6 +606,7 @@ impl OutboundManager {
     ) -> Result<()> {
         // FIXME a better way to find outbound deps?
         for _i in 0..8 {
+            #[allow(unused_labels)]
             'outbounds: for outbound in outbounds.iter() {
                 let tag = String::from(&outbound.tag);
                 if handlers.contains_key(&tag) || selectors.contains_key(&tag) {

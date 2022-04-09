@@ -68,6 +68,8 @@ impl Stream for Incoming {
         if !new_conns.is_empty() {
             self.new_conns.append(&mut new_conns);
         }
+
+        #[allow(unused_must_use)]
         for idx in completed.iter().rev() {
             self.connectings.swap_remove(*idx);
         }

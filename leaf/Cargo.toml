@@ -102,7 +102,7 @@ inbound-trojan = ["sha2", "hex"]
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["hyper"]
-inbound-tun = ["tun"]
+inbound-tun = ["tun", "netstack-lwip"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
 inbound-quic = ["quinn", "rustls", "webpki-roots"]
@@ -211,6 +211,7 @@ notify = { version = "5.0.0-pre.13", optional = true }
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "upgrade", features = ["async"], optional = true }
+netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pnet_datalink = { version = "0.28", package = "pnet_datalink" }

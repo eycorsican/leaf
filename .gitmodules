@@ -1,3 +1,0 @@
-[submodule "lwip"]
-	path = leaf/src/proxy/tun/netstack/lwip
-	url = https://github.com/eycorsican/lwip-leaf.git

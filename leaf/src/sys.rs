@@ -81,6 +81,7 @@ pub fn get_net_info() -> NetInfo {
 }
 
 pub fn post_tun_creation_setup(net_info: &NetInfo) {
+    #[allow(unused_variables)]
     if let NetInfo {
         default_ipv4_gateway: Some(ipv4_gw),
         default_ipv6_gateway: ipv6_gw,
@@ -175,6 +176,7 @@ pub fn post_tun_creation_setup(net_info: &NetInfo) {
 }
 
 pub fn post_tun_completion_setup(net_info: &NetInfo) {
+    #[allow(unused_variables)]
     if let NetInfo {
         default_ipv4_gateway: Some(ipv4_gw),
         default_ipv6_gateway: ipv6_gw,
