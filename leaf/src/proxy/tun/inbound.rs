@@ -5,11 +5,10 @@ use anyhow::{anyhow, Result};
 use futures::{sink::SinkExt, stream::StreamExt};
 use log::*;
 use protobuf::Message;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 use tokio::sync::Mutex as TokioMutex;
-use tun::{self, Device, TunPacket};
+use tun::{self, TunPacket};
 
 use crate::{
     app::dispatcher::Dispatcher,
@@ -23,8 +22,6 @@ use crate::{
 };
 
 use super::netstack;
-
-const MTU: usize = 1500;
 
 pub fn new(
     inbound: Inbound,
@@ -103,51 +100,25 @@ pub fn new(
         let stack = netstack::NetStack::new(lwip_mutex.clone());
         let inbound_tag = inbound.tag.clone();
 
-        let mtu = tun.get_ref().mtu().unwrap_or(MTU as i32);
         let framed = tun.into_framed();
         let (mut tun_sink, mut tun_stream) = framed.split();
-        let (mut stack_reader, mut stack_writer) = io::split(stack);
+        let (mut stack_sink, mut stack_stream) = stack.split();
 
         let mut futs: Vec<Runner> = Vec::new();
 
         let s2t = Box::pin(async move {
-            let mut buf = vec![0; mtu as usize];
-            loop {
-                match stack_reader.read(&mut buf).await {
-                    Ok(0) => {
-                        debug!("read stack eof");
-                        return;
-                    }
-                    Ok(n) => match tun_sink.send(TunPacket::new((&buf[..n]).to_vec())).await {
-                        Ok(_) => (),
-                        Err(e) => {
-                            warn!("send pkt to tun failed: {}", e);
-                            return;
-                        }
-                    },
-                    Err(err) => {
-                        warn!("read stack failed {:?}", err);
-                        return;
-                    }
+            while let Some(pkt) = stack_stream.next().await {
+                if let Ok(pkt) = pkt {
+                    tun_sink.send(TunPacket::new(pkt)).await.unwrap();
                 }
             }
         });
         futs.push(s2t);
 
         let t2s = Box::pin(async move {
-            while let Some(packet) = tun_stream.next().await {
-                match packet {
-                    Ok(packet) => match stack_writer.write(packet.get_bytes()).await {
-                        Ok(_) => (),
-                        Err(e) => {
-                            warn!("write pkt to stack failed: {}", e);
-                            return;
-                        }
-                    },
-                    Err(err) => {
-                        warn!("read tun failed {:?}", err);
-                        return;
-                    }
+            while let Some(pkt) = tun_stream.next().await {
+                if let Ok(pkt) = pkt {
+                    stack_sink.send(pkt.get_bytes().to_vec()).await.unwrap();
                 }
             }
         });
