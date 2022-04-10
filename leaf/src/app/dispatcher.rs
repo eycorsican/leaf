@@ -109,7 +109,7 @@ impl Dispatcher {
 
         let outbound = {
             let router = self.router.read().await;
-            let outbound = match router.pick_route(sess).await {
+            match router.pick_route(sess).await {
                 Ok(tag) => {
                     debug!(
                         "picked route [{}] for {} -> {}",
@@ -136,8 +136,7 @@ impl Dispatcher {
                         return;
                     }
                 }
-            };
-            outbound
+            }
         };
 
         let h = if let Some(h) = self.outbound_manager.read().await.get(&outbound) {
@@ -233,7 +232,7 @@ impl Dispatcher {
     pub async fn dispatch_udp(&self, sess: &Session) -> io::Result<Box<dyn OutboundDatagram>> {
         let outbound = {
             let router = self.router.read().await;
-            let outbound = match router.pick_route(sess).await {
+            match router.pick_route(sess).await {
                 Ok(tag) => {
                     debug!(
                         "picked route [{}] for {} -> {}",
@@ -254,8 +253,7 @@ impl Dispatcher {
                         return Err(io::Error::new(ErrorKind::Other, "no available handler"));
                     }
                 }
-            };
-            outbound
+            }
         };
 
         let h = if let Some(h) = self.outbound_manager.read().await.get(&outbound) {

@@ -27,36 +27,15 @@ async fn handle_inbound_datagram(
 
     tokio::spawn(async move {
         while let Some(pkt) = client_ch_rx.recv().await {
-            let dst_addr = match pkt.dst_addr {
-                Some(a) => a,
-                None => {
-                    warn!("ignore udp pkt with unexpected empty dst addr");
-                    continue;
-                }
-            };
-            let dst_addr = match dst_addr {
-                SocksAddr::Ip(a) => a,
-                _ => {
-                    error!("unexpected domain address");
-                    continue;
-                }
-            };
-            let src_addr = match pkt.src_addr {
-                Some(a) => a,
-                None => {
-                    warn!("ignore udp pkt with unexpected empty src addr");
-                    continue;
-                }
-            };
+            let dst_addr = pkt.dst_addr.must_ip();
             if let Err(e) = client_sock_send
-                .send_to(&pkt.data[..], Some(&src_addr), &dst_addr)
+                .send_to(&pkt.data[..], Some(&pkt.src_addr), &dst_addr)
                 .await
             {
                 warn!("send udp pkt failed: {}", e);
                 return;
             }
         }
-        debug!("udp downlink ended");
     });
 
     let mut buf = [0u8; 2 * 1024];
@@ -89,8 +68,8 @@ async fn handle_inbound_datagram(
 
                 let pkt = UdpPacket {
                     data: (&buf[..n]).to_vec(),
-                    src_addr: Some(SocksAddr::from(dgram_src.address)),
-                    dst_addr: Some(dst_addr.clone()),
+                    src_addr: SocksAddr::from(dgram_src.address),
+                    dst_addr: dst_addr.clone(),
                 };
 
                 nat_manager

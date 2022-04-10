@@ -34,7 +34,6 @@ use crate::{
 pub mod datagram;
 pub mod inbound;
 pub mod outbound;
-pub mod stream;
 
 pub mod null;
 
@@ -85,7 +84,6 @@ pub use datagram::{
     SimpleInboundDatagram, SimpleInboundDatagramRecvHalf, SimpleInboundDatagramSendHalf,
     SimpleOutboundDatagram, SimpleOutboundDatagramRecvHalf, SimpleOutboundDatagramSendHalf,
 };
-pub use stream::BufHeadProxyStream;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DatagramTransportType {

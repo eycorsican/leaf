@@ -7,7 +7,6 @@ use std::{
 
 use byteorder::{BigEndian, ByteOrder};
 use bytes::BufMut;
-use log::*;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
@@ -146,8 +145,7 @@ impl SocksAddr {
         match self {
             SocksAddr::Ip(a) => a,
             _ => {
-                error!("assert SocksAddr as SocketAddr failed");
-                panic!("");
+                panic!("assert SocksAddr as SocketAddr failed");
             }
         }
     }

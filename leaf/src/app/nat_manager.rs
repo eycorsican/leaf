@@ -16,21 +16,19 @@ use crate::session::{DatagramSource, Network, Session, SocksAddr};
 #[derive(Debug)]
 pub struct UdpPacket {
     pub data: Vec<u8>,
-    pub src_addr: Option<SocksAddr>,
-    pub dst_addr: Option<SocksAddr>,
+    pub src_addr: SocksAddr,
+    pub dst_addr: SocksAddr,
 }
 
 impl std::fmt::Display for UdpPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let src = match self.src_addr {
-            None => "None".to_string(),
-            Some(ref addr) => addr.to_string(),
-        };
-        let dst = match self.dst_addr {
-            None => "None".to_string(),
-            Some(ref addr) => addr.to_string(),
-        };
-        write!(f, "{} <-> {}, {} bytes", src, dst, self.data.len())
+        write!(
+            f,
+            "{} <-> {}, {} bytes",
+            self.src_addr,
+            self.dst_addr,
+            self.data.len()
+        )
     }
 }
 
@@ -194,27 +192,23 @@ impl NatManager {
                 loop {
                     match target_sock_recv.recv_from(&mut buf).await {
                         Err(err) => {
-                            debug!("udp downlink error: {}", err);
-                            sessions.lock().await.remove(&raddr);
-                            break;
-                        }
-                        Ok((0, _)) => {
-                            debug!("receive zero-len udp packet");
-                            sessions.lock().await.remove(&raddr);
+                            debug!(
+                                "Failed to receive downlink packets on session {}: {}",
+                                &raddr, err
+                            );
                             break;
                         }
                         Ok((n, addr)) => {
                             let pkt = UdpPacket {
                                 data: (&buf[..n]).to_vec(),
-                                src_addr: Some(addr.clone()),
-                                dst_addr: Some(SocksAddr::from(raddr.address)),
+                                src_addr: addr.clone(),
+                                dst_addr: SocksAddr::from(raddr.address),
                             };
                             if let Err(err) = client_ch_tx.send(pkt).await {
                                 debug!(
-                                    "send downlink packet failed {} -> {}: {}",
-                                    &addr, &raddr, err
+                                    "Failed to send downlink packets on session {} to {}: {}",
+                                    &raddr, &addr, err
                                 );
-                                sessions.lock().await.remove(&raddr);
                                 break;
                             }
 
@@ -237,6 +231,7 @@ impl NatManager {
                         }
                     }
                 }
+                sessions.lock().await.remove(&raddr);
             };
 
             let (downlink_task, downlink_task_handle) = abortable(downlink_task);
@@ -244,39 +239,18 @@ impl NatManager {
 
             // Runs a task to receive the abort signal.
             tokio::spawn(async move {
-                if let Err(e) = downlink_abort_rx.await {
-                    debug!(
-                        "failed to receive abort signal on session {}: {}",
-                        &raddr, e
-                    );
-                };
+                let _ = downlink_abort_rx.await;
                 downlink_task_handle.abort();
             });
 
             // uplink
             tokio::spawn(async move {
                 while let Some(pkt) = target_ch_rx.recv().await {
-                    if pkt.dst_addr.is_none() {
-                        warn!("unexpected none dst addr in uplink pkts");
-                        continue;
-                    }
-                    let addr = match pkt.dst_addr {
-                        Some(a) => a,
-                        None => {
-                            warn!("unexpected none addr");
-                            continue;
-                        }
-                    };
-                    match target_sock_send.send_to(&pkt.data, &addr).await {
-                        Ok(0) => {
-                            debug!("uplink send zero bytes");
-                        }
-                        Ok(_) => {
-                            continue;
-                        }
-                        Err(err) => {
-                            debug!("uplink send error {:?}", err);
-                        }
+                    if let Err(e) = target_sock_send.send_to(&pkt.data, &pkt.dst_addr).await {
+                        debug!(
+                            "Failed to send uplink packets on session {} to {}: {:?}",
+                            &raddr, &pkt.dst_addr, e
+                        );
                     }
                 }
             });
