@@ -20,6 +20,16 @@ pub struct UdpPacket {
     pub dst_addr: SocksAddr,
 }
 
+impl UdpPacket {
+    pub fn new(data: Vec<u8>, src_addr: SocksAddr, dst_addr: SocksAddr) -> Self {
+        Self {
+            data,
+            src_addr,
+            dst_addr,
+        }
+    }
+}
+
 impl std::fmt::Display for UdpPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
@@ -112,10 +122,9 @@ impl NatManager {
     pub async fn send<'a>(
         &self,
         dgram_src: &DatagramSource,
-        socks_dst: SocksAddr,
         inbound_tag: &str,
-        pkt: UdpPacket,
         client_ch_tx: &Sender<UdpPacket>,
+        pkt: UdpPacket,
     ) {
         let mut guard = self.sessions.lock().await;
 
@@ -127,7 +136,7 @@ impl NatManager {
         let sess = Session {
             network: Network::Udp,
             source: dgram_src.address,
-            destination: socks_dst.clone(),
+            destination: pkt.dst_addr.clone(),
             inbound_tag: inbound_tag.to_string(),
             ..Default::default()
         };
@@ -138,7 +147,7 @@ impl NatManager {
         debug!(
             "added udp session {} -> {} ({})",
             &dgram_src,
-            &socks_dst,
+            &pkt.dst_addr,
             guard.len(),
         );
 
@@ -184,11 +193,9 @@ impl NatManager {
 
             let (mut target_sock_recv, mut target_sock_send) = socket.split();
 
-            let client_ch_tx = client_ch_tx.clone();
-
             // downlink
             let downlink_task = async move {
-                let mut buf = [0u8; 2 * 1024];
+                let mut buf = vec![0u8; *crate::option::DATAGRAM_BUFFER_SIZE * 1024];
                 loop {
                     match target_sock_recv.recv_from(&mut buf).await {
                         Err(err) => {
@@ -199,11 +206,11 @@ impl NatManager {
                             break;
                         }
                         Ok((n, addr)) => {
-                            let pkt = UdpPacket {
-                                data: (&buf[..n]).to_vec(),
-                                src_addr: addr.clone(),
-                                dst_addr: SocksAddr::from(raddr.address),
-                            };
+                            let pkt = UdpPacket::new(
+                                (&buf[..n]).to_vec(),
+                                addr.clone(),
+                                SocksAddr::from(raddr.address),
+                            );
                             if let Err(err) = client_ch_tx.send(pkt).await {
                                 debug!(
                                     "Failed to send downlink packets on session {} to {}: {}",
@@ -251,6 +258,7 @@ impl NatManager {
                             "Failed to send uplink packets on session {} to {}: {:?}",
                             &raddr, &pkt.dst_addr, e
                         );
+                        break;
                     }
                 }
             });

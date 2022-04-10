@@ -22,30 +22,28 @@ impl TcpInboundHandler for Handler {
         mut sess: Session,
         mut stream: Self::TStream,
     ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
-        let mut buf = BytesMut::with_capacity(1024);
+        let mut buf = BytesMut::new();
 
         // handle auth
         buf.resize(2, 0);
         // ver, nmethods
-        if let Err(e) = stream.read_exact(&mut buf[..]).await {
-            debug!("read ver, nmethods failed: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-        };
+        stream.read_exact(&mut buf[..]).await?;
         if buf[0] != 0x05 {
-            warn!("unknown socks version {}", buf[0]);
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("unknown socks version {}", buf[0]),
+            ));
         }
         if buf[1] == 0 {
-            warn!("no socks5 authentication method specified");
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("no socks5 authentication method specified"),
+            ));
         }
         let nmethods = buf[1] as usize;
         buf.resize(nmethods, 0);
         // methods
-        if let Err(e) = stream.read_exact(&mut buf[..]).await {
-            debug!("read methods failed: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-        };
+        stream.read_exact(&mut buf[..]).await?;
         let mut method_accepted = false;
         let mut method_idx: u8 = 0;
         let supported_method: u8 = 0x0;
@@ -57,53 +55,44 @@ impl TcpInboundHandler for Handler {
             }
         }
         if !method_accepted {
-            warn!("unsupported socks5 authentication methods");
-            if let Err(e) = stream.write_all(&[0x05, 0xff]).await {
-                debug!("write auth response failed: {}", e);
-            };
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-        } else if let Err(e) = stream.write_all(&[0x05, method_idx]).await {
-            debug!("write auth response failed: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-        };
+            stream.write_all(&[0x05, 0xff]).await?;
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("unsupported socks5 authentication methods"),
+            ));
+        }
+
+        stream.write_all(&[0x05, method_idx]).await?;
 
         // handle request
         buf.resize(3, 0);
         // ver, cmd, rsv
-        if let Err(e) = stream.read_exact(&mut buf[..]).await {
-            debug!("read request failed: {}", e);
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-        };
+        stream.read_exact(&mut buf[..]).await?;
         if buf[0] != 0x05 {
-            warn!("unknown socks version {}", buf[0]);
             // TODO reply?
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("unknown socks version {}", buf[0]),
+            ));
         }
         if buf[2] != 0x0 {
-            warn!("non-zero socks5 reserved field");
             // TODO reply?
-            return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("non-zero socks5 reserved field"),
+            ));
         }
         let cmd = buf[1];
-        match cmd {
-            // connect
-            0x01 => {}
-            // udp associate
-            0x03 => {}
-            _ => {
-                warn!("unsupported socks5 cmd {}", cmd);
-                // TODO reply?
-                return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-            }
+        // connect, udp associate
+        if cmd != 0x01 && cmd != 0x03 {
+            // TODO reply?
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("unsupported socks5 cmd {}", cmd),
+            ));
         }
-        let destination = match SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await
-        {
-            Ok(v) => v,
-            Err(e) => {
-                debug!("read address failed: {}", e);
-                return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-            }
-        };
+
+        let destination = SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
 
         match cmd {
             0x01 => {
@@ -113,17 +102,9 @@ impl TcpInboundHandler for Handler {
                 buf.put_u8(0x0); // succeeded
                 buf.put_u8(0x0); // rsv
                 let resp_addr = SocksAddr::any();
-                if let Err(e) = resp_addr.write_buf(&mut buf, SocksAddrWireType::PortLast) {
-                    debug!("write address buffer: {}", e);
-                    return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-                };
-                if let Err(e) = stream.write_all(&buf[..]).await {
-                    debug!("write response failed: {}", e);
-                    return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-                };
-
+                resp_addr.write_buf(&mut buf, SocksAddrWireType::PortLast);
+                stream.write_all(&buf[..]).await?;
                 sess.destination = destination;
-
                 Ok(InboundTransport::Stream(stream, sess))
             }
             0x03 => {
@@ -132,14 +113,8 @@ impl TcpInboundHandler for Handler {
                 buf.put_u8(0x0); // succeeded
                 buf.put_u8(0x0); // rsv
                 let relay_addr = SocksAddr::from(sess.local_addr);
-                if let Err(e) = relay_addr.write_buf(&mut buf, SocksAddrWireType::PortLast) {
-                    debug!("write address buffer: {}", e);
-                    return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-                };
-                if let Err(e) = stream.write_all(&buf[..]).await {
-                    debug!("write response failed: {}", e);
-                    return Err(io::Error::new(io::ErrorKind::Other, "unspecified"));
-                };
+                relay_addr.write_buf(&mut buf, SocksAddrWireType::PortLast);
+                stream.write_all(&buf[..]).await?;
                 tokio::spawn(async move {
                     let mut buf = [0u8; 1];
                     // TODO explicitly drop resources allocated above before waiting?

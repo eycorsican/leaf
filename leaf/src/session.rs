@@ -201,11 +201,7 @@ impl SocksAddr {
     }
 
     /// Writes `self` into `buf`.
-    pub fn write_buf<T: BufMut>(
-        &self,
-        buf: &mut T,
-        addr_type: SocksAddrWireType,
-    ) -> io::Result<()> {
+    pub fn write_buf<T: BufMut>(&self, buf: &mut T, addr_type: SocksAddrWireType) {
         match self {
             Self::Ip(addr) => match addr {
                 SocketAddr::V4(addr) => match addr_type {
@@ -248,7 +244,6 @@ impl SocksAddr {
                 }
             },
         }
-        Ok(())
     }
 
     pub async fn read_from<T: AsyncRead + Unpin>(

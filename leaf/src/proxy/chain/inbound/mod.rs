@@ -59,7 +59,8 @@ impl Stream for Incoming {
                             self.state = State::Pending(0, t);
                         }
                         Some(_) => {
-                            return Poll::Ready(None);
+                            log::warn!("unexpected non-stream chain inbound incoming transport");
+                            continue;
                         }
                         None => {
                             return Poll::Ready(None);
@@ -91,8 +92,13 @@ impl Stream for Incoming {
                             self.state = State::WaitingIncoming;
                             return Poll::Ready(Some(AnyBaseInboundTransport::Datagram(socket)));
                         }
+                        Err(e) => {
+                            log::debug!("chain inbound incoming error: {}", e);
+                            self.state = State::WaitingIncoming;
+                            continue;
+                        }
                         _ => {
-                            log::warn!("unexpected non-stream transport");
+                            log::warn!("unexpected chain inbound incoming transport");
                             self.state = State::WaitingIncoming;
                             return Poll::Ready(None);
                         }

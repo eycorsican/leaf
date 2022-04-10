@@ -1,11 +1,10 @@
-use std::cmp::min;
 use std::convert::TryFrom;
 use std::io;
 use std::net::SocketAddr;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
-use log::*;
 
 use crate::{
     proxy::*,
@@ -57,28 +56,20 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)> {
-        let mut recv_buf = [0u8; 2 * 1024];
+    ) -> ProxyResult<(usize, DatagramSource, SocksAddr)> {
+        let mut recv_buf = vec![0u8; buf.len()];
         let (n, src_addr, _) = self.0.recv_from(&mut recv_buf).await?;
         if n < 3 {
-            warn!("short socks5 udp pkt");
-            return Ok((0, src_addr, None));
+            return Err(ProxyError::DatagramWarn(anyhow!("Short message")));
         }
-        let dst_addr = match SocksAddr::try_from((&recv_buf[3..], SocksAddrWireType::PortLast)) {
-            Ok(v) => v,
-            Err(e) => {
-                warn!("read addr from socks5 message failed: {}", e);
-                return Ok((0, src_addr, None));
-            }
-        };
+        let dst_addr = SocksAddr::try_from((&recv_buf[3..], SocksAddrWireType::PortLast))
+            .map_err(|e| ProxyError::DatagramWarn(anyhow!("Parse target address failed: {}", e)))?;
         let header_size = 3 + dst_addr.size();
         let payload_size = n - header_size;
-        let to_recv = min(buf.len(), payload_size);
-        if to_recv < payload_size {
-            warn!("truncated pkt");
-        }
-        (&mut buf[..to_recv]).copy_from_slice(&recv_buf[header_size..header_size + to_recv]);
-        Ok((payload_size, src_addr, Some(dst_addr)))
+        assert!(buf.len() >= payload_size);
+        (&mut buf[..payload_size])
+            .copy_from_slice(&recv_buf[header_size..header_size + payload_size]);
+        Ok((payload_size, src_addr, dst_addr))
     }
 }
 
@@ -89,23 +80,14 @@ impl InboundDatagramSendHalf for DatagramSendHalf {
     async fn send_to(
         &mut self,
         buf: &[u8],
-        src_addr: Option<&SocksAddr>,
+        src_addr: &SocksAddr,
         dst_addr: &SocketAddr,
     ) -> io::Result<usize> {
         let mut send_buf = BytesMut::new();
         send_buf.put_u16(0);
         send_buf.put_u8(0);
-
-        if let Some(src_addr) = src_addr {
-            src_addr.write_buf(&mut send_buf, SocksAddrWireType::PortLast)?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "sending message without source",
-            ));
-        }
-
+        src_addr.write_buf(&mut send_buf, SocksAddrWireType::PortLast);
         send_buf.put_slice(buf);
-        self.0.send_to(&send_buf[..], None, dst_addr).await
+        self.0.send_to(&send_buf[..], src_addr, dst_addr).await
     }
 }

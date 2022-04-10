@@ -10,6 +10,7 @@ use futures::stream::Stream;
 use futures::TryFutureExt;
 use log::*;
 use socket2::SockRef;
+use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, TcpStream, UdpSocket};
 use tokio::time::timeout;
@@ -84,6 +85,16 @@ pub use datagram::{
     SimpleInboundDatagram, SimpleInboundDatagramRecvHalf, SimpleInboundDatagramSendHalf,
     SimpleOutboundDatagram, SimpleOutboundDatagramRecvHalf, SimpleOutboundDatagramSendHalf,
 };
+
+#[derive(Error, Debug)]
+pub enum ProxyError {
+    #[error(transparent)]
+    DatagramWarn(anyhow::Error),
+    #[error(transparent)]
+    DatagramFatal(anyhow::Error),
+}
+
+pub type ProxyResult<T> = std::result::Result<T, ProxyError>;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DatagramTransportType {
@@ -676,7 +687,7 @@ pub trait InboundDatagramRecvHalf: Sync + Send + Unpin {
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)>;
+    ) -> ProxyResult<(usize, DatagramSource, SocksAddr)>;
 }
 
 /// The send half.
@@ -692,7 +703,7 @@ pub trait InboundDatagramSendHalf: Sync + Send + Unpin {
     async fn send_to(
         &mut self,
         buf: &[u8],
-        src_addr: Option<&SocksAddr>,
+        src_addr: &SocksAddr,
         dst_addr: &SocketAddr,
     ) -> io::Result<usize>;
 }

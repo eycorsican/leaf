@@ -38,7 +38,7 @@ impl TcpOutboundHandler for Handler {
         buf.put_slice(b"\r\n");
         buf.put_u8(0x01); // tcp
         sess.destination
-            .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
+            .write_buf(&mut buf, SocksAddrWireType::PortLast);
         buf.put_slice(b"\r\n");
         // FIXME combine header and first payload
         stream.write_all(&buf).await?;

@@ -20,61 +20,44 @@ async fn handle_inbound_datagram(
     socket: Box<dyn InboundDatagram>,
     nat_manager: Arc<NatManager>,
 ) {
-    let (mut client_sock_recv, mut client_sock_send) = socket.split();
+    // Left-hand side socket, it's usually encapsulated with inbound protocol layers.
+    let (mut lr, mut ls) = socket.split();
 
-    let (client_ch_tx, mut client_ch_rx): (TokioSender<UdpPacket>, TokioReceiver<UdpPacket>) =
-        tokio_channel(100);
+    // Datagrams read from the left-hand side socket would go through the NAT manager first,
+    // which maintains UDP sessions, the NAT manager creates the right-hand side socket
+    // by dispatching UDP sessions, then datagrams are sent to the socket by the NAT manager.
+    // When the NAT manager reads some packets from the right-hand side socket, they would
+    // be sent back here through a channel, then we can send them to left-hand side socket.
+    let (l_tx, mut l_rx): (TokioSender<UdpPacket>, TokioReceiver<UdpPacket>) = tokio_channel(100);
 
     tokio::spawn(async move {
-        while let Some(pkt) = client_ch_rx.recv().await {
+        while let Some(pkt) = l_rx.recv().await {
             let dst_addr = pkt.dst_addr.must_ip();
-            if let Err(e) = client_sock_send
-                .send_to(&pkt.data[..], Some(&pkt.src_addr), &dst_addr)
-                .await
-            {
-                warn!("send udp pkt failed: {}", e);
-                return;
+            if let Err(e) = ls.send_to(&pkt.data[..], &pkt.src_addr, &dst_addr).await {
+                debug!("Send datagram failed: {}", e);
+                break;
             }
         }
     });
 
-    let mut buf = [0u8; 2 * 1024];
+    let mut buf = vec![0u8; *crate::option::DATAGRAM_BUFFER_SIZE * 1024];
     loop {
-        match client_sock_recv.recv_from(&mut buf).await {
-            Err(e) => {
-                debug!("udp recv error: {}", e);
+        match lr.recv_from(&mut buf).await {
+            Err(ProxyError::DatagramFatal(e)) => {
+                debug!("Fatal error when receiving datagram: {}", e);
                 break;
             }
+            Err(ProxyError::DatagramWarn(e)) => {
+                debug!("Warning when receiving datagram: {}", e);
+                continue;
+            }
             Ok((n, dgram_src, dst_addr)) => {
-                if n == 0 {
-                    // Means a proxy layer error, e.g. the ss handler failed to
-                    // decrypt a message.
-                    //
-                    // TODO use error matching for this purpose?
-                    //
-                    // The problem here is we don't want to exit the receive loop
-                    // because of a proxy protocol error if the underlying socket
-                    // is UDP-based. But we do wnat to exit the loop and the task
-                    // spawned above if the underlying socket is TCP-based. More
-                    // careful investigation needed.
-                    continue;
-                }
-                let dst_addr = if let Some(dst_addr) = dst_addr {
-                    dst_addr
-                } else {
-                    warn!("inbound datagram receives message without destination");
-                    continue;
-                };
-
-                let pkt = UdpPacket {
-                    data: (&buf[..n]).to_vec(),
-                    src_addr: SocksAddr::from(dgram_src.address),
-                    dst_addr: dst_addr.clone(),
-                };
-
-                nat_manager
-                    .send(&dgram_src, dst_addr, &inbound_tag, pkt, &client_ch_tx)
-                    .await;
+                let pkt = UdpPacket::new(
+                    (&buf[..n]).to_vec(),
+                    SocksAddr::from(dgram_src.address),
+                    dst_addr,
+                );
+                nat_manager.send(&dgram_src, &inbound_tag, &l_tx, pkt).await;
             }
         }
     }

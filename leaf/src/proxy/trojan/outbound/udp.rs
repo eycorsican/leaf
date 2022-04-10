@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use futures::future::TryFutureExt;
-use log::*;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 
@@ -50,7 +49,7 @@ impl UdpOutboundHandler for Handler {
         buf.put_slice(b"\r\n");
         buf.put_u8(0x03); // udp
         sess.destination
-            .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
+            .write_buf(&mut buf, SocksAddrWireType::PortLast);
         buf.put_slice(b"\r\n");
 
         let destination = match &sess.destination {
@@ -107,17 +106,13 @@ where
         let payload_len = BigEndian::read_u16(&buf2);
         let _ = self.0.read_exact(&mut buf2).await?;
         if &buf2[..2] != b"\r\n" {
-            return Err(io::Error::new(io::ErrorKind::Other, "expected CLRF"));
+            return Err(io::Error::new(io::ErrorKind::Other, "Expected CLRF"));
         }
         buf2.resize(payload_len as usize, 0);
         let _ = self.0.read_exact(&mut buf2).await?;
         let to_write = min(buf2.len(), buf.len());
         if to_write < buf2.len() {
-            warn!(
-                "trucated udp payload, buf size too small: {} < {}",
-                buf.len(),
-                buf2.len()
-            );
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "Small buffer"));
         }
         buf[..to_write].copy_from_slice(&buf2[..to_write]);
 
@@ -146,7 +141,7 @@ where
         let payload_size = buf.len();
 
         let mut data = BytesMut::new();
-        target.write_buf(&mut data, SocksAddrWireType::PortLast)?;
+        target.write_buf(&mut data, SocksAddrWireType::PortLast);
         data.put_u16(buf.len() as u16);
         data.put_slice(b"\r\n");
         data.put_slice(buf);

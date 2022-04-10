@@ -13,10 +13,7 @@ use crate::{
     session::{DatagramSource, SocksAddr},
 };
 
-use super::{
-    InboundDatagram, InboundDatagramRecvHalf, InboundDatagramSendHalf, OutboundDatagram,
-    OutboundDatagramRecvHalf, OutboundDatagramSendHalf,
-};
+use super::*;
 
 /// An outbound datagram simply wraps a UDP socket.
 pub struct SimpleOutboundDatagram {
@@ -149,9 +146,21 @@ impl InboundDatagramRecvHalf for SimpleInboundDatagramRecvHalf {
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)> {
-        let (n, src_addr) = self.0.recv_from(buf).await?;
-        Ok((n, DatagramSource::new(src_addr, None), None))
+    ) -> ProxyResult<(usize, DatagramSource, SocksAddr)> {
+        let (n, src_addr) = self
+            .0
+            .recv_from(buf)
+            .map_err(|e| ProxyError::DatagramFatal(e.into()))
+            .await?;
+        Ok((
+            n,
+            DatagramSource::new(src_addr, None),
+            // This should be the target address which is decoded by proxy
+            // protocol layers, since this is a plain UDP socket, we use an
+            // empty address as a workaround to avoid introducing the Option type.
+            // The final address would be override by a proxy handler anyway.
+            SocksAddr::any_ipv4(),
+        ))
     }
 }
 
@@ -162,7 +171,7 @@ impl InboundDatagramSendHalf for SimpleInboundDatagramSendHalf {
     async fn send_to(
         &mut self,
         buf: &[u8],
-        _src_addr: Option<&SocksAddr>,
+        _src_addr: &SocksAddr,
         dst_addr: &SocketAddr,
     ) -> io::Result<usize> {
         self.0.send_to(buf, dst_addr).await

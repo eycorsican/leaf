@@ -1,13 +1,12 @@
-use std::cmp::min;
 use std::collections::HashMap;
 use std::io;
 use std::net::SocketAddr;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use futures::TryFutureExt;
-use log::*;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -50,28 +49,37 @@ where
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
-    ) -> io::Result<(usize, DatagramSource, Option<SocksAddr>)> {
-        let dst_addr = SocksAddr::read_from(&mut self.0, SocksAddrWireType::PortLast).await?;
+    ) -> ProxyResult<(usize, DatagramSource, SocksAddr)> {
+        let dst_addr = SocksAddr::read_from(&mut self.0, SocksAddrWireType::PortLast)
+            .map_err(|e| ProxyError::DatagramFatal(e.into()))
+            .await?;
         let mut buf2 = BytesMut::new();
         buf2.resize(2, 0);
-        let _ = self.0.read_exact(&mut buf2).await?;
-        let payload_len = BigEndian::read_u16(&buf2);
-        let _ = self.0.read_exact(&mut buf2).await?;
+        let _ = self
+            .0
+            .read_exact(&mut buf2)
+            .map_err(|e| ProxyError::DatagramFatal(e.into()))
+            .await?;
+        let payload_len = BigEndian::read_u16(&buf2) as usize;
+        let _ = self
+            .0
+            .read_exact(&mut buf2)
+            .map_err(|e| ProxyError::DatagramFatal(e.into()))
+            .await?;
         if &buf2[..2] != b"\r\n" {
-            return Err(io::Error::new(io::ErrorKind::Other, "expected CRLF"));
+            return Err(ProxyError::DatagramFatal(anyhow!("Expeced CRLF")));
         }
-        buf2.resize(payload_len as usize, 0);
-        let _ = self.0.read_exact(&mut buf2).await?;
-        let to_write = min(buf2.len(), buf.len());
-        if to_write < buf2.len() {
-            warn!(
-                "trucated udp payload, buf size too small: {} < {}",
-                buf.len(),
-                buf2.len()
-            );
+        if buf.len() < payload_len {
+            return Err(ProxyError::DatagramFatal(anyhow!("Small buffer")));
         }
-        buf[..to_write].copy_from_slice(&buf2[..to_write]);
-        Ok((to_write, self.1, Some(dst_addr)))
+        buf2.resize(payload_len, 0);
+        let _ = self
+            .0
+            .read_exact(&mut buf2)
+            .map_err(|e| ProxyError::DatagramFatal(e.into()))
+            .await?;
+        buf[..payload_len].copy_from_slice(&buf2[..payload_len]);
+        Ok((payload_len, self.1, dst_addr))
     }
 }
 
@@ -85,20 +93,11 @@ where
     async fn send_to(
         &mut self,
         buf: &[u8],
-        src_addr: Option<&SocksAddr>,
+        src_addr: &SocksAddr,
         _dst_addr: &SocketAddr,
     ) -> io::Result<usize> {
         let mut data = BytesMut::new();
-
-        if let Some(src_addr) = src_addr {
-            src_addr.write_buf(&mut data, SocksAddrWireType::PortLast)?;
-        } else {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "sending message without source",
-            ));
-        }
-
+        src_addr.write_buf(&mut data, SocksAddrWireType::PortLast);
         data.put_u16(buf.len() as u16);
         data.put_slice(b"\r\n");
         data.put_slice(buf);

@@ -264,14 +264,9 @@ pub fn new(
 
                 let dgram_src = DatagramSource::new(pkt.1, None);
 
-                let pkt = UdpPacket {
-                    data: pkt.0,
-                    src_addr: SocksAddr::Ip(dgram_src.address),
-                    dst_addr: socks_dst_addr.clone(),
-                };
-
+                let pkt = UdpPacket::new(pkt.0, SocksAddr::Ip(dgram_src.address), socks_dst_addr);
                 nat_manager
-                    .send(&dgram_src, socks_dst_addr, &inbound_tag, pkt, &client_ch_tx)
+                    .send(&dgram_src, &inbound_tag, &client_ch_tx, pkt)
                     .await;
             }
         });

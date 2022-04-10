@@ -34,7 +34,7 @@ impl TcpOutboundHandler for Handler {
         let mut stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
         let mut buf = BytesMut::new();
         sess.destination
-            .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
+            .write_buf(&mut buf, SocksAddrWireType::PortLast);
         stream.write_all(&buf).await?;
         Ok(Box::new(stream))
     }
