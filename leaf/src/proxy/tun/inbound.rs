@@ -7,7 +7,6 @@ use log::*;
 use protobuf::Message;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
-use tokio::sync::Mutex as TokioMutex;
 use tun::{self, TunPacket};
 
 use crate::{
@@ -22,6 +21,138 @@ use crate::{
 };
 
 use super::netstack;
+
+async fn handle_inbound_stream(
+    stream: netstack::TcpStream,
+    local_addr: SocketAddr,
+    remote_addr: SocketAddr,
+    inbound_tag: String,
+    dispatcher: Arc<Dispatcher>,
+    fakedns: Arc<FakeDns>,
+) {
+    let mut sess = Session {
+        network: Network::Tcp,
+        source: local_addr,
+        local_addr: remote_addr.clone(),
+        destination: SocksAddr::Ip(remote_addr.clone()),
+        inbound_tag: inbound_tag,
+        ..Default::default()
+    };
+    // Whether to override the destination according to Fake DNS.
+    if fakedns.is_fake_ip(&remote_addr.ip()).await {
+        if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
+            sess.destination = SocksAddr::Domain(domain, remote_addr.port());
+        } else {
+            // Although requests targeting fake IPs are assumed
+            // never happen in real network traffic, which are
+            // likely caused by poisoned DNS cache records, we
+            // still have a chance to sniff the request domain
+            // for TLS traffic in dispatcher.
+            if remote_addr.port() != 443 {
+                log::debug!(
+                    "No paired domain found for this fake IP: {}, connection is rejected.",
+                    &remote_addr.ip()
+                );
+                return;
+            }
+        }
+    }
+    dispatcher.dispatch_tcp(&mut sess, stream).await;
+}
+
+async fn handle_inbound_datagram(
+    socket: Box<netstack::UdpSocket>,
+    inbound_tag: String,
+    nat_manager: Arc<NatManager>,
+    fakedns: Arc<FakeDns>,
+) {
+    // The socket to receive/send packets from/to the netstack.
+    let (ls, mut lr) = socket.split();
+    let ls = Arc::new(ls);
+
+    // The channel for sending back datagrams from NAT manager to netstack.
+    let (l_tx, mut l_rx): (TokioSender<UdpPacket>, TokioReceiver<UdpPacket>) = tokio_channel(32);
+
+    // Receive datagrams from NAT manager and send back to netstack.
+    let fakedns_cloned = fakedns.clone();
+    let ls_cloned = ls.clone();
+    tokio::spawn(async move {
+        while let Some(pkt) = l_rx.recv().await {
+            let src_addr = match pkt.src_addr {
+                SocksAddr::Ip(a) => a,
+                SocksAddr::Domain(domain, port) => {
+                    if let Some(ip) = fakedns_cloned.query_fake_ip(&domain).await {
+                        SocketAddr::new(ip, port)
+                    } else {
+                        warn!(
+                                "Received datagram with source address {}:{} without paired fake IP found.",
+                                &domain, &port
+                            );
+                        continue;
+                    }
+                }
+            };
+            if let Err(e) = ls_cloned.send_to(&pkt.data[..], &src_addr, &pkt.dst_addr.must_ip()) {
+                warn!("A packet failed to send to the netstack: {}", e);
+            }
+        }
+    });
+
+    // Accept datagrams from netstack and send to NAT manager.
+    loop {
+        match lr.recv_from().await {
+            Err(e) => {
+                log::warn!("Failed to accept a datagram from netstack: {}", e);
+            }
+            Ok((data, src_addr, dst_addr)) => {
+                // Fake DNS logic.
+                if dst_addr.port() == 53 {
+                    match fakedns.generate_fake_response(&data).await {
+                        Ok(resp) => {
+                            if let Err(e) = ls.send_to(resp.as_ref(), &dst_addr, &src_addr) {
+                                warn!("A packet failed to send to the netstack: {}", e);
+                            }
+                            continue;
+                        }
+                        Err(err) => {
+                            trace!("generate fake ip failed: {}", err);
+                        }
+                    }
+                }
+
+                // Whether to override the destination according to Fake DNS.
+                //
+                // WARNING
+                //
+                // This allows datagram to have a domain name as destination,
+                // but real UDP traffic are sent with IP address only. If the
+                // outbound for this datagram is a direct one, the outbound
+                // would resolve the domain to IP address before sending out
+                // the datagram. If the outbound is a proxy one, it would
+                // require a proxy server with the ability to handle datagrams
+                // with domain name destination, leaf itself of course supports
+                // this feature very well.
+                let dst_addr = if fakedns.is_fake_ip(&dst_addr.ip()).await {
+                    if let Some(domain) = fakedns.query_domain(&dst_addr.ip()).await {
+                        SocksAddr::Domain(domain, dst_addr.port())
+                    } else {
+                        log::debug!(
+                            "No paired domain found for this fake IP: {}, datagram is rejected.",
+                            &dst_addr.ip()
+                        );
+                        continue;
+                    }
+                } else {
+                    SocksAddr::Ip(dst_addr)
+                };
+
+                let dgram_src = DatagramSource::new(src_addr, None);
+                let pkt = UdpPacket::new(data, SocksAddr::Ip(src_addr), dst_addr);
+                nat_manager.send(&dgram_src, &inbound_tag, &l_tx, pkt).await;
+            }
+        }
+    }
+}
 
 pub fn new(
     inbound: Inbound,
@@ -90,187 +221,58 @@ pub fn new(
     }
 
     Ok(Box::pin(async move {
-        let fakedns = Arc::new(TokioMutex::new(FakeDns::new(fake_dns_mode)));
-
+        let fakedns = Arc::new(FakeDns::new(fake_dns_mode));
         for filter in fake_dns_filters.into_iter() {
-            fakedns.lock().await.add_filter(filter);
+            fakedns.add_filter(filter).await;
         }
 
-        let lwip_mutex = Arc::new(netstack::LWIPMutex::new());
-        let stack = netstack::NetStack::new(lwip_mutex.clone());
         let inbound_tag = inbound.tag.clone();
-
         let framed = tun.into_framed();
         let (mut tun_sink, mut tun_stream) = framed.split();
+        let (stack, mut tcp_listener, udp_socket) = netstack::NetStack::new();
         let (mut stack_sink, mut stack_stream) = stack.split();
 
         let mut futs: Vec<Runner> = Vec::new();
 
         // Reads packet from stack and sends to TUN.
-        let s2t = Box::pin(async move {
+        futs.push(Box::pin(async move {
             while let Some(pkt) = stack_stream.next().await {
                 if let Ok(pkt) = pkt {
                     tun_sink.send(TunPacket::new(pkt)).await.unwrap();
                 }
             }
-        });
-        futs.push(s2t);
+        }));
 
         // Reads packet from TUN and sends to stack.
-        let t2s = Box::pin(async move {
+        futs.push(Box::pin(async move {
             while let Some(pkt) = tun_stream.next().await {
                 if let Ok(pkt) = pkt {
                     stack_sink.send(pkt.get_bytes().to_vec()).await.unwrap();
                 }
             }
-        });
-        futs.push(t2s);
+        }));
 
         // Extracts TCP connections from stack and sends them to the dispatcher.
-        let fakedns_cloned = fakedns.clone();
-        let lwip_mutex_cloned = lwip_mutex.clone();
         let inbound_tag_cloned = inbound_tag.clone();
-        let tcp_incoming = Box::pin(async move {
-            let mut listener = netstack::TcpListener::new(lwip_mutex_cloned);
-
-            while let Some(stream) = listener.next().await {
-                let dispatcher = dispatcher.clone();
-                let fakedns = fakedns_cloned.clone();
-                let inbound_tag = inbound_tag_cloned.clone();
-
-                tokio::spawn(async move {
-                    let mut sess = Session {
-                        network: Network::Tcp,
-                        source: stream.local_addr().to_owned(),
-                        local_addr: stream.remote_addr().to_owned(),
-                        destination: SocksAddr::Ip(*stream.remote_addr()),
-                        inbound_tag: inbound_tag.clone(),
-                        ..Default::default()
-                    };
-
-                    if fakedns.lock().await.is_fake_ip(&stream.remote_addr().ip()) {
-                        if let Some(domain) = fakedns
-                            .lock()
-                            .await
-                            .query_domain(&stream.remote_addr().ip())
-                        {
-                            sess.destination =
-                                SocksAddr::Domain(domain, stream.remote_addr().port());
-                        } else {
-                            // Although requests targeting fake IPs are assumed
-                            // never happen in real network traffic, which are
-                            // likely caused by poisoned DNS cache records, we
-                            // still have a chance to sniff the request domain
-                            // for TLS traffic in dispatcher.
-                            if stream.remote_addr().port() != 443 {
-                                return;
-                            }
-                        }
-                    }
-
-                    dispatcher
-                        .dispatch_tcp(&mut sess, netstack::TcpStream::new(stream))
-                        .await;
-                });
+        let fakedns_cloned = fakedns.clone();
+        futs.push(Box::pin(async move {
+            while let Some((stream, local_addr, remote_addr)) = tcp_listener.next().await {
+                tokio::spawn(handle_inbound_stream(
+                    stream,
+                    local_addr,
+                    remote_addr,
+                    inbound_tag_cloned.clone(),
+                    dispatcher.clone(),
+                    fakedns_cloned.clone(),
+                ));
             }
-        });
-        futs.push(tcp_incoming);
+        }));
 
-        // Extracts UDP packets from stack and sends them to the NAT manager, which would
-        // maintain UDP sessions and send them to the dispatcher.
-        let udp_incoming = Box::pin(async move {
-            let mut listener = netstack::UdpListener::new();
-            let nat_manager = nat_manager.clone();
-            let fakedns_cloned = fakedns.clone();
-            let pcb = listener.pcb();
-
-            // Sending packets to TUN should be very fast.
-            let (client_ch_tx, mut client_ch_rx): (
-                TokioSender<UdpPacket>,
-                TokioReceiver<UdpPacket>,
-            ) = tokio_channel(32);
-
-            // downlink
-            let lwip_mutex_cloned = lwip_mutex.clone();
-            tokio::spawn(async move {
-                while let Some(pkt) = client_ch_rx.recv().await {
-                    let dst_addr = pkt.dst_addr.must_ip();
-                    let src_addr = match pkt.src_addr {
-                        SocksAddr::Ip(a) => a,
-
-                        // If the socket gives us a domain source address,
-                        // we assume there must be a paired fake IP, otherwise
-                        // we have no idea how to deal with it.
-                        SocksAddr::Domain(domain, port) => {
-                            // TODO we're doing this for every packet! optimize needed
-                            // trace!("downlink querying fake ip for domain {}", &domain);
-                            if let Some(ip) = fakedns_cloned.lock().await.query_fake_ip(&domain) {
-                                SocketAddr::new(ip, port)
-                            } else {
-                                warn!(
-                                    "unexpected domain src addr {}:{} without paired fake IP",
-                                    &domain, &port
-                                );
-                                continue;
-                            }
-                        }
-                    };
-                    netstack::send_udp(
-                        lwip_mutex_cloned.clone(),
-                        &src_addr,
-                        &dst_addr,
-                        pcb,
-                        &pkt.data[..],
-                    );
-                }
-            });
-
-            while let Some(pkt) = listener.next().await {
-                if pkt.2.port() == 53 {
-                    match fakedns.lock().await.generate_fake_response(&pkt.0) {
-                        Ok(resp) => {
-                            netstack::send_udp(
-                                lwip_mutex.clone(),
-                                &pkt.2,
-                                &pkt.1,
-                                pcb,
-                                resp.as_ref(),
-                            );
-                            continue;
-                        }
-                        Err(err) => {
-                            trace!("generate fake ip failed: {}", err);
-                        }
-                    }
-                }
-
-                // We're sending UDP packets to a fake IP, and there should be a paired domain,
-                // that said, the application connects a UDP socket with a domain address.
-                // It also means the back packets on this UDP session shall only come from a
-                // single source address.
-                let socks_dst_addr = if fakedns.lock().await.is_fake_ip(&pkt.2.ip()) {
-                    // TODO we're doing this for every packet! optimize needed
-                    // trace!("uplink querying domain for fake ip {}", &dst_addr.ip(),);
-                    if let Some(domain) = fakedns.lock().await.query_domain(&pkt.2.ip()) {
-                        SocksAddr::Domain(domain, pkt.2.port())
-                    } else {
-                        // Skip this packet. Requests targeting fake IPs are
-                        // assumed never happen in real network traffic.
-                        continue;
-                    }
-                } else {
-                    SocksAddr::Ip(pkt.2)
-                };
-
-                let dgram_src = DatagramSource::new(pkt.1, None);
-
-                let pkt = UdpPacket::new(pkt.0, SocksAddr::Ip(dgram_src.address), socks_dst_addr);
-                nat_manager
-                    .send(&dgram_src, &inbound_tag, &client_ch_tx, pkt)
-                    .await;
-            }
-        });
-        futs.push(udp_incoming);
+        // Receive and send UDP packets between netstack and NAT manager. The NAT
+        // manager would maintain UDP sessions and send them to the dispatcher.
+        futs.push(Box::pin(async move {
+            handle_inbound_datagram(udp_socket, inbound_tag, nat_manager, fakedns.clone()).await;
+        }));
 
         info!("start tun inbound");
         futures::future::select_all(futs).await;
