@@ -74,6 +74,43 @@ mod handlers {
             Ok(StatusCode::ACCEPTED)
         }
     }
+
+    #[cfg(feature = "stat")]
+    pub async fn stat_html(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+        let mut body = String::from(
+            r#"<html>
+<head><style>
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse;
+  text-align: right;
+  padding: 4;
+  font-size: small;
+}
+.highlight {
+  font-weight: bold;
+}
+</style></head>
+<table style=\"border=4px solid\">
+<tr><td>Network</td><td>Destination</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>
+        "#,
+        );
+        let sm = rm.stat_manager();
+        let sm = sm.read().await;
+        for c in sm.counters.iter() {
+            body.push_str(&format!(
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                &c.sess.network,
+                &c.sess.destination,
+                c.bytes_sent(),
+                c.bytes_recvd(),
+                c.send_completed(),
+                c.recv_completed(),
+            ));
+        }
+        body.push_str("</table></html>");
+        Ok(warp::reply::html(body))
+    }
 }
 
 mod filters {
@@ -126,6 +163,17 @@ mod filters {
             .and(with_runtime_manager(rm))
             .and_then(handlers::runtime_shutdown)
     }
+
+    // POST /api/v1/runtime/stat/html
+    #[cfg(feature = "stat")]
+    pub fn stat_html(
+        rm: Arc<RuntimeManager>,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::path!("api" / "v1" / "runtime" / "stat" / "html")
+            .and(warp::get())
+            .and(with_runtime_manager(rm))
+            .and_then(handlers::stat_html)
+    }
 }
 
 pub struct ApiServer {
@@ -142,6 +190,10 @@ impl ApiServer {
             .or(filters::select_get(self.runtime_manager.clone()))
             .or(filters::runtime_reload(self.runtime_manager.clone()))
             .or(filters::runtime_shutdown(self.runtime_manager.clone()));
+
+        #[cfg(feature = "stat")]
+        let routes = routes.or(filters::stat_html(self.runtime_manager.clone()));
+
         log::info!("api server listening tcp {}", &listen_addr);
         Box::pin(warp::serve(routes).bind(listen_addr))
     }

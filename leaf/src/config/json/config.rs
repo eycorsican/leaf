@@ -10,12 +10,6 @@ use serde_json::value::RawValue;
 use crate::config::{external_rule, internal};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Api {
-    pub address: Option<String>,
-    pub port: Option<u16>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct Dns {
     pub servers: Option<Vec<String>>,
     pub hosts: Option<HashMap<String, Vec<String>>>,
@@ -241,7 +235,6 @@ pub struct Config {
     pub outbounds: Option<Vec<Outbound>>,
     pub router: Option<Router>,
     pub dns: Option<Dns>,
-    pub api: Option<Api>,
 }
 
 pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
@@ -967,28 +960,12 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
         dns.hosts = hosts;
     }
 
-    let api = if let Some(ext_api) = json.api.as_ref() {
-        if let (Some(ext_address), Some(ext_port)) =
-            (ext_api.address.as_ref(), ext_api.port.as_ref())
-        {
-            let mut api = internal::Api::new();
-            api.address = ext_address.to_owned();
-            api.port = ext_port.to_owned() as u32;
-            protobuf::SingularPtrField::some(api)
-        } else {
-            protobuf::SingularPtrField::none()
-        }
-    } else {
-        protobuf::SingularPtrField::none()
-    };
-
     let mut config = internal::Config::new();
     config.log = protobuf::SingularPtrField::some(log);
     config.inbounds = inbounds;
     config.outbounds = outbounds;
     config.router = router;
     config.dns = protobuf::SingularPtrField::some(dns);
-    config.api = api;
     Ok(config)
 }
 

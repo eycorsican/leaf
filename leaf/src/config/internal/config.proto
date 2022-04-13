@@ -1,9 +1,6 @@
-syntax = "proto3";
+// Every time you make changes to this file, run `make proto-gen` to re-generate protobuf files.
 
-message Api {
-	string address = 1;
-	uint32 port = 2;
-}
+syntax = "proto3";
 
 message Dns {
 	message Ips {
@@ -214,5 +211,4 @@ message Config {
 	repeated Outbound outbounds = 3;
 	Router router = 4;
 	Dns dns = 5;
-	Api api = 6;
 }

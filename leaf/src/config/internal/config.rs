@@ -24,145 +24,6 @@
 // const _PROTOBUF_VERSION_CHECK: () = ::protobuf::VERSION_2_27_1;
 
 #[derive(PartialEq,Clone,Default,Debug)]
-pub struct Api {
-    // message fields
-    pub address: ::std::string::String,
-    pub port: u32,
-    // special fields
-    pub unknown_fields: ::protobuf::UnknownFields,
-    pub cached_size: ::protobuf::CachedSize,
-}
-
-impl<'a> ::std::default::Default for &'a Api {
-    fn default() -> &'a Api {
-        <Api as ::protobuf::Message>::default_instance()
-    }
-}
-
-impl Api {
-    pub fn new() -> Api {
-        ::std::default::Default::default()
-    }
-
-    // string address = 1;
-
-
-    pub fn get_address(&self) -> &str {
-        &self.address
-    }
-
-    // uint32 port = 2;
-
-
-    pub fn get_port(&self) -> u32 {
-        self.port
-    }
-}
-
-impl ::protobuf::Message for Api {
-    fn is_initialized(&self) -> bool {
-        true
-    }
-
-    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        while !is.eof()? {
-            let (field_number, wire_type) = is.read_tag_unpack()?;
-            match field_number {
-                1 => {
-                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.address)?;
-                },
-                2 => {
-                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
-                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
-                    }
-                    let tmp = is.read_uint32()?;
-                    self.port = tmp;
-                },
-                _ => {
-                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
-                },
-            };
-        }
-        ::std::result::Result::Ok(())
-    }
-
-    // Compute sizes of nested messages
-    #[allow(unused_variables)]
-    fn compute_size(&self) -> u32 {
-        let mut my_size = 0;
-        if !self.address.is_empty() {
-            my_size += ::protobuf::rt::string_size(1, &self.address);
-        }
-        if self.port != 0 {
-            my_size += ::protobuf::rt::value_size(2, self.port, ::protobuf::wire_format::WireTypeVarint);
-        }
-        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
-        self.cached_size.set(my_size);
-        my_size
-    }
-
-    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
-        if !self.address.is_empty() {
-            os.write_string(1, &self.address)?;
-        }
-        if self.port != 0 {
-            os.write_uint32(2, self.port)?;
-        }
-        os.write_unknown_fields(self.get_unknown_fields())?;
-        ::std::result::Result::Ok(())
-    }
-
-    fn get_cached_size(&self) -> u32 {
-        self.cached_size.get()
-    }
-
-    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
-        &self.unknown_fields
-    }
-
-    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
-        &mut self.unknown_fields
-    }
-
-    fn as_any(&self) -> &dyn (::std::any::Any) {
-        self as &dyn (::std::any::Any)
-    }
-    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
-        self as &mut dyn (::std::any::Any)
-    }
-    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
-        self
-    }
-
-    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
-        Self::descriptor_static()
-    }
-
-    fn new() -> Api {
-        Api::new()
-    }
-
-    fn default_instance() -> &'static Api {
-        static instance: ::protobuf::rt::LazyV2<Api> = ::protobuf::rt::LazyV2::INIT;
-        instance.get(Api::new)
-    }
-}
-
-impl ::protobuf::Clear for Api {
-    fn clear(&mut self) {
-        self.address.clear();
-        self.port = 0;
-        self.unknown_fields.clear();
-    }
-}
-
-impl ::protobuf::reflect::ProtobufValue for Api {
-    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
-        ::protobuf::reflect::ReflectValueRef::Message(self)
-    }
-}
-
-#[derive(PartialEq,Clone,Default,Debug)]
 pub struct Dns {
     // message fields
     pub servers: ::protobuf::RepeatedField<::std::string::String>,
@@ -5086,7 +4947,6 @@ pub struct Config {
     pub outbounds: ::protobuf::RepeatedField<Outbound>,
     pub router: ::protobuf::SingularPtrField<Router>,
     pub dns: ::protobuf::SingularPtrField<Dns>,
-    pub api: ::protobuf::SingularPtrField<Api>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -5137,13 +4997,6 @@ impl Config {
     pub fn get_dns(&self) -> &Dns {
         self.dns.as_ref().unwrap_or_else(|| <Dns as ::protobuf::Message>::default_instance())
     }
-
-    // .Api api = 6;
-
-
-    pub fn get_api(&self) -> &Api {
-        self.api.as_ref().unwrap_or_else(|| <Api as ::protobuf::Message>::default_instance())
-    }
 }
 
 impl ::protobuf::Message for Config {
@@ -5173,11 +5026,6 @@ impl ::protobuf::Message for Config {
                 return false;
             }
         };
-        for v in &self.api {
-            if !v.is_initialized() {
-                return false;
-            }
-        };
         true
     }
 
@@ -5199,9 +5047,6 @@ impl ::protobuf::Message for Config {
                 },
                 5 => {
                     ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.dns)?;
-                },
-                6 => {
-                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.api)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -5235,10 +5080,6 @@ impl ::protobuf::Message for Config {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
         }
-        if let Some(ref v) = self.api.as_ref() {
-            let len = v.compute_size();
-            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
-        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -5267,11 +5108,6 @@ impl ::protobuf::Message for Config {
         }
         if let Some(ref v) = self.dns.as_ref() {
             os.write_tag(5, ::protobuf::wire_format::WireTypeLengthDelimited)?;
-            os.write_raw_varint32(v.get_cached_size())?;
-            v.write_to_with_cached_sizes(os)?;
-        }
-        if let Some(ref v) = self.api.as_ref() {
-            os.write_tag(6, ::protobuf::wire_format::WireTypeLengthDelimited)?;
             os.write_raw_varint32(v.get_cached_size())?;
             v.write_to_with_cached_sizes(os)?;
         }
@@ -5322,7 +5158,6 @@ impl ::protobuf::Clear for Config {
         self.outbounds.clear();
         self.router.clear();
         self.dns.clear();
-        self.api.clear();
         self.unknown_fields.clear();
     }
 }

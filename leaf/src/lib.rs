@@ -21,6 +21,9 @@ use app::{
     nat_manager::NatManager, outbound::manager::OutboundManager, router::Router,
 };
 
+#[cfg(feature = "stat")]
+use crate::app::{stat_manager::StatManager, SyncStatManager};
+
 #[cfg(feature = "api")]
 use crate::app::api::api_server::ApiServer;
 
@@ -72,6 +75,8 @@ pub struct RuntimeManager {
     router: Arc<RwLock<Router>>,
     dns_client: Arc<RwLock<DnsClient>>,
     outbound_manager: Arc<RwLock<OutboundManager>>,
+    #[cfg(feature = "stat")]
+    stat_manager: SyncStatManager,
     #[cfg(feature = "auto-reload")]
     watcher: Mutex<Option<RecommendedWatcher>>,
 }
@@ -87,6 +92,7 @@ impl RuntimeManager {
         router: Arc<RwLock<Router>>,
         dns_client: Arc<RwLock<DnsClient>>,
         outbound_manager: Arc<RwLock<OutboundManager>>,
+        #[cfg(feature = "stat")] stat_manager: SyncStatManager,
     ) -> Arc<Self> {
         Arc::new(Self {
             #[cfg(feature = "auto-reload")]
@@ -99,9 +105,16 @@ impl RuntimeManager {
             router,
             dns_client,
             outbound_manager,
+            #[cfg(feature = "stat")]
+            stat_manager,
             #[cfg(feature = "auto-reload")]
             watcher: Mutex::new(None),
         })
+    }
+
+    #[cfg(feature = "stat")]
+    pub fn stat_manager(&self) -> SyncStatManager {
+        self.stat_manager.clone()
     }
 
     pub async fn set_outbound_selected(&self, outbound: &str, select: &str) -> Result<(), Error> {
@@ -386,10 +399,16 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         &mut config.router,
         dns_client.clone(),
     )));
+    #[cfg(feature = "stat")]
+    let stat_manager = Arc::new(RwLock::new(StatManager::new()));
+    #[cfg(feature = "stat")]
+    runners.push(StatManager::cleanup_task(stat_manager.clone()));
     let dispatcher = Arc::new(Dispatcher::new(
         outbound_manager.clone(),
         router.clone(),
         dns_client.clone(),
+        #[cfg(feature = "stat")]
+        stat_manager.clone(),
     ));
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
@@ -449,6 +468,8 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         router,
         dns_client,
         outbound_manager,
+        #[cfg(feature = "stat")]
+        stat_manager,
     );
 
     // Monitor config file changes.
@@ -461,20 +482,13 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     #[cfg(feature = "api")]
     {
-        use std::net::{IpAddr, SocketAddr};
+        use std::net::SocketAddr;
         let listen_addr = if !(&*option::API_LISTEN).is_empty() {
             Some(
                 (&*option::API_LISTEN)
                     .parse::<SocketAddr>()
                     .map_err(|e| Error::Config(anyhow!("parse SocketAddr failed: {}", e)))?,
             )
-        } else if let Some(api) = config.api.as_ref() {
-            Some(SocketAddr::new(
-                api.address
-                    .parse::<IpAddr>()
-                    .map_err(|e| Error::Config(anyhow!("parse IpAddr failed: {}", e)))?,
-                api.port as u16,
-            ))
         } else {
             None
         };

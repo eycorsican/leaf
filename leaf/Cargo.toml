@@ -22,7 +22,8 @@ default-ring = [
     # quinn supports only rustls as tls backend for now
     "inbound-quic",
     "outbound-quic",
-    # "api",
+    "api",
+    "stat",
 ]
 
 default-openssl = [
@@ -30,7 +31,6 @@ default-openssl = [
     "all-endpoints",
     "openssl-aead",
     "openssl-tls",
-    # "api",
 ]
 
 # Grouping all features
@@ -109,6 +109,7 @@ inbound-quic = ["quinn", "rustls", "webpki-roots"]
 inbound-tls = []
 inbound-chain = []
 
+stat = []
 api = ["warp"]
 auto-reload = ["notify"]
 ctrlc = ["tokio/signal"]
