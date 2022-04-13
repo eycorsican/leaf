@@ -178,7 +178,7 @@ impl StatManager {
                 let mut i = 0;
                 while i < sm.counters.len() {
                     if sm.counters[i].recv_completed() && sm.counters[i].send_completed() {
-                        sm.counters.remove(i);
+                        sm.counters.swap_remove(i);
                     } else {
                         i += 1;
                     }
