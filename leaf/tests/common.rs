@@ -88,7 +88,6 @@ fn new_socks_outbound(socks_addr: &str, socks_port: u16) -> AnyOutboundHandler {
         outbounds: Some(outbounds),
         router: None,
         dns: None,
-        api: None,
     };
     let config = leaf::config::json::to_internal(&mut config).unwrap();
     let dns_client = Arc::new(RwLock::new(

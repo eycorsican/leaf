@@ -227,14 +227,14 @@ mod tests {
     #[test]
     fn test_u32_to_ip() {
         let ip1 = Ipv4Addr::new(127, 0, 0, 1);
-        let ip2 = FakeDns::u32_to_ip(2130706433u32);
+        let ip2 = FakeDnsImpl::u32_to_ip(2130706433u32);
         assert_eq!(ip1, ip2);
     }
 
     #[test]
     fn test_ip_to_u32() {
         let ip = Ipv4Addr::new(127, 0, 0, 1);
-        let ip1 = FakeDns::ip_to_u32(&ip);
+        let ip1 = FakeDnsImpl::ip_to_u32(&ip);
         let ip2 = 2130706433u32;
         assert_eq!(ip1, ip2);
     }
