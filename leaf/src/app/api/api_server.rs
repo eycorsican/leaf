@@ -92,11 +92,21 @@ table, th, td {
 }
 </style></head>
 <table style=\"border=4px solid\">
-<tr><td>Network</td><td>Destination</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>
         "#,
         );
         let sm = rm.stat_manager();
         let sm = sm.read().await;
+        let total_counters = sm.counters.iter().count();
+        let active_counters = sm
+            .counters
+            .iter()
+            .filter(|x| !x.send_completed() || !x.recv_completed())
+            .count();
+        body.push_str(&format!(
+            "Total {}, Active {}<br><br>",
+            total_counters, active_counters
+        ));
+        body.push_str("<tr><td>Network</td><td>Destination</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>");
         for c in sm.counters.iter() {
             body.push_str(&format!(
                 "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
