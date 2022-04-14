@@ -134,8 +134,8 @@ struct CopyBidirectional<'a, A: ?Sized, B: ?Sized> {
     b_to_a_count: u64,
     a_to_b_delay: Option<Pin<Box<tokio::time::Sleep>>>,
     b_to_a_delay: Option<Pin<Box<tokio::time::Sleep>>>,
-    uplink_timeout_duration: Duration,
-    downlink_timeout_duration: Duration,
+    a_to_b_timeout_duration: Duration,
+    b_to_a_timeout_duration: Duration,
 }
 
 impl<'a, A, B> Future for CopyBidirectional<'a, A, B>
@@ -156,8 +156,8 @@ where
             b_to_a_count,
             a_to_b_delay,
             b_to_a_delay,
-            uplink_timeout_duration,
-            downlink_timeout_duration,
+            a_to_b_timeout_duration,
+            b_to_a_timeout_duration,
         } = &mut *self;
 
         let mut a = Pin::new(a);
@@ -194,7 +194,7 @@ where
                             *a_to_b_count += *count;
                             *a_to_b = TransferState::Done;
                             b_to_a_delay
-                                .replace(Box::pin(tokio::time::sleep(*downlink_timeout_duration)));
+                                .replace(Box::pin(tokio::time::sleep(*b_to_a_timeout_duration)));
                             continue;
                         }
                         Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
@@ -234,7 +234,7 @@ where
                             *b_to_a_count += *count;
                             *b_to_a = TransferState::Done;
                             a_to_b_delay
-                                .replace(Box::pin(tokio::time::sleep(*uplink_timeout_duration)));
+                                .replace(Box::pin(tokio::time::sleep(*a_to_b_timeout_duration)));
                             continue;
                         }
                         Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
@@ -258,8 +258,8 @@ pub async fn copy_buf_bidirectional_with_timeout<A, B>(
     a: &mut A,
     b: &mut B,
     size: usize,
-    uplink_timeout_duration: Duration,
-    downlink_timeout_duration: Duration,
+    a_to_b_timeout_duration: Duration,
+    b_to_a_timeout_duration: Duration,
 ) -> Result<(u64, u64), std::io::Error>
 where
     A: AsyncRead + AsyncWrite + Unpin + ?Sized,
@@ -274,8 +274,8 @@ where
         b_to_a_count: 0,
         a_to_b_delay: None,
         b_to_a_delay: None,
-        uplink_timeout_duration,
-        downlink_timeout_duration,
+        a_to_b_timeout_duration,
+        b_to_a_timeout_duration,
     }
     .await
 }

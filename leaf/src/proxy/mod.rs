@@ -712,7 +712,7 @@ pub enum BaseInboundTransport<S, D> {
     /// The reliable transport.
     Stream(S, Session),
     /// The unreliable transport.
-    Datagram(D),
+    Datagram(D, Option<Session>),
     /// None.
     Empty,
 }
@@ -729,7 +729,7 @@ pub enum InboundTransport<S, D> {
     /// The reliable transport.
     Stream(S, Session),
     /// The unreliable transport.
-    Datagram(D),
+    Datagram(D, Option<Session>),
     Incoming(IncomingTransport<S, D>),
     /// None.
     Empty,

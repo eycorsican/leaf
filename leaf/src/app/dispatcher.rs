@@ -180,18 +180,19 @@ impl Dispatcher {
                 }
             };
         match TcpOutboundHandler::handle(h.as_ref(), &sess, stream).await {
-            #[allow(unused_mut)]
             Ok(mut rhs) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
                 log_request(&sess, h.tag(), h.color(), Some(elapsed.as_millis()));
 
                 #[cfg(feature = "stat")]
-                let mut rhs = self
-                    .stat_manager
-                    .write()
-                    .await
-                    .stat_stream(rhs, sess.clone());
+                if *crate::option::ENABLE_STATS {
+                    rhs = self
+                        .stat_manager
+                        .write()
+                        .await
+                        .stat_stream(rhs, sess.clone());
+                }
 
                 match common::io::copy_buf_bidirectional_with_timeout(
                     &mut lhs,
@@ -287,17 +288,20 @@ impl Dispatcher {
         let transport =
             crate::proxy::connect_udp_outbound(&sess, self.dns_client.clone(), &h).await?;
         match UdpOutboundHandler::handle(h.as_ref(), &sess, transport).await {
-            Ok(d) => {
+            #[allow(unused_mut)]
+            Ok(mut d) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
                 log_request(&sess, h.tag(), h.color(), Some(elapsed.as_millis()));
 
                 #[cfg(feature = "stat")]
-                let d = self
-                    .stat_manager
-                    .write()
-                    .await
-                    .stat_outbound_datagram(d, sess.clone());
+                if *crate::option::ENABLE_STATS {
+                    d = self
+                        .stat_manager
+                        .write()
+                        .await
+                        .stat_outbound_datagram(d, sess.clone());
+                }
 
                 Ok(d)
             }

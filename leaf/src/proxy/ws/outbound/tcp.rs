@@ -28,7 +28,7 @@ impl<'a> tungstenite::client::IntoClientRequest for Request<'a> {
         let mut builder = http::Request::builder()
             .method("GET")
             .uri(self.uri)
-            .header("User-Agent", &*crate::option::USER_AGENT);
+            .header("User-Agent", &*crate::option::HTTP_USER_AGENT);
         for (k, v) in self.headers.iter() {
             if k != "Host" {
                 builder = builder.header(k, v);

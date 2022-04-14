@@ -148,7 +148,9 @@ async fn handle_inbound_datagram(
 
                 let dgram_src = DatagramSource::new(src_addr, None);
                 let pkt = UdpPacket::new(data, SocksAddr::Ip(src_addr), dst_addr);
-                nat_manager.send(&dgram_src, &inbound_tag, &l_tx, pkt).await;
+                nat_manager
+                    .send(None, &dgram_src, &inbound_tag, &l_tx, pkt)
+                    .await;
             }
         }
     }

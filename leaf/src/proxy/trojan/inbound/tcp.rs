@@ -12,15 +12,21 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::{
     proxy::*,
-    session::{DatagramSource, Session, SocksAddr, SocksAddrWireType},
+    session::{DatagramSource, Network, Session, SocksAddr, SocksAddrWireType},
 };
 
-struct StreamToDatagram {
-    stream: Box<dyn ProxyStream>,
+struct Datagram {
+    stream: AnyStream,
     source: DatagramSource,
 }
 
-impl InboundDatagram for StreamToDatagram {
+impl Datagram {
+    pub fn new(stream: AnyStream, source: DatagramSource) -> Self {
+        Self { stream, source }
+    }
+}
+
+impl InboundDatagram for Datagram {
     fn split(
         self: Box<Self>,
     ) -> (
@@ -29,8 +35,8 @@ impl InboundDatagram for StreamToDatagram {
     ) {
         let (r, s) = tokio::io::split(self.stream);
         (
-            Box::new(StreamToDatagramRecvHalf(r, self.source)),
-            Box::new(StreamToDatagramSendHalf(s)),
+            Box::new(DatagramRecvHalf(r, self.source)),
+            Box::new(DatagramSendHalf(s)),
         )
     }
 
@@ -39,10 +45,10 @@ impl InboundDatagram for StreamToDatagram {
     }
 }
 
-struct StreamToDatagramRecvHalf<T>(T, DatagramSource);
+struct DatagramRecvHalf<T>(T, DatagramSource);
 
 #[async_trait]
-impl<T> InboundDatagramRecvHalf for StreamToDatagramRecvHalf<T>
+impl<T> InboundDatagramRecvHalf for DatagramRecvHalf<T>
 where
     T: AsyncRead + Send + Sync + Unpin,
 {
@@ -61,6 +67,9 @@ where
             .map_err(|e| ProxyError::DatagramFatal(e.into()))
             .await?;
         let payload_len = BigEndian::read_u16(&buf2) as usize;
+        if buf.len() < payload_len {
+            return Err(ProxyError::DatagramFatal(anyhow!("Small buffer")));
+        }
         let _ = self
             .0
             .read_exact(&mut buf2)
@@ -68,9 +77,6 @@ where
             .await?;
         if &buf2[..2] != b"\r\n" {
             return Err(ProxyError::DatagramFatal(anyhow!("Expeced CRLF")));
-        }
-        if buf.len() < payload_len {
-            return Err(ProxyError::DatagramFatal(anyhow!("Small buffer")));
         }
         buf2.resize(payload_len, 0);
         let _ = self
@@ -83,10 +89,10 @@ where
     }
 }
 
-struct StreamToDatagramSendHalf<T>(T);
+struct DatagramSendHalf<T>(T);
 
 #[async_trait]
-impl<T> InboundDatagramSendHalf for StreamToDatagramSendHalf<T>
+impl<T> InboundDatagramSendHalf for DatagramSendHalf<T>
 where
     T: AsyncWrite + Send + Sync + Unpin,
 {
@@ -105,7 +111,6 @@ where
     }
 }
 
-// FIXME anti-detection, redirect traffic
 pub struct Handler {
     keys: HashMap<Vec<u8>, ()>,
 }
@@ -145,36 +150,28 @@ impl TcpInboundHandler for Handler {
         // read cmd
         buf.resize(1, 0);
         stream.read_exact(&mut buf).await?;
-        match buf[0] {
+        let cmd = buf[0];
+        // read addr
+        let dst_addr = SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
+        sess.destination = dst_addr;
+        // read crlf
+        buf.resize(2, 0);
+        stream.read_exact(&mut buf).await?;
+        match cmd {
             // tcp
-            0x01 => {
-                // read addr
-                let dst_addr =
-                    SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
-                sess.destination = dst_addr;
-                // read crlf
-                buf.resize(2, 0);
-                stream.read_exact(&mut buf).await?;
-                return Ok(InboundTransport::Stream(stream, sess));
-            }
+            0x01 => Ok(InboundTransport::Stream(stream, sess)),
             // udp
             0x03 => {
-                // read addr
-                let dst_addr =
-                    SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
-                sess.destination = dst_addr;
-                // read crlf
-                buf.resize(2, 0);
-                stream.read_exact(&mut buf).await?;
-
-                return Ok(InboundTransport::Datagram(Box::new(StreamToDatagram {
-                    stream,
-                    source: DatagramSource::new(sess.source, sess.stream_id),
-                })));
+                sess.network = Network::Udp;
+                Ok(InboundTransport::Datagram(
+                    Box::new(Datagram::new(
+                        stream,
+                        DatagramSource::new(sess.source, sess.stream_id),
+                    )),
+                    Some(sess),
+                ))
             }
-            _ => {
-                return Err(io::Error::new(io::ErrorKind::Other, "invalid command"));
-            }
+            _ => Err(io::Error::new(io::ErrorKind::Other, "invalid command")),
         }
     }
 }

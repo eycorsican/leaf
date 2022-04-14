@@ -87,10 +87,12 @@ impl Stream for Incoming {
                             });
                             self.state = State::Pending(idx + 1, t);
                         }
-                        Ok(InboundTransport::Datagram(socket)) => {
+                        Ok(InboundTransport::Datagram(socket, sess)) => {
                             // FIXME Assume the last one, but not necessary the last one?
                             self.state = State::WaitingIncoming;
-                            return Poll::Ready(Some(AnyBaseInboundTransport::Datagram(socket)));
+                            return Poll::Ready(Some(AnyBaseInboundTransport::Datagram(
+                                socket, sess,
+                            )));
                         }
                         Err(e) => {
                             log::debug!("chain inbound incoming error: {}", e);

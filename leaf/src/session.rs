@@ -63,6 +63,8 @@ pub struct Session {
     pub outbound_tag: String,
     /// Optional stream ID for multiplexing transports.
     pub stream_id: Option<StreamId>,
+    /// Optional source address which is forwarded via HTTP reverse proxy.
+    pub forwarded_source: Option<IpAddr>,
 }
 
 impl Clone for Session {
@@ -75,6 +77,7 @@ impl Clone for Session {
             inbound_tag: self.inbound_tag.clone(),
             outbound_tag: self.outbound_tag.clone(),
             stream_id: self.stream_id,
+            forwarded_source: self.forwarded_source,
         }
     }
 }
@@ -89,6 +92,7 @@ impl Default for Session {
             inbound_tag: "".to_string(),
             outbound_tag: "".to_string(),
             stream_id: None,
+            forwarded_source: None,
         }
     }
 }

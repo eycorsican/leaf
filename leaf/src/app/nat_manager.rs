@@ -121,6 +121,7 @@ impl NatManager {
 
     pub async fn send<'a>(
         &self,
+        sess: Option<&Session>,
         dgram_src: &DatagramSource,
         inbound_tag: &str,
         client_ch_tx: &Sender<UdpPacket>,
@@ -133,13 +134,13 @@ impl NatManager {
             return;
         }
 
-        let sess = Session {
+        let sess = sess.cloned().unwrap_or(Session {
             network: Network::Udp,
             source: dgram_src.address,
             destination: pkt.dst_addr.clone(),
             inbound_tag: inbound_tag.to_string(),
             ..Default::default()
-        };
+        });
 
         self.add_session(sess, dgram_src.clone(), client_ch_tx.clone(), &mut guard)
             .await;

@@ -27,7 +27,7 @@ impl TcpInboundHandler for Handler {
                     stream = new_stream;
                     sess = new_sess;
                 }
-                InboundTransport::Datagram(socket) => {
+                InboundTransport::Datagram(socket, sess) => {
                     // If the input stream has been converted to a datagram,
                     // we assume it's the last actor. Because we can not convert
                     // a datagram back to stream, and can't chain multiple
@@ -35,7 +35,7 @@ impl TcpInboundHandler for Handler {
                     // on a single node.
                     //
                     // TODO Warns if there are further actors in the chain.
-                    return Ok(InboundTransport::Datagram(socket));
+                    return Ok(InboundTransport::Datagram(socket, sess));
                 }
                 InboundTransport::Incoming(incoming) => {
                     return Ok(InboundTransport::Incoming(Box::new(Incoming::new(

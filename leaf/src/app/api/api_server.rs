@@ -26,6 +26,7 @@ mod models {
     pub struct Stat {
         pub network: String,
         pub inbound_tag: String,
+        pub forwarded_source: Option<String>,
         pub source: String,
         pub destination: String,
         pub outbound_tag: String,
@@ -99,6 +100,7 @@ mod handlers {
             stats.push(models::Stat {
                 network: c.sess.network.to_string(),
                 inbound_tag: c.sess.inbound_tag.to_owned(),
+                forwarded_source: c.sess.forwarded_source.map(|x| x.to_string()),
                 source: c.sess.source.to_string(),
                 destination: c.sess.destination.to_string(),
                 outbound_tag: c.sess.outbound_tag.to_owned(),
@@ -145,16 +147,26 @@ table, th, td {
                 .map(|c| c.sess.source.ip()),
         )
         .len();
+        let active_forwarded_source = HashSet::<IpAddr>::from_iter(
+            sm.counters
+                .iter()
+                .filter(|x| !x.send_completed() || !x.recv_completed())
+                .map(|c| c.sess.forwarded_source)
+                .take_while(|x| x.is_some())
+                .map(|x| x.unwrap()),
+        )
+        .len();
         body.push_str(&format!(
-            "Total {}<br>Active {}<br>Active Source {}<br><br>",
-            total_counters, active_counters, active_sources
+            "Total {}<br>Active {}<br>Active Source {}<br>Active Forwarded Source {}<br><br>",
+            total_counters, active_counters, active_sources, active_forwarded_source,
         ));
-        body.push_str("<tr><td>Network</td><td>Inbound</td><td>Source</td><td>Destination</td><td>Outbound</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>");
+        body.push_str("<tr><td>Network</td><td>Inbound</td><td>Forwarded</td><td>Source</td><td>Destination</td><td>Outbound</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>");
         for c in sm.counters.iter() {
             body.push_str(&format!(
-                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 &c.sess.network,
                 &c.sess.inbound_tag,
+                &c.sess.forwarded_source.map(|x|x.to_string()).unwrap_or("None".to_string()),
                 &c.sess.source,
                 &c.sess.destination,
                 &c.sess.outbound_tag,
