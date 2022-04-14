@@ -54,6 +54,11 @@ lazy_static! {
     };
 }
 
+#[cfg(feature = "stat")]
+lazy_static! {
+    pub static ref ENABLE_STATS: bool = { get_env_var_or("ENABLE_STATS", false) };
+}
+
 lazy_static! {
     pub static ref HTTP_USER_AGENT: String = {
         get_env_var_or(
@@ -120,11 +125,6 @@ lazy_static! {
 
     pub static ref API_LISTEN: String = {
         get_env_var_or("API_LISTEN", "".to_string())
-    };
-
-    #[cfg(feature = "stat")]
-    pub static ref ENABLE_STATS: bool = {
-        get_env_var_or("ENABLE_STATS", false)
     };
 
     pub static ref ENABLE_IPV6: bool = {
