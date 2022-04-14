@@ -1,5 +1,7 @@
+use std::collections::HashSet;
 use std::convert::Infallible;
-use std::net::SocketAddr;
+use std::iter::FromIterator;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use warp::Filter;
@@ -18,6 +20,19 @@ mod models {
     #[derive(Debug, Serialize, Deserialize)]
     pub struct SelectReply {
         pub selected: Option<String>,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct Stat {
+        pub network: String,
+        pub inbound_tag: String,
+        pub source: String,
+        pub destination: String,
+        pub outbound_tag: String,
+        pub bytes_sent: u64,
+        pub bytes_recvd: u64,
+        pub send_completed: bool,
+        pub recv_completed: bool,
     }
 }
 
@@ -76,6 +91,27 @@ mod handlers {
     }
 
     #[cfg(feature = "stat")]
+    pub async fn stat_json(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+        let mut stats = Vec::new();
+        let sm = rm.stat_manager();
+        let sm = sm.read().await;
+        for c in sm.counters.iter() {
+            stats.push(models::Stat {
+                network: c.sess.network.to_string(),
+                inbound_tag: c.sess.inbound_tag.to_owned(),
+                source: c.sess.source.to_string(),
+                destination: c.sess.destination.to_string(),
+                outbound_tag: c.sess.outbound_tag.to_owned(),
+                bytes_sent: c.bytes_sent(),
+                bytes_recvd: c.bytes_recvd(),
+                send_completed: c.send_completed(),
+                recv_completed: c.recv_completed(),
+            });
+        }
+        Ok(warp::reply::json(&stats))
+    }
+
+    #[cfg(feature = "stat")]
     pub async fn stat_html(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
         let mut body = String::from(
             r#"<html>
@@ -102,16 +138,26 @@ table, th, td {
             .iter()
             .filter(|x| !x.send_completed() || !x.recv_completed())
             .count();
+        let active_sources = HashSet::<IpAddr>::from_iter(
+            sm.counters
+                .iter()
+                .filter(|x| !x.send_completed() || !x.recv_completed())
+                .map(|c| c.sess.source.ip()),
+        )
+        .len();
         body.push_str(&format!(
-            "Total {}, Active {}<br><br>",
-            total_counters, active_counters
+            "Total {}<br>Active {}<br>Active Source {}<br><br>",
+            total_counters, active_counters, active_sources
         ));
-        body.push_str("<tr><td>Network</td><td>Destination</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>");
+        body.push_str("<tr><td>Network</td><td>Inbound</td><td>Source</td><td>Destination</td><td>Outbound</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>");
         for c in sm.counters.iter() {
             body.push_str(&format!(
-                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 &c.sess.network,
+                &c.sess.inbound_tag,
+                &c.sess.source,
                 &c.sess.destination,
+                &c.sess.outbound_tag,
                 c.bytes_sent(),
                 c.bytes_recvd(),
                 c.send_completed(),
@@ -174,7 +220,7 @@ mod filters {
             .and_then(handlers::runtime_shutdown)
     }
 
-    // POST /api/v1/runtime/stat/html
+    // GET /api/v1/runtime/stat/html
     #[cfg(feature = "stat")]
     pub fn stat_html(
         rm: Arc<RuntimeManager>,
@@ -183,6 +229,17 @@ mod filters {
             .and(warp::get())
             .and(with_runtime_manager(rm))
             .and_then(handlers::stat_html)
+    }
+
+    // GET /api/v1/runtime/stat/json
+    #[cfg(feature = "stat")]
+    pub fn stat_json(
+        rm: Arc<RuntimeManager>,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::path!("api" / "v1" / "runtime" / "stat" / "json")
+            .and(warp::get())
+            .and(with_runtime_manager(rm))
+            .and_then(handlers::stat_json)
     }
 }
 
@@ -202,7 +259,9 @@ impl ApiServer {
             .or(filters::runtime_shutdown(self.runtime_manager.clone()));
 
         #[cfg(feature = "stat")]
-        let routes = routes.or(filters::stat_html(self.runtime_manager.clone()));
+        let routes = routes
+            .or(filters::stat_html(self.runtime_manager.clone()))
+            .or(filters::stat_json(self.runtime_manager.clone()));
 
         log::info!("api server listening tcp {}", &listen_addr);
         Box::pin(warp::serve(routes).bind(listen_addr))

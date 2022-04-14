@@ -141,7 +141,7 @@ impl NatManager {
             ..Default::default()
         };
 
-        self.add_session(&sess, dgram_src.clone(), client_ch_tx.clone(), &mut guard)
+        self.add_session(sess, dgram_src.clone(), client_ch_tx.clone(), &mut guard)
             .await;
 
         debug!(
@@ -158,7 +158,7 @@ impl NatManager {
 
     pub async fn add_session<'a>(
         &self,
-        sess: &Session,
+        sess: Session,
         raddr: DatagramSource,
         client_ch_tx: Sender<UdpPacket>,
         guard: &mut MutexGuard<'a, SessionMap>,
@@ -175,14 +175,13 @@ impl NatManager {
 
         let dispatcher = self.dispatcher.clone();
         let sessions = self.sessions.clone();
-        let sess = sess.clone();
 
         // Spawns a new task for dispatching to avoid blocking the current task,
         // because we have stream type transports for UDP traffic, establishing a
         // TCP stream would block the task.
         tokio::spawn(async move {
             // new socket to communicate with the target.
-            let socket = match dispatcher.dispatch_udp(&sess).await {
+            let socket = match dispatcher.dispatch_udp(sess).await {
                 Ok(s) => s,
                 Err(e) => {
                     debug!("dispatch {} failed: {}", &raddr, e);

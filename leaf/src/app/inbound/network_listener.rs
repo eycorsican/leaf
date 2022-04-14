@@ -85,8 +85,8 @@ async fn handle_inbound_stream(
 
     match TcpInboundHandler::handle(h.as_ref(), sess, Box::new(stream)).await {
         Ok(res) => match res {
-            InboundTransport::Stream(stream, mut sess) => {
-                dispatcher.dispatch_tcp(&mut sess, stream).await;
+            InboundTransport::Stream(stream, sess) => {
+                dispatcher.dispatch_tcp(sess, stream).await;
             }
             InboundTransport::Datagram(socket) => {
                 handle_inbound_datagram(h.tag().clone(), socket, nat_manager).await;
@@ -94,10 +94,10 @@ async fn handle_inbound_stream(
             InboundTransport::Incoming(mut incoming) => {
                 while let Some(transport) = incoming.next().await {
                     match transport {
-                        BaseInboundTransport::Stream(stream, mut sess) => {
-                            let dispatcher2 = dispatcher.clone();
+                        BaseInboundTransport::Stream(stream, sess) => {
+                            let dispatcher_cloned = dispatcher.clone();
                             tokio::spawn(async move {
-                                dispatcher2.dispatch_tcp(&mut sess, stream).await;
+                                dispatcher_cloned.dispatch_tcp(sess, stream).await;
                             });
                         }
                         BaseInboundTransport::Datagram(socket) => {
@@ -180,8 +180,8 @@ impl NetworkInboundListener {
                 .await
                 {
                     Ok(res) => match res {
-                        InboundTransport::Stream(stream, mut sess) => {
-                            dispatcher.dispatch_tcp(&mut sess, stream).await;
+                        InboundTransport::Stream(stream, sess) => {
+                            dispatcher.dispatch_tcp(sess, stream).await;
                         }
                         InboundTransport::Datagram(socket) => {
                             handle_inbound_datagram(handler.tag().clone(), socket, nat_manager)
@@ -190,10 +190,10 @@ impl NetworkInboundListener {
                         InboundTransport::Incoming(mut incoming) => {
                             while let Some(transport) = incoming.next().await {
                                 match transport {
-                                    BaseInboundTransport::Stream(stream, mut sess) => {
-                                        let dispatcher2 = dispatcher.clone();
+                                    BaseInboundTransport::Stream(stream, sess) => {
+                                        let dispatcher_cloned = dispatcher.clone();
                                         tokio::spawn(async move {
-                                            dispatcher2.dispatch_tcp(&mut sess, stream).await;
+                                            dispatcher_cloned.dispatch_tcp(sess, stream).await;
                                         });
                                     }
                                     BaseInboundTransport::Datagram(socket) => {

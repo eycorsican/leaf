@@ -59,6 +59,8 @@ pub struct Session {
     pub destination: SocksAddr,
     /// The tag of the inbound handler this session initiated.
     pub inbound_tag: String,
+    /// The tag of the first outbound handler this session goes.
+    pub outbound_tag: String,
     /// Optional stream ID for multiplexing transports.
     pub stream_id: Option<StreamId>,
 }
@@ -71,6 +73,7 @@ impl Clone for Session {
             local_addr: self.local_addr,
             destination: self.destination.clone(),
             inbound_tag: self.inbound_tag.clone(),
+            outbound_tag: self.outbound_tag.clone(),
             stream_id: self.stream_id,
         }
     }
@@ -84,6 +87,7 @@ impl Default for Session {
             local_addr: *crate::option::UNSPECIFIED_BIND_ADDR,
             destination: SocksAddr::any(),
             inbound_tag: "".to_string(),
+            outbound_tag: "".to_string(),
             stream_id: None,
         }
     }
