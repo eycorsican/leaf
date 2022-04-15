@@ -1,9 +1,14 @@
 use std::io::ErrorKind;
+use std::io::Write;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::abortable;
 use futures::FutureExt;
+use rand::RngCore;
+use rand::{rngs::StdRng, Rng, SeedableRng};
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, ToSocketAddrs, UdpSocket};
 use tokio::sync::RwLock;
@@ -104,9 +109,13 @@ pub async fn new_socks_stream(socks_addr: &str, socks_port: u16, sess: &Session)
     let stream = tokio::net::TcpStream::connect(format!("{}:{}", socks_addr, socks_port))
         .await
         .unwrap();
-    TcpOutboundHandler::handle(handler.as_ref(), sess, Some(Box::new(stream)))
-        .await
-        .unwrap()
+    timeout(
+        Duration::from_secs(2),
+        TcpOutboundHandler::handle(handler.as_ref(), sess, Some(Box::new(stream))),
+    )
+    .await
+    .unwrap()
+    .unwrap()
 }
 
 pub async fn new_socks_datagram(
@@ -115,15 +124,17 @@ pub async fn new_socks_datagram(
     sess: &Session,
 ) -> AnyOutboundDatagram {
     let handler = new_socks_outbound(socks_addr, socks_port);
-    UdpOutboundHandler::handle(handler.as_ref(), sess, None)
-        .await
-        .unwrap()
+    timeout(
+        Duration::from_secs(2),
+        UdpOutboundHandler::handle(handler.as_ref(), sess, None),
+    )
+    .await
+    .unwrap()
+    .unwrap()
 }
 
 pub fn test_tcp_half_close_on_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
-    std::env::set_var("TCP_DOWNLINK_TIMEOUT", "3");
-    std::env::set_var("TCP_UPLINK_TIMEOUT", "3");
-
+    log::warn!("testing tcp half close");
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -131,7 +142,7 @@ pub fn test_tcp_half_close_on_configs(configs: Vec<String>, socks_addr: &str, so
     let leaf_rt_ids = run_leaf_instances(&rt, configs);
     let socks_addr = socks_addr.to_string();
     let res = rt.block_on(rt.spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
         let mut sess = leaf::session::Session::default();
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
@@ -260,10 +271,358 @@ pub fn test_tcp_half_close_on_configs(configs: Vec<String>, socks_addr: &str, so
     assert!(res.is_ok());
 }
 
+async fn file_hash<P: AsRef<Path>>(p: P) -> Box<[u8]> {
+    let mut src = tokio::fs::File::open(p).await.unwrap();
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1024 * 1024];
+    while let Ok(n) = src.read_buf(&mut buf).await {
+        if n == 0 {
+            break;
+        } else {
+            hasher.write(&buf[..n]);
+        }
+    }
+    hasher.finalize().as_slice().to_owned().into_boxed_slice()
+}
+
+pub fn test_data_transfering_reliability_on_configs(
+    configs: Vec<String>,
+    socks_addr: &str,
+    socks_port: u16,
+) {
+    log::warn!("testing data transfering reliability");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let src_file = "source_random_bytes.bin";
+    let dst_file = "destination_random_bytes.bin";
+    let source = path.join(src_file);
+    let dst = path.join(dst_file);
+    if !source.exists() {
+        let mut rng = StdRng::from_entropy();
+        let mut data = vec![0u8; 50 * 1024 * 1024]; // 50MB payload
+        rng.fill_bytes(&mut data);
+        let mut f = std::fs::File::create(source).unwrap();
+        f.write_all(&data).unwrap();
+        f.sync_all().unwrap();
+    }
+
+    // TCP uplink
+    let recv_task = async move {
+        let source = path.join(src_file);
+        let dst = path.join(dst_file);
+        let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
+        let (mut stream, _) = timeout(Duration::from_secs(1), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        if dst.exists() {
+            tokio::fs::remove_file(&dst).await.unwrap();
+        }
+        let mut dst_file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dst)
+            .await
+            .unwrap();
+        let n = timeout(
+            Duration::from_secs(10),
+            tokio::io::copy(&mut stream, &mut dst_file),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        dst_file.sync_all().await.unwrap();
+        assert_eq!(dst_file.metadata().await.unwrap().len(), n);
+        let src_hash = file_hash(source).await;
+        let dst_hash = file_hash(&dst).await;
+        assert_eq!(src_hash.as_ref(), dst_hash.as_ref());
+    };
+    let socks_addr_cloned = socks_addr.to_string();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let send_task = async move {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let source = path.join(src_file);
+        let mut sess = leaf::session::Session::default();
+        sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
+        let mut stream = new_socks_stream(&socks_addr_cloned, socks_port, &sess).await;
+        let mut src = tokio::fs::File::open(source).await.unwrap();
+        timeout(
+            Duration::from_secs(10),
+            tokio::io::copy(&mut src, &mut stream),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    };
+    let leaf_rt_ids = run_leaf_instances(&rt, configs.clone());
+    let mut futs: Vec<leaf::Runner> = Vec::new();
+    futs.push(Box::pin(recv_task));
+    futs.push(Box::pin(send_task));
+    let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
+    for id in leaf_rt_ids.into_iter() {
+        leaf::shutdown(id);
+    }
+    assert!(res.is_ok());
+
+    // TCP downlink
+    let socks_addr_cloned = socks_addr.to_string();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let recv_task = async move {
+        let source = path.join(src_file);
+        let dst = path.join(dst_file);
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let mut sess = leaf::session::Session::default();
+        sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
+        let mut stream = new_socks_stream(&socks_addr_cloned, socks_port, &sess).await;
+        if dst.exists() {
+            tokio::fs::remove_file(&dst).await.unwrap();
+        }
+        let mut dst_file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dst)
+            .await
+            .unwrap();
+        let n = timeout(
+            Duration::from_secs(10),
+            tokio::io::copy(&mut stream, &mut dst_file),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        dst_file.sync_all().await.unwrap();
+        assert_eq!(dst_file.metadata().await.unwrap().len(), n);
+        let src_hash = file_hash(source).await;
+        let dst_hash = file_hash(&dst).await;
+        assert_eq!(src_hash.as_ref(), dst_hash.as_ref());
+    };
+    let socks_addr_cloned = socks_addr.to_string();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let send_task = async move {
+        let source = path.join(src_file);
+        let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
+        let (mut stream, _) = timeout(Duration::from_secs(1), listener.accept())
+            .await
+            .unwrap()
+            .unwrap();
+        let mut src = tokio::fs::File::open(source).await.unwrap();
+        timeout(
+            Duration::from_secs(10),
+            tokio::io::copy(&mut src, &mut stream),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    };
+    let leaf_rt_ids = run_leaf_instances(&rt, configs.clone());
+    let mut futs: Vec<leaf::Runner> = Vec::new();
+    futs.push(Box::pin(recv_task));
+    futs.push(Box::pin(send_task));
+    let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
+    for id in leaf_rt_ids.into_iter() {
+        leaf::shutdown(id);
+    }
+    assert!(res.is_ok());
+
+    // UDP uplink
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let recv_task = async move {
+        let source = path.join(src_file);
+        let dst = path.join(dst_file);
+        let socket = UdpSocket::bind("127.0.0.1:3000").await.unwrap();
+        if dst.exists() {
+            tokio::fs::remove_file(&dst).await.unwrap();
+        }
+        let mut dst_file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dst)
+            .await
+            .unwrap();
+        let expected_total_bytes = tokio::fs::File::open(&source)
+            .await
+            .unwrap()
+            .metadata()
+            .await
+            .unwrap()
+            .len() as usize;
+        let mut recvd_bytes: usize = 0;
+        let mut buf = vec![0u8; 1500];
+        loop {
+            assert!(recvd_bytes <= expected_total_bytes);
+            if recvd_bytes == expected_total_bytes {
+                break;
+            }
+            let (n, _) = timeout(Duration::from_secs(2), socket.recv_from(&mut buf))
+                .await
+                .unwrap()
+                .unwrap();
+            timeout(Duration::from_secs(2), dst_file.write(&buf[..n]))
+                .await
+                .unwrap()
+                .unwrap();
+            recvd_bytes += n;
+        }
+        dst_file.sync_all().await.unwrap();
+        assert_eq!(
+            dst_file.metadata().await.unwrap().len() as usize,
+            expected_total_bytes
+        );
+        let src_hash = file_hash(&source).await;
+        let dst_hash = file_hash(&dst).await;
+        assert_eq!(src_hash.as_ref(), dst_hash.as_ref());
+    };
+    let socks_addr_cloned = socks_addr.to_string();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let send_task = async move {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let source = path.join(src_file);
+        let mut sess = leaf::session::Session::default();
+        sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
+        let mut dgram = new_socks_datagram(&socks_addr_cloned, socks_port, &sess).await;
+        let (_, mut s) = dgram.split();
+        let mut src = tokio::fs::File::open(source).await.unwrap();
+        let mut buf = vec![0u8; 1500];
+        loop {
+            // Since UDP is unordered and unreliable, even tests on local could
+            // fail, make some delay to mitigate this.
+            tokio::time::sleep(Duration::from_micros(10)).await;
+            let n = timeout(Duration::from_secs(2), src.read(&mut buf))
+                .await
+                .unwrap()
+                .unwrap();
+            if n > 0 {
+                let n = timeout(
+                    Duration::from_secs(2),
+                    s.send_to(&buf[..n], &sess.destination),
+                )
+                .await
+                .unwrap()
+                .unwrap();
+            } else {
+                break;
+            }
+        }
+    };
+    let leaf_rt_ids = run_leaf_instances(&rt, configs.clone());
+    let mut futs: Vec<leaf::Runner> = Vec::new();
+    futs.push(Box::pin(recv_task));
+    futs.push(Box::pin(send_task));
+    let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
+    for id in leaf_rt_ids.into_iter() {
+        leaf::shutdown(id);
+    }
+    assert!(res.is_ok());
+
+    // UDP downlink
+    let socks_addr_cloned = socks_addr.to_string();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let recv_task = async move {
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let mut sess = leaf::session::Session::default();
+        sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
+        let mut dgram = new_socks_datagram(&socks_addr_cloned, socks_port, &sess).await;
+        let (mut r, mut s) = dgram.split();
+        let source = path.join(src_file);
+        let mut buf = vec![0u8; 1500];
+        if dst.exists() {
+            tokio::fs::remove_file(&dst).await.unwrap();
+        }
+        let mut dst_file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dst)
+            .await
+            .unwrap();
+        let expected_total_bytes = tokio::fs::File::open(&source)
+            .await
+            .unwrap()
+            .metadata()
+            .await
+            .unwrap()
+            .len() as usize;
+        let mut recvd_bytes: usize = 0;
+        let mut buf = vec![0u8; 1500];
+        // Send a datagram to establish the session.
+        s.send_to(b"hello", &sess.destination).await.unwrap();
+        loop {
+            assert!(recvd_bytes <= expected_total_bytes);
+            if recvd_bytes == expected_total_bytes {
+                break;
+            }
+            let (n, _) = timeout(Duration::from_secs(2), r.recv_from(&mut buf))
+                .await
+                .unwrap()
+                .unwrap();
+            timeout(Duration::from_secs(2), dst_file.write(&buf[..n]))
+                .await
+                .unwrap()
+                .unwrap();
+            recvd_bytes += n;
+        }
+        dst_file.sync_all().await.unwrap();
+        assert_eq!(
+            dst_file.metadata().await.unwrap().len() as usize,
+            expected_total_bytes
+        );
+        let src_hash = file_hash(&source).await;
+        let dst_hash = file_hash(&dst).await;
+        assert_eq!(src_hash.as_ref(), dst_hash.as_ref());
+    };
+    let socks_addr_cloned = socks_addr.to_string();
+    let mut path = std::env::current_exe().unwrap();
+    path.pop();
+    let send_task = async move {
+        let mut socket = UdpSocket::bind("127.0.0.1:3000").await.unwrap();
+        let source = path.join(src_file);
+        let mut src = tokio::fs::File::open(source).await.unwrap();
+        let mut buf = vec![0u8; 1500];
+        // Receive a single packet to decide the remote peer.
+        let (_, raddr) = socket.recv_from(&mut buf).await.unwrap();
+        loop {
+            // Since UDP is unordered and unreliable, even tests on local could
+            // fail, make some delay to mitigate this.
+            tokio::time::sleep(Duration::from_micros(10)).await;
+            let n = timeout(Duration::from_secs(2), src.read(&mut buf))
+                .await
+                .unwrap()
+                .unwrap();
+            if n > 0 {
+                let n = timeout(Duration::from_secs(2), socket.send_to(&buf[..n], &raddr))
+                    .await
+                    .unwrap()
+                    .unwrap();
+            } else {
+                break;
+            }
+        }
+    };
+    let leaf_rt_ids = run_leaf_instances(&rt, configs.clone());
+    let mut futs: Vec<leaf::Runner> = Vec::new();
+    futs.push(Box::pin(recv_task));
+    futs.push(Box::pin(send_task));
+    let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
+    for id in leaf_rt_ids.into_iter() {
+        leaf::shutdown(id);
+    }
+    assert!(res.is_ok());
+}
+
 // Runs multiple leaf instances, thereafter a socks request will be sent to the
 // given socks server to test the proxy chain. The proxy chain is expected to
 // correctly handle the request to it's destination.
 pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
+    log::warn!("testing configs");
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -278,22 +637,45 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
     let leaf_rt_ids = run_leaf_instances(&rt, configs);
 
     // Simulates an application request.
+    let socks_addr = socks_addr.to_string();
     let app_task = async move {
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
         let mut sess = leaf::session::Session::default();
         sess.destination = leaf::session::SocksAddr::Ip("127.0.0.1:3000".parse().unwrap());
-        let mut s = new_socks_stream(socks_addr, socks_port, &sess).await;
-        s.write_all(b"abc").await.unwrap();
+        let mut s = timeout(
+            Duration::from_secs(1),
+            new_socks_stream(&socks_addr, socks_port, &sess),
+        )
+        .await
+        .unwrap();
+        timeout(Duration::from_secs(1), s.write_all(b"abc"))
+            .await
+            .unwrap()
+            .unwrap();
         let mut buf = Vec::new();
-        let n = s.read_buf(&mut buf).await.unwrap();
+        let n = timeout(Duration::from_secs(1), s.read_buf(&mut buf))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!("abc".to_string(), String::from_utf8_lossy(&buf[..n]));
 
         // Test UDP
-        let dgram = new_socks_datagram(socks_addr, socks_port, &sess).await;
+        let dgram = timeout(
+            Duration::from_secs(1),
+            new_socks_datagram(&socks_addr, socks_port, &sess),
+        )
+        .await
+        .unwrap();
         let (mut r, mut s) = dgram.split();
         let msg = b"def";
-        let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
+        let n = timeout(
+            Duration::from_secs(1),
+            s.send_to(&msg.to_vec(), &sess.destination),
+        )
+        .await
+        .unwrap()
+        .unwrap();
         assert_eq!(msg.len(), n);
         let mut buf = vec![0u8; 2 * 1024];
         let (n, raddr) = timeout(Duration::from_secs(1), r.recv_from(&mut buf))
@@ -305,10 +687,21 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
 
         // Test if we can handle a second UDP session. This can fail in stream
         // transports if the stream ID has not been correctly set.
-        let dgram2 = new_socks_datagram(socks_addr, socks_port, &sess).await;
+        let dgram2 = timeout(
+            Duration::from_secs(1),
+            new_socks_datagram(&socks_addr, socks_port, &sess),
+        )
+        .await
+        .unwrap();
         let (mut r, mut s) = dgram2.split();
         let msg = b"ghi";
-        let n = s.send_to(&msg.to_vec(), &sess.destination).await.unwrap();
+        let n = timeout(
+            Duration::from_secs(1),
+            s.send_to(&msg.to_vec(), &sess.destination),
+        )
+        .await
+        .unwrap()
+        .unwrap();
         assert_eq!(msg.len(), n);
         let mut buf = vec![0u8; 2 * 1024];
         let (n, raddr) = timeout(Duration::from_secs(1), r.recv_from(&mut buf))
@@ -321,8 +714,15 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         // Cancel the background task.
         bg_task_handle.abort();
     };
-    rt.block_on(futures::future::join(bg_task, app_task).map(|_| ()));
+    let bg_task = async move {
+        bg_task.await;
+    };
+    let mut futs = Vec::new();
+    futs.push(rt.spawn(bg_task));
+    futs.push(rt.spawn(app_task));
+    let res = rt.block_on(futures::future::select_all(futs));
     for id in leaf_rt_ids.into_iter() {
         assert!(leaf::shutdown(id));
     }
+    assert!(res.0.is_ok());
 }

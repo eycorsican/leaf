@@ -56,7 +56,7 @@ lazy_static! {
 
 #[cfg(feature = "stat")]
 lazy_static! {
-    pub static ref ENABLE_STATS: bool = { get_env_var_or("ENABLE_STATS", false) };
+    pub static ref ENABLE_STATS: bool = get_env_var_or("ENABLE_STATS", false);
 }
 
 lazy_static! {
