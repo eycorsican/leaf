@@ -231,6 +231,15 @@ where
 }
 
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
+    let env_lines = get_lines_by_section("Env", lines.iter());
+    for line in env_lines {
+        let parts: Vec<&str> = line.split('=').map(str::trim).collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        std::env::set_var(parts[0], parts[1]);
+    }
+
     let mut general = General::default();
     let general_lines = get_lines_by_section("General", lines.iter());
     for line in general_lines {
