@@ -3,27 +3,27 @@ name: ci
 on: [push, pull_request]
 
 jobs:
-  #  test:
-  #    strategy:
-  #      matrix:
-  #        os:
-  #          - macos-latest
-  #          - ubuntu-latest
-  #          - windows-latest
-  #    runs-on: ${{ matrix.os }}
-  #    steps:
-  #      - name: checkout
-  #        uses: actions/checkout@v2
-  #        with:
-  #          submodules: true
-  #
-  #      - name: install rust toolchain
-  #        uses: hecrj/setup-rust-action@v1
-  #        with:
-  #          rust-version: nightly
-  #
-  #      - name: test leaf
-  #        run: cargo test -p leaf
+  test:
+    strategy:
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      - name: test leaf
+        run: cargo test -p leaf
 
   build-bin-cross:
     runs-on: ubuntu-latest

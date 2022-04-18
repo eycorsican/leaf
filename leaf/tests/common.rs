@@ -1,4 +1,3 @@
-use std::io::ErrorKind;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
@@ -183,7 +182,7 @@ pub fn test_tcp_half_close_on_configs(configs: Vec<String>, socks_addr: &str, so
             .write_all(b"hello")
             .await
             .map_err(|e| e.kind());
-        assert_eq!(res, Err(ErrorKind::BrokenPipe));
+        assert!(res.is_err());
         server_stream.write_all(b"world").await.unwrap();
         let mut buf = Vec::new();
         let n = client_stream.read_buf(&mut buf).await.unwrap();
@@ -241,7 +240,7 @@ pub fn test_tcp_half_close_on_configs(configs: Vec<String>, socks_addr: &str, so
             .write_all(b"world")
             .await
             .map_err(|e| e.kind());
-        assert_eq!(res, Err(ErrorKind::BrokenPipe));
+        assert!(res.is_err());
         let mut buf = Vec::new();
         let n = timeout(Duration::from_millis(20), client_stream.read_buf(&mut buf))
             .await
@@ -267,6 +266,13 @@ pub fn test_tcp_half_close_on_configs(configs: Vec<String>, socks_addr: &str, so
     }));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
+        assert!(rt
+            .block_on(rt.spawn(async move {
+                timeout(Duration::from_millis(50), wait_for_shutdown(id))
+                    .await
+                    .unwrap();
+            }))
+            .is_ok());
     }
     assert!(res.is_ok());
 }
@@ -303,7 +309,7 @@ pub fn test_data_transfering_reliability_on_configs(
     let dst = path.join(dst_file);
     if !source.exists() {
         let mut rng = StdRng::from_entropy();
-        let mut data = vec![0u8; 50 * 1024 * 1024]; // 50MB payload
+        let mut data = vec![0u8; 25 * 1024 * 1024]; // 25MB payload
         rng.fill_bytes(&mut data);
         let mut f = std::fs::File::create(source).unwrap();
         f.write_all(&data).unwrap();
@@ -329,7 +335,7 @@ pub fn test_data_transfering_reliability_on_configs(
             .await
             .unwrap();
         let n = timeout(
-            Duration::from_secs(10),
+            Duration::from_secs(600),
             tokio::io::copy(&mut stream, &mut dst_file),
         )
         .await
@@ -352,7 +358,7 @@ pub fn test_data_transfering_reliability_on_configs(
         let mut stream = new_socks_stream(&socks_addr_cloned, socks_port, &sess).await;
         let mut src = tokio::fs::File::open(source).await.unwrap();
         timeout(
-            Duration::from_secs(10),
+            Duration::from_secs(600),
             tokio::io::copy(&mut src, &mut stream),
         )
         .await
@@ -366,6 +372,13 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
+        assert!(rt
+            .block_on(rt.spawn(async move {
+                timeout(Duration::from_millis(50), wait_for_shutdown(id))
+                    .await
+                    .unwrap();
+            }))
+            .is_ok());
     }
     assert!(res.is_ok());
 
@@ -390,7 +403,7 @@ pub fn test_data_transfering_reliability_on_configs(
             .await
             .unwrap();
         let n = timeout(
-            Duration::from_secs(10),
+            Duration::from_secs(600),
             tokio::io::copy(&mut stream, &mut dst_file),
         )
         .await
@@ -414,7 +427,7 @@ pub fn test_data_transfering_reliability_on_configs(
             .unwrap();
         let mut src = tokio::fs::File::open(source).await.unwrap();
         timeout(
-            Duration::from_secs(10),
+            Duration::from_secs(600),
             tokio::io::copy(&mut src, &mut stream),
         )
         .await
@@ -428,6 +441,13 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
+        assert!(rt
+            .block_on(rt.spawn(async move {
+                timeout(Duration::from_millis(50), wait_for_shutdown(id))
+                    .await
+                    .unwrap();
+            }))
+            .is_ok());
     }
     assert!(res.is_ok());
 
@@ -456,6 +476,7 @@ pub fn test_data_transfering_reliability_on_configs(
             .len() as usize;
         let mut recvd_bytes: usize = 0;
         let mut buf = vec![0u8; 1500];
+        let mut recvd_data = Vec::new();
         loop {
             assert!(recvd_bytes <= expected_total_bytes);
             if recvd_bytes == expected_total_bytes {
@@ -465,11 +486,11 @@ pub fn test_data_transfering_reliability_on_configs(
                 .await
                 .unwrap()
                 .unwrap();
-            timeout(Duration::from_secs(2), dst_file.write(&buf[..n]))
-                .await
-                .unwrap()
-                .unwrap();
+            recvd_data.push((&buf[..n]).to_vec());
             recvd_bytes += n;
+        }
+        for data in recvd_data.into_iter() {
+            dst_file.write(&data).await.unwrap();
         }
         dst_file.sync_all().await.unwrap();
         assert_eq!(
@@ -495,7 +516,7 @@ pub fn test_data_transfering_reliability_on_configs(
         loop {
             // Since UDP is unordered and unreliable, even tests on local could
             // fail, make some delay to mitigate this.
-            tokio::time::sleep(Duration::from_micros(10)).await;
+            tokio::time::sleep(Duration::from_millis(1)).await;
             let n = timeout(Duration::from_secs(2), src.read(&mut buf))
                 .await
                 .unwrap()
@@ -520,6 +541,13 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
+        assert!(rt
+            .block_on(rt.spawn(async move {
+                timeout(Duration::from_millis(50), wait_for_shutdown(id))
+                    .await
+                    .unwrap();
+            }))
+            .is_ok());
     }
     assert!(res.is_ok());
 
@@ -553,6 +581,7 @@ pub fn test_data_transfering_reliability_on_configs(
             .len() as usize;
         let mut recvd_bytes: usize = 0;
         let mut buf = vec![0u8; 1500];
+        let mut recvd_data = Vec::new();
         // Send a datagram to establish the session.
         s.send_to(b"hello", &sess.destination).await.unwrap();
         loop {
@@ -564,11 +593,11 @@ pub fn test_data_transfering_reliability_on_configs(
                 .await
                 .unwrap()
                 .unwrap();
-            timeout(Duration::from_secs(2), dst_file.write(&buf[..n]))
-                .await
-                .unwrap()
-                .unwrap();
+            recvd_data.push((&buf[..n]).to_vec());
             recvd_bytes += n;
+        }
+        for data in recvd_data.into_iter() {
+            dst_file.write(&data).await.unwrap();
         }
         dst_file.sync_all().await.unwrap();
         assert_eq!(
@@ -592,7 +621,7 @@ pub fn test_data_transfering_reliability_on_configs(
         loop {
             // Since UDP is unordered and unreliable, even tests on local could
             // fail, make some delay to mitigate this.
-            tokio::time::sleep(Duration::from_micros(10)).await;
+            tokio::time::sleep(Duration::from_millis(1)).await;
             let n = timeout(Duration::from_secs(2), src.read(&mut buf))
                 .await
                 .unwrap()
@@ -614,6 +643,13 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
+        assert!(rt
+            .block_on(rt.spawn(async move {
+                timeout(Duration::from_millis(50), wait_for_shutdown(id))
+                    .await
+                    .unwrap();
+            }))
+            .is_ok());
     }
     assert!(res.is_ok());
 }
@@ -723,6 +759,22 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
     let res = rt.block_on(futures::future::select_all(futs));
     for id in leaf_rt_ids.into_iter() {
         assert!(leaf::shutdown(id));
+        assert!(rt
+            .block_on(rt.spawn(async move {
+                timeout(Duration::from_millis(50), wait_for_shutdown(id))
+                    .await
+                    .unwrap();
+            }))
+            .is_ok());
     }
     assert!(res.0.is_ok());
+}
+
+async fn wait_for_shutdown(id: leaf::RuntimeId) {
+    loop {
+        if !leaf::is_running(id) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
 }
