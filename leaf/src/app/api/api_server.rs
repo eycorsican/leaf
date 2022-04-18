@@ -152,7 +152,7 @@ table, th, td {
                 .iter()
                 .filter(|x| !x.send_completed() || !x.recv_completed())
                 .map(|c| c.sess.forwarded_source)
-                .take_while(|x| x.is_some())
+                .filter(|x| x.is_some())
                 .map(|x| x.unwrap()),
         )
         .len();
