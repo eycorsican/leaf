@@ -93,8 +93,23 @@ fn main() {
             .enable_all()
             .build()
             .unwrap();
-        rt.block_on(leaf::util::test_outbound(&tag, &config));
-        exit(0);
+        match rt.block_on(leaf::util::test_outbound(&tag, &config, None)) {
+            Err(e) => {
+                println!("test outbound failed: {}", e);
+                exit(1);
+            }
+            Ok((tcp_res, udp_res)) => {
+                match tcp_res {
+                    Ok(duration) => println!("TCP ok in {}ms", duration.as_millis()),
+                    Err(e) => println!("TCP failed: {}", e),
+                }
+                match udp_res {
+                    Ok(duration) => println!("UDP ok in {}ms", duration.as_millis()),
+                    Err(e) => println!("UDP failed: {}", e),
+                }
+                exit(0);
+            }
+        }
     }
 
     if let Err(e) = leaf::util::run_with_options(
