@@ -54,6 +54,10 @@ struct Args {
     #[argh(option, short = 't')]
     test_outbound: Option<String>,
 
+    /// timeout for outbound connectivity tests, in seconds
+    #[argh(option, short = 'd', default = "4")]
+    test_outbound_timeout: u64,
+
     /// bound interface, explicitly sets the OUTBOUND_INTERFACE environment variable
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[argh(option, short = 'b')]
@@ -93,7 +97,11 @@ fn main() {
             .enable_all()
             .build()
             .unwrap();
-        match rt.block_on(leaf::util::test_outbound(&tag, &config, None)) {
+        match rt.block_on(leaf::util::test_outbound(
+            &tag,
+            &config,
+            Some(std::time::Duration::from_secs(args.test_outbound_timeout)),
+        )) {
             Err(e) => {
                 println!("test outbound failed: {}", e);
                 exit(1);
