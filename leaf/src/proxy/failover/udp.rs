@@ -51,6 +51,7 @@ async fn health_check_task(
     let measure = async move {
         let sess = Session {
             destination: SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53)),
+            new_conn: true,
             ..Default::default()
         };
         let start = tokio::time::Instant::now();

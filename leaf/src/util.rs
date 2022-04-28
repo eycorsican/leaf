@@ -74,6 +74,7 @@ async fn test_tcp_outbound(
 ) -> Result<Duration> {
     let sess = Session {
         destination: SocksAddr::Domain("www.google.com".to_string(), 80),
+        new_conn: true,
         ..Default::default()
     };
     let start = tokio::time::Instant::now();
@@ -101,6 +102,7 @@ async fn test_udp_outbound(
     let addr = SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
     let sess = Session {
         destination: addr.clone(),
+        new_conn: true,
         ..Default::default()
     };
     let start = tokio::time::Instant::now();

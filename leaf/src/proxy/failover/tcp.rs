@@ -44,6 +44,7 @@ async fn health_check_task(
     let measure = async move {
         let sess = Session {
             destination: SocksAddr::Domain("www.google.com".to_string(), 80),
+            new_conn: true,
             ..Default::default()
         };
         let start = tokio::time::Instant::now();

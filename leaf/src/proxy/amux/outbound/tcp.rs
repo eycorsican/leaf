@@ -71,33 +71,44 @@ impl MuxManager {
     }
 
     pub async fn new_stream(&self, sess: &Session) -> io::Result<MuxStream> {
+        // Run the cleanup task, if it's not already running.
         if self.monitor_task.lock().await.is_some() {
             if let Some(task) = self.monitor_task.lock().await.take() {
                 tokio::spawn(task);
             }
         }
 
-        for c in self.connectors.lock().await.iter_mut() {
-            if let Some(s) = c.new_stream().await {
-                return Ok(s);
+        if !sess.new_conn {
+            // Try to create the stream from existing connections.
+            for c in self.connectors.lock().await.iter_mut() {
+                if let Some(s) = c.new_stream().await {
+                    return Ok(s);
+                }
             }
         }
+
+        // Create a new connection.
+
+        // Create the underlying TCP stream.
         let mut conn = self
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)
             .await?;
+
+        // Pass the TCP stream through all sub-transports, e.g. TLS, WebSocket.
         let mut sess = sess.clone();
-        if let Ok(addr) = SocksAddr::try_from((&self.address, self.port)) {
-            sess.destination = addr;
-        }
+        sess.destination = SocksAddr::try_from((&self.address, self.port))?;
         for (_, a) in self.actors.iter().enumerate() {
             conn = TcpOutboundHandler::handle(a.as_ref(), &sess, Some(conn)).await?;
         }
+
+        // Create the stream over this new connection.
         let mut connector = MuxSession::connector(conn, self.max_accepts, self.concurrency);
         let s = match connector.new_stream().await {
             Some(s) => s,
             None => return Err(io::Error::new(io::ErrorKind::Other, "new stream failed")),
         };
         self.connectors.lock().await.push(connector);
+
         Ok(s)
     }
 }

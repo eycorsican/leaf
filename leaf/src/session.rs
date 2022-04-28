@@ -65,6 +65,9 @@ pub struct Session {
     pub stream_id: Option<StreamId>,
     /// Optional source address which is forwarded via HTTP reverse proxy.
     pub forwarded_source: Option<IpAddr>,
+    /// Instructs a multiplexed transport should creates a new underlying
+    /// connection for this session. This field is subject to change in the future.
+    pub new_conn: bool,
 }
 
 impl Clone for Session {
@@ -78,6 +81,7 @@ impl Clone for Session {
             outbound_tag: self.outbound_tag.clone(),
             stream_id: self.stream_id,
             forwarded_source: self.forwarded_source,
+            new_conn: self.new_conn,
         }
     }
 }
@@ -93,6 +97,7 @@ impl Default for Session {
             outbound_tag: "".to_string(),
             stream_id: None,
             forwarded_source: None,
+            new_conn: false,
         }
     }
 }
