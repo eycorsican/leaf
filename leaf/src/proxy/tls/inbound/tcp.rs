@@ -58,14 +58,11 @@ impl Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    type TStream = AnyStream;
-    type TDatagram = AnyInboundDatagram;
-
     async fn handle<'a>(
         &'a self,
         sess: Session,
-        stream: Self::TStream,
-    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
+        stream: AnyStream,
+    ) -> std::io::Result<AnyInboundTransport> {
         #[cfg(feature = "rustls-tls")]
         {
             Ok(InboundTransport::Stream(

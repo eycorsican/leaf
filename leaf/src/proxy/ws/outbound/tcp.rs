@@ -40,8 +40,6 @@ impl<'a> tungstenite::client::IntoClientRequest for Request<'a> {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    type Stream = AnyStream;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -49,8 +47,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Self::Stream>,
-    ) -> io::Result<Self::Stream> {
+        stream: Option<AnyStream>,
+    ) -> io::Result<AnyStream> {
         if let Some(stream) = stream {
             let host = if let Some(host) = self.headers.get("Host") {
                 host.to_owned()

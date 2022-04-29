@@ -60,14 +60,11 @@ impl Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    type TStream = AnyStream;
-    type TDatagram = AnyInboundDatagram;
-
     async fn handle<'a>(
         &'a self,
         mut sess: Session,
-        stream: Self::TStream,
-    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
+        stream: AnyStream,
+    ) -> std::io::Result<AnyInboundTransport> {
         Ok(InboundTransport::Stream(
             Box::new(stream::WebSocketToStream::new(
                 accept_hdr_async(stream, SimpleCallback::new(&mut sess, &self.path))

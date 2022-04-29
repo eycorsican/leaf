@@ -11,9 +11,6 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    type UStream = AnyStream;
-    type Datagram = AnyOutboundDatagram;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.connect.clone()
     }
@@ -25,8 +22,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
-        _transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
-    ) -> io::Result<Self::Datagram> {
+        _transport: Option<AnyOutboundTransport>,
+    ) -> io::Result<AnyOutboundDatagram> {
         Err(io::Error::new(io::ErrorKind::Other, "null handler"))
     }
 }

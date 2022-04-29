@@ -56,6 +56,7 @@ use super::selector::OutboundSelector;
 
 pub struct OutboundManager {
     handlers: HashMap<String, AnyOutboundHandler>,
+    #[cfg(feature = "plugin")]
     external_handlers: super::plugin::ExternalHandlers,
     selectors: Arc<super::Selectors>,
     default_handler: Option<String>,
@@ -68,7 +69,7 @@ impl OutboundManager {
         outbounds: &protobuf::RepeatedField<Outbound>,
         dns_client: SyncDnsClient,
         handlers: &mut HashMap<String, AnyOutboundHandler>,
-        external_handlers: &mut super::plugin::ExternalHandlers,
+        #[cfg(feature = "plugin")] external_handlers: &mut super::plugin::ExternalHandlers,
         default_handler: &mut Option<String>,
         abort_handles: &mut Vec<AbortHandle>,
     ) -> Result<()> {
@@ -564,6 +565,7 @@ impl OutboundManager {
                             settings.actors.join(",")
                         );
                     }
+                    #[cfg(feature = "plugin")]
                     "plugin" => {
                         let settings =
                             config::PluginOutboundSettings::parse_from_bytes(&outbound.settings)
@@ -601,7 +603,7 @@ impl OutboundManager {
     fn load_selectors(
         outbounds: &protobuf::RepeatedField<Outbound>,
         handlers: &mut HashMap<String, AnyOutboundHandler>,
-        external_handlers: &mut super::plugin::ExternalHandlers,
+        #[cfg(feature = "plugin")] external_handlers: &mut super::plugin::ExternalHandlers,
         selectors: &mut super::Selectors,
     ) -> Result<()> {
         // FIXME a better way to find outbound deps?
@@ -684,6 +686,7 @@ impl OutboundManager {
         // Load new outbounds.
         let mut handlers: HashMap<String, AnyOutboundHandler> = HashMap::new();
 
+        #[cfg(feature = "plugin")]
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles: Vec<AbortHandle> = Vec::new();
@@ -693,6 +696,7 @@ impl OutboundManager {
                 outbounds,
                 dns_client.clone(),
                 &mut handlers,
+                #[cfg(feature = "plugin")]
                 &mut external_handlers,
                 &mut default_handler,
                 &mut abort_handles,
@@ -700,6 +704,7 @@ impl OutboundManager {
             Self::load_selectors(
                 outbounds,
                 &mut handlers,
+                #[cfg(feature = "plugin")]
                 &mut external_handlers,
                 &mut selectors,
             )?;
@@ -722,7 +727,10 @@ impl OutboundManager {
         }
 
         self.handlers = handlers;
-        self.external_handlers = external_handlers;
+        #[cfg(feature = "plugin")]
+        {
+            self.external_handlers = external_handlers;
+        }
         self.selectors = Arc::new(selectors);
         self.default_handler = default_handler;
         self.abort_handles = abort_handles;
@@ -734,6 +742,7 @@ impl OutboundManager {
         dns_client: SyncDnsClient,
     ) -> Result<Self> {
         let mut handlers: HashMap<String, AnyOutboundHandler> = HashMap::new();
+        #[cfg(feature = "plugin")]
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles: Vec<AbortHandle> = Vec::new();
@@ -743,6 +752,7 @@ impl OutboundManager {
                 outbounds,
                 dns_client.clone(),
                 &mut handlers,
+                #[cfg(feature = "plugin")]
                 &mut external_handlers,
                 &mut default_handler,
                 &mut abort_handles,
@@ -750,12 +760,14 @@ impl OutboundManager {
             Self::load_selectors(
                 outbounds,
                 &mut handlers,
+                #[cfg(feature = "plugin")]
                 &mut external_handlers,
                 &mut selectors,
             )?;
         }
         Ok(OutboundManager {
             handlers,
+            #[cfg(feature = "plugin")]
             external_handlers,
             selectors: Arc::new(selectors),
             default_handler,

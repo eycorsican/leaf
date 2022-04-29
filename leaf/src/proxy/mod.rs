@@ -509,9 +509,7 @@ pub trait OutboundHandler:
 {
 }
 
-pub type AnyOutboundHandler = Arc<
-    dyn OutboundHandler<Stream = AnyStream, UStream = AnyStream, Datagram = AnyOutboundDatagram>,
->;
+pub type AnyOutboundHandler = Arc<dyn OutboundHandler>;
 
 #[derive(Debug, Clone)]
 pub enum OutboundConnect {
@@ -522,23 +520,17 @@ pub enum OutboundConnect {
 
 /// An outbound handler for outgoing TCP conections.
 #[async_trait]
-pub trait TcpOutboundHandler: Send + Sync + Unpin {
-    type Stream;
-
+pub trait TcpOutboundHandler<S = AnyStream>: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> Option<OutboundConnect>;
 
     /// Handles a session with the given stream. On success, returns a
     /// stream wraps the incoming stream.
-    async fn handle<'a>(
-        &'a self,
-        sess: &'a Session,
-        stream: Option<Self::Stream>,
-    ) -> io::Result<Self::Stream>;
+    async fn handle<'a>(&'a self, sess: &'a Session, stream: Option<S>) -> io::Result<S>;
 }
 
-type AnyTcpOutboundHandler = Box<dyn TcpOutboundHandler<Stream = AnyStream>>;
+type AnyTcpOutboundHandler = Box<dyn TcpOutboundHandler>;
 
 /// An unreliable transport for outbound handlers.
 pub trait OutboundDatagram: Send + Unpin {
@@ -573,10 +565,7 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
 
 /// An outbound handler for outgoing UDP connections.
 #[async_trait]
-pub trait UdpOutboundHandler: Send + Sync + Unpin {
-    type UStream;
-    type Datagram;
-
+pub trait UdpOutboundHandler<S = AnyStream, D = AnyOutboundDatagram>: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> Option<OutboundConnect>;
@@ -594,12 +583,11 @@ pub trait UdpOutboundHandler: Send + Sync + Unpin {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
-    ) -> io::Result<Self::Datagram>;
+        transport: Option<OutboundTransport<S, D>>,
+    ) -> io::Result<D>;
 }
 
-type AnyUdpOutboundHandler =
-    Box<dyn UdpOutboundHandler<UStream = AnyStream, Datagram = AnyOutboundDatagram>>;
+type AnyUdpOutboundHandler = Box<dyn UdpOutboundHandler>;
 
 /// An outbound transport represents either a reliable or unreliable transport.
 pub enum OutboundTransport<S, D> {
@@ -618,45 +606,27 @@ pub trait InboundHandler:
     fn has_udp(&self) -> bool;
 }
 
-pub type AnyInboundHandler = Arc<
-    dyn InboundHandler<
-        TStream = AnyStream,
-        TDatagram = AnyInboundDatagram,
-        UStream = AnyStream,
-        UDatagram = AnyInboundDatagram,
-    >,
->;
+pub type AnyInboundHandler = Arc<dyn InboundHandler>;
 
 /// An inbound handler for incoming TCP connections.
 #[async_trait]
-pub trait TcpInboundHandler: Send + Sync + Unpin {
-    type TStream;
-    type TDatagram;
-
+pub trait TcpInboundHandler<S = AnyStream, D = AnyInboundDatagram>: Send + Sync + Unpin {
     async fn handle<'a>(
         &'a self,
         sess: Session,
-        stream: Self::TStream,
-    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>>;
+        stream: S,
+    ) -> std::io::Result<InboundTransport<S, D>>;
 }
 
-pub type AnyTcpInboundHandler =
-    Arc<dyn TcpInboundHandler<TStream = AnyStream, TDatagram = AnyInboundDatagram>>;
+pub type AnyTcpInboundHandler = Arc<dyn TcpInboundHandler>;
 
 /// An inbound handler for incoming UDP connections.
 #[async_trait]
-pub trait UdpInboundHandler: Send + Sync + Unpin {
-    type UStream;
-    type UDatagram;
-
-    async fn handle<'a>(
-        &'a self,
-        socket: Self::UDatagram,
-    ) -> io::Result<InboundTransport<Self::UStream, Self::UDatagram>>;
+pub trait UdpInboundHandler<S = AnyStream, D = AnyInboundDatagram>: Send + Sync + Unpin {
+    async fn handle<'a>(&'a self, socket: D) -> io::Result<InboundTransport<S, D>>;
 }
 
-pub type AnyUdpInboundHandler =
-    Arc<dyn UdpInboundHandler<UStream = AnyStream, UDatagram = AnyInboundDatagram>>;
+pub type AnyUdpInboundHandler = Arc<dyn UdpInboundHandler>;
 
 /// An unreliable transport for inbound handlers.
 pub trait InboundDatagram: Send + Sync + Unpin {

@@ -24,6 +24,7 @@ default-ring = [
     "outbound-quic",
     "api",
     "stat",
+    # "plugin",
 ]
 
 default-openssl = [
@@ -109,6 +110,7 @@ inbound-quic = ["quinn", "rustls", "webpki-roots"]
 inbound-tls = []
 inbound-chain = []
 
+plugin = []
 stat = []
 api = ["warp"]
 auto-reload = ["notify"]

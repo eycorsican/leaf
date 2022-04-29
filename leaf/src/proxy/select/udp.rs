@@ -5,14 +5,7 @@ use async_trait::async_trait;
 use log::*;
 use tokio::sync::RwLock;
 
-use crate::{
-    app::outbound::selector::OutboundSelector,
-    proxy::{
-        DatagramTransportType, OutboundConnect, OutboundDatagram, OutboundTransport,
-        UdpOutboundHandler,
-    },
-    session::Session,
-};
+use crate::{app::outbound::selector::OutboundSelector, proxy::*, session::Session};
 
 pub struct Handler {
     pub selector: Arc<RwLock<OutboundSelector>>,
@@ -20,9 +13,6 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    type UStream = AnyStream;
-    type Datagram = AnyOutboundDatagram;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -34,8 +24,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
-    ) -> io::Result<Self::Datagram> {
+        transport: Option<AnyOutboundTransport>,
+    ) -> io::Result<AnyOutboundDatagram> {
         if let Some(a) = self.selector.read().await.get_selected() {
             debug!("select handles tcp [{}] to [{}]", sess.destination, a.tag());
             UdpOutboundHandler::handle(a.as_ref(), sess, transport).await

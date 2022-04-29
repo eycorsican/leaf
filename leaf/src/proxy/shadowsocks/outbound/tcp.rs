@@ -19,8 +19,6 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    type Stream = AnyStream;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
@@ -28,8 +26,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Self::Stream>,
-    ) -> io::Result<Self::Stream> {
+        stream: Option<AnyStream>,
+    ) -> io::Result<AnyStream> {
         let stream = stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
         let mut stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
         let mut buf = BytesMut::new();

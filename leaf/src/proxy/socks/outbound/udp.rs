@@ -25,9 +25,6 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    type UStream = AnyStream;
-    type Datagram = AnyOutboundDatagram;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         Some(OutboundConnect::Proxy(self.address.clone(), self.port))
     }
@@ -39,8 +36,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
-    ) -> io::Result<Self::Datagram> {
+        _transport: Option<AnyOutboundTransport>,
+    ) -> io::Result<AnyOutboundDatagram> {
         // TODO support chaining, this requires implementing our own socks5 client
         let stream = self
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)

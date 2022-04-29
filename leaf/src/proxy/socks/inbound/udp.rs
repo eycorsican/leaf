@@ -15,13 +15,10 @@ pub struct Handler;
 
 #[async_trait]
 impl UdpInboundHandler for Handler {
-    type UStream = AnyStream;
-    type UDatagram = AnyInboundDatagram;
-
     async fn handle<'a>(
         &'a self,
-        socket: Self::UDatagram,
-    ) -> io::Result<InboundTransport<Self::UStream, Self::UDatagram>> {
+        socket: AnyInboundDatagram,
+    ) -> io::Result<AnyInboundTransport> {
         Ok(InboundTransport::Datagram(
             Box::new(Datagram { socket }),
             None,

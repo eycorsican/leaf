@@ -115,9 +115,6 @@ impl Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    type UStream = AnyStream;
-    type Datagram = AnyOutboundDatagram;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         for a in self.actors.iter() {
             if let Some(addr) = UdpOutboundHandler::connect_addr(a.as_ref()) {
@@ -139,8 +136,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
-    ) -> io::Result<Self::Datagram> {
+        transport: Option<AnyOutboundTransport>,
+    ) -> io::Result<AnyOutboundDatagram> {
         match transport {
             Some(transport) => match transport {
                 OutboundTransport::Datagram(dgram) => self.handle(sess, None, Some(dgram)).await,

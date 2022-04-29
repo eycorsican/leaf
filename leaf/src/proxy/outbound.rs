@@ -48,8 +48,6 @@ impl Color for Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    type Stream = AnyStream;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.tcp_handler.connect_addr()
     }
@@ -57,17 +55,14 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Self::Stream>,
-    ) -> io::Result<Self::Stream> {
+        stream: Option<AnyStream>,
+    ) -> io::Result<AnyStream> {
         self.tcp_handler.handle(sess, stream).await
     }
 }
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    type UStream = AnyStream;
-    type Datagram = AnyOutboundDatagram;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         self.udp_handler.connect_addr()
     }
@@ -79,8 +74,8 @@ impl UdpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport<Self::UStream, Self::Datagram>>,
-    ) -> io::Result<Self::Datagram> {
+        transport: Option<AnyOutboundTransport>,
+    ) -> io::Result<AnyOutboundDatagram> {
         self.udp_handler.handle(sess, transport).await
     }
 }

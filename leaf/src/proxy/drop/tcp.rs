@@ -8,8 +8,6 @@ pub struct Handler;
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    type Stream = AnyStream;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         None
     }
@@ -17,8 +15,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
-        _stream: Option<Self::Stream>,
-    ) -> io::Result<Self::Stream> {
+        _stream: Option<AnyStream>,
+    ) -> io::Result<AnyStream> {
         Err(io::Error::new(io::ErrorKind::Other, "dropped"))
     }
 }

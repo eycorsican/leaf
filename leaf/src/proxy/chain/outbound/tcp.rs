@@ -34,8 +34,6 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    type Stream = AnyStream;
-
     fn connect_addr(&self) -> Option<OutboundConnect> {
         for a in self.actors.iter() {
             if let Some(addr) = TcpOutboundHandler::connect_addr(a.as_ref()) {
@@ -48,8 +46,8 @@ impl TcpOutboundHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        mut stream: Option<Self::Stream>,
-    ) -> io::Result<Self::Stream> {
+        mut stream: Option<AnyStream>,
+    ) -> io::Result<AnyStream> {
         match self.connect_addr() {
             Some(OutboundConnect::NoConnect) => (),
             _ => {

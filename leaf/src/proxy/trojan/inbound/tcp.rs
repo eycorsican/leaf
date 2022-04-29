@@ -129,14 +129,11 @@ impl Handler {
 
 #[async_trait]
 impl TcpInboundHandler for Handler {
-    type TStream = AnyStream;
-    type TDatagram = AnyInboundDatagram;
-
     async fn handle<'a>(
         &'a self,
         mut sess: Session,
-        mut stream: Self::TStream,
-    ) -> std::io::Result<InboundTransport<Self::TStream, Self::TDatagram>> {
+        mut stream: AnyStream,
+    ) -> std::io::Result<AnyInboundTransport> {
         let mut buf = BytesMut::new();
         // read key
         buf.resize(56, 0);
