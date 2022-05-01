@@ -106,6 +106,24 @@ pub extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32 {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn leaf_run_with_config_string(rt_id: u16, config: *const c_char) -> i32 {
+    if let Ok(config) = unsafe { CStr::from_ptr(config).to_str() } {
+        let opts = leaf::StartOptions {
+            config: leaf::Config::Str(config.to_string()),
+            #[cfg(feature = "auto-reload")]
+            auto_reload: false,
+            runtime_opt: leaf::RuntimeOption::SingleThread,
+        };
+        if let Err(e) = leaf::start(rt_id, opts) {
+            return to_errno(e);
+        }
+        ERR_OK
+    } else {
+        ERR_CONFIG_PATH
+    }
+}
+
 /// Reloads DNS servers, outbounds and routing rules from the config file.
 ///
 /// @param rt_id The ID of the leaf instance to reload.
