@@ -611,7 +611,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         if rule.type_field == "FINAL" {
             rule.target = params[1].to_string();
             rules.push(rule);
-            continue; // maybe break? to enforce FINAL as the final rule
+            break; // FINAL is final.
         }
 
         if params.len() < 3 {
