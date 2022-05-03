@@ -39,6 +39,9 @@ async fn handle_inbound_datagram(
                 break;
             }
         }
+        if let Err(e) = ls.close().await {
+            debug!("Failed to close inbound datagram: {}", e);
+        }
     });
 
     let mut buf = vec![0u8; *crate::option::DATAGRAM_BUFFER_SIZE * 1024];

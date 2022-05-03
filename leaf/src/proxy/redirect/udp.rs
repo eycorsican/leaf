@@ -89,4 +89,8 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], _target: &SocksAddr) -> io::Result<usize> {
         self.0.send_to(buf, &self.1).await
     }
+
+    async fn close(&mut self) -> io::Result<()> {
+        self.0.close().await
+    }
 }

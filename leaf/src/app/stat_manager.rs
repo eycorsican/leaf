@@ -131,6 +131,10 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
             n
         })
     }
+
+    async fn close(&mut self) -> io::Result<()> {
+        self.0.close().await
+    }
 }
 
 pub struct Counter {

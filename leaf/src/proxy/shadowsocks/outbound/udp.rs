@@ -132,4 +132,8 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
             .map_ok(|_| buf.len())
             .await
     }
+
+    async fn close(&mut self) -> io::Result<()> {
+        self.send_half.close().await
+    }
 }

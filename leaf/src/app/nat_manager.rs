@@ -261,6 +261,9 @@ impl NatManager {
                         break;
                     }
                 }
+                if let Err(e) = target_sock_send.close().await {
+                    debug!("Failed to close outbound datagram {}: {}", &raddr, e);
+                }
             });
         });
     }

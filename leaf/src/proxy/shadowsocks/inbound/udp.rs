@@ -98,4 +98,8 @@ impl InboundDatagramSendHalf for DatagramSendHalf {
         let ciphertext = self.0.encrypt(send_buf).map_err(|_| shadow::crypto_err())?;
         self.1.send_to(&ciphertext[..], src_addr, dst_addr).await
     }
+
+    async fn close(&mut self) -> io::Result<()> {
+        self.1.close().await
+    }
 }

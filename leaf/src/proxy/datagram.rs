@@ -114,6 +114,10 @@ impl OutboundDatagramSendHalf for SimpleOutboundDatagramSendHalf {
         };
         self.0.send_to(buf, &addr).await
     }
+
+    async fn close(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 /// An inbound datagram simply wraps a UDP socket.
@@ -175,5 +179,9 @@ impl InboundDatagramSendHalf for SimpleInboundDatagramSendHalf {
         dst_addr: &SocketAddr,
     ) -> io::Result<usize> {
         self.0.send_to(buf, dst_addr).await
+    }
+
+    async fn close(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }

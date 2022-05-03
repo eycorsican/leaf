@@ -116,4 +116,9 @@ where
             )),
         }
     }
+
+    async fn close(&mut self) -> io::Result<()> {
+        // FIXME implement our own socks5 outbound to propagate this.
+        Ok(())
+    }
 }

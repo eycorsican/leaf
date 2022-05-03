@@ -561,6 +561,9 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
     ///
     /// `dst_addr` is not the proxy server address.
     async fn send_to(&mut self, buf: &[u8], dst_addr: &SocksAddr) -> io::Result<usize>;
+
+    /// Close the soccket gracefully.
+    async fn close(&mut self) -> io::Result<()>;
 }
 
 /// An outbound handler for outgoing UDP connections.
@@ -676,6 +679,9 @@ pub trait InboundDatagramSendHalf: Sync + Send + Unpin {
         src_addr: &SocksAddr,
         dst_addr: &SocketAddr,
     ) -> io::Result<usize>;
+
+    /// Close the socket gracefully.
+    async fn close(&mut self) -> io::Result<()>;
 }
 
 pub enum BaseInboundTransport<S, D> {
