@@ -52,6 +52,7 @@ async fn health_check_task(
             Ok(s) => s,
             Err(_) => return Measure(i, u128::MAX),
         };
+        let m: Measure;
         match TcpOutboundHandler::handle(h.as_ref(), &sess, stream).await {
             Ok(mut stream) => {
                 if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
@@ -62,15 +63,21 @@ async fn health_check_task(
                     // handshake, write and read are ok
                     Ok(_) => {
                         let elapsed = tokio::time::Instant::now().duration_since(start);
-                        Measure(i, elapsed.as_millis())
+                        m = Measure(i, elapsed.as_millis());
                     }
                     // handshake and write are ok
-                    Err(_) => Measure(i, u128::MAX - 3),
+                    Err(_) => {
+                        m = Measure(i, u128::MAX - 3);
+                    }
                 }
+                let _ = stream.shutdown().await;
             }
             // handshake not ok
-            Err(_) => Measure(i, u128::MAX),
+            Err(_) => {
+                m = Measure(i, u128::MAX);
+            }
         }
+        m
     };
     match timeout(
         time::Duration::from_secs(health_check_timeout.into()),
