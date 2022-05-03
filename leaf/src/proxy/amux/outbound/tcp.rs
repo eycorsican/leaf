@@ -49,7 +49,7 @@ impl MuxManager {
             loop {
                 connectors2.lock().await.retain(|c| !c.is_done());
                 log::trace!("active connectors {}", connectors2.lock().await.len());
-                tokio::time::sleep(Duration::from_secs(120)).await;
+                tokio::time::sleep(Duration::from_secs(20)).await;
             }
         };
         let (abortable, abort_handle) = abortable(fut);
@@ -78,7 +78,7 @@ impl MuxManager {
             }
         }
 
-        if !sess.new_conn {
+        if !sess.new_conn_once {
             // Try to create the stream from existing connections.
             for c in self.connectors.lock().await.iter_mut() {
                 if let Some(s) = c.new_stream().await {
@@ -102,7 +102,13 @@ impl MuxManager {
         }
 
         // Create the stream over this new connection.
-        let mut connector = MuxSession::connector(conn, self.max_accepts, self.concurrency);
+        let mut connector = {
+            if sess.new_conn_once {
+                MuxSession::connector(conn, 1, 1)
+            } else {
+                MuxSession::connector(conn, self.max_accepts, self.concurrency)
+            }
+        };
         let s = match connector.new_stream().await {
             Some(s) => s,
             None => return Err(io::Error::new(io::ErrorKind::Other, "new stream failed")),

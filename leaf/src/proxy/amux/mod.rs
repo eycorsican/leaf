@@ -101,6 +101,7 @@ pub struct MuxStream {
     buf: BytesMut,
     write_state: TaskState,
     shutdown_state: TaskState,
+    stream_end: Arc<AtomicBool>,
 }
 
 impl MuxStream {
@@ -108,6 +109,7 @@ impl MuxStream {
         session_id: SessionId,
         stream_id: StreamId,
         frame_write_tx: Sender<MuxFrame>,
+        stream_end: Arc<AtomicBool>,
     ) -> (Self, Sender<Vec<u8>>) {
         trace!("new mux stream {} (session {})", stream_id, session_id);
         let (stream_read_tx, stream_read_rx) = mpsc::channel::<Vec<u8>>(1);
@@ -120,6 +122,7 @@ impl MuxStream {
                 buf: BytesMut::new(),
                 write_state: TaskState::Idle,
                 shutdown_state: TaskState::Idle,
+                stream_end,
             },
             stream_read_tx,
         )
@@ -132,6 +135,7 @@ impl MuxStream {
 
 impl Drop for MuxStream {
     fn drop(&mut self) {
+        self.stream_end.store(true, Ordering::Relaxed);
         trace!(
             "drop mux stream {} (session {})",
             self.stream_id,
@@ -423,6 +427,7 @@ impl MuxSession {
                                             *session_id,
                                             stream_id,
                                             frame_write_tx.clone(),
+                                            Arc::new(AtomicBool::new(false)),
                                         );
                                         streams.lock().await.insert(stream_id, stream_read_tx);
                                         if stream_accept_tx.send(mux_stream).await.is_err() {
@@ -577,6 +582,8 @@ pub struct MuxConnector {
     total_accepted: usize,
     // Active streams.
     streams: Streams,
+    // To check if all streams are closed.
+    stream_ends: Vec<Arc<AtomicBool>>,
     // Sender for sending frames from streams to the send loop.
     frame_write_tx: Sender<MuxFrame>,
     // Flag the end of the receive loop.
@@ -617,6 +624,7 @@ impl MuxConnector {
             session_id,
             total_accepted: 0,
             streams,
+            stream_ends: Vec::new(),
             frame_write_tx,
             recv_end,
             send_end,
@@ -631,7 +639,20 @@ impl MuxConnector {
     }
 
     pub fn is_done(&self) -> bool {
-        self.done.load(Ordering::SeqCst)
+        if self.done.load(Ordering::SeqCst) {
+            return true;
+        } else {
+            if self.total_accepted >= self.max_accepts {
+                for end in self.stream_ends.iter() {
+                    if !end.load(Ordering::Relaxed) {
+                        return false;
+                    }
+                }
+                return true;
+            } else {
+                return false;
+            }
+        }
     }
 
     pub async fn new_stream(&mut self) -> Option<MuxStream> {
@@ -657,8 +678,14 @@ impl MuxConnector {
         }
         let frame_write_tx = self.frame_write_tx.clone();
         let stream_id = random_u16();
-        let (mux_stream, stream_read_tx) =
-            MuxStream::new(self.session_id, stream_id, frame_write_tx);
+        let stream_end = Arc::new(AtomicBool::new(false));
+        let (mux_stream, stream_read_tx) = MuxStream::new(
+            self.session_id,
+            stream_id,
+            frame_write_tx,
+            stream_end.clone(),
+        );
+        self.stream_ends.push(stream_end);
         self.streams.lock().await.insert(stream_id, stream_read_tx);
         self.total_accepted += 1;
         Some(mux_stream)
