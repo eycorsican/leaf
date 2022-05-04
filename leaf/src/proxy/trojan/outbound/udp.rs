@@ -8,10 +8,7 @@ use futures::future::TryFutureExt;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 
-use crate::{
-    proxy::*,
-    session::{Session, SocksAddr, SocksAddrWireType},
-};
+use crate::{proxy::*, session::*};
 
 pub struct Handler {
     pub address: String,
@@ -21,12 +18,12 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Proxy(Network::Tcp, self.address.clone(), self.port)
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Stream
+        DatagramTransportType::Reliable
     }
 
     async fn handle<'a>(

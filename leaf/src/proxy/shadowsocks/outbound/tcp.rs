@@ -5,10 +5,7 @@ use bytes::BytesMut;
 use tokio::io::AsyncWriteExt;
 
 use super::shadow::ShadowedStream;
-use crate::{
-    proxy::*,
-    session::{Session, SocksAddrWireType},
-};
+use crate::{proxy::*, session::*};
 
 pub struct Handler {
     pub address: String,
@@ -19,8 +16,8 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Proxy(Network::Tcp, self.address.clone(), self.port)
     }
 
     async fn handle<'a>(

@@ -53,7 +53,12 @@ async fn health_check_task(
             Err(_) => return Measure(i, u128::MAX),
         };
         let m: Measure;
-        match TcpOutboundHandler::handle(h.as_ref(), &sess, stream).await {
+        let th = if let Ok(th) = h.tcp() {
+            th
+        } else {
+            return Measure(i, u128::MAX);
+        };
+        match th.handle(&sess, stream).await {
             Ok(mut stream) => {
                 if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
                     return Measure(i, u128::MAX - 2); // handshake is ok
@@ -228,8 +233,8 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Unknown
     }
 
     async fn handle<'a>(
@@ -258,7 +263,7 @@ impl TcpOutboundHandler for Handler {
                         &self.actors[*idx],
                     )
                     .await?;
-                    TcpOutboundHandler::handle(self.actors[*idx].as_ref(), sess, stream).await
+                    self.actors[*idx].tcp()?.handle(sess, stream).await
                 };
                 let task = timeout(time::Duration::from_secs(self.fail_timeout as u64), handle);
                 if let Ok(Ok(v)) = task.await {
@@ -277,12 +282,12 @@ impl TcpOutboundHandler for Handler {
                     &self.last_resort.as_ref().unwrap(),
                 )
                 .await?;
-                TcpOutboundHandler::handle(
-                    self.last_resort.as_ref().unwrap().as_ref(),
-                    sess,
-                    stream,
-                )
-                .await
+                self.last_resort
+                    .as_ref()
+                    .unwrap()
+                    .tcp()?
+                    .handle(sess, stream)
+                    .await
             };
             return handle.await;
         }
@@ -305,7 +310,7 @@ impl TcpOutboundHandler for Handler {
                     &self.actors[actor_idx],
                 )
                 .await?;
-                TcpOutboundHandler::handle(self.actors[actor_idx].as_ref(), sess, stream).await
+                self.actors[actor_idx].tcp()?.handle(sess, stream).await
             };
             match timeout(time::Duration::from_secs(self.fail_timeout as u64), handle).await {
                 // return before timeout

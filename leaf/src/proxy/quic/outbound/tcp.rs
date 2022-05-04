@@ -205,8 +205,8 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::NoConnect)
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Unknown
     }
 
     async fn handle<'a>(

@@ -38,8 +38,8 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Unknown
     }
 
     async fn handle<'a>(
@@ -57,7 +57,7 @@ impl TcpOutboundHandler for Handler {
                     &self.actors[i],
                 )
                 .await?;
-                TcpOutboundHandler::handle(self.actors[i].as_ref(), sess, stream).await
+                self.actors[i].tcp()?.handle(sess, stream).await
             }
             Method::RoundRobin => {
                 let current = self.next.as_ref().unwrap().load(Ordering::Relaxed);
@@ -70,7 +70,7 @@ impl TcpOutboundHandler for Handler {
                 self.next.as_ref().unwrap().store(next, Ordering::Relaxed);
                 let stream =
                     crate::proxy::connect_tcp_outbound(sess, self.dns_client.clone(), a).await?;
-                TcpOutboundHandler::handle(a.as_ref(), sess, stream).await
+                a.tcp()?.handle(sess, stream).await
             }
         }
     }

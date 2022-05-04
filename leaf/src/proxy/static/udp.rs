@@ -38,12 +38,12 @@ impl Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Unknown
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Undefined
+        DatagramTransportType::Unknown
     }
 
     async fn handle<'a>(
@@ -61,7 +61,7 @@ impl UdpOutboundHandler for Handler {
                     &self.actors[i],
                 )
                 .await?;
-                UdpOutboundHandler::handle(self.actors[i].as_ref(), sess, t).await
+                self.actors[i].udp()?.handle(sess, t).await
             }
             Method::RoundRobin => {
                 let current = self.next.as_ref().unwrap().load(Ordering::Relaxed);
@@ -74,7 +74,7 @@ impl UdpOutboundHandler for Handler {
                 self.next.as_ref().unwrap().store(next, Ordering::Relaxed);
                 let t =
                     crate::proxy::connect_udp_outbound(sess, self.dns_client.clone(), a).await?;
-                UdpOutboundHandler::handle(a.as_ref(), sess, t).await
+                a.udp()?.handle(sess, t).await
             }
         }
     }

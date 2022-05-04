@@ -11,8 +11,8 @@ use crate::{
     app::SyncDnsClient,
     common::{self, sniff},
     option,
-    proxy::{OutboundDatagram, ProxyStream, TcpOutboundHandler, UdpOutboundHandler},
-    session::{Network, Session, SocksAddr},
+    proxy::*,
+    session::*,
 };
 
 #[cfg(feature = "stat")]
@@ -179,7 +179,20 @@ impl Dispatcher {
                     return;
                 }
             };
-        match TcpOutboundHandler::handle(h.as_ref(), &sess, stream).await {
+        let th = match h.tcp() {
+            Ok(th) => th,
+            Err(e) => {
+                log::warn!(
+                    "dispatch tcp {} -> {} to [{}] failed: {}",
+                    &sess.source,
+                    &sess.destination,
+                    &h.tag(),
+                    e
+                );
+                return;
+            }
+        };
+        match th.handle(&sess, stream).await {
             Ok(mut rhs) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
@@ -287,7 +300,7 @@ impl Dispatcher {
         let handshake_start = tokio::time::Instant::now();
         let transport =
             crate::proxy::connect_udp_outbound(&sess, self.dns_client.clone(), &h).await?;
-        match UdpOutboundHandler::handle(h.as_ref(), &sess, transport).await {
+        match h.udp()?.handle(&sess, transport).await {
             #[allow(unused_mut)]
             Ok(mut d) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);

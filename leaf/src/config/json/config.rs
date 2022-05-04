@@ -952,8 +952,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
         }
     }
     if servers.len() == 0 {
-        servers.push("114.114.114.114".to_string());
-        servers.push("8.8.8.8".to_string());
+        servers.push("1.1.1.1".to_string());
     }
     dns.servers = servers;
     if !hosts.is_empty() {

@@ -13,12 +13,12 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Unknown
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Undefined
+        DatagramTransportType::Unknown
     }
 
     async fn handle<'a>(
@@ -37,7 +37,7 @@ impl UdpOutboundHandler for Handler {
                 }
                 let transport =
                     crate::proxy::connect_udp_outbound(sess, self.dns_client.clone(), a).await?;
-                UdpOutboundHandler::handle(a.as_ref(), sess, transport).await
+                a.udp()?.handle(sess, transport).await
             };
             tasks.push(Box::pin(t));
         }

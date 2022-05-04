@@ -226,6 +226,8 @@ memchr = { version = "2" }
 
 [dev-dependencies]
 rcgen = "0.8"
+sha2 = "0.9"
+tokio = { version = "1", features = ["fs", "sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
 
 [build-dependencies]
 cc = "1.0"

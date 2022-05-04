@@ -114,8 +114,8 @@ where
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Next
     }
 
     async fn handle<'a>(

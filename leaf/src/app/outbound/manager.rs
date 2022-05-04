@@ -10,8 +10,6 @@ use log::*;
 use protobuf::Message;
 use tokio::sync::RwLock;
 
-use crate::proxy::null;
-
 #[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;
 #[cfg(feature = "outbound-failover")]
@@ -49,7 +47,7 @@ use crate::proxy::ws;
 use crate::{
     app::SyncDnsClient,
     config::{self, Outbound},
-    proxy::{self, outbound::HandlerBuilder, *},
+    proxy::{outbound::HandlerBuilder, *},
 };
 
 use super::selector::OutboundSelector;
@@ -97,7 +95,7 @@ impl OutboundManager {
                 }
             }
 
-            let h = match outbound.protocol.as_str() {
+            let h: AnyOutboundHandler = match outbound.protocol.as_str() {
                 #[cfg(feature = "outbound-direct")]
                 "direct" => HandlerBuilder::default()
                     .tag(tag.clone())
@@ -214,14 +212,9 @@ impl OutboundManager {
                         alpns.clone(),
                         certificate,
                     )?);
-                    let udp = Box::new(null::outbound::UdpHandler {
-                        connect: None,
-                        transport_type: proxy::DatagramTransportType::Stream,
-                    });
                     HandlerBuilder::default()
                         .tag(tag.clone())
                         .tcp_handler(tcp)
-                        .udp_handler(udp)
                         .build()
                 }
                 #[cfg(feature = "outbound-ws")]
@@ -233,14 +226,9 @@ impl OutboundManager {
                         path: settings.path.clone(),
                         headers: settings.headers.clone(),
                     });
-                    let udp = Box::new(null::outbound::UdpHandler {
-                        connect: None,
-                        transport_type: proxy::DatagramTransportType::Stream,
-                    });
                     HandlerBuilder::default()
                         .tag(tag.clone())
                         .tcp_handler(tcp)
-                        .udp_handler(udp)
                         .build()
                 }
                 #[cfg(feature = "outbound-quic")]
@@ -265,14 +253,9 @@ impl OutboundManager {
                         certificate,
                         dns_client.clone(),
                     ));
-                    let udp = Box::new(null::outbound::UdpHandler {
-                        connect: Some(OutboundConnect::NoConnect),
-                        transport_type: DatagramTransportType::Stream,
-                    });
                     HandlerBuilder::default()
                         .tag(tag.clone())
                         .tcp_handler(tcp)
-                        .udp_handler(udp)
                         .build()
                 }
                 _ => continue,
@@ -459,14 +442,9 @@ impl OutboundManager {
                             settings.concurrency as usize,
                             dns_client.clone(),
                         );
-                        let udp = Box::new(null::outbound::UdpHandler {
-                            connect: Some(OutboundConnect::NoConnect),
-                            transport_type: DatagramTransportType::Stream,
-                        });
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())
                             .tcp_handler(Box::new(tcp))
-                            .udp_handler(udp)
                             .build();
                         handlers.insert(tag.clone(), handler);
                         abort_handles.append(&mut tcp_abort_handles);

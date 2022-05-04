@@ -3,10 +3,7 @@ use std::io;
 use async_trait::async_trait;
 use futures::future::TryFutureExt;
 
-use crate::{
-    proxy::*,
-    session::{Session, SocksAddr},
-};
+use crate::{proxy::*, session::*};
 
 pub struct Handler {
     pub address: String,
@@ -15,8 +12,8 @@ pub struct Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Proxy(Network::Tcp, self.address.clone(), self.port)
     }
 
     async fn handle<'a>(

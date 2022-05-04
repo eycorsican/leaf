@@ -8,8 +8,8 @@ pub struct Handler;
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Direct)
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Direct
     }
 
     async fn handle<'a>(

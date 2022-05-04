@@ -98,7 +98,7 @@ impl MuxManager {
         let mut sess = sess.clone();
         sess.destination = SocksAddr::try_from((&self.address, self.port))?;
         for (_, a) in self.actors.iter().enumerate() {
-            conn = TcpOutboundHandler::handle(a.as_ref(), &sess, Some(conn)).await?;
+            conn = a.tcp()?.handle(&sess, Some(conn)).await?;
         }
 
         // Create the stream over this new connection.
@@ -142,8 +142,8 @@ impl Handler {
 
 #[async_trait]
 impl TcpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::NoConnect)
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Unknown
     }
 
     async fn handle<'a>(

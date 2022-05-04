@@ -8,12 +8,12 @@ pub struct Handler;
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Direct)
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Direct
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Datagram
+        DatagramTransportType::Unreliable
     }
 
     async fn handle<'a>(

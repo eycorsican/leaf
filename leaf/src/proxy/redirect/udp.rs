@@ -3,10 +3,7 @@ use std::{io, net::IpAddr};
 use async_trait::async_trait;
 use futures::TryFutureExt;
 
-use crate::{
-    proxy::*,
-    session::{Session, SocksAddr},
-};
+use crate::{proxy::*, session::*};
 
 /// Handler with a redirect target address.
 pub struct Handler {
@@ -16,12 +13,12 @@ pub struct Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Proxy(Network::Udp, self.address.clone(), self.port)
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Datagram
+        DatagramTransportType::Unreliable
     }
 
     async fn handle<'a>(

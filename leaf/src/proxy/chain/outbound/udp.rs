@@ -3,34 +3,53 @@ use std::io;
 
 use async_trait::async_trait;
 
-use crate::{
-    proxy::*,
-    session::{Session, SocksAddr},
-};
-
-fn invalid_chain(reason: &str) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::InvalidInput,
-        format!("invalid chain: {}", reason),
-    )
-}
+use crate::{proxy::*, session::*};
 
 pub struct Handler {
     pub actors: Vec<AnyOutboundHandler>,
 }
 
 impl Handler {
-    fn next_connect_addr(&self, start: usize) -> Option<OutboundConnect> {
-        for i in start..self.actors.len() {
-            if let Some(addr) = UdpOutboundHandler::connect_addr(self.actors[i].as_ref()) {
-                return Some(addr);
+    fn next_connect_addr(&self, start: usize) -> OutboundConnect {
+        for a in self.actors[start..].iter() {
+            match a.udp() {
+                Ok(h) => {
+                    if self.unreliable_chain(start + 1) {
+                        let oc = h.connect_addr();
+                        if let OutboundConnect::Next = oc {
+                            continue;
+                        }
+                        return oc;
+                    } else {
+                        match a.tcp() {
+                            Ok(h) => {
+                                let oc = h.connect_addr();
+                                if let OutboundConnect::Next = oc {
+                                    continue;
+                                }
+                                return oc;
+                            }
+                            _ => (),
+                        }
+                    }
+                }
+                _ => match a.tcp() {
+                    Ok(h) => {
+                        let oc = h.connect_addr();
+                        if let OutboundConnect::Next = oc {
+                            continue;
+                        }
+                        return oc;
+                    }
+                    _ => (),
+                },
             }
         }
-        None
+        OutboundConnect::Unknown
     }
 
     fn next_session(&self, mut sess: Session, start: usize) -> Session {
-        if let Some(OutboundConnect::Proxy(address, port)) = self.next_connect_addr(start) {
+        if let OutboundConnect::Proxy(_, address, port) = self.next_connect_addr(start) {
             if let Ok(addr) = SocksAddr::try_from((address, port)) {
                 sess.destination = addr;
             }
@@ -38,9 +57,13 @@ impl Handler {
         sess
     }
 
-    fn is_udp_chain(&self, start: usize) -> bool {
-        for i in start..self.actors.len() {
-            if self.actors[i].transport_type() != DatagramTransportType::Datagram {
+    fn unreliable_chain(&self, start: usize) -> bool {
+        for a in self.actors[start..].iter() {
+            if let Ok(uh) = a.udp() {
+                if uh.transport_type() != DatagramTransportType::Unreliable {
+                    return false;
+                }
+            } else {
                 return false;
             }
         }
@@ -56,81 +79,56 @@ impl Handler {
         for (i, a) in self.actors.iter().enumerate() {
             let new_sess = self.next_session(sess.clone(), i + 1);
 
-            // Handle the final actor. We're handling UDP traffic, if we're given
-            // a stream, this is our last chance to convert it to a datagram.
-            if i == self.actors.len() - 1 {
+            if let Ok(uh) = a.udp() {
                 if let Some(d) = dgram.take() {
-                    return UdpOutboundHandler::handle(
-                        a.as_ref(),
-                        &new_sess,
-                        Some(OutboundTransport::Datagram(d)),
-                    )
-                    .await;
-                } else if let Some(s) = stream.take() {
-                    return UdpOutboundHandler::handle(
-                        a.as_ref(),
-                        &new_sess,
-                        Some(OutboundTransport::Stream(s)),
-                    )
-                    .await;
-                } else {
-                    return Err(invalid_chain("neither stream nor datagram exists"));
-                }
-            }
-
-            if let Some(s) = stream.take() {
-                // Got a stream, check if we can convert it to a datagram.
-                if self.is_udp_chain(i + 1) {
                     dgram.replace(
-                        UdpOutboundHandler::handle(
-                            a.as_ref(),
-                            &new_sess,
-                            Some(OutboundTransport::Stream(s)),
-                        )
-                        .await?,
+                        uh.handle(&new_sess, Some(OutboundTransport::Datagram(d)))
+                            .await?,
                     );
+                } else if let Some(s) = stream.take() {
+                    // Check whether all subsequent handlers can use unreliable
+                    // transport, otherwise we must not convert the stream to
+                    // a datagram.
+                    if self.unreliable_chain(i + 1) {
+                        dgram.replace(
+                            uh.handle(&new_sess, Some(OutboundTransport::Stream(s)))
+                                .await?,
+                        );
+                    } else {
+                        stream.replace(a.tcp()?.handle(&new_sess, Some(s)).await?);
+                    }
                 } else {
-                    stream
-                        .replace(TcpOutboundHandler::handle(a.as_ref(), &new_sess, Some(s)).await?);
+                    if self.unreliable_chain(i + 1) {
+                        dgram.replace(uh.handle(&new_sess, None).await?);
+                    } else {
+                        stream.replace(a.tcp()?.handle(&new_sess, None).await?);
+                    }
                 }
-            } else if let Some(d) = dgram.take() {
-                // Got a datagram, it can not be converted to stream and it can
-                // only be handled by a UDP handler.
-                dgram.replace(
-                    UdpOutboundHandler::handle(
-                        a.as_ref(),
-                        &new_sess,
-                        Some(OutboundTransport::Datagram(d)),
-                    )
-                    .await?,
-                );
             } else {
-                // NoConnect handlers such as amux.
-                stream.replace(TcpOutboundHandler::handle(a.as_ref(), &new_sess, None).await?);
+                let s = stream.take();
+                stream.replace(a.tcp()?.handle(&new_sess, s).await?);
             }
         }
-        unreachable!();
+        Ok(dgram.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no datagram"))?)
     }
 }
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        for a in self.actors.iter() {
-            if let Some(addr) = UdpOutboundHandler::connect_addr(a.as_ref()) {
-                return Some(addr);
-            }
-        }
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        self.next_connect_addr(0)
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        for a in self.actors.iter() {
-            if a.transport_type() == DatagramTransportType::Stream {
-                return DatagramTransportType::Stream;
-            }
-        }
-        DatagramTransportType::Datagram
+        self.actors
+            .iter()
+            .next()
+            .map(|x| {
+                x.udp()
+                    .map(|x| x.transport_type())
+                    .unwrap_or(DatagramTransportType::Unknown)
+            })
+            .unwrap_or(DatagramTransportType::Unknown)
     }
 
     async fn handle<'a>(
@@ -143,10 +141,7 @@ impl UdpOutboundHandler for Handler {
                 OutboundTransport::Datagram(dgram) => self.handle(sess, None, Some(dgram)).await,
                 OutboundTransport::Stream(stream) => self.handle(sess, Some(stream), None).await,
             },
-            None => match self.next_connect_addr(0) {
-                Some(OutboundConnect::NoConnect) => self.handle(sess, None, None).await,
-                _ => Err(invalid_chain("invalid transport")),
-            },
+            None => self.handle(sess, None, None).await,
         }
     }
 }

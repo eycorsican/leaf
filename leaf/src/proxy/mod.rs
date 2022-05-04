@@ -29,14 +29,12 @@ use crate::{
     app::SyncDnsClient,
     common::resolver::Resolver,
     option,
-    session::{DatagramSource, Session, SocksAddr},
+    session::{DatagramSource, Network, Session, SocksAddr},
 };
 
 pub mod datagram;
 pub mod inbound;
 pub mod outbound;
-
-pub mod null;
 
 #[cfg(any(feature = "inbound-amux", feature = "outbound-amux"))]
 pub mod amux;
@@ -98,9 +96,9 @@ pub type ProxyResult<T> = std::result::Result<T, ProxyError>;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DatagramTransportType {
-    Stream,
-    Datagram,
-    Undefined,
+    Reliable,
+    Unreliable,
+    Unknown,
 }
 
 pub trait Tag {
@@ -362,11 +360,11 @@ pub async fn connect_tcp_outbound(
     dns_client: SyncDnsClient,
     handler: &AnyOutboundHandler,
 ) -> io::Result<Option<AnyStream>> {
-    match TcpOutboundHandler::connect_addr(handler.as_ref()) {
-        Some(OutboundConnect::Proxy(addr, port)) => {
+    match handler.tcp()?.connect_addr() {
+        OutboundConnect::Proxy(_, addr, port) => {
             Ok(Some(new_tcp_stream(dns_client, &addr, &port).await?))
         }
-        Some(OutboundConnect::Direct) => Ok(Some(
+        OutboundConnect::Direct => Ok(Some(
             new_tcp_stream(
                 dns_client,
                 &sess.destination.host(),
@@ -374,7 +372,7 @@ pub async fn connect_tcp_outbound(
             )
             .await?,
         )),
-        Some(OutboundConnect::NoConnect) | None => Ok(None),
+        _ => Ok(None),
     }
 }
 
@@ -383,23 +381,20 @@ pub async fn connect_udp_outbound(
     dns_client: SyncDnsClient,
     handler: &AnyOutboundHandler,
 ) -> io::Result<Option<AnyOutboundTransport>> {
-    match UdpOutboundHandler::connect_addr(handler.as_ref()) {
-        Some(OutboundConnect::Proxy(addr, port)) => {
-            match UdpOutboundHandler::transport_type(handler.as_ref()) {
-                DatagramTransportType::Datagram => {
-                    let socket = new_udp_socket(&sess.source).await?;
-                    Ok(Some(OutboundTransport::Datagram(Box::new(
-                        SimpleOutboundDatagram::new(socket, None, dns_client.clone()),
-                    ))))
-                }
-                DatagramTransportType::Stream => {
-                    let stream = new_tcp_stream(dns_client.clone(), &addr, &port).await?;
-                    Ok(Some(OutboundTransport::Stream(stream)))
-                }
-                DatagramTransportType::Undefined => Ok(None),
+    match handler.udp()?.connect_addr() {
+        OutboundConnect::Proxy(network, addr, port) => match network {
+            Network::Udp => {
+                let socket = new_udp_socket(&sess.source).await?;
+                Ok(Some(OutboundTransport::Datagram(Box::new(
+                    SimpleOutboundDatagram::new(socket, None, dns_client.clone()),
+                ))))
             }
-        }
-        Some(OutboundConnect::Direct) => {
+            Network::Tcp => {
+                let stream = new_tcp_stream(dns_client.clone(), &addr, &port).await?;
+                Ok(Some(OutboundTransport::Stream(stream)))
+            }
+        },
+        OutboundConnect::Direct => {
             let socket = new_udp_socket(&sess.source).await?;
             let dest = match &sess.destination {
                 SocksAddr::Domain(domain, port) => {
@@ -411,7 +406,7 @@ pub async fn connect_udp_outbound(
                 SimpleOutboundDatagram::new(socket, dest, dns_client.clone()),
             ))))
         }
-        Some(OutboundConnect::NoConnect) | None => Ok(None),
+        _ => Ok(None),
     }
 }
 
@@ -504,18 +499,19 @@ impl<S> ProxyStream for S where S: AsyncRead + AsyncWrite + Send + Sync + Unpin 
 pub type AnyStream = Box<dyn ProxyStream>;
 
 /// An outbound handler for both UDP and TCP outgoing connections.
-pub trait OutboundHandler:
-    TcpOutboundHandler + UdpOutboundHandler + Tag + Color + Send + Unpin
-{
+pub trait OutboundHandler: Tag + Color + Sync + Send + Unpin {
+    fn tcp(&self) -> io::Result<&AnyTcpOutboundHandler>;
+    fn udp(&self) -> io::Result<&AnyUdpOutboundHandler>;
 }
 
 pub type AnyOutboundHandler = Arc<dyn OutboundHandler>;
 
 #[derive(Debug, Clone)]
 pub enum OutboundConnect {
-    Proxy(String, u16),
+    Proxy(Network, String, u16),
     Direct,
-    NoConnect,
+    Next,
+    Unknown,
 }
 
 /// An outbound handler for outgoing TCP conections.
@@ -523,7 +519,7 @@ pub enum OutboundConnect {
 pub trait TcpOutboundHandler<S = AnyStream>: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
-    fn connect_addr(&self) -> Option<OutboundConnect>;
+    fn connect_addr(&self) -> OutboundConnect;
 
     /// Handles a session with the given stream. On success, returns a
     /// stream wraps the incoming stream.
@@ -571,7 +567,7 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
 pub trait UdpOutboundHandler<S = AnyStream, D = AnyOutboundDatagram>: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
-    fn connect_addr(&self) -> Option<OutboundConnect>;
+    fn connect_addr(&self) -> OutboundConnect;
 
     /// Returns the transport type of this handler.
     ///

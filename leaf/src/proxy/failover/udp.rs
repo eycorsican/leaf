@@ -59,7 +59,12 @@ async fn health_check_task(
             Ok(t) => t,
             Err(_) => return Measure(i, u128::MAX),
         };
-        match UdpOutboundHandler::handle(h.as_ref(), &sess, transport).await {
+        let uh = if let Ok(uh) = h.udp() {
+            uh
+        } else {
+            return Measure(i, u128::MAX);
+        };
+        match uh.handle(&sess, transport).await {
             Ok(socket) => {
                 let addr =
                     SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
@@ -239,12 +244,12 @@ impl Handler {
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Unknown
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Undefined
+        DatagramTransportType::Unknown
     }
 
     async fn handle<'a>(
@@ -266,12 +271,12 @@ impl UdpOutboundHandler for Handler {
                     &self.last_resort.as_ref().unwrap(),
                 )
                 .await?;
-                UdpOutboundHandler::handle(
-                    self.last_resort.as_ref().unwrap().as_ref(),
-                    sess,
-                    transport,
-                )
-                .await
+                self.last_resort
+                    .as_ref()
+                    .unwrap()
+                    .udp()?
+                    .handle(sess, transport)
+                    .await
             };
             return handle.await;
         }
@@ -294,7 +299,7 @@ impl UdpOutboundHandler for Handler {
                     &self.actors[i],
                 )
                 .await?;
-                UdpOutboundHandler::handle(self.actors[i].as_ref(), sess, transport).await
+                self.actors[i].udp()?.handle(sess, transport).await
             };
             match timeout(time::Duration::from_secs(self.fail_timeout as u64), handle).await {
                 // return before timeout

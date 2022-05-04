@@ -8,11 +8,7 @@ use async_trait::async_trait;
 use futures::future::TryFutureExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::{
-    app::SyncDnsClient,
-    proxy::*,
-    session::{Session, SocksAddr},
-};
+use crate::{app::SyncDnsClient, proxy::*, session::*};
 
 pub struct Handler {
     pub address: String,
@@ -25,12 +21,12 @@ impl UdpConnector for Handler {}
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
+    fn connect_addr(&self) -> OutboundConnect {
+        OutboundConnect::Proxy(Network::Udp, self.address.clone(), self.port)
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Datagram
+        DatagramTransportType::Unreliable
     }
 
     async fn handle<'a>(
