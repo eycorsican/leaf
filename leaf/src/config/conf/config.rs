@@ -1195,6 +1195,9 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
             }
         }
     }
+    if dns.servers.is_empty() {
+        dns.servers.push("1.1.1.1".to_string());
+    }
     if let Some(ext_hosts) = &conf.host {
         for (name, static_ips) in ext_hosts.iter() {
             let mut ips = internal::Dns_Ips::new();
