@@ -333,16 +333,9 @@ impl OutboundManager {
                         if actors.is_empty() {
                             continue;
                         }
-                        let tcp = Box::new(r#static::TcpHandler::new(
-                            actors.clone(),
-                            dns_client.clone(),
-                            &settings.method,
-                        )?);
-                        let udp = Box::new(r#static::UdpHandler::new(
-                            actors,
-                            dns_client.clone(),
-                            &settings.method,
-                        )?);
+                        let tcp =
+                            Box::new(r#static::TcpHandler::new(actors.clone(), &settings.method)?);
+                        let udp = Box::new(r#static::UdpHandler::new(actors, &settings.method)?);
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())
                             .tcp_handler(tcp)

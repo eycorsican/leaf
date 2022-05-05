@@ -5,33 +5,36 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
-use crate::{app::SyncDnsClient, proxy::*, session::Session};
+use crate::{proxy::*, session::Session};
 
 use super::Method;
 
 pub struct Handler {
     actors: Vec<AnyOutboundHandler>,
     method: Method,
-    next: Option<AtomicUsize>,
-    dns_client: SyncDnsClient,
+    next: AtomicUsize,
 }
 
 impl Handler {
-    pub fn new(
-        actors: Vec<AnyOutboundHandler>,
-        dns_client: SyncDnsClient,
-        method: &str,
-    ) -> Result<Self> {
+    pub fn new(actors: Vec<AnyOutboundHandler>, method: &str) -> Result<Self> {
         let (method, next) = match method {
-            "random" => (Method::Random, None),
-            "rr" => (Method::RoundRobin, Some(AtomicUsize::new(0))),
+            "random" => {
+                let mut rng = StdRng::from_entropy();
+                let i: usize = rng.gen_range(0..actors.len());
+                (Method::Random, AtomicUsize::new(i))
+            }
+            "random-once" => {
+                let mut rng = StdRng::from_entropy();
+                let i: usize = rng.gen_range(0..actors.len());
+                (Method::RandomOnce, AtomicUsize::new(i))
+            }
+            "rr" => (Method::RoundRobin, AtomicUsize::new(0)),
             _ => return Err(anyhow!("unknown method")),
         };
         Ok(Handler {
             actors,
             method,
             next,
-            dns_client,
         })
     }
 }
@@ -39,38 +42,43 @@ impl Handler {
 #[async_trait]
 impl TcpOutboundHandler for Handler {
     fn connect_addr(&self) -> OutboundConnect {
+        let a = &self.actors[self.next.load(Ordering::Relaxed)];
+        match a.tcp() {
+            Ok(h) => return h.connect_addr(),
+            _ => match a.udp() {
+                Ok(h) => return h.connect_addr(),
+                _ => (),
+            },
+        }
         OutboundConnect::Unknown
     }
 
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _stream: Option<AnyStream>,
+        stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         match self.method {
             Method::Random => {
+                let current = self.next.load(Ordering::Relaxed);
                 let mut rng = StdRng::from_entropy();
-                let i: usize = rng.gen_range(0..self.actors.len());
-                let stream = crate::proxy::connect_tcp_outbound(
-                    sess,
-                    self.dns_client.clone(),
-                    &self.actors[i],
-                )
-                .await?;
-                self.actors[i].tcp()?.handle(sess, stream).await
+                let next: usize = rng.gen_range(0..self.actors.len());
+                self.next.store(next, Ordering::Relaxed);
+                self.actors[current].tcp()?.handle(sess, stream).await
+            }
+            Method::RandomOnce => {
+                let current = self.next.load(Ordering::Relaxed);
+                self.actors[current].tcp()?.handle(sess, stream).await
             }
             Method::RoundRobin => {
-                let current = self.next.as_ref().unwrap().load(Ordering::Relaxed);
-                let a = &self.actors[current];
+                let current = self.next.load(Ordering::Relaxed);
                 let next = if current >= self.actors.len() - 1 {
                     0
                 } else {
                     current + 1
                 };
-                self.next.as_ref().unwrap().store(next, Ordering::Relaxed);
-                let stream =
-                    crate::proxy::connect_tcp_outbound(sess, self.dns_client.clone(), a).await?;
-                a.tcp()?.handle(sess, stream).await
+                self.next.store(next, Ordering::Relaxed);
+                self.actors[current].tcp()?.handle(sess, stream).await
             }
         }
     }
