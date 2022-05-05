@@ -76,6 +76,8 @@ pub mod tryall;
     )
 ))]
 pub mod tun;
+#[cfg(feature = "outbound-vmess")]
+pub mod vmess;
 #[cfg(any(feature = "inbound-ws", feature = "outbound-ws"))]
 pub mod ws;
 

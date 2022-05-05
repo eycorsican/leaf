@@ -140,6 +140,13 @@ message QuicOutboundSettings {
 	string certificate = 4;
 }
 
+message VMessOutboundSettings {
+    string address = 1;
+    uint32 port = 2;
+    string uuid = 3;
+    string security = 4;
+}
+
 message ChainOutboundSettings {
 	repeated string actors = 1;
 }

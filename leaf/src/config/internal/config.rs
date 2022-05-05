@@ -3403,6 +3403,181 @@ impl ::protobuf::reflect::ProtobufValue for QuicOutboundSettings {
 }
 
 #[derive(PartialEq,Clone,Default,Debug)]
+pub struct VMessOutboundSettings {
+    // message fields
+    pub address: ::std::string::String,
+    pub port: u32,
+    pub uuid: ::std::string::String,
+    pub security: ::std::string::String,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a VMessOutboundSettings {
+    fn default() -> &'a VMessOutboundSettings {
+        <VMessOutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl VMessOutboundSettings {
+    pub fn new() -> VMessOutboundSettings {
+        ::std::default::Default::default()
+    }
+
+    // string address = 1;
+
+
+    pub fn get_address(&self) -> &str {
+        &self.address
+    }
+
+    // uint32 port = 2;
+
+
+    pub fn get_port(&self) -> u32 {
+        self.port
+    }
+
+    // string uuid = 3;
+
+
+    pub fn get_uuid(&self) -> &str {
+        &self.uuid
+    }
+
+    // string security = 4;
+
+
+    pub fn get_security(&self) -> &str {
+        &self.security
+    }
+}
+
+impl ::protobuf::Message for VMessOutboundSettings {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.address)?;
+                },
+                2 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.port = tmp;
+                },
+                3 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.uuid)?;
+                },
+                4 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.security)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.address.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.address);
+        }
+        if self.port != 0 {
+            my_size += ::protobuf::rt::value_size(2, self.port, ::protobuf::wire_format::WireTypeVarint);
+        }
+        if !self.uuid.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.uuid);
+        }
+        if !self.security.is_empty() {
+            my_size += ::protobuf::rt::string_size(4, &self.security);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.address.is_empty() {
+            os.write_string(1, &self.address)?;
+        }
+        if self.port != 0 {
+            os.write_uint32(2, self.port)?;
+        }
+        if !self.uuid.is_empty() {
+            os.write_string(3, &self.uuid)?;
+        }
+        if !self.security.is_empty() {
+            os.write_string(4, &self.security)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> VMessOutboundSettings {
+        VMessOutboundSettings::new()
+    }
+
+    fn default_instance() -> &'static VMessOutboundSettings {
+        static instance: ::protobuf::rt::LazyV2<VMessOutboundSettings> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(VMessOutboundSettings::new)
+    }
+}
+
+impl ::protobuf::Clear for VMessOutboundSettings {
+    fn clear(&mut self) {
+        self.address.clear();
+        self.port = 0;
+        self.uuid.clear();
+        self.security.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for VMessOutboundSettings {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default,Debug)]
 pub struct ChainOutboundSettings {
     // message fields
     pub actors: ::protobuf::RepeatedField<::std::string::String>,

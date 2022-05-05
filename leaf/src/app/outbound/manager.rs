@@ -193,6 +193,29 @@ impl OutboundManager {
                         .udp_handler(udp)
                         .build()
                 }
+                #[cfg(feature = "outbound-vmess")]
+                "vmess" => {
+                    let settings =
+                        config::VMessOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
+                    let tcp = Box::new(vmess::TcpHandler {
+                        address: settings.address.clone(),
+                        port: settings.port as u16,
+                        uuid: settings.uuid.clone(),
+                        security: settings.security.clone(),
+                    });
+                    let udp = Box::new(vmess::UdpHandler {
+                        address: settings.address.clone(),
+                        port: settings.port as u16,
+                        uuid: settings.uuid.clone(),
+                        security: settings.security.clone(),
+                    });
+                    HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .tcp_handler(tcp)
+                        .udp_handler(udp)
+                        .build()
+                }
                 #[cfg(feature = "outbound-tls")]
                 "tls" => {
                     let settings =

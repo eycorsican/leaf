@@ -61,6 +61,7 @@ all-endpoints = [
     "outbound-tls",
     "outbound-ws",
     "outbound-amux",
+    "outbound-vmess",
     # "outbound-quic",
     "outbound-failover",
     "outbound-static",
@@ -97,6 +98,7 @@ outbound-chain = []
 outbound-amux= ["tokio-util"]
 outbound-quic = ["quinn", "rustls", "webpki-roots"]
 outbound-select = []
+outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util"]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
@@ -188,12 +190,21 @@ async-socks5 = { version = "0.5", optional = true }
 
 # Shadowsocks
 hkdf = { version = "0.11", optional = true }
-md-5 = { version = "0.9", optional = true }
+md-5 = { version = "0.10", optional = true }
 sha-1 = { version = "0.9", optional = true }
 
 # Trojan
 sha2 = { version = "0.9", optional = true }
 hex = { version = "0.4", optional = true }
+
+# VMess
+lz_fnv = { version = "0.1", optional = true }
+cfb-mode = { version = "0.8", optional = true }
+hmac = { version = "0.12", optional = true }
+aes = { version = "0.8", optional = true }
+sha3 = { version = "0.10", optional = true }
+digest = { version = "0.10", optional = true }
+uuid = { version = "1", optional = true }
 
 # Failover
 lru_time_cache = { version = "0.11", optional = true }

@@ -64,6 +64,9 @@ pub struct Proxy {
     // trojan
     pub sni: Option<String>,
 
+    // vmess
+    pub username: Option<String>,
+
     pub amux: Option<bool>,
     pub amux_max: Option<i32>,
     pub amux_con: Option<i32>,
@@ -87,6 +90,7 @@ impl Default for Proxy {
             ws_path: None,
             ws_host: None,
             sni: None,
+            username: None,
             amux: Some(false),
             amux_max: Some(8),
             amux_con: Some(2),
@@ -374,6 +378,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 }
                 "sni" => {
                     proxy.sni = Some(v.to_string());
+                }
+                "username" => {
+                    proxy.username = Some(v.to_string());
                 }
                 "amux" => proxy.amux = if v == "true" { Some(true) } else { Some(false) },
                 "amux-max" => {
@@ -960,6 +967,156 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if ext_proxy.quic.unwrap() {
                         outbounds.push(quic_outbound);
                     } else {
+                        outbounds.push(tls_outbound);
+                    }
+                    if ext_proxy.ws.unwrap() {
+                        outbounds.push(ws_outbound);
+                    }
+                    outbounds.push(outbound);
+                }
+                "vmess" => {
+                    // tls
+                    let mut tls_outbound = internal::Outbound::new();
+                    tls_outbound.protocol = "tls".to_string();
+                    let mut tls_settings = internal::TlsOutboundSettings::new();
+                    if let Some(ext_sni) = &ext_proxy.sni {
+                        tls_settings.server_name = ext_sni.clone();
+                    }
+                    if let Some(ext_tls_cert) = &ext_proxy.tls_cert {
+                        let cert = Path::new(ext_tls_cert);
+                        if cert.is_absolute() {
+                            tls_settings.certificate = cert.to_string_lossy().to_string();
+                        } else {
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(cert).to_string_lossy().to_string();
+                            tls_settings.certificate = path;
+                        }
+                    }
+                    let tls_settings = tls_settings.write_to_bytes().unwrap();
+                    tls_outbound.settings = tls_settings;
+                    tls_outbound.tag = format!("{}_tls_xxx", ext_proxy.tag.clone());
+
+                    // ws
+                    let mut ws_outbound = internal::Outbound::new();
+                    ws_outbound.protocol = "ws".to_string();
+                    let mut ws_settings = internal::WebSocketOutboundSettings::new();
+                    if let Some(ext_ws_path) = &ext_proxy.ws_path {
+                        ws_settings.path = ext_ws_path.clone();
+                    } else {
+                        ws_settings.path = "/".to_string();
+                    }
+                    if let Some(ext_ws_host) = &ext_proxy.ws_host {
+                        let mut headers = HashMap::new();
+                        headers.insert("Host".to_string(), ext_ws_host.clone());
+                        ws_settings.headers = headers;
+                    }
+                    let ws_settings = ws_settings.write_to_bytes().unwrap();
+                    ws_outbound.settings = ws_settings;
+                    ws_outbound.tag = format!("{}_ws_xxx", ext_proxy.tag.clone());
+
+                    // amux
+                    let mut amux_outbound = internal::Outbound::new();
+                    amux_outbound.tag = ext_proxy.tag.clone();
+                    let mut amux_settings = internal::AMuxOutboundSettings::new();
+                    // always enable tls for trojan
+                    amux_settings.actors.push(tls_outbound.tag.clone());
+                    if ext_proxy.ws.unwrap() {
+                        amux_settings.actors.push(ws_outbound.tag.clone());
+                    }
+                    if let Some(ext_address) = &ext_proxy.address {
+                        amux_settings.address = ext_address.clone();
+                    }
+                    if let Some(ext_port) = &ext_proxy.port {
+                        amux_settings.port = *ext_port as u32;
+                    }
+                    if let Some(ext_max_accepts) = &ext_proxy.amux_max {
+                        amux_settings.max_accepts = *ext_max_accepts as u32;
+                    }
+                    if let Some(ext_concurrency) = &ext_proxy.amux_con {
+                        amux_settings.concurrency = *ext_concurrency as u32;
+                    }
+                    let amux_settings = amux_settings.write_to_bytes().unwrap();
+                    amux_outbound.settings = amux_settings;
+                    amux_outbound.protocol = "amux".to_string();
+                    amux_outbound.tag = format!("{}_amux_xxx", ext_proxy.tag.clone());
+                    // quic
+                    let mut quic_outbound = internal::Outbound::new();
+                    quic_outbound.tag = ext_proxy.tag.clone();
+                    let mut quic_settings = internal::QuicOutboundSettings::new();
+                    if let Some(ext_address) = &ext_proxy.address {
+                        quic_settings.address = ext_address.clone();
+                    }
+                    if let Some(ext_port) = &ext_proxy.port {
+                        quic_settings.port = *ext_port as u32;
+                    }
+                    if let Some(ext_sni) = &ext_proxy.sni {
+                        quic_settings.server_name = ext_sni.clone();
+                    }
+                    if let Some(ext_tls_cert) = &ext_proxy.tls_cert {
+                        let cert = Path::new(ext_tls_cert);
+                        if cert.is_absolute() {
+                            quic_settings.certificate = cert.to_string_lossy().to_string();
+                        } else {
+                            let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                            let path = asset_loc.join(cert).to_string_lossy().to_string();
+                            quic_settings.certificate = path;
+                        }
+                    }
+                    let quic_settings = quic_settings.write_to_bytes().unwrap();
+                    quic_outbound.settings = quic_settings;
+                    quic_outbound.protocol = "quic".to_string();
+                    quic_outbound.tag = format!("{}_quic_xxx", ext_proxy.tag.clone());
+
+                    // plain vmess
+                    let mut settings = internal::VMessOutboundSettings::new();
+                    if !ext_proxy.amux.unwrap() {
+                        if let Some(ext_address) = &ext_proxy.address {
+                            settings.address = ext_address.clone();
+                        }
+                        if let Some(ext_port) = &ext_proxy.port {
+                            settings.port = *ext_port as u32;
+                        }
+                    }
+                    if let Some(ext_username) = &ext_proxy.username {
+                        settings.uuid = ext_username.clone();
+                    }
+                    if let Some(ext_encrypt_method) = &ext_proxy.encrypt_method {
+                        settings.security = ext_encrypt_method.clone();
+                    } else {
+                        settings.security = "chacha20-ietf-poly1305".to_string();
+                    }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbound.tag = format!("{}_vmess_xxx", ext_proxy.tag.clone());
+
+                    // chain
+                    let mut chain_outbound = internal::Outbound::new();
+                    chain_outbound.tag = ext_proxy.tag.clone();
+                    let mut chain_settings = internal::ChainOutboundSettings::new();
+                    if ext_proxy.amux.unwrap() {
+                        chain_settings.actors.push(amux_outbound.tag.clone());
+                    } else if ext_proxy.quic.unwrap() {
+                        chain_settings.actors.push(quic_outbound.tag.clone());
+                    } else {
+                        chain_settings.actors.push(tls_outbound.tag.clone());
+                        if ext_proxy.ws.unwrap() {
+                            chain_settings.actors.push(ws_outbound.tag.clone());
+                        }
+                    }
+                    chain_settings.actors.push(outbound.tag.clone());
+                    let chain_settings = chain_settings.write_to_bytes().unwrap();
+                    chain_outbound.settings = chain_settings;
+                    chain_outbound.protocol = "chain".to_string();
+
+                    // always push chain first, in case there isn't final rule,
+                    // the chain outbound will be the default one to use
+                    outbounds.push(chain_outbound);
+                    if ext_proxy.amux.unwrap() {
+                        outbounds.push(amux_outbound);
+                    }
+                    if ext_proxy.quic.unwrap() {
+                        outbounds.push(quic_outbound);
+                    } else if ext_proxy.tls.unwrap() {
                         outbounds.push(tls_outbound);
                     }
                     if ext_proxy.ws.unwrap() {
