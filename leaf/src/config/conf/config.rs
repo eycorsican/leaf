@@ -1098,31 +1098,39 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     } else if ext_proxy.quic.unwrap() {
                         chain_settings.actors.push(quic_outbound.tag.clone());
                     } else {
-                        chain_settings.actors.push(tls_outbound.tag.clone());
+                        if ext_proxy.tls.unwrap() {
+                            chain_settings.actors.push(tls_outbound.tag.clone());
+                        }
                         if ext_proxy.ws.unwrap() {
                             chain_settings.actors.push(ws_outbound.tag.clone());
                         }
                     }
-                    chain_settings.actors.push(outbound.tag.clone());
-                    let chain_settings = chain_settings.write_to_bytes().unwrap();
-                    chain_outbound.settings = chain_settings;
-                    chain_outbound.protocol = "chain".to_string();
 
-                    // always push chain first, in case there isn't final rule,
-                    // the chain outbound will be the default one to use
-                    outbounds.push(chain_outbound);
-                    if ext_proxy.amux.unwrap() {
-                        outbounds.push(amux_outbound);
+                    if !chain_settings.actors.is_empty() {
+                        chain_settings.actors.push(outbound.tag.clone());
+                        let chain_settings = chain_settings.write_to_bytes().unwrap();
+                        chain_outbound.settings = chain_settings;
+                        chain_outbound.protocol = "chain".to_string();
+
+                        // always push chain first, in case there isn't final rule,
+                        // the chain outbound will be the default one to use
+                        outbounds.push(chain_outbound);
+                        if ext_proxy.amux.unwrap() {
+                            outbounds.push(amux_outbound);
+                        }
+                        if ext_proxy.quic.unwrap() {
+                            outbounds.push(quic_outbound);
+                        } else if ext_proxy.tls.unwrap() {
+                            outbounds.push(tls_outbound);
+                        }
+                        if ext_proxy.ws.unwrap() {
+                            outbounds.push(ws_outbound);
+                        }
+                        outbounds.push(outbound);
+                    } else {
+                        outbound.tag = ext_proxy.tag.clone();
+                        outbounds.push(outbound);
                     }
-                    if ext_proxy.quic.unwrap() {
-                        outbounds.push(quic_outbound);
-                    } else if ext_proxy.tls.unwrap() {
-                        outbounds.push(tls_outbound);
-                    }
-                    if ext_proxy.ws.unwrap() {
-                        outbounds.push(ws_outbound);
-                    }
-                    outbounds.push(outbound);
                 }
                 _ => {}
             }
