@@ -564,10 +564,10 @@ impl OutboundManager {
                                 .map_err(|e| {
                                     anyhow!("invalid [{}] outbound settings: {}", &tag, e)
                                 })?;
-                        let mut actors = HashMap::new();
+                        let mut actors = Vec::new();
                         for actor in settings.actors.iter() {
                             if let Some(a) = handlers.get(actor) {
-                                actors.insert(actor.to_owned(), a.clone());
+                                actors.push(a.clone());
                             } else {
                                 continue 'outbounds;
                             }
@@ -576,7 +576,14 @@ impl OutboundManager {
                             continue;
                         }
 
-                        let mut selector = OutboundSelector::new(tag.clone(), actors);
+                        let actors_tags: Vec<String> =
+                            actors.iter().map(|x| x.tag().to_owned()).collect();
+
+                        use std::sync::atomic::AtomicUsize;
+                        let selected = Arc::new(AtomicUsize::new(0));
+
+                        let mut selector =
+                            OutboundSelector::new(tag.clone(), actors_tags, selected.clone());
                         if let Ok(Some(selected)) = super::selector::get_selected_from_cache(&tag) {
                             // FIXME handle error
                             let _ = selector.set_selected(&selected);
@@ -586,11 +593,10 @@ impl OutboundManager {
                         let selector = Arc::new(RwLock::new(selector));
 
                         let tcp = Box::new(select::TcpHandler {
-                            selector: selector.clone(),
+                            actors: actors.clone(),
+                            selected: selected.clone(),
                         });
-                        let udp = Box::new(select::UdpHandler {
-                            selector: selector.clone(),
-                        });
+                        let udp = Box::new(select::UdpHandler { actors, selected });
                         selectors.insert(tag.clone(), selector);
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())
@@ -655,9 +661,7 @@ impl OutboundManager {
         for (k, v) in selected_outbounds.iter() {
             for (k2, v2) in selectors.iter_mut() {
                 if k == k2 {
-                    if let Some(v) = v {
-                        let _ = v2.write().await.set_selected(v);
-                    }
+                    let _ = v2.write().await.set_selected(v);
                 }
             }
         }

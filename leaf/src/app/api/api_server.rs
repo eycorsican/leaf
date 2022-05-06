@@ -11,17 +11,20 @@ use crate::RuntimeManager;
 mod models {
     use serde_derive::{Deserialize, Serialize};
 
+    #[cfg(feature = "outbound-select")]
     #[derive(Debug, Deserialize)]
     pub struct SelectOptions {
         pub outbound: Option<String>,
         pub select: Option<String>,
     }
 
+    #[cfg(feature = "outbound-select")]
     #[derive(Debug, Serialize, Deserialize)]
     pub struct SelectReply {
         pub selected: Option<String>,
     }
 
+    #[cfg(feature = "stat")]
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Stat {
         pub network: String,
@@ -41,6 +44,7 @@ mod handlers {
     use super::*;
     use warp::http::StatusCode;
 
+    #[cfg(feature = "outbound-select")]
     pub async fn select_update(
         opts: models::SelectOptions,
         rm: Arc<RuntimeManager>,
@@ -57,6 +61,7 @@ mod handlers {
         Ok(StatusCode::ACCEPTED)
     }
 
+    #[cfg(feature = "outbound-select")]
     pub async fn select_get(
         opts: models::SelectOptions,
         rm: Arc<RuntimeManager>,
@@ -70,6 +75,23 @@ mod handlers {
                 return Ok(warp::reply::json(&models::SelectReply {
                     selected: Some(selected),
                 }));
+            }
+        }
+        Ok(warp::reply::json(&models::SelectReply { selected: None }))
+    }
+
+    #[cfg(feature = "outbound-select")]
+    pub async fn select_list(
+        opts: models::SelectOptions,
+        rm: Arc<RuntimeManager>,
+    ) -> Result<impl warp::Reply, Infallible> {
+        if let models::SelectOptions {
+            outbound: Some(outbound),
+            ..
+        } = opts
+        {
+            if let Ok(selects) = rm.get_outbound_selects(&outbound).await {
+                return Ok(warp::reply::json(&selects));
             }
         }
         Ok(warp::reply::json(&models::SelectReply { selected: None }))
@@ -191,6 +213,7 @@ mod filters {
     }
 
     // POST /api/v1/app/outbound/select?outbound=Proxy&select=p3
+    #[cfg(feature = "outbound-select")]
     pub fn select_update(
         rm: Arc<RuntimeManager>,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -202,6 +225,7 @@ mod filters {
     }
 
     // GET /api/v1/app/outbound/select?outbound=Proxy
+    #[cfg(feature = "outbound-select")]
     pub fn select_get(
         rm: Arc<RuntimeManager>,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
@@ -210,6 +234,18 @@ mod filters {
             .and(warp::query::<models::SelectOptions>())
             .and(with_runtime_manager(rm))
             .and_then(handlers::select_get)
+    }
+
+    // GET /api/v1/app/outbound/selects?outbound=Proxy
+    #[cfg(feature = "outbound-select")]
+    pub fn select_list(
+        rm: Arc<RuntimeManager>,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        warp::path!("api" / "v1" / "app" / "outbound" / "selects")
+            .and(warp::get())
+            .and(warp::query::<models::SelectOptions>())
+            .and(with_runtime_manager(rm))
+            .and_then(handlers::select_list)
     }
 
     // POST /api/v1/runtime/reload
@@ -265,10 +301,14 @@ impl ApiServer {
     }
 
     pub fn serve(&self, listen_addr: SocketAddr) -> crate::Runner {
-        let routes = filters::select_update(self.runtime_manager.clone())
-            .or(filters::select_get(self.runtime_manager.clone()))
-            .or(filters::runtime_reload(self.runtime_manager.clone()))
+        let routes = filters::runtime_reload(self.runtime_manager.clone())
             .or(filters::runtime_shutdown(self.runtime_manager.clone()));
+
+        #[cfg(feature = "outbound-select")]
+        let routes = routes
+            .or(filters::select_update(self.runtime_manager.clone()))
+            .or(filters::select_get(self.runtime_manager.clone()))
+            .or(filters::select_list(self.runtime_manager.clone()));
 
         #[cfg(feature = "stat")]
         let routes = routes

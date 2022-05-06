@@ -1,24 +1,35 @@
 use std::io;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use log::*;
-use tokio::sync::RwLock;
 
-use crate::{app::outbound::selector::OutboundSelector, proxy::*, session::Session};
+use crate::{proxy::*, session::Session};
 
 pub struct Handler {
-    pub selector: Arc<RwLock<OutboundSelector>>,
+    pub actors: Vec<AnyOutboundHandler>,
+    pub selected: Arc<AtomicUsize>,
 }
 
 #[async_trait]
 impl UdpOutboundHandler for Handler {
-    fn connect_addr(&self) -> Option<OutboundConnect> {
-        None
+    fn connect_addr(&self) -> OutboundConnect {
+        let a = &self.actors[self.selected.load(Ordering::Relaxed)];
+        match a.udp() {
+            Ok(h) => return h.connect_addr(),
+            _ => match a.tcp() {
+                Ok(h) => return h.connect_addr(),
+                _ => (),
+            },
+        }
+        OutboundConnect::Unknown
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Undefined
+        let a = &self.actors[self.selected.load(Ordering::Relaxed)];
+        a.udp()
+            .map(|x| x.transport_type())
+            .unwrap_or(DatagramTransportType::Unknown)
     }
 
     async fn handle<'a>(
@@ -26,11 +37,8 @@ impl UdpOutboundHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        if let Some(a) = self.selector.read().await.get_selected() {
-            debug!("select handles tcp [{}] to [{}]", sess.destination, a.tag());
-            UdpOutboundHandler::handle(a.as_ref(), sess, transport).await
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, "no selected outbound"))
-        }
+        let a = &self.actors[self.selected.load(Ordering::Relaxed)];
+        log::debug!("select handles to [{}]", a.tag());
+        a.udp()?.handle(sess, transport).await
     }
 }

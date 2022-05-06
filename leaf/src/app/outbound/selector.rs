@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use protobuf::Message;
 
-use crate::proxy::AnyOutboundHandler;
 use anyhow::{anyhow, Result};
 
 fn get_cache_file_path() -> Result<PathBuf> {
@@ -44,41 +44,36 @@ pub fn persist_selected_to_cache(id: String, selected: String) -> Result<()> {
     Ok(())
 }
 
+type OutboundList = Vec<String>;
+type OutboundIndex = Arc<AtomicUsize>;
+
 /// OutboundSelector typically associates to a `select` outbound.
 pub struct OutboundSelector {
     id: String,
-    handlers: HashMap<String, AnyOutboundHandler>,
-    selected: Option<String>,
+    handlers: OutboundList,
+    selected: OutboundIndex,
 }
 
 impl OutboundSelector {
-    pub fn new(id: String, handlers: HashMap<String, AnyOutboundHandler>) -> Self {
+    pub fn new(id: String, handlers: OutboundList, selected: OutboundIndex) -> Self {
         Self {
             id,
             handlers,
-            selected: None,
+            selected,
         }
     }
 
-    pub fn get_selected(&self) -> Option<AnyOutboundHandler> {
-        if let Some(tag) = self.selected.as_ref() {
-            if let Some(h) = self.handlers.get(tag) {
-                return Some(h.clone());
-            }
-        }
-        None
+    pub fn get_available_tags(&self) -> Vec<String> {
+        self.handlers.clone()
     }
 
-    pub fn get_selected_tag(&self) -> Option<String> {
-        if let Some(tag) = self.selected.as_ref() {
-            return Some(tag.to_owned());
-        }
-        None
+    pub fn get_selected_tag(&self) -> String {
+        self.handlers[self.selected.load(Ordering::Relaxed)].to_owned()
     }
 
     pub fn set_selected(&mut self, tag: &str) -> Result<()> {
-        if self.handlers.contains_key(tag) {
-            self.selected.replace(tag.to_string());
+        if let Some(i) = self.handlers.iter().position(|x| x == tag) {
+            self.selected.store(i, Ordering::Relaxed);
             if let Err(e) = persist_selected_to_cache(self.id.clone(), tag.to_string()) {
                 log::warn!("persist selector state failed: {}", e);
             }
