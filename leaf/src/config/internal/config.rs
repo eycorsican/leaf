@@ -3707,6 +3707,7 @@ pub struct FailOverOutboundSettings {
     pub cache_timeout: u32,
     pub last_resort: ::std::string::String,
     pub health_check_timeout: u32,
+    pub health_check_delay: u32,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -3792,6 +3793,13 @@ impl FailOverOutboundSettings {
     pub fn get_health_check_timeout(&self) -> u32 {
         self.health_check_timeout
     }
+
+    // uint32 health_check_delay = 11;
+
+
+    pub fn get_health_check_delay(&self) -> u32 {
+        self.health_check_delay
+    }
 }
 
 impl ::protobuf::Message for FailOverOutboundSettings {
@@ -3865,6 +3873,13 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                     let tmp = is.read_uint32()?;
                     self.health_check_timeout = tmp;
                 },
+                11 => {
+                    if wire_type != ::protobuf::wire_format::WireTypeVarint {
+                        return ::std::result::Result::Err(::protobuf::rt::unexpected_wire_type(wire_type));
+                    }
+                    let tmp = is.read_uint32()?;
+                    self.health_check_delay = tmp;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -3907,6 +3922,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.health_check_timeout != 0 {
             my_size += ::protobuf::rt::value_size(10, self.health_check_timeout, ::protobuf::wire_format::WireTypeVarint);
         }
+        if self.health_check_delay != 0 {
+            my_size += ::protobuf::rt::value_size(11, self.health_check_delay, ::protobuf::wire_format::WireTypeVarint);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -3942,6 +3960,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         }
         if self.health_check_timeout != 0 {
             os.write_uint32(10, self.health_check_timeout)?;
+        }
+        if self.health_check_delay != 0 {
+            os.write_uint32(11, self.health_check_delay)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -3995,6 +4016,7 @@ impl ::protobuf::Clear for FailOverOutboundSettings {
         self.cache_timeout = 0;
         self.last_resort.clear();
         self.health_check_timeout = 0;
+        self.health_check_delay = 0;
         self.unknown_fields.clear();
     }
 }

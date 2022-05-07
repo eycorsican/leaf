@@ -34,12 +34,10 @@ async fn health_check_task(
     i: usize,
     h: AnyOutboundHandler,
     dns_client: SyncDnsClient,
-    mut delay: Option<time::Duration>,
+    delay: time::Duration,
     health_check_timeout: u32,
 ) -> Measure {
-    if let Some(d) = delay.take() {
-        tokio::time::sleep(d).await;
-    }
+    tokio::time::sleep(delay).await;
     debug!("health checking tcp for [{}] index [{}]", h.tag(), i);
     let measure = async move {
         let sess = Session {
@@ -109,6 +107,7 @@ impl Handler {
         cache_timeout: u64, // in minutes
         last_resort: Option<AnyOutboundHandler>,
         health_check_timeout: u32,
+        health_check_delay: u32,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
@@ -130,11 +129,9 @@ impl Handler {
                     let mut rng = StdRng::from_entropy();
                     for (i, a) in (&actors2).iter().enumerate() {
                         let dns_client4 = dns_client3.clone();
-                        let delay: Option<time::Duration> = if actors2.len() >= 4 {
-                            Some(time::Duration::from_millis(rng.gen_range(0..=1000) as u64))
-                        } else {
-                            None
-                        };
+                        let delay = time::Duration::from_millis(
+                            rng.gen_range(0..=health_check_delay) as u64,
+                        );
                         checks.push(Box::pin(health_check_task(
                             i,
                             a.clone(),

@@ -409,6 +409,7 @@ impl OutboundManager {
                             settings.cache_timeout as u64,
                             last_resort.clone(),
                             settings.health_check_timeout,
+                            settings.health_check_delay,
                             dns_client.clone(),
                         );
                         let (udp, mut udp_abort_handles) = failover::UdpHandler::new(
@@ -419,6 +420,7 @@ impl OutboundManager {
                             settings.failover,
                             last_resort,
                             settings.health_check_timeout,
+                            settings.health_check_delay,
                             dns_client.clone(),
                         );
                         let handler = HandlerBuilder::default()

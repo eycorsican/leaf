@@ -164,6 +164,7 @@ message FailOverOutboundSettings {
 	uint32 cache_timeout = 8;
 	string last_resort = 9;
 	uint32 health_check_timeout = 10;
+	uint32 health_check_delay = 11;
 }
 
 message SelectOutboundSettings {

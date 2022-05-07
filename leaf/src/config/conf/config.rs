@@ -114,6 +114,7 @@ pub struct ProxyGroup {
     pub cache_timeout: Option<i32>,
     pub last_resort: Option<String>,
     pub health_check_timeout: Option<i32>,
+    pub health_check_delay: Option<i32>,
 
     // tryall
     pub delay_base: Option<i32>,
@@ -137,6 +138,7 @@ impl Default for ProxyGroup {
             cache_timeout: Some(60),
             last_resort: None,
             health_check_timeout: Some(5),
+            health_check_delay: Some(5),
             delay_base: Some(0),
             method: Some("random".to_string()),
         }
@@ -559,6 +561,14 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                             None
                         };
                         group.health_check_timeout = i;
+                    }
+                    "health-check-delay" => {
+                        let i = if let Ok(i) = v.parse::<i32>() {
+                            Some(i)
+                        } else {
+                            None
+                        };
+                        group.health_check_delay = i;
                     }
                     "delay-base" => {
                         let i = if let Ok(i) = v.parse::<i32>() {
@@ -1237,6 +1247,11 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                         settings.health_check_timeout = ext_health_check_timeout as u32;
                     } else {
                         settings.health_check_timeout = 4;
+                    }
+                    if let Some(ext_health_check_delay) = ext_proxy_group.health_check_delay {
+                        settings.health_check_delay = ext_health_check_delay as u32;
+                    } else {
+                        settings.health_check_delay = 200;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
