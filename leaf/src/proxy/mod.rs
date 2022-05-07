@@ -332,6 +332,19 @@ fn apply_socket_opts<S: AsRawSocket>(socket: &S) -> io::Result<()> {
     apply_socket_opts_internal(sock_ref)
 }
 
+// TCP dial order.
+#[derive(PartialEq)]
+pub enum DialOrder {
+    // Leave the order of IPs untouched.
+    Ordered,
+    // Randomize the IPs.
+    Random,
+    // Randomize the IPs except the first one. We have a little optimization in
+    // the DNS client that moves the previously connected IP to the head, we want
+    // that IP always tried first.
+    PartialRandom,
+}
+
 // A single TCP dial.
 async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(AnyStream, SocketAddr)> {
     let socket = match dial_addr {

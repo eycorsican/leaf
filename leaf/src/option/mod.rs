@@ -108,6 +108,14 @@ lazy_static! {
         get_env_var_or("OUTBOUND_DIAL_TIMEOUT", 4)
     };
 
+    pub static ref OUTBOUND_DIAL_ORDER: crate::proxy::DialOrder = {
+        match get_env_var_or("OUTBOUND_DIAL_ORDER", "ordered".to_string()).as_str() {
+            "random" => crate::proxy::DialOrder::Random,
+            "partial-random" => crate::proxy::DialOrder::PartialRandom,
+            _ => crate::proxy::DialOrder::Ordered,
+        }
+    };
+
     /// Maximum outbound dial concurrency.
     pub static ref OUTBOUND_DIAL_CONCURRENCY: usize = {
         get_env_var_or("OUTBOUND_DIAL_CONCURRENCY", 1)

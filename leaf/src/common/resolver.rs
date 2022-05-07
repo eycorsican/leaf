@@ -1,13 +1,16 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 
 use anyhow::{anyhow, Result};
 use futures::TryFutureExt;
+use rand::prelude::SliceRandom;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 use crate::app::SyncDnsClient;
+use crate::proxy::DialOrder;
 
 pub struct Resolver {
-    ips: Vec<IpAddr>,
-    port: u16,
+    addrs: Vec<SocketAddr>,
 }
 
 impl Resolver {
@@ -24,10 +27,17 @@ impl Resolver {
                 .map_err(|e| anyhow!("lookup {} failed: {}", address, e))
                 .await?
         };
-        ips.reverse();
+        match *crate::option::OUTBOUND_DIAL_ORDER {
+            DialOrder::Ordered => ips.reverse(),
+            DialOrder::Random => ips.shuffle(&mut StdRng::from_entropy()),
+            DialOrder::PartialRandom => {
+                let head = ips.remove(0);
+                ips.shuffle(&mut StdRng::from_entropy());
+                ips.push(head);
+            }
+        }
         Ok(Resolver {
-            ips,
-            port: port.to_owned(),
+            addrs: ips.into_iter().map(|x| SocketAddr::new(x, *port)).collect(),
         })
     }
 }
@@ -36,6 +46,6 @@ impl Iterator for Resolver {
     type Item = SocketAddr;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.ips.pop().map(|ip| SocketAddr::new(ip, self.port))
+        self.addrs.pop()
     }
 }
