@@ -61,6 +61,13 @@ pub struct OutboundManager {
     abort_handles: Vec<AbortHandle>,
 }
 
+struct HandlerCacheEntry<'a> {
+    tag: &'a str,
+    handler: AnyOutboundHandler,
+    protocol: &'a str,
+    settings: &'a Vec<u8>,
+}
+
 impl OutboundManager {
     #[allow(clippy::type_complexity)]
     fn load_handlers(
@@ -74,7 +81,7 @@ impl OutboundManager {
         // If there are multiple outbounds with the same setting, we would want
         // a shared one to reduce memory usage. This vector is used as a cache for
         // unseen outbounds so we can reuse them later.
-        let mut cached_handlers: Vec<(String, AnyOutboundHandler, &Vec<u8>)> = Vec::new();
+        let mut cached_handlers: Vec<HandlerCacheEntry> = Vec::new();
 
         'loop1: for outbound in outbounds.iter() {
             let tag = String::from(&outbound.tag);
@@ -87,10 +94,10 @@ impl OutboundManager {
             }
 
             // Check whether an identical one already exist.
-            for h in cached_handlers.iter() {
-                if h.2 == &outbound.settings {
-                    trace!("add handler [{}] cloned from [{}]", &tag, &h.0);
-                    handlers.insert(tag.clone(), h.1.clone());
+            for e in cached_handlers.iter() {
+                if e.protocol == &outbound.protocol && e.settings == &outbound.settings {
+                    trace!("add handler [{}] cloned from [{}]", &tag, &e.tag);
+                    handlers.insert(tag.clone(), e.handler.clone());
                     continue 'loop1;
                 }
             }
@@ -283,7 +290,12 @@ impl OutboundManager {
                 }
                 _ => continue,
             };
-            cached_handlers.push((tag.clone(), h.clone(), &outbound.settings));
+            cached_handlers.push(HandlerCacheEntry {
+                tag: &outbound.tag,
+                handler: h.clone(),
+                protocol: &outbound.protocol,
+                settings: &outbound.settings,
+            });
             trace!("add handler [{}]", &tag);
             handlers.insert(tag, h);
         }
