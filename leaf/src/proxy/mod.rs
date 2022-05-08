@@ -358,15 +358,22 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(AnyStream, SocketAd
     protect_socket(socket.as_raw_fd()).await?;
 
     trace!("tcp dialing {}", &dial_addr);
+    let start = tokio::time::Instant::now();
     let stream = timeout(
         Duration::from_secs(*option::OUTBOUND_DIAL_TIMEOUT),
         socket.connect(dial_addr),
     )
     .await??;
+    let elapsed = tokio::time::Instant::now().duration_since(start);
 
     apply_socket_opts(&stream)?;
 
-    trace!("tcp connected {} <-> {}", stream.local_addr()?, &dial_addr);
+    trace!(
+        "tcp {} <-> {} connected in {}ms",
+        stream.local_addr()?,
+        &dial_addr,
+        elapsed.as_millis()
+    );
     Ok((Box::new(stream), dial_addr))
 }
 
