@@ -261,19 +261,16 @@ impl UdpOutboundHandler for Handler {
         let schedule = self.schedule.lock().await.clone();
 
         if schedule.is_empty() && self.last_resort.is_some() {
+            let lr = &self.last_resort.as_ref().unwrap();
+            debug!(
+                "failover handles udp [{}] to last resort [{}]",
+                sess.destination,
+                lr.tag()
+            );
             let handle = async {
-                let transport = crate::proxy::connect_udp_outbound(
-                    sess,
-                    self.dns_client.clone(),
-                    &self.last_resort.as_ref().unwrap(),
-                )
-                .await?;
-                self.last_resort
-                    .as_ref()
-                    .unwrap()
-                    .udp()?
-                    .handle(sess, transport)
-                    .await
+                let transport =
+                    crate::proxy::connect_udp_outbound(sess, self.dns_client.clone(), lr).await?;
+                lr.udp()?.handle(sess, transport).await
             };
             return handle.await;
         }

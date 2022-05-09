@@ -272,19 +272,16 @@ impl TcpOutboundHandler for Handler {
         let schedule = self.schedule.lock().await.clone();
 
         if schedule.is_empty() && self.last_resort.is_some() {
+            let lr = &self.last_resort.as_ref().unwrap();
+            debug!(
+                "failover handles tcp [{}] to last resort [{}]",
+                sess.destination,
+                lr.tag()
+            );
             let handle = async {
-                let stream = crate::proxy::connect_tcp_outbound(
-                    sess,
-                    self.dns_client.clone(),
-                    &self.last_resort.as_ref().unwrap(),
-                )
-                .await?;
-                self.last_resort
-                    .as_ref()
-                    .unwrap()
-                    .tcp()?
-                    .handle(sess, stream)
-                    .await
+                let stream =
+                    crate::proxy::connect_tcp_outbound(sess, self.dns_client.clone(), lr).await?;
+                lr.tcp()?.handle(sess, stream).await
             };
             return handle.await;
         }

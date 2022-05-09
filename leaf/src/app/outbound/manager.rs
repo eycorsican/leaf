@@ -407,7 +407,7 @@ impl OutboundManager {
                             if let Some(a) = handlers.get(&settings.last_resort) {
                                 Some(a.clone())
                             } else {
-                                None
+                                continue 'outbounds;
                             }
                         };
                         let (tcp, mut tcp_abort_handles) = failover::TcpHandler::new(
