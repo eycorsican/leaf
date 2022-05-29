@@ -110,7 +110,7 @@ pub async fn new_socks_stream(socks_addr: &str, socks_port: u16, sess: &Session)
         .unwrap();
     timeout(
         Duration::from_secs(2),
-        handler.tcp().unwrap().handle(sess, Some(Box::new(stream))),
+        handler.stream().unwrap().handle(sess, Some(Box::new(stream))),
     )
     .await
     .unwrap()
@@ -125,7 +125,7 @@ pub async fn new_socks_datagram(
     let handler = new_socks_outbound(socks_addr, socks_port);
     timeout(
         Duration::from_secs(2),
-        handler.udp().unwrap().handle(sess, None),
+        handler.datagram().unwrap().handle(sess, None),
     )
     .await
     .unwrap()

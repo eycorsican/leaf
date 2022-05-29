@@ -8,35 +8,35 @@ use super::*;
 pub struct Handler {
     tag: String,
     color: colored::Color,
-    tcp_handler: Option<AnyTcpOutboundHandler>,
-    udp_handler: Option<AnyUdpOutboundHandler>,
+    stream_handler: Option<AnyOutboundStreamHandler>,
+    datagram_handler: Option<AnyOutboundDatagramHandler>,
 }
 
 impl Handler {
     pub(self) fn new(
         tag: String,
         color: colored::Color,
-        tcp_handler: Option<AnyTcpOutboundHandler>,
-        udp_handler: Option<AnyUdpOutboundHandler>,
+        stream_handler: Option<AnyOutboundStreamHandler>,
+        datagram_handler: Option<AnyOutboundDatagramHandler>,
     ) -> Arc<Self> {
         Arc::new(Handler {
             tag,
             color,
-            tcp_handler,
-            udp_handler,
+            stream_handler,
+            datagram_handler,
         })
     }
 }
 
 impl OutboundHandler for Handler {
-    fn tcp(&self) -> io::Result<&AnyTcpOutboundHandler> {
-        self.tcp_handler
+    fn stream(&self) -> io::Result<&AnyOutboundStreamHandler> {
+        self.stream_handler
             .as_ref()
             .ok_or(io::Error::new(io::ErrorKind::Other, "no tcp handler"))
     }
 
-    fn udp(&self) -> io::Result<&AnyUdpOutboundHandler> {
-        self.udp_handler
+    fn datagram(&self) -> io::Result<&AnyOutboundDatagramHandler> {
+        self.datagram_handler
             .as_ref()
             .ok_or(io::Error::new(io::ErrorKind::Other, "no udp handler"))
     }
@@ -57,8 +57,8 @@ impl Color for Handler {
 pub struct HandlerBuilder {
     tag: String,
     color: colored::Color,
-    tcp_handler: Option<AnyTcpOutboundHandler>,
-    udp_handler: Option<AnyUdpOutboundHandler>,
+    stream_handler: Option<AnyOutboundStreamHandler>,
+    datagram_handler: Option<AnyOutboundDatagramHandler>,
 }
 
 impl HandlerBuilder {
@@ -66,8 +66,8 @@ impl HandlerBuilder {
         Self {
             tag: "".to_string(),
             color: colored::Color::Magenta,
-            tcp_handler: None,
-            udp_handler: None,
+            stream_handler: None,
+            datagram_handler: None,
         }
     }
 
@@ -81,18 +81,23 @@ impl HandlerBuilder {
         self
     }
 
-    pub fn tcp_handler(mut self, v: AnyTcpOutboundHandler) -> Self {
-        self.tcp_handler.replace(v);
+    pub fn stream_handler(mut self, v: AnyOutboundStreamHandler) -> Self {
+        self.stream_handler.replace(v);
         self
     }
 
-    pub fn udp_handler(mut self, v: AnyUdpOutboundHandler) -> Self {
-        self.udp_handler.replace(v);
+    pub fn datagram_handler(mut self, v: AnyOutboundDatagramHandler) -> Self {
+        self.datagram_handler.replace(v);
         self
     }
 
     pub fn build(self) -> AnyOutboundHandler {
-        Handler::new(self.tag, self.color, self.tcp_handler, self.udp_handler)
+        Handler::new(
+            self.tag,
+            self.color,
+            self.stream_handler,
+            self.datagram_handler,
+        )
     }
 }
 

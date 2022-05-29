@@ -506,7 +506,7 @@ impl Router {
         Ok(())
     }
 
-    pub async fn pick_route(&self, sess: &Session) -> Result<&String> {
+    pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<&'a String> {
         for rule in &self.rules {
             if rule.apply(sess) {
                 return Ok(&rule.target);

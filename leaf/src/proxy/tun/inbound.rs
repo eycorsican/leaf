@@ -57,7 +57,7 @@ async fn handle_inbound_stream(
             }
         }
     }
-    dispatcher.dispatch_tcp(sess, stream).await;
+    dispatcher.dispatch_stream(sess, stream).await;
 }
 
 async fn handle_inbound_datagram(

@@ -78,8 +78,8 @@ async fn test_tcp_outbound(
         ..Default::default()
     };
     let start = tokio::time::Instant::now();
-    let stream = crate::proxy::connect_tcp_outbound(&sess, dns_client, &handler).await?;
-    let mut stream = handler.tcp()?.handle(&sess, stream).await?;
+    let stream = crate::proxy::connect_stream_outbound(&sess, dns_client, &handler).await?;
+    let mut stream = handler.stream()?.handle(&sess, stream).await?;
     stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await?;
     let mut buf = Vec::new();
     let n = stream.read_buf(&mut buf).await?;
@@ -106,8 +106,8 @@ async fn test_udp_outbound(
         ..Default::default()
     };
     let start = tokio::time::Instant::now();
-    let dgram = crate::proxy::connect_udp_outbound(&sess, dns_client, &handler).await?;
-    let dgram = handler.udp()?.handle(&sess, dgram).await?;
+    let dgram = crate::proxy::connect_datagram_outbound(&sess, dns_client, &handler).await?;
+    let dgram = handler.datagram()?.handle(&sess, dgram).await?;
     let mut msg = Message::new();
     let name = Name::from_str("www.google.com.")?;
     let query = Query::query(name, RecordType::A);

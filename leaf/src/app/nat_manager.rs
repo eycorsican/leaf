@@ -182,7 +182,7 @@ impl NatManager {
         // TCP stream would block the task.
         tokio::spawn(async move {
             // new socket to communicate with the target.
-            let socket = match dispatcher.dispatch_udp(sess).await {
+            let socket = match dispatcher.dispatch_datagram(sess).await {
                 Ok(s) => s,
                 Err(e) => {
                     debug!("dispatch {} failed: {}", &raddr, e);

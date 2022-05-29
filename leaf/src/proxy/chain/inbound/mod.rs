@@ -9,11 +9,11 @@ use futures::{
 
 use crate::proxy::*;
 
-mod tcp;
-mod udp;
+mod stream;
+mod datagram;
 
-pub use tcp::Handler as TcpHandler;
-pub use udp::Handler as UdpHandler;
+pub use stream::Handler as StreamHandler;
+pub use datagram::Handler as DatagramHandler;
 
 enum State {
     WaitingIncoming,
@@ -53,9 +53,7 @@ impl Stream for Incoming {
                             let sess = sess.clone();
                             let a = self.actors[0].clone();
                             // Create the task for handling the first actor.
-                            let t = Box::pin(async move {
-                                TcpInboundHandler::handle(a.as_ref(), sess, stream).await
-                            });
+                            let t = Box::pin(async move { a.stream()?.handle(sess, stream).await });
                             self.state = State::Pending(0, t);
                         }
                         Some(_) => {
@@ -82,9 +80,9 @@ impl Stream for Incoming {
                             // Otherwise proceed with a new task for the next actor.
                             let new_sess = new_sess.clone();
                             let a = self.actors[idx + 1].clone();
-                            let t = Box::pin(async move {
-                                TcpInboundHandler::handle(a.as_ref(), new_sess, new_stream).await
-                            });
+                            let t = Box::pin(
+                                async move { a.stream()?.handle(new_sess, new_stream).await },
+                            );
                             self.state = State::Pending(idx + 1, t);
                         }
                         Ok(InboundTransport::Datagram(socket, sess)) => {

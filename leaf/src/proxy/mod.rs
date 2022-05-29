@@ -377,13 +377,13 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(AnyStream, SocketAd
     Ok((Box::new(stream), dial_addr))
 }
 
-pub async fn connect_tcp_outbound(
+pub async fn connect_stream_outbound(
     sess: &Session,
     dns_client: SyncDnsClient,
     handler: &AnyOutboundHandler,
 ) -> io::Result<Option<AnyStream>> {
-    match handler.tcp()?.connect_addr() {
-        OutboundConnect::Proxy(_, addr, port) => {
+    match handler.stream()?.connect_addr() {
+        OutboundConnect::Proxy(Network::Tcp, addr, port) => {
             Ok(Some(new_tcp_stream(dns_client, &addr, &port).await?))
         }
         OutboundConnect::Direct => Ok(Some(
@@ -398,12 +398,12 @@ pub async fn connect_tcp_outbound(
     }
 }
 
-pub async fn connect_udp_outbound(
+pub async fn connect_datagram_outbound(
     sess: &Session,
     dns_client: SyncDnsClient,
     handler: &AnyOutboundHandler,
 ) -> io::Result<Option<AnyOutboundTransport>> {
-    match handler.udp()?.connect_addr() {
+    match handler.datagram()?.connect_addr() {
         OutboundConnect::Proxy(network, addr, port) => match network {
             Network::Udp => {
                 let socket = new_udp_socket(&sess.source).await?;
@@ -522,8 +522,8 @@ pub type AnyStream = Box<dyn ProxyStream>;
 
 /// An outbound handler for both UDP and TCP outgoing connections.
 pub trait OutboundHandler: Tag + Color + Sync + Send + Unpin {
-    fn tcp(&self) -> io::Result<&AnyTcpOutboundHandler>;
-    fn udp(&self) -> io::Result<&AnyUdpOutboundHandler>;
+    fn stream(&self) -> io::Result<&AnyOutboundStreamHandler>;
+    fn datagram(&self) -> io::Result<&AnyOutboundDatagramHandler>;
 }
 
 pub type AnyOutboundHandler = Arc<dyn OutboundHandler>;
@@ -538,7 +538,7 @@ pub enum OutboundConnect {
 
 /// An outbound handler for outgoing TCP conections.
 #[async_trait]
-pub trait TcpOutboundHandler<S = AnyStream>: Send + Sync + Unpin {
+pub trait OutboundStreamHandler<S = AnyStream>: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> OutboundConnect;
@@ -548,7 +548,7 @@ pub trait TcpOutboundHandler<S = AnyStream>: Send + Sync + Unpin {
     async fn handle<'a>(&'a self, sess: &'a Session, stream: Option<S>) -> io::Result<S>;
 }
 
-type AnyTcpOutboundHandler = Box<dyn TcpOutboundHandler>;
+type AnyOutboundStreamHandler = Box<dyn OutboundStreamHandler>;
 
 /// An unreliable transport for outbound handlers.
 pub trait OutboundDatagram: Send + Unpin {
@@ -576,8 +576,6 @@ pub trait OutboundDatagramRecvHalf: Sync + Send + Unpin {
 pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
     /// Sends a message on the socket to `dst_addr`. On success, returns the
     /// number of bytes sent.
-    ///
-    /// `dst_addr` is not the proxy server address.
     async fn send_to(&mut self, buf: &[u8], dst_addr: &SocksAddr) -> io::Result<usize>;
 
     /// Close the soccket gracefully.
@@ -586,17 +584,14 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
 
 /// An outbound handler for outgoing UDP connections.
 #[async_trait]
-pub trait UdpOutboundHandler<S = AnyStream, D = AnyOutboundDatagram>: Send + Sync + Unpin {
+pub trait OutboundDatagramHandler<S = AnyStream, D = AnyOutboundDatagram>:
+    Send + Sync + Unpin
+{
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> OutboundConnect;
 
     /// Returns the transport type of this handler.
-    ///
-    /// For example, for a SOCKS5 handler, the UDP transport type is
-    /// `DatagramTransportType::Datagram`, but for a trojan handler, the transport
-    /// type is `DatagramTransportType::Stream` because trojan transport UDP
-    /// packets over TCP connections.
     fn transport_type(&self) -> DatagramTransportType;
 
     /// Handles a session with the transport. On success, returns an outbound
@@ -608,7 +603,7 @@ pub trait UdpOutboundHandler<S = AnyStream, D = AnyOutboundDatagram>: Send + Syn
     ) -> io::Result<D>;
 }
 
-type AnyUdpOutboundHandler = Box<dyn UdpOutboundHandler>;
+type AnyOutboundDatagramHandler = Box<dyn OutboundDatagramHandler>;
 
 /// An outbound transport represents either a reliable or unreliable transport.
 pub enum OutboundTransport<S, D> {
@@ -620,18 +615,16 @@ pub enum OutboundTransport<S, D> {
 
 pub type AnyOutboundTransport = OutboundTransport<AnyStream, AnyOutboundDatagram>;
 
-pub trait InboundHandler:
-    TcpInboundHandler + UdpInboundHandler + Tag + Send + Sync + Unpin
-{
-    fn has_tcp(&self) -> bool;
-    fn has_udp(&self) -> bool;
+pub trait InboundHandler: Tag + Send + Sync + Unpin {
+    fn stream(&self) -> io::Result<&AnyInboundStreamHandler>;
+    fn datagram(&self) -> io::Result<&AnyInboundDatagramHandler>;
 }
 
 pub type AnyInboundHandler = Arc<dyn InboundHandler>;
 
 /// An inbound handler for incoming TCP connections.
 #[async_trait]
-pub trait TcpInboundHandler<S = AnyStream, D = AnyInboundDatagram>: Send + Sync + Unpin {
+pub trait InboundStreamHandler<S = AnyStream, D = AnyInboundDatagram>: Send + Sync + Unpin {
     async fn handle<'a>(
         &'a self,
         sess: Session,
@@ -639,15 +632,17 @@ pub trait TcpInboundHandler<S = AnyStream, D = AnyInboundDatagram>: Send + Sync 
     ) -> std::io::Result<InboundTransport<S, D>>;
 }
 
-pub type AnyTcpInboundHandler = Arc<dyn TcpInboundHandler>;
+pub type AnyInboundStreamHandler = Arc<dyn InboundStreamHandler>;
 
 /// An inbound handler for incoming UDP connections.
 #[async_trait]
-pub trait UdpInboundHandler<S = AnyStream, D = AnyInboundDatagram>: Send + Sync + Unpin {
+pub trait InboundDatagramHandler<S = AnyStream, D = AnyInboundDatagram>:
+    Send + Sync + Unpin
+{
     async fn handle<'a>(&'a self, socket: D) -> io::Result<InboundTransport<S, D>>;
 }
 
-pub type AnyUdpInboundHandler = Arc<dyn UdpInboundHandler>;
+pub type AnyInboundDatagramHandler = Arc<dyn InboundDatagramHandler>;
 
 /// An unreliable transport for inbound handlers.
 pub trait InboundDatagram: Send + Sync + Unpin {
@@ -671,10 +666,6 @@ pub trait InboundDatagramRecvHalf: Sync + Send + Unpin {
     /// Receives a single datagram message on the socket. On success, returns
     /// the number of bytes read, the source where this message
     /// originated and the destination this message shall be sent to.
-    ///
-    /// This should be implemented by a proxy inbound handler, the destination
-    /// address could be decoded from the raw message according to the protocol
-    /// specification.
     async fn recv_from(
         &mut self,
         buf: &mut [u8],
@@ -687,10 +678,6 @@ pub trait InboundDatagramSendHalf: Sync + Send + Unpin {
     /// Sends a datagram message on the socket to `dst_addr`, the `src_addr`
     /// specifies the origin of the message. On success, returns the number
     /// of bytes sent.
-    ///
-    /// This should be implemented by a proxy inbound handler, and the
-    /// `src_addr` should be encapsulated into the protocol header to indicate
-    /// the origin of the message.
     async fn send_to(
         &mut self,
         buf: &[u8],
@@ -724,6 +711,7 @@ pub enum InboundTransport<S, D> {
     Stream(S, Session),
     /// The unreliable transport.
     Datagram(D, Option<Session>),
+    /// Incoming transports can be either reliable or unreliable.
     Incoming(IncomingTransport<S, D>),
     /// None.
     Empty,

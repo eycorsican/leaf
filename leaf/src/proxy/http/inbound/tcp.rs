@@ -54,7 +54,7 @@ impl Service<Request<Body>> for ProxyService {
 pub struct Handler;
 
 #[async_trait]
-impl TcpInboundHandler for Handler {
+impl InboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         mut sess: Session,

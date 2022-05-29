@@ -1,29 +1,25 @@
 use std::io;
 
-use async_trait::async_trait;
-
 use super::*;
-
-use crate::session::Session;
 
 /// An inbound handler groups a TCP inbound handler and a UDP inbound
 /// handler.
 pub struct Handler {
     tag: String,
-    tcp_handler: Option<AnyTcpInboundHandler>,
-    udp_handler: Option<AnyUdpInboundHandler>,
+    stream_handler: Option<AnyInboundStreamHandler>,
+    datagram_handler: Option<AnyInboundDatagramHandler>,
 }
 
 impl Handler {
     pub fn new(
         tag: String,
-        tcp: Option<AnyTcpInboundHandler>,
-        udp: Option<AnyUdpInboundHandler>,
+        tcp: Option<AnyInboundStreamHandler>,
+        udp: Option<AnyInboundDatagramHandler>,
     ) -> Self {
         Handler {
             tag,
-            tcp_handler: tcp,
-            udp_handler: udp,
+            stream_handler: tcp,
+            datagram_handler: udp,
         }
     }
 }
@@ -35,40 +31,15 @@ impl Tag for Handler {
 }
 
 impl InboundHandler for Handler {
-    fn has_tcp(&self) -> bool {
-        self.tcp_handler.is_some()
+    fn stream(&self) -> io::Result<&AnyInboundStreamHandler> {
+        self.stream_handler
+            .as_ref()
+            .ok_or(io::Error::new(io::ErrorKind::Other, "no tcp handler"))
     }
 
-    fn has_udp(&self) -> bool {
-        self.udp_handler.is_some()
-    }
-}
-
-#[async_trait]
-impl TcpInboundHandler for Handler {
-    async fn handle<'a>(
-        &'a self,
-        sess: Session,
-        stream: AnyStream,
-    ) -> std::io::Result<AnyInboundTransport> {
-        if let Some(handler) = &self.tcp_handler {
-            handler.handle(sess, stream).await
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, "no TCP handler"))
-        }
-    }
-}
-
-#[async_trait]
-impl UdpInboundHandler for Handler {
-    async fn handle<'a>(
-        &'a self,
-        socket: AnyInboundDatagram,
-    ) -> std::io::Result<AnyInboundTransport> {
-        if let Some(handler) = &self.udp_handler {
-            handler.handle(socket).await
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, "no UDP handler"))
-        }
+    fn datagram(&self) -> io::Result<&AnyInboundDatagramHandler> {
+        self.datagram_handler
+            .as_ref()
+            .ok_or(io::Error::new(io::ErrorKind::Other, "no udp handler"))
     }
 }

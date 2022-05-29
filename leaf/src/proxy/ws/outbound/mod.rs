@@ -1,5 +1,5 @@
-pub mod tcp;
+pub mod stream;
 
-pub use tcp::Handler as TcpHandler;
+pub use stream::Handler as StreamHandler;
 
-use super::stream;
+use super::stream as ws_stream;
