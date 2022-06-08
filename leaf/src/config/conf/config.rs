@@ -115,6 +115,7 @@ pub struct ProxyGroup {
     pub last_resort: Option<String>,
     pub health_check_timeout: Option<i32>,
     pub health_check_delay: Option<i32>,
+    pub health_check_active: Option<i32>,
 
     // tryall
     pub delay_base: Option<i32>,
@@ -129,18 +130,19 @@ impl Default for ProxyGroup {
             tag: "".to_string(),
             protocol: "".to_string(),
             actors: None,
-            health_check: Some(true),
-            check_interval: Some(300),
-            fail_timeout: Some(4),
-            failover: Some(true),
-            fallback_cache: Some(false),
-            cache_size: Some(256),
-            cache_timeout: Some(60),
+            health_check: None,
+            check_interval: None,
+            fail_timeout: None,
+            failover: None,
+            fallback_cache: None,
+            cache_size: None,
+            cache_timeout: None,
             last_resort: None,
-            health_check_timeout: Some(5),
-            health_check_delay: Some(5),
-            delay_base: Some(0),
-            method: Some("random".to_string()),
+            health_check_timeout: None,
+            health_check_delay: None,
+            health_check_active: None,
+            delay_base: None,
+            method: None,
         }
     }
 }
@@ -569,6 +571,14 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                             None
                         };
                         group.health_check_delay = i;
+                    }
+                    "health-check-active" => {
+                        let i = if let Ok(i) = v.parse::<i32>() {
+                            Some(i)
+                        } else {
+                            None
+                        };
+                        group.health_check_active = i;
                     }
                     "delay-base" => {
                         let i = if let Ok(i) = v.parse::<i32>() {
@@ -1216,7 +1226,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_check_interval) = ext_proxy_group.check_interval {
                         settings.check_interval = ext_check_interval as u32;
                     } else {
-                        settings.check_interval = 300;
+                        settings.check_interval = 5 * 60; // 5mins
                     }
                     if let Some(ext_failover) = ext_proxy_group.failover {
                         settings.failover = ext_failover;
@@ -1236,7 +1246,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_cache_timeout) = ext_proxy_group.cache_timeout {
                         settings.cache_timeout = ext_cache_timeout as u32;
                     } else {
-                        settings.cache_timeout = 60; // in minutes
+                        settings.cache_timeout = 60; // 60mins
                     }
                     if let Some(ext_last_resort) = &ext_proxy_group.last_resort {
                         settings.last_resort = ext_last_resort.clone();
@@ -1246,12 +1256,17 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_health_check_timeout) = ext_proxy_group.health_check_timeout {
                         settings.health_check_timeout = ext_health_check_timeout as u32;
                     } else {
-                        settings.health_check_timeout = 4;
+                        settings.health_check_timeout = 4; // 4s
                     }
                     if let Some(ext_health_check_delay) = ext_proxy_group.health_check_delay {
                         settings.health_check_delay = ext_health_check_delay as u32;
                     } else {
-                        settings.health_check_delay = 200;
+                        settings.health_check_delay = 200; // 200ms
+                    }
+                    if let Some(ext_health_check_active) = ext_proxy_group.health_check_active {
+                        settings.health_check_active = ext_health_check_active as u32;
+                    } else {
+                        settings.health_check_active = 15 * 60; // 15mins
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

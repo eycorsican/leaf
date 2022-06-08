@@ -154,8 +154,6 @@ message ChainOutboundSettings {
 message FailOverOutboundSettings {
 	repeated string actors = 1;
 	uint32 fail_timeout = 2;
-	// if health check is disabled, it will always perform failover
-	// to other actors dispite whatever failover option is set.
 	bool health_check = 3;
 	uint32 check_interval = 4;
 	bool failover = 5;
@@ -165,6 +163,7 @@ message FailOverOutboundSettings {
 	string last_resort = 9;
 	uint32 health_check_timeout = 10;
 	uint32 health_check_delay = 11;
+	uint32 health_check_active = 12;
 }
 
 message SelectOutboundSettings {
