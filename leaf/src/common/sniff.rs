@@ -25,7 +25,75 @@ where
         }
     }
 
-    pub async fn sniff(&mut self) -> io::Result<Option<String>> {
+    // sniff tcp stream by port
+    pub async fn try_sniff(&mut self, port: u16) -> io::Result<Option<String>> {
+        if port == 443 {
+            return self.try_sniff_tls().await;
+        } else if port == 80 {
+            return self.try_sniff_http().await;
+        }
+        Ok(None)
+    }
+
+    // sniff http stream
+    // 1. \r\n parse http protocol
+    // 2. read http method to match
+    // 3. extract the host -> session.domain
+    async fn try_sniff_http(&mut self) -> io::Result<Option<String>> {
+        let mut buf = vec![0u8; 2 * 1024];
+        match timeout(Duration::from_millis(100), self.inner.read(&mut buf)).await {
+            Ok(res) => match res {
+                Ok(n) => {
+                    self.buf.extend_from_slice(&buf[..n]);
+
+                    let bytes_str = String::from_utf8_lossy(&buf[..n]);
+                    let parts: Vec<&str> = bytes_str.split("\r\n").collect();
+
+                    if parts.len() == 0 {
+                        return Ok(None);
+                    }
+
+                    // debug!("---> the split http protocol info = {:?}", parts);
+
+                    let http_methods = ["get", "post", "head", "put", "delete", "options", "connect", "patch", "trace"];
+                    let method_str = parts[0];
+
+                    let matched_method = http_methods
+                        .into_iter()
+                        .filter(|item| {
+                            method_str.to_lowercase().contains(item)
+                        }).count();
+
+                    if matched_method == 0 {
+                        return Ok(None);
+                    }
+
+                    for (idx, &el) in parts.iter().enumerate() {
+                        if idx == 0 || el == "" {
+                            continue;
+                        }
+                        let inner_parts: Vec<&str> = el.split(":").collect();
+                        if inner_parts.len() != 2 {
+                            continue;
+                        }
+                        if inner_parts[0].to_lowercase() == "host" {
+                            return Ok(Some(inner_parts[1].trim().to_string()))
+                        }
+                    }
+
+                    Ok(None)
+                },
+                Err(e) => {
+                    Err(e)
+                }
+            },
+            Err(_) => {
+                Ok(None)
+            }
+        }
+    }
+
+    async fn try_sniff_tls(&mut self) -> io::Result<Option<String>> {
         let mut buf = vec![0u8; 2 * 1024];
         'outer: for _ in 0..2 {
             match timeout(Duration::from_millis(100), self.inner.read(&mut buf)).await {

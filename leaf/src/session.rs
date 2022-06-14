@@ -70,6 +70,12 @@ pub struct Session {
     pub new_conn_once: bool,
 }
 
+impl Session {
+    pub fn need_sniff(&self) -> bool {
+        !self.destination.is_domain()
+    }
+}
+
 impl Clone for Session {
     fn clone(&self) -> Self {
         Session {
