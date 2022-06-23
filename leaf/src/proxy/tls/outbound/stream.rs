@@ -105,13 +105,6 @@ impl Handler {
     }
 }
 
-fn tls_err<E>(_error: E) -> io::Error
-where
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-{
-    io::Error::new(io::ErrorKind::Other, "tls error")
-}
-
 #[async_trait]
 impl OutboundStreamHandler for Handler {
     fn connect_addr(&self) -> OutboundConnect {
@@ -134,22 +127,51 @@ impl OutboundStreamHandler for Handler {
             #[cfg(feature = "rustls-tls")]
             {
                 let connector = TlsConnector::from(self.tls_config.clone());
-                let domain = ServerName::try_from(name.as_str())
-                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid dnsname"))?;
-                let tls_stream = connector.connect(domain, stream).map_err(tls_err).await?;
+                let domain = ServerName::try_from(name.as_str()).map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("invalid tls server name {}: {}", &name, e),
+                    )
+                })?;
+                let tls_stream = connector
+                    .connect(domain, stream)
+                    .map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("connect tls failed: {}", e),
+                        )
+                    })
+                    .await?;
                 // FIXME check negotiated alpn
                 Ok(Box::new(tls_stream))
             }
             #[cfg(feature = "openssl-tls")]
             {
-                let mut ssl = Ssl::new(self.ssl_connector.context()).map_err(tls_err)?;
-                ssl.set_hostname(&name).map_err(tls_err)?;
-                let mut stream = SslStream::new(ssl, stream).map_err(tls_err)?;
+                let mut ssl = Ssl::new(self.ssl_connector.context()).map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("new ssl failed: {}", e),
+                    )
+                })?;
+                ssl.set_hostname(&name).map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("set tls name failed: {}", e),
+                    )
+                })?;
+                let mut stream = SslStream::new(ssl, stream).map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("new ssl stream failed: {}", e),
+                    )
+                })?;
                 Pin::new(&mut stream)
                     .connect()
                     .map_err(|e| {
-                        log::trace!("connect tls stream failed: {}", e);
-                        tls_err(e)
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("connect ssl stream failed: {}", e),
+                        )
                     })
                     .await?;
                 Ok(Box::new(stream))
