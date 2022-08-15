@@ -4,6 +4,21 @@ use std::{
     process::Command,
 };
 
+fn sdk_include_path_for(sdk: &str) -> String {
+    // sdk path find by `xcrun --sdk {iphoneos|macosx} --show-sdk-path`
+    let output = Command::new("xcrun")
+        .arg("--sdk")
+        .arg(sdk)
+        .arg("--show-sdk-path")
+        .output()
+        .expect("failed to execute xcrun");
+
+    let inc_path =
+        Path::new(String::from_utf8_lossy(&output.stdout).trim()).join("usr/include");
+
+    return inc_path.to_str().expect("invalid include path").to_string()
+}
+
 fn generate_mobile_bindings() {
     println!("cargo:rerun-if-changed=src/mobile/wrapper.h");
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
@@ -19,18 +34,11 @@ fn generate_mobile_bindings() {
             ""
         })
         .clang_arg(if arch == "aarch64" && os == "ios" {
-            // sdk path find by `xcrun --sdk iphoneos --show-sdk-path`
-            let output = Command::new("xcrun")
-                .arg("--sdk")
-                .arg("iphoneos")
-                .arg("--show-sdk-path")
-                .output()
-                .expect("failed to execute xcrun");
-            let inc_path =
-                Path::new(String::from_utf8_lossy(&output.stdout).trim()).join("usr/include");
-            format!("-I{}", inc_path.to_str().expect("invalid include path"))
+            format!("-I{}", sdk_include_path_for("iphoneos"))
+        } else if os == "macos" {
+            format!("-I{}", sdk_include_path_for("macosx"))
         } else {
-            "".to_string()
+           "".to_string()
         })
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
