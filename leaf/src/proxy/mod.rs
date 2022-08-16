@@ -212,23 +212,19 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
 
                     let ret = match indicator {
                         SocketAddr::V4(..) => {
-                            // https://github.com/apple/darwin-xnu/blob/8f02f2a044b9bb1ad951987ef5bab20ec9486310/bsd/netinet/in.h#L484
-                            const IP_BOUND_IF: libc::c_int = 25;
                             libc::setsockopt(
                                 socket.as_raw_fd(),
                                 libc::IPPROTO_IP,
-                                IP_BOUND_IF,
+                                libc::IP_BOUND_IF,
                                 &ifidx as *const _ as *const libc::c_void,
                                 std::mem::size_of::<libc::c_uint>() as libc::socklen_t,
                             )
                         }
                         SocketAddr::V6(..) => {
-                            // https://github.com/apple/darwin-xnu/blob/8f02f2a044b9bb1ad951987ef5bab20ec9486310/bsd/netinet6/in6.h#L692
-                            const IPV6_BOUND_IF: libc::c_int = 125;
                             libc::setsockopt(
                                 socket.as_raw_fd(),
                                 libc::IPPROTO_IPV6,
-                                IPV6_BOUND_IF,
+                                libc::IPV6_BOUND_IF,
                                 &ifidx as *const _ as *const libc::c_void,
                                 std::mem::size_of::<libc::c_uint>() as libc::socklen_t,
                             )
