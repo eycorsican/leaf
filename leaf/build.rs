@@ -33,8 +33,13 @@ fn generate_mobile_bindings() {
         } else {
             ""
         })
-        .clang_arg(if arch == "aarch64" && os == "ios" {
-            format!("-I{}", sdk_include_path_for("iphoneos"))
+        .clang_arg(if os == "ios" {
+            if arch == "x86_64" {
+                format!("-I{}", sdk_include_path_for("iphonesimulator"))
+            }
+            else {
+                format!("-I{}", sdk_include_path_for("iphoneos"))
+            }
         } else if os == "macos" {
             format!("-I{}", sdk_include_path_for("macosx"))
         } else {
