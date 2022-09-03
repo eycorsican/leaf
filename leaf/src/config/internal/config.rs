@@ -2002,6 +2002,8 @@ pub struct SocksOutboundSettings {
     // message fields
     pub address: ::std::string::String,
     pub port: u32,
+    pub username: ::std::string::String,
+    pub password: ::std::string::String,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -2031,6 +2033,20 @@ impl SocksOutboundSettings {
     pub fn get_port(&self) -> u32 {
         self.port
     }
+
+    // string username = 3;
+
+
+    pub fn get_username(&self) -> &str {
+        &self.username
+    }
+
+    // string password = 4;
+
+
+    pub fn get_password(&self) -> &str {
+        &self.password
+    }
 }
 
 impl ::protobuf::Message for SocksOutboundSettings {
@@ -2052,6 +2068,12 @@ impl ::protobuf::Message for SocksOutboundSettings {
                     let tmp = is.read_uint32()?;
                     self.port = tmp;
                 },
+                3 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.username)?;
+                },
+                4 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.password)?;
+                },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
                 },
@@ -2070,6 +2092,12 @@ impl ::protobuf::Message for SocksOutboundSettings {
         if self.port != 0 {
             my_size += ::protobuf::rt::value_size(2, self.port, ::protobuf::wire_format::WireTypeVarint);
         }
+        if !self.username.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.username);
+        }
+        if !self.password.is_empty() {
+            my_size += ::protobuf::rt::string_size(4, &self.password);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -2081,6 +2109,12 @@ impl ::protobuf::Message for SocksOutboundSettings {
         }
         if self.port != 0 {
             os.write_uint32(2, self.port)?;
+        }
+        if !self.username.is_empty() {
+            os.write_string(3, &self.username)?;
+        }
+        if !self.password.is_empty() {
+            os.write_string(4, &self.password)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -2126,6 +2160,8 @@ impl ::protobuf::Clear for SocksOutboundSettings {
     fn clear(&mut self) {
         self.address.clear();
         self.port = 0;
+        self.username.clear();
+        self.password.clear();
         self.unknown_fields.clear();
     }
 }
