@@ -15,6 +15,59 @@ use crate::{
 
 use super::*;
 
+/// An outbound datagram wraps a normal UDP socket and used as a normal UDP socket.
+pub struct StdOutboundDatagram {
+    inner: UdpSocket,
+}
+
+impl StdOutboundDatagram {
+    pub fn new(inner: UdpSocket) -> Self {
+        Self { inner }
+    }
+}
+
+impl OutboundDatagram for StdOutboundDatagram {
+    fn split(
+        self: Box<Self>,
+    ) -> (
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
+    ) {
+        let r = Arc::new(self.inner);
+        let s = r.clone();
+        (
+            Box::new(StdOutboundDatagramRecvHalf(r)),
+            Box::new(StdOutboundDatagramSendHalf(s)),
+        )
+    }
+}
+
+pub struct StdOutboundDatagramRecvHalf(Arc<UdpSocket>);
+
+#[async_trait]
+impl OutboundDatagramRecvHalf for StdOutboundDatagramRecvHalf {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
+        match self.0.recv_from(buf).await {
+            Ok((n, a)) => Ok((n, SocksAddr::Ip(unmapped_ipv4(a)))),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+pub struct StdOutboundDatagramSendHalf(Arc<UdpSocket>);
+
+#[async_trait]
+impl OutboundDatagramSendHalf for StdOutboundDatagramSendHalf {
+    async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
+        // The type does not accept domain name.
+        self.0.send_to(buf, target.must_ip()).await
+    }
+
+    async fn close(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 /// An outbound datagram simply wraps a UDP socket.
 pub struct SimpleOutboundDatagram {
     inner: UdpSocket,

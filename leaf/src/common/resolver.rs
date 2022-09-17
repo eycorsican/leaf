@@ -23,7 +23,7 @@ impl Resolver {
             dns_client
                 .read()
                 .await
-                .lookup(address)
+                .direct_lookup(address)
                 .map_err(|e| anyhow!("lookup {} failed: {}", address, e))
                 .await?
         };

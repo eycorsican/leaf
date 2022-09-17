@@ -3,6 +3,7 @@ use std::io::{self, ErrorKind};
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_recursion::async_recursion;
 use log::*;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::sync::RwLock;
@@ -261,6 +262,7 @@ impl Dispatcher {
         }
     }
 
+    #[async_recursion]
     pub async fn dispatch_datagram(
         &self,
         mut sess: Session,

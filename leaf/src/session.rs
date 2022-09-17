@@ -154,9 +154,9 @@ impl SocksAddr {
         Self::Ip("[::]:0".parse().unwrap())
     }
 
-    pub fn must_ip(self) -> SocketAddr {
+    pub fn must_ip(&self) -> &SocketAddr {
         match self {
-            SocksAddr::Ip(a) => a,
+            SocksAddr::Ip(ref a) => a,
             _ => {
                 panic!("assert SocksAddr as SocketAddr failed");
             }

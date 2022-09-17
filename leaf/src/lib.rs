@@ -415,6 +415,16 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         #[cfg(feature = "stat")]
         stat_manager.clone(),
     ));
+
+    let dispatcher_weak = Arc::downgrade(&dispatcher);
+    let dns_client_cloned = dns_client.clone();
+    rt.block_on(async move {
+        dns_client_cloned
+            .write()
+            .await
+            .replace_dispatcher(dispatcher_weak);
+    });
+
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
         InboundManager::new(&config.inbounds, dispatcher, nat_manager).map_err(Error::Config)?;
@@ -548,12 +558,14 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
     sys::post_tun_completion_setup(&net_info);
 
-    rt.shutdown_background();
+    drop(inbound_manager);
 
     RUNTIME_MANAGER
         .lock()
         .map_err(|_| Error::RuntimeManager)?
         .remove(&rt_id);
+
+    rt.shutdown_background();
 
     log::trace!("removed runtime {}", &rt_id);
 
