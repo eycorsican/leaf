@@ -112,6 +112,22 @@ lazy_static! {
         get_env_var_or("LINK_BUFFER_SIZE", 2)
     };
 
+    pub static ref NETSTACK_OUTPUT_CHANNEL_SIZE: usize = {
+        get_env_var_or("NETSTACK_OUTPUT_CHANNEL_SIZE", 512)
+    };
+
+    pub static ref NETSTACK_UDP_UPLINK_CHANNEL_SIZE: usize = {
+        get_env_var_or("NETSTACK_UDP_UPLINK_CHANNEL_SIZE", 256)
+    };
+
+    pub static ref UDP_UPLINK_CHANNEL_SIZE: usize = {
+        get_env_var_or("UDP_UPLINK_CHANNEL_SIZE", 256)
+    };
+
+    pub static ref UDP_DOWNLINK_CHANNEL_SIZE: usize = {
+        get_env_var_or("UDP_DOWNLINK_CHANNEL_SIZE", 256)
+    };
+
     /// Buffer size for UDP datagrams receiving/sending, in KB.
     pub static ref DATAGRAM_BUFFER_SIZE: usize = {
         get_env_var_or("DATAGRAM_BUFFER_SIZE", 2)
