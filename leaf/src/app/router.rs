@@ -566,10 +566,7 @@ mod tests {
         };
 
         // test port range
-        let m = PortMatcher::new(&Vec::from_vec(vec![
-            "1024-5000".to_string(),
-            "6000-7000".to_string(),
-        ]));
+        let m = PortMatcher::new(&vec!["1024-5000".to_string(), "6000-7000".to_string()]);
         sess.destination = SocksAddr::Domain("www.google.com".to_string(), 2000);
         assert!(m.apply(&sess));
         sess.destination = SocksAddr::Domain("www.google.com".to_string(), 5001);
@@ -578,7 +575,7 @@ mod tests {
         assert!(m.apply(&sess));
 
         // test single port range
-        let m = PortMatcher::new(&Vec::from_vec(vec!["22-22".to_string()]));
+        let m = PortMatcher::new(&vec!["22-22".to_string()]);
         sess.destination = SocksAddr::Domain("www.google.com".to_string(), 22);
         assert!(m.apply(&sess));
 
