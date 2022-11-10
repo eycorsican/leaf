@@ -61,7 +61,7 @@ pub struct InboundManager {
 
 impl InboundManager {
     pub fn new(
-        inbounds: &protobuf::RepeatedField<config::Inbound>,
+        inbounds: &Vec<config::Inbound>,
         dispatcher: Arc<Dispatcher>,
         nat_manager: Arc<NatManager>,
     ) -> Result<Self> {

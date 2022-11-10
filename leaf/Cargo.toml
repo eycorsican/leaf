@@ -122,7 +122,7 @@ ctrlc = ["tokio/signal"]
 # Common
 tokio = { version = "1", features = ["sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
 futures-util = "0.3"
-protobuf = "2"
+protobuf = "3.2"
 thiserror = "1.0"
 futures = "0.3"
 async-trait = "0.1"
@@ -244,4 +244,4 @@ tokio = { version = "1", features = ["fs", "sync", "io-util", "net", "time", "rt
 [build-dependencies]
 cc = "1.0"
 bindgen = "0.59"
-protoc-rust = "2"
+protobuf-codegen = "3.2"

@@ -3,12 +3,12 @@ use crate::config;
 use anyhow::{anyhow, Result};
 
 pub fn setup_logger(config: &config::Log) -> Result<()> {
-    let loglevel = match config.level {
-        config::Log_Level::TRACE => log::LevelFilter::Trace,
-        config::Log_Level::DEBUG => log::LevelFilter::Debug,
-        config::Log_Level::INFO => log::LevelFilter::Info,
-        config::Log_Level::WARN => log::LevelFilter::Warn,
-        config::Log_Level::ERROR => log::LevelFilter::Error,
+    let loglevel = match config.level.unwrap() {
+        config::log::Level::TRACE => log::LevelFilter::Trace,
+        config::log::Level::DEBUG => log::LevelFilter::Debug,
+        config::log::Level::INFO => log::LevelFilter::Info,
+        config::log::Level::WARN => log::LevelFilter::Warn,
+        config::log::Level::ERROR => log::LevelFilter::Error,
     };
 
     let mut dispatch = fern::Dispatch::new()
@@ -49,8 +49,8 @@ pub fn setup_logger(config: &config::Log) -> Result<()> {
         .level_for("netstack_lwip", loglevel)
         .level_for("leaf", loglevel);
 
-    match config.output {
-        config::Log_Output::CONSOLE => {
+    match config.output.unwrap() {
+        config::log::Output::CONSOLE => {
             #[cfg(any(target_os = "ios", target_os = "android"))]
             {
                 let console_output = fern::Output::writer(
@@ -72,7 +72,7 @@ pub fn setup_logger(config: &config::Log) -> Result<()> {
                 dispatch = dispatch.chain(console_output);
             }
         }
-        config::Log_Output::FILE => {
+        config::log::Output::FILE => {
             let f = fern::log_file(&config.output_file)?;
             let file_output = fern::Output::file(f, "\n");
             dispatch = dispatch.chain(file_output);

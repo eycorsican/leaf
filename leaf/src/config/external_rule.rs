@@ -35,7 +35,7 @@ pub fn load_site_rule(filter: &str) -> Result<(String, String)> {
     load_file_or_default(filter, "site.dat")
 }
 
-pub fn add_external_rule(rule: &mut internal::Router_Rule, ext_external: &str) -> Result<()> {
+pub fn add_external_rule(rule: &mut internal::router::Rule, ext_external: &str) -> Result<()> {
     if ext_external.starts_with("mmdb") {
         let (file, code) = match load_mmdb_rule(ext_external) {
             Ok((f, c)) => (f, c),
@@ -43,7 +43,7 @@ pub fn add_external_rule(rule: &mut internal::Router_Rule, ext_external: &str) -
                 return Err(anyhow!("load mmdb rule failed: {}", e));
             }
         };
-        let mut mmdb = internal::Router_Rule_Mmdb::new();
+        let mut mmdb = internal::router::rule::Mmdb::new();
         mmdb.file = file;
         mmdb.country_code = code;
         rule.mmdbs.push(mmdb)
@@ -65,20 +65,26 @@ pub fn add_external_rule(rule: &mut internal::Router_Rule, ext_external: &str) -
             let mut site_group = input.read_message::<geosite::SiteGroup>()?;
             if site_group.tag == code.to_uppercase() {
                 for domain in site_group.domain.iter_mut() {
-                    let mut domain_rule = match domain.field_type {
-                        geosite::Domain_Type::Plain => {
-                            let mut d = internal::Router_Rule_Domain::new();
-                            d.field_type = internal::Router_Rule_Domain_Type::PLAIN;
+                    let mut domain_rule = match domain.type_.unwrap() {
+                        geosite::domain::Type::Plain => {
+                            let mut d = internal::router::rule::Domain::new();
+                            d.type_ = protobuf::EnumOrUnknown::new(
+                                internal::router::rule::domain::Type::PLAIN,
+                            );
                             d
                         }
-                        geosite::Domain_Type::Domain => {
-                            let mut d = internal::Router_Rule_Domain::new();
-                            d.field_type = internal::Router_Rule_Domain_Type::DOMAIN;
+                        geosite::domain::Type::Domain => {
+                            let mut d = internal::router::rule::Domain::new();
+                            d.type_ = protobuf::EnumOrUnknown::new(
+                                internal::router::rule::domain::Type::DOMAIN,
+                            );
                             d
                         }
-                        geosite::Domain_Type::Full => {
-                            let mut d = internal::Router_Rule_Domain::new();
-                            d.field_type = internal::Router_Rule_Domain_Type::FULL;
+                        geosite::domain::Type::Full => {
+                            let mut d = internal::router::rule::Domain::new();
+                            d.type_ = protobuf::EnumOrUnknown::new(
+                                internal::router::rule::domain::Type::FULL,
+                            );
                             d
                         }
                         _ => {

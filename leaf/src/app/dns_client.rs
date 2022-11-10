@@ -65,7 +65,7 @@ impl DnsClient {
         parsed_hosts
     }
 
-    pub fn new(dns: &protobuf::SingularPtrField<crate::config::Dns>) -> Result<Self> {
+    pub fn new(dns: &protobuf::MessageField<crate::config::Dns>) -> Result<Self> {
         let dns = if let Some(dns) = dns.as_ref() {
             dns
         } else {
@@ -93,7 +93,7 @@ impl DnsClient {
         self.dispatcher.replace(dispatcher);
     }
 
-    pub fn reload(&mut self, dns: &protobuf::SingularPtrField<crate::config::Dns>) -> Result<()> {
+    pub fn reload(&mut self, dns: &protobuf::MessageField<crate::config::Dns>) -> Result<()> {
         let dns = if let Some(dns) = dns.as_ref() {
             dns
         } else {

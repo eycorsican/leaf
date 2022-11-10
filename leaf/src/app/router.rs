@@ -10,7 +10,7 @@ use maxminddb::geoip2::Country;
 use memmap2::Mmap;
 
 use crate::app::SyncDnsClient;
-use crate::config::{self, Router_Rule};
+use crate::config;
 use crate::session::{Network, Session, SocksAddr};
 
 pub trait Condition: Send + Sync + Unpin {
@@ -73,7 +73,7 @@ struct IpCidrMatcher {
 }
 
 impl IpCidrMatcher {
-    fn new(ips: &mut protobuf::RepeatedField<String>) -> Self {
+    fn new(ips: &mut Vec<String>) -> Self {
         let mut cidrs = Vec::new();
         for ip in ips.iter_mut() {
             let ip = std::mem::take(ip);
@@ -110,7 +110,7 @@ struct InboundTagMatcher {
 }
 
 impl InboundTagMatcher {
-    fn new(tags: &mut protobuf::RepeatedField<String>) -> Self {
+    fn new(tags: &mut Vec<String>) -> Self {
         let mut values = Vec::new();
         for t in tags.iter_mut() {
             values.push(std::mem::take(t));
@@ -136,7 +136,7 @@ struct NetworkMatcher {
 }
 
 impl NetworkMatcher {
-    fn new(networks: &mut protobuf::RepeatedField<String>) -> Self {
+    fn new(networks: &mut Vec<String>) -> Self {
         let mut values = Vec::new();
         for net in networks.iter_mut() {
             match std::mem::take(net).to_uppercase().as_str() {
@@ -166,7 +166,7 @@ struct PortMatcher {
 }
 
 impl PortMatcher {
-    fn new(port_ranges: &protobuf::RepeatedField<String>) -> Self {
+    fn new(port_ranges: &Vec<String>) -> Self {
         let mut cond_or = ConditionOr::new();
         for pr in port_ranges.iter() {
             match PortRangeMatcher::new(pr) {
@@ -326,18 +326,18 @@ struct DomainMatcher {
 }
 
 impl DomainMatcher {
-    fn new(domains: &mut protobuf::RepeatedField<config::Router_Rule_Domain>) -> Self {
+    fn new(domains: &mut Vec<config::router::rule::Domain>) -> Self {
         let mut cond_or = ConditionOr::new();
         for rr_domain in domains.iter_mut() {
             let filter = std::mem::take(&mut rr_domain.value);
-            match rr_domain.field_type {
-                config::Router_Rule_Domain_Type::PLAIN => {
+            match rr_domain.type_.unwrap() {
+                config::router::rule::domain::Type::PLAIN => {
                     cond_or.add(Box::new(DomainKeywordMatcher::new(filter)));
                 }
-                config::Router_Rule_Domain_Type::DOMAIN => {
+                config::router::rule::domain::Type::DOMAIN => {
                     cond_or.add(Box::new(DomainSuffixMatcher::new(filter)));
                 }
-                config::Router_Rule_Domain_Type::FULL => {
+                config::router::rule::domain::Type::FULL => {
                     cond_or.add(Box::new(DomainFullMatcher::new(filter)));
                 }
             }
@@ -419,7 +419,7 @@ pub struct Router {
 }
 
 impl Router {
-    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &mut protobuf::RepeatedField<Router_Rule>) {
+    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &mut Vec<config::router::Rule>) {
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
         for rr in routing_rules.iter_mut() {
             let mut cond_and = ConditionAnd::new();
@@ -478,7 +478,7 @@ impl Router {
     }
 
     pub fn new(
-        router: &mut protobuf::SingularPtrField<config::Router>,
+        router: &mut protobuf::MessageField<config::Router>,
         dns_client: SyncDnsClient,
     ) -> Self {
         let mut rules: Vec<Rule> = Vec::new();
@@ -494,10 +494,7 @@ impl Router {
         }
     }
 
-    pub fn reload(
-        &mut self,
-        router: &mut protobuf::SingularPtrField<config::Router>,
-    ) -> Result<()> {
+    pub fn reload(&mut self, router: &mut protobuf::MessageField<config::Router>) -> Result<()> {
         self.rules.clear();
         if let Some(router) = router.as_mut() {
             Self::load_rules(&mut self.rules, &mut router.rules);
@@ -569,7 +566,7 @@ mod tests {
         };
 
         // test port range
-        let m = PortMatcher::new(&protobuf::RepeatedField::from_vec(vec![
+        let m = PortMatcher::new(&Vec::from_vec(vec![
             "1024-5000".to_string(),
             "6000-7000".to_string(),
         ]));
@@ -581,9 +578,7 @@ mod tests {
         assert!(m.apply(&sess));
 
         // test single port range
-        let m = PortMatcher::new(&protobuf::RepeatedField::from_vec(
-            vec!["22-22".to_string()],
-        ));
+        let m = PortMatcher::new(&Vec::from_vec(vec!["22-22".to_string()]));
         sess.destination = SocksAddr::Domain("www.google.com".to_string(), 22);
         assert!(m.apply(&sess));
 

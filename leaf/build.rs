@@ -50,44 +50,44 @@ fn main() {
 
     if env::var("PROTO_GEN").is_ok() {
         // println!("cargo:rerun-if-changed=src/config/internal/config.proto");
-        protoc_rust::Codegen::new()
+        protobuf_codegen::Codegen::new()
             .out_dir("src/config/internal")
+            .includes(&["src/config/internal"])
             .inputs(&["src/config/internal/config.proto"])
-            .customize(protoc_rust::Customize {
-                expose_oneof: Some(true),
-                expose_fields: Some(true),
-                generate_accessors: Some(false),
-                lite_runtime: Some(true),
-                ..Default::default()
-            })
+            .customize(
+                protobuf_codegen::Customize::default()
+                    .generate_accessors(false)
+                    .gen_mod_rs(false)
+                    .lite_runtime(true),
+            )
             .run()
-            .expect("protoc");
+            .expect("Protobuf code gen failed");
 
         // println!("cargo:rerun-if-changed=src/config/geosite.proto");
-        protoc_rust::Codegen::new()
+        protobuf_codegen::Codegen::new()
             .out_dir("src/config")
+            .includes(&["src/config"])
             .inputs(&["src/config/geosite.proto"])
-            .customize(protoc_rust::Customize {
-                expose_oneof: Some(true),
-                expose_fields: Some(true),
-                generate_accessors: Some(false),
-                lite_runtime: Some(true),
-                ..Default::default()
-            })
+            .customize(
+                protobuf_codegen::Customize::default()
+                    .generate_accessors(false)
+                    .gen_mod_rs(false)
+                    .lite_runtime(true),
+            )
             .run()
-            .expect("protoc");
+            .expect("Protobuf code gen failed");
 
-        protoc_rust::Codegen::new()
+        protobuf_codegen::Codegen::new()
             .out_dir("src/app/outbound")
+            .includes(&["src/app/outbound"])
             .inputs(&["src/app/outbound/selector_cache.proto"])
-            .customize(protoc_rust::Customize {
-                expose_oneof: Some(true),
-                expose_fields: Some(true),
-                generate_accessors: Some(false),
-                lite_runtime: Some(true),
-                ..Default::default()
-            })
+            .customize(
+                protobuf_codegen::Customize::default()
+                    .generate_accessors(false)
+                    .gen_mod_rs(false)
+                    .lite_runtime(true),
+            )
             .run()
-            .expect("protoc");
+            .expect("Protobuf code gen failed");
     }
 }
