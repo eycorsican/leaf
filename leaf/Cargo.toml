@@ -154,7 +154,7 @@ ring = { version = "0.16", optional = true }
 # Router
 maxminddb = { version = "0.21", features = ["mmap"] }
 memmap2 = "0.3"
-cidr = { version = "0.1", default-features = false }
+cidr = { version = "0.2" }
 
 # DNS
 trust-dns-proto = { version = "0.20", default-features = false }
