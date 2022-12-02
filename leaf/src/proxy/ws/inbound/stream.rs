@@ -21,8 +21,8 @@ impl<'a> SimpleCallback<'a> {
 impl<'a> Callback for SimpleCallback<'a> {
     fn on_request(self, request: &Request, response: Response) -> Result<Response, ErrorResponse> {
         if request.uri().path() != self.path {
-            return Err(http::response::Response::builder()
-                .status(http::StatusCode::NOT_FOUND)
+            return Err(::http::response::Response::builder()
+                .status(::http::StatusCode::NOT_FOUND)
                 .body(None)
                 .unwrap());
         }

@@ -23,7 +23,7 @@ impl<'a> tungstenite::client::IntoClientRequest for Request<'a> {
     fn into_client_request(
         self,
     ) -> tungstenite::error::Result<tungstenite::handshake::client::Request> {
-        let mut builder = http::Request::builder()
+        let mut builder = ::http::Request::builder()
             .method("GET")
             .uri(self.uri)
             .header("User-Agent", &*crate::option::HTTP_USER_AGENT);
