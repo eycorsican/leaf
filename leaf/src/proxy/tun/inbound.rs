@@ -244,7 +244,11 @@ pub fn new(
         futs.push(Box::pin(async move {
             while let Some(pkt) = stack_stream.next().await {
                 if let Ok(pkt) = pkt {
-                    tun_sink.send(TunPacket::new(pkt)).await.unwrap();
+                    if let Err(e) = tun_sink.send(TunPacket::new(pkt)).await {
+                        // TODO Return the error
+                        log::error!("Sending packet to TUN failed: {}", e);
+                        return;
+                    }
                 }
             }
         }));
@@ -253,7 +257,10 @@ pub fn new(
         futs.push(Box::pin(async move {
             while let Some(pkt) = tun_stream.next().await {
                 if let Ok(pkt) = pkt {
-                    stack_sink.send(pkt.into_bytes().into()).await.unwrap();
+                    if let Err(e) = stack_sink.send(pkt.into_bytes().into()).await {
+                        log::error!("Sending packet to NetStack failed: {}", e);
+                        return;
+                    }
                 }
             }
         }));
