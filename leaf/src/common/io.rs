@@ -29,15 +29,23 @@ impl CopyBuffer {
         }
     }
 
-    pub fn new_with_capacity(size: usize) -> Self {
-        Self {
+    pub fn new_with_capacity(size: usize) -> Result<Self, std::io::Error> {
+        let mut buf = Vec::new();
+        buf.try_reserve(size).map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("new buffer failed: {}", e),
+            )
+        })?;
+        buf.resize(size, 0);
+        Ok(Self {
             read_done: false,
             need_flush: false,
             pos: 0,
             cap: 0,
             amt: 0,
-            buf: vec![0; size].into_boxed_slice(),
-        }
+            buf: buf.into_boxed_slice(),
+        })
     }
 
     pub fn amount_transfered(&self) -> u64 {
@@ -268,8 +276,8 @@ where
     CopyBidirectional {
         a,
         b,
-        a_to_b: TransferState::Running(CopyBuffer::new_with_capacity(size)),
-        b_to_a: TransferState::Running(CopyBuffer::new_with_capacity(size)),
+        a_to_b: TransferState::Running(CopyBuffer::new_with_capacity(size)?),
+        b_to_a: TransferState::Running(CopyBuffer::new_with_capacity(size)?),
         a_to_b_count: 0,
         b_to_a_count: 0,
         a_to_b_delay: None,
