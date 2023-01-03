@@ -76,27 +76,50 @@ impl Dispatcher {
         }
     }
 
-    async fn sniff_session_stream<T>(&self, sess: &mut Session, lhs: T) -> Box<dyn ProxyStream> where T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync {
+    async fn sniff_session_stream<T>(
+        &self,
+        sess: &mut Session,
+        lhs: T,
+    ) -> io::Result<Box<dyn ProxyStream>>
+    where
+        T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
+    {
         if sess.need_sniff() {
             let mut lhs = sniff::SniffingStream::new(lhs);
             let port = sess.destination.port();
             match lhs.try_sniff(port).await {
                 Ok(res) => {
                     if let Some(domain) = res {
-                        debug!("sniffed domain {} for tcp link {} <-> {}:{}", &domain, &sess.source, &sess.destination, &sess.destination.port());
+                        debug!(
+                            "sniffed domain {} for tcp link {} <-> {}:{}",
+                            &domain,
+                            &sess.source,
+                            &sess.destination,
+                            &sess.destination.port()
+                        );
                         match SocksAddr::try_from((&domain, sess.destination.port())) {
                             Ok(addr) => sess.destination = addr,
-                            Err(e) => error!("convert sniffed domain {} to destination failed: {}", &domain, e)
+                            Err(e) => {
+                                warn!(
+                                    "convert sniffed domain {} to destination failed: {}",
+                                    &domain, e
+                                );
+                                return Err(e);
+                            }
                         }
                     }
                 }
                 Err(e) => {
-                    debug!("sniff tcp uplink {} -> {} failed: {}", &sess.source, &sess.destination, e);
+                    debug!(
+                        "sniff tcp uplink {} -> {} failed: {}",
+                        &sess.source, &sess.destination, e
+                    );
+                    return Err(e);
                 }
             }
-            Box::new(lhs)
+            Ok(Box::new(lhs))
         } else {
-            Box::new(lhs)
+            Ok(Box::new(lhs))
         }
     }
 
@@ -104,7 +127,11 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
-        let mut lhs = self.sniff_session_stream(&mut sess, lhs).await;
+        let mut lhs = if let Ok(lhs) = self.sniff_session_stream(&mut sess, lhs).await {
+            lhs
+        } else {
+            return;
+        };
 
         let outbound = {
             let router = self.router.read().await;
