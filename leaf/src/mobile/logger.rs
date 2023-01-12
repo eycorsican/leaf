@@ -27,6 +27,8 @@ fn log_out(data: &[u8]) {
     };
 }
 
+const ANDROID_LOG_TAG: &str = "leaf";
+
 #[cfg(target_os = "android")]
 fn log_out(data: &[u8]) {
     unsafe {
@@ -36,7 +38,10 @@ fn log_out(data: &[u8]) {
         };
         let _ = __android_log_print(
             android_LogPriority_ANDROID_LOG_VERBOSE as std::os::raw::c_int,
-            "leaf".as_ptr() as _,
+            ffi::CString::new(ANDROID_LOG_TAG)
+                .unwrap()
+                .as_c_str()
+                .as_ptr(),
             s.as_c_str().as_ptr(),
         );
     }
