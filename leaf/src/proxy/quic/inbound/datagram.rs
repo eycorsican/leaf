@@ -198,6 +198,8 @@ impl InboundDatagramHandler for Handler {
             .max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
                 300_000,
             )))); // ms
+        transport_config.congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
+
         let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(server_crypto));
         server_config.transport = Arc::new(transport_config); // TODO share
 
