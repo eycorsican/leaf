@@ -28,7 +28,7 @@ jobs:
       - name: install rust toolchain
         uses: hecrj/setup-rust-action@v1
         with:
-          rust-version: nightly
+          rust-version: stable
 
       - name: install deps
         run: |
