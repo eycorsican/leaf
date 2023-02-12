@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
+use rustls::OwnedTrustAnchor;
 use tokio::sync::Mutex;
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
@@ -67,6 +68,14 @@ impl Manager {
                     panic!("read certificate {} failed: {}", cert_path, e);
                 }
             }
+        } else {
+            roots.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                OwnedTrustAnchor::from_subject_spki_name_constraints(
+                    ta.subject,
+                    ta.spki,
+                    ta.name_constraints,
+                )
+            }));
         }
 
         let client_crypto = rustls::ClientConfig::builder()
