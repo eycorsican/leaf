@@ -175,10 +175,16 @@ impl InboundDatagramHandler for Handler {
                         match rsa.into_iter().next() {
                             Some(x) => rustls::PrivateKey(x),
                             None => {
-                                return Err(io::Error::new(
-                                    io::ErrorKind::Other,
-                                    "no private keys found",
-                                ));
+                                let rsa = rustls_pemfile::ec_private_keys(&mut &*key).map_err(quic_err)?;
+                                match rsa.into_iter().next() {
+                                    Some(x) => rustls::PrivateKey(x),
+                                    None => {
+                                        return Err(io::Error::new(
+                                            io::ErrorKind::Other,
+                                            "no private keys found",
+                                        ));
+                                    }
+                                }
                             }
                         }
                     }

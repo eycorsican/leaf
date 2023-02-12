@@ -6,7 +6,7 @@ use anyhow::Result;
 
 #[cfg(feature = "rustls-tls")]
 use {
-    rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys},
+    rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys, ec_private_keys},
     tokio_rustls::rustls::{Certificate, PrivateKey, ServerConfig},
     tokio_rustls::TlsAcceptor,
 };
@@ -33,6 +33,10 @@ fn load_keys(path: &Path) -> io::Result<Vec<PrivateKey>> {
     let mut keys2: Vec<PrivateKey> = rsa_private_keys(&mut BufReader::new(File::open(path)?))
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid key"))
         .map(|mut keys| keys.drain(..).map(PrivateKey).collect())?;
+    let mut keys3: Vec<PrivateKey> = ec_private_keys(&mut BufReader::new(File::open(path)?))
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid key"))
+        .map(|mut keys| keys.drain(..).map(PrivateKey).collect())?;
+    keys.append(&mut keys3);
     keys.append(&mut keys2);
     Ok(keys)
 }
