@@ -88,6 +88,7 @@ impl Manager {
         transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
             300_000,
         )))); // ms
+        transport_config.congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
         client_config.transport = Arc::new(transport_config);
 
         Manager {
