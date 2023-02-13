@@ -40,7 +40,11 @@ fn test_quic_trojan() {
                     "address": "127.0.0.1",
                     "port": 3001,
                     "serverName": "localhost",
-                    "certificate": "cert.der"
+                    "certificate": "cert.der",
+                    "alpn": [
+                        "http/1.1",
+                        "trojan"
+                    ]
                 }
             },
             {
@@ -74,6 +78,10 @@ fn test_quic_trojan() {
                 "settings": {
                     "certificate": "cert.der",
                     "certificateKey": "key.der"
+                    "alpn": [
+                        "http/1.1",
+                        "trojan"
+                    ]
                 }
             },
             {

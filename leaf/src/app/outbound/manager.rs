@@ -228,10 +228,6 @@ impl OutboundManager {
                     let settings =
                         config::TlsOutboundSettings::parse_from_bytes(&outbound.settings)
                             .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
-                    let mut alpns = Vec::new();
-                    for alpn in settings.alpn.iter() {
-                        alpns.push(alpn.clone());
-                    }
                     let certificate = if settings.certificate.is_empty() {
                         None
                     } else {
@@ -239,7 +235,7 @@ impl OutboundManager {
                     };
                     let stream = Box::new(tls::outbound::StreamHandler::new(
                         settings.server_name.clone(),
-                        alpns.clone(),
+                        settings.alpn.clone(),
                         certificate,
                     )?);
                     HandlerBuilder::default()
@@ -280,6 +276,7 @@ impl OutboundManager {
                         settings.address.clone(),
                         settings.port as u16,
                         server_name,
+                        settings.alpn.clone(),
                         certificate,
                         dns_client.clone(),
                     ));
@@ -702,10 +699,7 @@ impl OutboundManager {
         Ok(())
     }
 
-    pub fn new(
-        outbounds: &Vec<Outbound>,
-        dns_client: SyncDnsClient,
-    ) -> Result<Self> {
+    pub fn new(outbounds: &Vec<Outbound>, dns_client: SyncDnsClient) -> Result<Self> {
         let mut handlers: HashMap<String, AnyOutboundHandler> = HashMap::new();
         #[cfg(feature = "plugin")]
         let mut external_handlers = super::plugin::ExternalHandlers::new();

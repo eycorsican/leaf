@@ -62,6 +62,7 @@ message AMuxInboundSettings {
 message QuicInboundSettings {
 	string certificate = 1;
 	string certificate_key = 2;
+	repeated string alpn = 3;
 }
 
 message TlsInboundSettings {
@@ -138,6 +139,7 @@ message QuicOutboundSettings {
 	uint32 port = 2;
 	string server_name = 3;
 	string certificate = 4;
+	repeated string alpn = 5;
 }
 
 message VMessOutboundSettings {

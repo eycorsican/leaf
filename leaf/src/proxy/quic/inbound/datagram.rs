@@ -3,6 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::{io, pin::Pin};
 
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::{
@@ -125,64 +126,43 @@ where
 }
 
 pub struct Handler {
-    certificate: String,
-    certificate_key: String,
+    server_config: quinn::ServerConfig,
 }
 
 impl Handler {
-    pub fn new(certificate: String, certificate_key: String) -> Self {
-        Self {
-            certificate,
-            certificate_key,
-        }
-    }
-}
-
-#[async_trait]
-impl InboundDatagramHandler for Handler {
-    async fn handle<'a>(
-        &'a self,
-        socket: AnyInboundDatagram,
-    ) -> io::Result<AnyInboundTransport> {
+    pub fn new(certificate: String, certificate_key: String, alpns: Vec<String>) -> Result<Self> {
         let (cert, key) =
-            fs::read(&self.certificate).and_then(|x| Ok((x, fs::read(&self.certificate_key)?)))?;
+            fs::read(&certificate).and_then(|x| Ok((x, fs::read(&certificate_key)?)))?;
 
-        let cert = match Path::new(&self.certificate)
-            .extension()
-            .map(|ext| ext.to_str())
-        {
+        let cert = match Path::new(&certificate).extension().map(|ext| ext.to_str()) {
             Some(Some(ext)) if ext == "der" => {
                 vec![rustls::Certificate(cert)]
             }
-            _ => rustls_pemfile::certs(&mut &*cert)
-                .map_err(quic_err)?
+            _ => rustls_pemfile::certs(&mut &*cert)?
                 .into_iter()
                 .map(rustls::Certificate)
                 .collect(),
         };
 
-        let key = match Path::new(&self.certificate_key)
+        let key = match Path::new(&certificate_key)
             .extension()
             .map(|ext| ext.to_str())
         {
             Some(Some(ext)) if ext == "der" => rustls::PrivateKey(key),
             _ => {
-                let pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut &*key).map_err(quic_err)?;
+                let pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut &*key)?;
                 match pkcs8.into_iter().next() {
                     Some(x) => rustls::PrivateKey(x),
                     None => {
-                        let rsa = rustls_pemfile::rsa_private_keys(&mut &*key).map_err(quic_err)?;
+                        let rsa = rustls_pemfile::rsa_private_keys(&mut &*key)?;
                         match rsa.into_iter().next() {
                             Some(x) => rustls::PrivateKey(x),
                             None => {
-                                let rsa = rustls_pemfile::ec_private_keys(&mut &*key).map_err(quic_err)?;
+                                let rsa = rustls_pemfile::ec_private_keys(&mut &*key)?;
                                 match rsa.into_iter().next() {
                                     Some(x) => rustls::PrivateKey(x),
                                     None => {
-                                        return Err(io::Error::new(
-                                            io::ErrorKind::Other,
-                                            "no private keys found",
-                                        ));
+                                        return Err(anyhow!("no private keys found",));
                                     }
                                 }
                             }
@@ -192,11 +172,14 @@ impl InboundDatagramHandler for Handler {
             }
         };
 
-        let server_crypto = rustls::ServerConfig::builder()
+        let mut crypto = rustls::ServerConfig::builder()
             .with_safe_defaults()
             .with_no_client_auth()
-            .with_single_cert(cert, key)
-            .map_err(quic_err)?;
+            .with_single_cert(cert, key)?;
+
+        for alpn in alpns {
+            crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
+        }
 
         let mut transport_config = quinn::TransportConfig::default();
         transport_config
@@ -204,18 +187,24 @@ impl InboundDatagramHandler for Handler {
             .max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
                 300_000,
             )))); // ms
-        transport_config.congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
+        transport_config
+            .congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
+        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(crypto));
+        server_config.transport = Arc::new(transport_config);
 
-        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(server_crypto));
-        server_config.transport = Arc::new(transport_config); // TODO share
+        Ok(Self { server_config })
+    }
+}
 
+#[async_trait]
+impl InboundDatagramHandler for Handler {
+    async fn handle<'a>(&'a self, socket: AnyInboundDatagram) -> io::Result<AnyInboundTransport> {
         let (_, incoming) = quinn::Endpoint::new(
             quinn::EndpointConfig::default(),
-            Some(server_config),
+            Some(self.server_config.clone()),
             socket.into_std()?,
         )
         .map_err(quic_err)?;
-        // let (_, incoming) = endpoint.with_socket(socket.into_std()?).map_err(quic_err)?;
         Ok(InboundTransport::Incoming(Box::new(Incoming::new(
             incoming,
         ))))
