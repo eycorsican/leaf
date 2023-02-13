@@ -42,6 +42,11 @@ async fn handle_inbound_datagram(
     tokio::spawn(async move {
         while let Some(pkt) = l_rx.recv().await {
             let dst_addr = pkt.dst_addr.must_ip();
+            trace!(
+                "inbound send UDP packet: dst {}, {} bytes",
+                &dst_addr,
+                pkt.data.len()
+            );
             if let Err(e) = ls.send_to(&pkt.data[..], &pkt.src_addr, &dst_addr).await {
                 debug!("Send datagram failed: {}", e);
                 break;
@@ -64,6 +69,11 @@ async fn handle_inbound_datagram(
                 continue;
             }
             Ok((n, dgram_src, dst_addr)) => {
+                trace!(
+                    "inbound received UDP packet: src {}, {} bytes",
+                    &dgram_src.address,
+                    n
+                );
                 let pkt = UdpPacket::new(
                     (&buf[..n]).to_vec(),
                     SocksAddr::from(dgram_src.address),

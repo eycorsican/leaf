@@ -115,8 +115,18 @@ where
         // means we assume all received packets are comming from a same
         // address.
         if self.1.is_some() {
+            trace!(
+                "trojan outbound received UDP {} bytes from {}",
+                to_write,
+                self.1.as_ref().unwrap()
+            );
             Ok((to_write, self.1.as_ref().unwrap().clone()))
         } else {
+            trace!(
+                "trojan outbound received UDP {} bytes from {}",
+                to_write,
+                &addr
+            );
             Ok((to_write, addr))
         }
     }
@@ -130,6 +140,7 @@ where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
+        trace!("trojan outbound send UDP {} bytes to {}", buf.len(), target);
         // FIXME we should calculate the return size more carefully.
         // max(0, n_written - all_headers_size)
         let payload_size = buf.len();

@@ -207,6 +207,7 @@ impl NatManager {
                             break;
                         }
                         Ok((n, addr)) => {
+                            trace!("outbound received UDP packet: src {}, {} bytes", &addr, n);
                             let pkt = UdpPacket::new(
                                 (&buf[..n]).to_vec(),
                                 addr.clone(),
@@ -254,6 +255,11 @@ impl NatManager {
             // uplink
             tokio::spawn(async move {
                 while let Some(pkt) = target_ch_rx.recv().await {
+                    trace!(
+                        "outbound send UDP packet: dst {}, {} bytes",
+                        &pkt.dst_addr,
+                        pkt.data.len()
+                    );
                     if let Err(e) = target_sock_send.send_to(&pkt.data, &pkt.dst_addr).await {
                         debug!(
                             "Failed to send uplink packets on session {} to {}: {:?}",

@@ -85,6 +85,11 @@ where
             .map_err(|e| ProxyError::DatagramFatal(e.into()))
             .await?;
         buf[..payload_len].copy_from_slice(&buf2[..payload_len]);
+        trace!(
+            "trojan inbound received UDP {} bytes for {}",
+            payload_len,
+            &dst_addr
+        );
         Ok((payload_len, self.1, dst_addr))
     }
 }
@@ -102,6 +107,11 @@ where
         src_addr: &SocksAddr,
         _dst_addr: &SocketAddr,
     ) -> io::Result<usize> {
+        trace!(
+            "trojan inbound send UDP {} bytes for {}",
+            buf.len(),
+            &src_addr
+        );
         let mut data = BytesMut::new();
         src_addr.write_buf(&mut data, SocksAddrWireType::PortLast);
         data.put_u16(buf.len() as u16);
