@@ -77,7 +77,7 @@ fn test_quic_trojan() {
                 "tag": "quic",
                 "settings": {
                     "certificate": "cert.der",
-                    "certificateKey": "key.der"
+                    "certificateKey": "key.der",
                     "alpn": [
                         "http/1.1",
                         "trojan"
