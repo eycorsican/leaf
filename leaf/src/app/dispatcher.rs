@@ -80,41 +80,43 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
-        let mut lhs: Box<dyn ProxyStream> =
-            if !sess.destination.is_domain() && sess.destination.port() == 443 {
-                let mut lhs = sniff::SniffingStream::new(lhs);
-                match lhs.sniff().await {
-                    Ok(res) => {
-                        if let Some(domain) = res {
-                            debug!(
-                                "sniffed domain {} for tcp link {} <-> {}",
-                                &domain, &sess.source, &sess.destination,
-                            );
-                            sess.destination =
-                                match SocksAddr::try_from((&domain, sess.destination.port())) {
-                                    Ok(a) => a,
-                                    Err(e) => {
-                                        warn!(
-                                            "convert sniffed domain {} to destination failed: {}",
-                                            &domain, e,
-                                        );
-                                        return;
-                                    }
-                                };
-                        }
-                    }
-                    Err(e) => {
+        let mut lhs: Box<dyn ProxyStream> = if *option::DOMAIN_SNIFFING
+            && !sess.destination.is_domain()
+            && sess.destination.port() == 443
+        {
+            let mut lhs = sniff::SniffingStream::new(lhs);
+            match lhs.sniff().await {
+                Ok(res) => {
+                    if let Some(domain) = res {
                         debug!(
-                            "sniff tcp uplink {} -> {} failed: {}",
-                            &sess.source, &sess.destination, e,
+                            "sniffed domain {} for tcp link {} <-> {}",
+                            &domain, &sess.source, &sess.destination,
                         );
-                        return;
+                        sess.destination =
+                            match SocksAddr::try_from((&domain, sess.destination.port())) {
+                                Ok(a) => a,
+                                Err(e) => {
+                                    warn!(
+                                        "convert sniffed domain {} to destination failed: {}",
+                                        &domain, e,
+                                    );
+                                    return;
+                                }
+                            };
                     }
                 }
-                Box::new(lhs)
-            } else {
-                Box::new(lhs)
-            };
+                Err(e) => {
+                    debug!(
+                        "sniff tcp uplink {} -> {} failed: {}",
+                        &sess.source, &sess.destination, e,
+                    );
+                    return;
+                }
+            }
+            Box::new(lhs)
+        } else {
+            Box::new(lhs)
+        };
 
         let outbound = {
             let router = self.router.read().await;

@@ -97,6 +97,10 @@ lazy_static! {
         get_env_var_or("LOG_NO_COLOR", false)
     };
 
+    pub static ref DOMAIN_SNIFFING: bool = {
+        get_env_var_or("DOMAIN_SNIFFING", false)
+    };
+
     /// Uplink timeout after downlink EOF.
     pub static ref TCP_UPLINK_TIMEOUT: u64 = {
         get_env_var_or("TCP_UPLINK_TIMEOUT", 10)
