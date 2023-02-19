@@ -27,8 +27,6 @@ fn log_out(data: &[u8]) {
     };
 }
 
-const ANDROID_LOG_TAG: &str = "leaf";
-
 #[cfg(target_os = "android")]
 fn log_out(data: &[u8]) {
     unsafe {
@@ -36,6 +34,7 @@ fn log_out(data: &[u8]) {
             Ok(s) => s,
             Err(_) => return,
         };
+        const ANDROID_LOG_TAG: &str = "leaf";
         let _ = __android_log_print(
             android_LogPriority_ANDROID_LOG_VERBOSE as std::os::raw::c_int,
             ffi::CString::new(ANDROID_LOG_TAG)
@@ -47,6 +46,7 @@ fn log_out(data: &[u8]) {
     }
 }
 
+#[derive(Debug)]
 pub struct ConsoleWriter(pub BytesMut);
 
 impl Default for ConsoleWriter {

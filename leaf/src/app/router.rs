@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use anyhow::Result;
-use cidr::{Cidr, IpCidr};
+use cidr::IpCidr;
 use futures::TryFutureExt;
 use log::*;
 use maxminddb::geoip2::Country;

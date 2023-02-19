@@ -251,7 +251,7 @@ mod filters {
     // POST /api/v1/runtime/reload
     pub fn runtime_reload(
         rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         warp::path!("api" / "v1" / "runtime" / "reload")
             .and(warp::post())
             .and(with_runtime_manager(rm))
@@ -261,7 +261,7 @@ mod filters {
     // POST /api/v1/runtime/shutdown
     pub fn runtime_shutdown(
         rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         warp::path!("api" / "v1" / "runtime" / "shutdown")
             .and(warp::post())
             .and(with_runtime_manager(rm))
@@ -272,7 +272,7 @@ mod filters {
     #[cfg(feature = "stat")]
     pub fn stat_html(
         rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         warp::path!("api" / "v1" / "runtime" / "stat" / "html")
             .and(warp::get())
             .and(with_runtime_manager(rm))
@@ -283,7 +283,7 @@ mod filters {
     #[cfg(feature = "stat")]
     pub fn stat_json(
         rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
         warp::path!("api" / "v1" / "runtime" / "stat" / "json")
             .and(warp::get())
             .and(with_runtime_manager(rm))
