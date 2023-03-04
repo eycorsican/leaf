@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use anyhow::anyhow;
 use lazy_static::lazy_static;
-use parking_lot::Mutex;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
@@ -249,7 +249,7 @@ impl RuntimeManager {
                             // by an editor, in that case create a new watcher to watch
                             // the new file.
                             if let event::EventKind::Remove(event::RemoveKind::File) = ev.kind {
-                                if let Some(m) = RUNTIME_MANAGER.lock().get(&rt_id) {
+                                if let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&rt_id) {
                                     let _ = m.new_watcher();
                                 }
                             }
@@ -267,7 +267,7 @@ impl RuntimeManager {
                 )
                 .map_err(Error::Watcher)?;
             log::info!("watching changes of file: {}", config_path);
-            self.watcher.lock().replace(watcher);
+            self.watcher.lock().unwrap().replace(watcher);
         }
         Ok(())
     }
@@ -281,21 +281,21 @@ lazy_static! {
 }
 
 pub fn reload(key: RuntimeId) -> Result<(), Error> {
-    if let Some(m) = RUNTIME_MANAGER.lock().get(&key) {
+    if let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&key) {
         return m.blocking_reload();
     }
     Err(Error::RuntimeManager)
 }
 
 pub fn shutdown(key: RuntimeId) -> bool {
-    if let Some(m) = RUNTIME_MANAGER.lock().get(&key) {
+    if let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&key) {
         return m.blocking_shutdown();
     }
     false
 }
 
 pub fn is_running(key: RuntimeId) -> bool {
-    RUNTIME_MANAGER.lock().contains_key(&key)
+    RUNTIME_MANAGER.lock().unwrap().contains_key(&key)
 }
 
 pub fn test_config(config_path: &str) -> Result<(), Error> {
@@ -531,7 +531,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         let _ = tokio::signal::ctrl_c().await;
     }));
 
-    RUNTIME_MANAGER.lock().insert(rt_id, runtime_manager);
+    RUNTIME_MANAGER.lock().unwrap().insert(rt_id, runtime_manager);
 
     log::trace!("added runtime {}", &rt_id);
 
@@ -542,7 +542,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     drop(inbound_manager);
 
-    RUNTIME_MANAGER.lock().remove(&rt_id);
+    RUNTIME_MANAGER.lock().unwrap().remove(&rt_id);
 
     rt.shutdown_background();
 
