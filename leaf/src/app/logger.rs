@@ -1,20 +1,17 @@
 use std::io;
 use std::io::Write;
+use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
-use lazy_static::lazy_static;
 use log4rs::append::file::FileAppender;
 use log4rs::append::{console::ConsoleAppender, Append};
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::{pattern::PatternEncoder, Encode};
 use log4rs::Handle;
-use parking_lot::Mutex;
 
 use crate::config;
 
-lazy_static! {
-    static ref HANDLE: Mutex<Option<Handle>> = Mutex::new(None);
-}
+static HANDLE: Mutex<Option<Handle>> = Mutex::new(None);
 
 #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
 mod mobile {
@@ -29,7 +26,7 @@ mod mobile {
     impl log4rs::append::Append for MobileConsoleAppender {
         fn append(&self, record: &log::Record<'_>) -> Result<()> {
             // No need flush with the current mobile console writer impl
-            self.encoder.encode(&mut *self.writer.lock(), record)
+            self.encoder.encode(&mut *self.writer.lock().unwrap(), record)
         }
 
         fn flush(&self) {}
@@ -140,7 +137,7 @@ pub fn setup_logger(config: &protobuf::MessageField<crate::config::Log>) -> Resu
         }
     }
     let config = builder.build(root.build(loglevel)).unwrap();
-    let mut handle = HANDLE.lock();
+    let mut handle = HANDLE.lock().unwrap();
     if let Some(handle) = handle.as_ref() {
         handle.set_config(config);
     } else {
