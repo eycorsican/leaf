@@ -78,6 +78,8 @@ fn new_socks_outbound(socks_addr: &str, socks_port: u16) -> AnyOutboundHandler {
     let settings = leaf::config::json::SocksOutboundSettings {
         address: Some(socks_addr.to_string()),
         port: Some(socks_port),
+        username: None,
+        password: None,
     };
     let settings_str = serde_json::to_string(&settings).unwrap();
     let raw_settings = serde_json::value::RawValue::from_string(settings_str).unwrap();

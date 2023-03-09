@@ -144,6 +144,8 @@ impl OutboundManager {
                     let stream = Box::new(socks::outbound::StreamHandler {
                         address: settings.address.clone(),
                         port: settings.port as u16,
+                        username: settings.username.clone(),
+                        password: settings.password.clone(),
                     });
                     let datagram = Box::new(socks::outbound::DatagramHandler {
                         address: settings.address.clone(),
