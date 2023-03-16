@@ -137,6 +137,12 @@ lazy_static! {
         get_env_var_or("DATAGRAM_BUFFER_SIZE", 2)
     };
 
+    /// The timeout for an accepted inbound TCP connection to finish the proxy
+    /// protocol handshake.
+    pub static ref INBOUND_ACCEPT_TIMEOUT: u64 = {
+        get_env_var_or("INBOUND_ACCEPT_TIMEOUT", 60)
+    };
+
     pub static ref OUTBOUND_DIAL_TIMEOUT: u64 = {
         get_env_var_or("OUTBOUND_DIAL_TIMEOUT", 4)
     };

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use log::*;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::RwLock;
 
 use crate::{
