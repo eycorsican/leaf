@@ -180,6 +180,7 @@ impl TcpListener {
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
         let (stream, addr) = self.inner.accept().await?;
         apply_socket_opts(&stream)?;
+        stream.set_linger(Some(Duration::ZERO))?;
         Ok((stream, addr))
     }
 }
