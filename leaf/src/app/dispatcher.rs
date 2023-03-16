@@ -138,12 +138,6 @@ impl Dispatcher {
                         tag
                     } else {
                         warn!("can not find any handlers");
-                        if let Err(e) = lhs.shutdown().await {
-                            debug!(
-                                "tcp downlink {} <- {} error: {}",
-                                &sess.source, &sess.destination, e,
-                            );
-                        }
                         return;
                     }
                 }
@@ -157,12 +151,6 @@ impl Dispatcher {
         } else {
             // FIXME use  the default handler
             warn!("handler not found");
-            if let Err(e) = lhs.shutdown().await {
-                debug!(
-                    "tcp downlink {} <- {} error: {}",
-                    &sess.source, &sess.destination, e,
-                );
-            }
             return;
         };
 
@@ -248,18 +236,7 @@ impl Dispatcher {
                     &h.tag(),
                     e
                 );
-
                 log_request(&sess, h.tag(), h.color(), None);
-
-                if let Err(e) = lhs.shutdown().await {
-                    debug!(
-                        "tcp downlink {} <- {} error: {} [{}]",
-                        &sess.source,
-                        &sess.destination,
-                        e,
-                        &h.tag()
-                    );
-                }
             }
         }
     }
