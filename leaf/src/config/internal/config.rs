@@ -1575,6 +1575,10 @@ pub struct SocksOutboundSettings {
     pub address: ::std::string::String,
     // @@protoc_insertion_point(field:SocksOutboundSettings.port)
     pub port: u32,
+    // @@protoc_insertion_point(field:SocksOutboundSettings.username)
+    pub username: ::std::string::String,
+    // @@protoc_insertion_point(field:SocksOutboundSettings.password)
+    pub password: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:SocksOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -1608,6 +1612,12 @@ impl ::protobuf::Message for SocksOutboundSettings {
                 16 => {
                     self.port = is.read_uint32()?;
                 },
+                26 => {
+                    self.username = is.read_string()?;
+                },
+                34 => {
+                    self.password = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -1626,6 +1636,12 @@ impl ::protobuf::Message for SocksOutboundSettings {
         if self.port != 0 {
             my_size += ::protobuf::rt::uint32_size(2, self.port);
         }
+        if !self.username.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.username);
+        }
+        if !self.password.is_empty() {
+            my_size += ::protobuf::rt::string_size(4, &self.password);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -1637,6 +1653,12 @@ impl ::protobuf::Message for SocksOutboundSettings {
         }
         if self.port != 0 {
             os.write_uint32(2, self.port)?;
+        }
+        if !self.username.is_empty() {
+            os.write_string(3, &self.username)?;
+        }
+        if !self.password.is_empty() {
+            os.write_string(4, &self.password)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -1657,6 +1679,8 @@ impl ::protobuf::Message for SocksOutboundSettings {
     fn clear(&mut self) {
         self.address.clear();
         self.port = 0;
+        self.username.clear();
+        self.password.clear();
         self.special_fields.clear();
     }
 
@@ -1664,6 +1688,8 @@ impl ::protobuf::Message for SocksOutboundSettings {
         static instance: SocksOutboundSettings = SocksOutboundSettings {
             address: ::std::string::String::new(),
             port: 0,
+            username: ::std::string::String::new(),
+            password: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

@@ -90,6 +90,8 @@ message RedirectOutboundSettings {
 message SocksOutboundSettings {
 	string address = 1;
 	uint32 port = 2;
+	string username = 3;
+	string password = 4;
 }
 
 message ShadowsocksOutboundSettings {

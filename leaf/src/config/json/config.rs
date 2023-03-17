@@ -95,6 +95,8 @@ pub struct RedirectOutboundSettings {
 pub struct SocksOutboundSettings {
     pub address: Option<String>,
     pub port: Option<u16>,
+    pub username: Option<String>,
+    pub password: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -536,6 +538,12 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     }
                     if let Some(ext_port) = ext_settings.port {
                         settings.port = ext_port as u32; // TODO checks
+                    }
+                    if let Some(ext_username) = ext_settings.username {
+                        settings.username = ext_username;
+                    }
+                    if let Some(ext_password) = ext_settings.password {
+                        settings.password = ext_password;
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

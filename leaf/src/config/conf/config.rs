@@ -827,6 +827,12 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_port) = &ext_proxy.port {
                         settings.port = *ext_port as u32;
                     }
+                    if let Some(ext_username) = &ext_proxy.username {
+                        settings.username = ext_username.clone();
+                    }
+                    if let Some(ext_password) = &ext_proxy.password {
+                        settings.password = ext_password.clone();
+                    }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
                     outbounds.push(outbound);
