@@ -12,3 +12,6 @@ mod network_listener;
 mod tun_listener;
 
 pub mod manager;
+
+#[cfg(target_os = "windows")]
+pub mod tunio_wrapper;
