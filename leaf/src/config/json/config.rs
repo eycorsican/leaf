@@ -287,7 +287,8 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     target_os = "ios",
                     target_os = "android",
                     target_os = "macos",
-                    target_os = "linux"
+                    target_os = "linux",
+                    target_os = "windows"
                 ))]
                 "tun" => {
                     if ext_inbound.settings.is_none() {

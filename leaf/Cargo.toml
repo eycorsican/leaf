@@ -105,7 +105,7 @@ inbound-trojan = ["sha2", "hex"]
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["hyper"]
-inbound-tun = ["tun", "netstack-lwip"]
+inbound-tun = ["tun", "tunio", "netstack-lwip", "tokio-util"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
 inbound-quic = ["quinn", "rustls", "webpki-roots"]
@@ -226,9 +226,16 @@ notify = { version = "5.0.0-pre.13", optional = true }
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fork", features = ["async"], optional = true }
-netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", optional = true }
+# netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", optional = true }
+netstack-lwip = { git = "https://github.com/vincentliu77/netstack-lwip.git", branch = "windows", optional = true }
 
-[target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
+[target.'cfg(any(target_os = "windows"))'.dependencies]
+tunio = { git = "https://github.com/GamePad64/tunio.git", branch = "main", features = ["tokio"], optional = true }
+ipnet = "2.7.1"
+netstack-lwip = { git = "https://github.com/vincentliu77/netstack-lwip.git", branch = "windows", optional = true }
+tokio-util = {version = "0.7.7", features = ["compat"], optional = true }
+
+[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
 pnet_datalink = { version = "0.28", package = "pnet_datalink" }
 libc = "0.2"
 
