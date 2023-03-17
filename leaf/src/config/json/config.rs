@@ -64,6 +64,7 @@ pub struct ChainInboundSettings {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TunInboundSettings {
+    pub auto: Option<bool>,
     pub fd: Option<i32>,
     pub name: Option<String>,
     pub address: Option<String>,
@@ -334,6 +335,9 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                         }
                         if let Some(ext_netmask) = ext_settings.netmask {
                             settings.netmask = ext_netmask;
+                        }
+                        if let Some(ext_auto) = ext_settings.auto {
+                            settings.auto = ext_auto;
                         }
                         if let Some(ext_mtu) = ext_settings.mtu {
                             settings.mtu = ext_mtu;
