@@ -109,7 +109,7 @@ pub trait Tag {
 }
 
 pub trait Color {
-    fn color(&self) -> colored::Color;
+    fn color(&self) -> &colored::Color;
 }
 
 #[derive(Debug)]
@@ -340,7 +340,7 @@ pub enum DialOrder {
 }
 
 // A single TCP dial.
-async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(AnyStream, SocketAddr)> {
+async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<DialResult> {
     let socket = match dial_addr {
         SocketAddr::V4(..) => TcpSocket::new_v4()?,
         SocketAddr::V6(..) => TcpSocket::new_v6()?,
@@ -368,7 +368,10 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<(AnyStream, SocketAd
         &dial_addr,
         elapsed.as_millis()
     );
-    Ok((Box::new(stream), dial_addr))
+    Ok(DialResult {
+        stream: Box::new(stream),
+        addr: dial_addr,
+    })
 }
 
 pub async fn connect_stream_outbound(
@@ -426,6 +429,11 @@ pub async fn connect_datagram_outbound(
     }
 }
 
+struct DialResult {
+    stream: AnyStream,
+    addr: SocketAddr,
+}
+
 // Dials a TCP stream.
 pub async fn new_tcp_stream(
     dns_client: SyncDnsClient,
@@ -461,10 +469,12 @@ pub async fn new_tcp_stream(
         if !tasks.is_empty() {
             match select_ok(tasks.into_iter()).await {
                 Ok(v) => {
-                    #[rustfmt::skip]
-                    dns_client.read().await.optimize_cache(address.to_owned(), v.0.1.ip()).await;
-                    #[rustfmt::skip]
-                    return Ok(v.0.0);
+                    dns_client
+                        .read()
+                        .await
+                        .optimize_cache(address.to_owned(), v.0.addr.ip())
+                        .await;
+                    return Ok(v.0.stream);
                 }
                 Err(e) => {
                     last_err = Some(io::Error::new(

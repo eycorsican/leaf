@@ -5,6 +5,11 @@ use futures::future::select_ok;
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
 
+struct HandleResult {
+    idx: usize,
+    stream: AnyStream,
+}
+
 pub struct Handler {
     pub actors: Vec<AnyOutboundHandler>,
     pub delay_base: u32,
@@ -33,12 +38,23 @@ impl OutboundStreamHandler for Handler {
                 }
                 let stream =
                     crate::proxy::connect_stream_outbound(sess, self.dns_client.clone(), a).await?;
-                a.stream()?.handle(sess, stream).await
+                a.stream()?
+                    .handle(sess, stream)
+                    .await
+                    .map(|stream| HandleResult { idx: i, stream })
             };
             tasks.push(Box::pin(t));
         }
         match select_ok(tasks.into_iter()).await {
-            Ok(v) => Ok(v.0),
+            Ok(v) => {
+                debug!(
+                    "tryall handles [{}:{}] to [{}]",
+                    sess.network,
+                    sess.destination,
+                    self.actors[v.0.idx].tag()
+                );
+                Ok(v.0.stream)
+            }
             Err(e) => Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!("all outbound attempts failed, last error: {}", e),

@@ -26,7 +26,7 @@ use super::router::Router;
 fn log_request(
     sess: &Session,
     outbound_tag: &str,
-    outbound_tag_color: colored::Color,
+    outbound_tag_color: &colored::Color,
     handshake_time: Option<u128>,
 ) {
     let hs = handshake_time.map_or("failed".to_string(), |hs| format!("{}ms", hs));
@@ -40,7 +40,7 @@ fn log_request(
             "[{}] [{}] [{}] [{}] {}",
             &sess.inbound_tag,
             sess.network.to_string().color(network_color),
-            outbound_tag.color(outbound_tag_color),
+            outbound_tag.color(*outbound_tag_color),
             hs,
             &sess.destination,
         );

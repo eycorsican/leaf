@@ -5,6 +5,11 @@ use futures::future::select_ok;
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
 
+struct HandleResult {
+    idx: usize,
+    dgram: AnyOutboundDatagram,
+}
+
 pub struct Handler {
     pub actors: Vec<AnyOutboundHandler>,
     pub delay_base: u32,
@@ -36,13 +41,25 @@ impl OutboundDatagramHandler for Handler {
                     .await;
                 }
                 let transport =
-                    crate::proxy::connect_datagram_outbound(sess, self.dns_client.clone(), a).await?;
-                a.datagram()?.handle(sess, transport).await
+                    crate::proxy::connect_datagram_outbound(sess, self.dns_client.clone(), a)
+                        .await?;
+                a.datagram()?
+                    .handle(sess, transport)
+                    .await
+                    .map(|dgram| HandleResult { idx: i, dgram })
             };
             tasks.push(Box::pin(t));
         }
         match select_ok(tasks.into_iter()).await {
-            Ok(v) => Ok(v.0),
+            Ok(v) => {
+                debug!(
+                    "tryall handles [{}:{}] to [{}]",
+                    sess.network,
+                    sess.destination,
+                    self.actors[v.0.idx].tag()
+                );
+                Ok(v.0.dgram)
+            }
             Err(e) => Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!("all outbound attempts failed, last error: {}", e),
