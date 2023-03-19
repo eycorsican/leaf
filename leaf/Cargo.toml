@@ -234,6 +234,9 @@ tunio = { git = "https://github.com/GamePad64/tunio.git", branch = "main", featu
 ipnet = "2.7.1"
 netstack-lwip = { git = "https://github.com/vincentliu77/netstack-lwip.git", branch = "windows", optional = true }
 tokio-util = {version = "0.7.7", features = ["compat"], optional = true }
+windows = { version = "0.46.0", features = [ "Win32_NetworkManagement_IpHelper", 
+"Win32_Networking_WinSock", "Win32_NetworkManagement_IpHelper", "Win32_Foundation", "Win32_NetworkManagement_Ndis" ] }
+netconfig = "0.4.0"
 
 [target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
 pnet_datalink = { version = "0.28", package = "pnet_datalink" }

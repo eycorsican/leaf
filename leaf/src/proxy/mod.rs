@@ -17,12 +17,18 @@ use tokio::time::timeout;
 
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
-#[cfg(windows)]
-use std::os::windows::io::AsRawSocket;
 #[cfg(target_os = "android")]
 use {
     std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
     tokio::net::UnixStream,
+};
+#[cfg(target_os = "windows")]
+use {
+    std::os::windows::io::AsRawSocket,
+    windows::Win32::Networking::WinSock::{
+        setsockopt, IPPROTO, IPPROTO_IP, IPPROTO_IPV6, IPV6_UNICAST_IF, IP_UNICAST_IF, SOCKET,
+    },
+    netconfig::{sys::InterfaceExt, Interface},
 };
 
 use crate::{
@@ -149,8 +155,12 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
 trait BindSocket: AsRawFd {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
 }
+#[cfg(target_os = "windows")]
+trait BindSocket: AsRawSocket {
+    fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
+}
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 trait BindSocket {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
 }
@@ -253,7 +263,65 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                     trace!("socket bind {}", iface);
                     return Ok(());
                 }
-                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                #[cfg(target_os = "windows")]
+                {
+                    // Caution, In windows api interface name is refered to ANSI interface name, NOT the
+                    // Interface alias we commonly see.
+                    // Interface name has better compatibility with unix environment.
+                    // https://learn.microsoft.com/en-us/windows-hardware/drivers/network/if-nametoindex
+
+                    let dev = Interface::try_from_alias(iface.as_str()).map_err(|_err| {
+                        io::Error::new(io::ErrorKind::NotFound, "Interface Not Found")
+                    })?;
+                    let indx = dev.index().unwrap();
+                    if indx == 0 {
+                        last_err = Some(io::Error::last_os_error());
+                        log::error!("failed to get interface index");
+                        continue;
+                    }
+                    let IPPROTO(levelv4) = IPPROTO_IP;
+                    let IPPROTO(levelv6) = IPPROTO_IPV6;
+
+                    let ret = match indicator {
+                        SocketAddr::V4(..) => unsafe {
+                            setsockopt(
+                                SOCKET(socket.as_raw_socket() as usize),
+                                levelv4,
+                                IP_UNICAST_IF,
+                                Some(&indx.to_be_bytes()),
+                            )
+                        },
+                        SocketAddr::V6(..) => unsafe {
+                            setsockopt(
+                                SOCKET(socket.as_raw_socket() as usize),
+                                levelv6,
+                                IPV6_UNICAST_IF,
+                                Some(&indx.to_be_bytes()),
+                            )
+                        },
+                    };
+                    let ret = 0;
+                    if ret != 0 {
+                        last_err = Some(io::Error::last_os_error());
+                        log::error!("interface bind error");
+                        continue;
+                    }
+                    // It seems that in *nix, bind operation is negligible if it is binded to a device by setsockopt
+                    // However, in windows, bind is needed.
+                    match indicator {
+                        SocketAddr::V4(..) => {
+                            socket.bind(&SocketAddrV4::new("0.0.0.0".parse().unwrap(), 0).into())?
+                        }
+
+                        SocketAddr::V6(..) => socket
+                            .bind(&SocketAddrV6::new("::".parse().unwrap(), 0, 0, 0).into())?,
+                    };
+
+                    trace!("socket bind {}", iface);
+                    return Ok(());
+                }
+
+                #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
                 {
                     return Err(io::Error::new(
                         io::ErrorKind::Other,
