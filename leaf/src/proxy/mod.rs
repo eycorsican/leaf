@@ -120,7 +120,21 @@ pub enum OutboundBind {
 
 #[cfg(target_os = "android")]
 async fn protect_socket(fd: RawFd) -> io::Result<()> {
-    // TODO Warns about empty protect path?
+    if crate::mobile::callback::android::is_protect_socket_callback_set() {
+        let start = std::time::Instant::now();
+        crate::mobile::callback::android::protect_socket(fd).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to protect outbound socket {}: {:?}", fd, e),
+            )
+        })?;
+        log::debug!(
+            "protected socket {} in {} µs",
+            fd,
+            start.elapsed().as_micros()
+        );
+        return Ok(());
+    }
     if let Some(addr) = &*option::SOCKET_PROTECT_SERVER {
         let mut stream = TcpStream::connect(addr).await?;
         stream.write_i32(fd as i32).await?;
@@ -130,6 +144,7 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
                 format!("failed to protect outbound socket {}", fd),
             ));
         }
+        return Ok(());
     }
     if !option::SOCKET_PROTECT_PATH.is_empty() {
         let mut stream = UnixStream::connect(&*option::SOCKET_PROTECT_PATH).await?;
@@ -140,6 +155,7 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
                 format!("failed to protect outbound socket {}", fd),
             ));
         }
+        return Ok(());
     }
     Ok(())
 }
