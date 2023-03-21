@@ -504,6 +504,7 @@ impl Router {
     }
 
     pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<&'a String> {
+        log::debug!("picking route for {}:{}", &sess.network, &sess.destination);
         for rule in &self.rules {
             if rule.apply(sess) {
                 return Ok(&rule.target);

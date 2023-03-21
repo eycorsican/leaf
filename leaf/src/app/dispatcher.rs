@@ -80,6 +80,7 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
+        log::debug!("dispatching {}:{}", &sess.network, &sess.destination);
         let mut lhs: Box<dyn ProxyStream> = if *option::DOMAIN_SNIFFING
             && !sess.destination.is_domain()
             && sess.destination.port() == 443
@@ -153,6 +154,12 @@ impl Dispatcher {
             warn!("handler not found");
             return;
         };
+        log::debug!(
+            "handling {}:{} with {}",
+            &sess.network,
+            &sess.destination,
+            h.tag()
+        );
 
         let handshake_start = tokio::time::Instant::now();
         let stream =
@@ -246,6 +253,7 @@ impl Dispatcher {
         &self,
         mut sess: Session,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
+        log::debug!("dispatching {}:{}", &sess.network, &sess.destination);
         let outbound = {
             let router = self.router.read().await;
             match router.pick_route(&sess).await {
@@ -284,6 +292,12 @@ impl Dispatcher {
         let handshake_start = tokio::time::Instant::now();
         let transport =
             crate::proxy::connect_datagram_outbound(&sess, self.dns_client.clone(), &h).await?;
+        log::debug!(
+            "handling {}:{} with {}",
+            &sess.network,
+            &sess.destination,
+            h.tag()
+        );
         match h.datagram()?.handle(&sess, transport).await {
             #[allow(unused_mut)]
             Ok(mut d) => {
