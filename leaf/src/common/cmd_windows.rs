@@ -146,7 +146,7 @@ pub fn add_default_ipv4_route(gateway: Ipv4Addr, interface: String, primary: boo
         // Fixme: use a better method to get the interface alias of tun
         let ifa = Interface::try_from_alias(&*option::DEFAULT_TUN_NAME)
             .map_err(|err| anyhow!(err.to_string()))?;
-        ifa.add_route("0.0.0.0/0".parse()?, format!("0.0.0.0/0").parse()?, 10)?
+        ifa.add_route("0.0.0.0/0".parse()?, format!("0.0.0.0/0").parse()?, 0)?
     }
     Ok(())
 }
@@ -156,7 +156,7 @@ pub fn add_default_ipv6_route(gateway: Ipv6Addr, interface: String, primary: boo
         // Fixme: use a better method to get the interface alias of tun
         let ifa = Interface::try_from_alias(&*option::DEFAULT_TUN_NAME)
             .map_err(|err| anyhow!(err.to_string()))?;
-        ifa.add_route("::/0".parse()?, format!("::/0").parse()?, 10)?
+        ifa.add_route("::/0".parse()?, format!("::/0").parse()?, 0)?
     }
     Ok(())
 }
