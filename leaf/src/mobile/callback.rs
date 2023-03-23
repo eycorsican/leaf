@@ -1,5 +1,11 @@
 /// Example:
 ///
+/// Note: the protect method could be identified as unused code on the Android
+/// side and stripped by ProGuard, you may need to add a keep rule to let
+/// ProGuard knows we need the code, e.g.:
+///
+/// -keep class com.leaf.and.aleaf.** { *; }
+///
 /// // Sets a callback method to protect sockets.
 /// //
 /// // Expects a method with the given name and signature `(I)Z`.
