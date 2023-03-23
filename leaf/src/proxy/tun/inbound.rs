@@ -7,7 +7,10 @@ use log::*;
 use protobuf::Message;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
+#[cfg(not(target_os = "windows"))]
 use tun::{self, TunPacket};
+#[cfg(target_os = "windows")]
+use crate::app::inbound::tunio_wrapper::{self as tun, TunPacket};
 
 use crate::{
     app::dispatcher::Dispatcher,
@@ -166,8 +169,12 @@ pub fn new(
 
     let mut cfg = tun::Configuration::default();
     if settings.fd >= 0 {
+        #[cfg(target_os = "windows")]
+        panic!("fd not supported on windows");
+        #[cfg(not(target_os = "windows"))]
         cfg.raw_fd(settings.fd);
     } else if settings.auto {
+        log::debug!("tun auto configured");
         cfg.name(&*option::DEFAULT_TUN_NAME)
             .address(&*option::DEFAULT_TUN_IPV4_ADDR)
             .destination(&*option::DEFAULT_TUN_IPV4_GW)
@@ -185,6 +192,7 @@ pub fn new(
 
         cfg.up();
     } else {
+        log::debug!("tun configured manually");
         cfg.name(settings.name)
             .address(settings.address)
             .destination(settings.gateway)

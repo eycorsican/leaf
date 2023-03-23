@@ -20,7 +20,8 @@ pub mod api;
     target_os = "ios",
     target_os = "android",
     target_os = "macos",
-    target_os = "linux"
+    target_os = "linux",
+    target_os = "windows"
 ))]
 pub mod fake_dns;
 
