@@ -107,6 +107,12 @@ message ShadowsocksOutboundSettings {
 	string password = 4;
 }
 
+message ObfsOutboundSettings {
+	string method = 1; // TODO use enum
+	string host = 2;
+	string path = 3;
+}
+
 message TrojanOutboundSettings {
 	string address = 1;
 	uint32 port = 2;
