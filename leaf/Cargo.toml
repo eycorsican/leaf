@@ -56,6 +56,7 @@ all-endpoints = [
     "outbound-drop",
     "outbound-redirect",
     "outbound-shadowsocks",
+    "outbound-obfs",
     "outbound-socks",
     "outbound-trojan",
     "outbound-tls",
@@ -87,6 +88,7 @@ outbound-direct = []
 outbound-drop = []
 outbound-redirect = []
 outbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
+outbound-obfs = ["base64", "memchr"]
 outbound-socks = ["async-socks5"]
 outbound-trojan = ["sha2", "hex"]
 outbound-tls = []
@@ -104,7 +106,7 @@ outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid",
 inbound-trojan = ["sha2", "hex"]
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
-inbound-http = ["hyper"]
+inbound-http = ["hyper/server", "hyper/http1"]
 inbound-tun = ["tun", "netstack-lwip"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
@@ -185,7 +187,7 @@ url = { version = "2.2", optional = true }
 http = { version = "0.2", optional = true }
 
 # HTTP inbound
-hyper = { version = "0.14", default-features = false, features = ["server", "http1"], optional = true }
+hyper = { version = "0.14", default-features = false, optional = true }
 
 # SOCKS outbound
 async-socks5 = { version = "0.5", optional = true }
@@ -194,6 +196,10 @@ async-socks5 = { version = "0.5", optional = true }
 hkdf = { version = "0.11", optional = true }
 md-5 = { version = "0.10", optional = true }
 sha-1 = { version = "0.9", optional = true }
+
+# Obfs
+base64 = { version = "0.21", optional = true }
+memchr = { version = "2", optional = true }
 
 # Trojan
 sha2 = { version = "0.9", optional = true }
