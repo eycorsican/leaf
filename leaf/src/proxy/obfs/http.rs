@@ -7,6 +7,7 @@ use base64::prelude::*;
 use memchr::memmem;
 use rand::{thread_rng, RngCore};
 use tokio::io::ReadBuf;
+use tokio_util::io::poll_write_buf;
 
 use crate::proxy::*;
 
@@ -16,17 +17,22 @@ pub struct Handler {
     req_line: Arc<[u8]>,
 }
 
-enum StreamState {
-    Initial { req_line: Arc<[u8]> },
-    WritingRequest { req: Cursor<Vec<u8>> },
+enum ReadState {
     AwaitingResponse { res_buf: Vec<u8> },
     ConsumingResponse { res: Cursor<Vec<u8>> },
     Transfer,
 }
 
+enum WriteState {
+    Initial { req_line: Arc<[u8]> },
+    WritingRequest(Cursor<Vec<u8>>),
+    Transfer,
+}
+
 struct Stream {
     stream: AnyStream,
-    state: StreamState,
+    read_state: ReadState,
+    write_state: WriteState,
 }
 
 impl Handler {
@@ -61,16 +67,21 @@ impl OutboundStreamHandler for Handler {
         _sess: &'a Session,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        let Some(stream) = stream else {
-            return Err(io::Error::new(io::ErrorKind::Other, "invalid tls input"));
-        };
+        let stream = stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
 
-        Ok(Box::new(Stream {
+        Ok(Box::new(Stream::new(self.req_line.clone(), stream)))
+    }
+}
+
+impl Stream {
+    fn new(req_line: Arc<[u8]>, stream: AnyStream) -> Self {
+        Self {
             stream,
-            state: StreamState::Initial {
-                req_line: self.req_line.clone(),
+            read_state: ReadState::AwaitingResponse {
+                res_buf: Vec::with_capacity(RESPONSE_BUFFER_SIZE),
             },
-        }))
+            write_state: WriteState::Initial { req_line },
+        }
     }
 }
 
@@ -81,23 +92,11 @@ impl AsyncRead for Stream {
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
         loop {
-            let Self { state, stream } = &mut *self;
-            match state {
-                StreamState::Initial { req_line } => {
-                    // Client expects a response before sending a request.
-                    // Generate a request with content length 0.
-                    let req = generate_http_request(req_line, &[]);
-                    *state = StreamState::WritingRequest {
-                        req: Cursor::new(req),
-                    };
-                    continue;
-                }
-                StreamState::WritingRequest { .. } => {
-                    // Finish writing the request as much as possible.
-                    ready!(self.as_mut().poll_flush(cx))?;
-                    continue;
-                }
-                StreamState::AwaitingResponse { res_buf } => {
+            let Self {
+                read_state, stream, ..
+            } = &mut *self;
+            match read_state {
+                ReadState::AwaitingResponse { res_buf } => {
                     if res_buf.len() >= RESPONSE_BUFFER_SIZE {
                         // The response may be too large. This should not happen in obfs.
                         return Poll::Ready(Err(io::Error::new(
@@ -105,7 +104,8 @@ impl AsyncRead for Stream {
                             "obfs response too large",
                         )));
                     }
-                    let read_len = ready!(tokio_util::io::poll_read_buf(Pin::new(stream), cx, res_buf))?;
+                    let read_len =
+                        ready!(tokio_util::io::poll_read_buf(Pin::new(stream), cx, res_buf))?;
                     if read_len == 0 {
                         return Poll::Ready(Err(io::Error::new(
                             io::ErrorKind::Other,
@@ -118,20 +118,19 @@ impl AsyncRead for Stream {
                     };
                     let mut payload = Cursor::new(std::mem::take(res_buf));
                     payload.set_position(req_body_pos as u64);
-                    *state = StreamState::ConsumingResponse { res: payload };
-                    continue;
+                    *read_state = ReadState::ConsumingResponse { res: payload };
                 }
-                StreamState::ConsumingResponse { res } => {
+                ReadState::ConsumingResponse { res } => {
                     let remaining = &res.get_ref()[res.position() as usize..];
                     let to_write = remaining.len().min(buf.remaining());
                     buf.put_slice(&remaining[..to_write]);
                     res.set_position(res.position() + to_write as u64);
                     if res.position() as usize == res.get_ref().len() {
-                        *state = StreamState::Transfer;
+                        *read_state = ReadState::Transfer;
                     }
                     return Poll::Ready(Ok(()));
                 }
-                StreamState::Transfer => return Pin::new(stream).poll_read(cx, buf),
+                ReadState::Transfer => return Pin::new(stream).poll_read(cx, buf),
             };
         }
     }
@@ -143,53 +142,47 @@ impl AsyncWrite for Stream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        let Self { state, stream } = &mut *self;
+        let Self {
+            write_state,
+            stream,
+            ..
+        } = &mut *self;
         loop {
-            match state {
-                StreamState::Initial { req_line } => {
+            match write_state {
+                WriteState::Initial { req_line } => {
                     let req = generate_http_request(req_line, buf);
-                    *state = StreamState::WritingRequest {
-                        req: Cursor::new(req),
-                    };
-
-                    continue;
+                    *write_state = WriteState::WritingRequest(Cursor::new(req));
                 }
-                StreamState::WritingRequest { req } => {
-                    ready!(tokio_util::io::poll_write_buf(Pin::new(stream), cx, req))?;
+                WriteState::WritingRequest(req) => {
+                    ready!(poll_write_buf(Pin::new(stream), cx, req))?;
                     if req.position() as usize == req.get_ref().len() {
-                        *state = StreamState::AwaitingResponse {
-                            res_buf: Vec::with_capacity(RESPONSE_BUFFER_SIZE),
-                        };
+                        *write_state = WriteState::Transfer;
                         return Poll::Ready(Ok(buf.len()));
                     }
-                    continue;
                 }
-                StreamState::AwaitingResponse { .. } => break,
-                StreamState::ConsumingResponse { .. } => break,
-                StreamState::Transfer => break,
+                WriteState::Transfer => break,
             }
         }
         Pin::new(&mut *stream).poll_write(cx, buf)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let Self { state, stream } = &mut *self;
+        let Self {
+            write_state,
+            stream,
+            ..
+        } = &mut *self;
         loop {
-            match state {
-                StreamState::Initial { .. } => return Poll::Ready(Ok(())),
-                StreamState::WritingRequest { req } => {
-                    ready!(tokio_util::io::poll_write_buf(Pin::new(stream), cx, req))?;
+            match write_state {
+                WriteState::Initial { .. } => return Poll::Ready(Ok(())),
+                WriteState::WritingRequest(req) => {
+                    ready!(poll_write_buf(Pin::new(stream), cx, req))?;
                     if req.position() as usize == req.get_ref().len() {
-                        *state = StreamState::AwaitingResponse {
-                            res_buf: Vec::with_capacity(RESPONSE_BUFFER_SIZE),
-                        };
+                        *write_state = WriteState::Transfer;
                         return Poll::Ready(Ok(()));
                     }
-                    continue;
                 }
-                StreamState::AwaitingResponse { .. } => break,
-                StreamState::ConsumingResponse { .. } => break,
-                StreamState::Transfer => break,
+                WriteState::Transfer => break,
             }
         }
         Pin::new(&mut *stream).poll_flush(cx)

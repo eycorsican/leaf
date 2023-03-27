@@ -192,10 +192,10 @@ impl OutboundManager {
                         "http" => Box::new(obfs::HttpObfsStreamHandler::new(
                             settings.path.as_bytes(),
                             settings.host.as_bytes(),
-                        )),
-                        "tls" => unimplemented!(
-                            "Box::new(obfs::TlsObfsStreamHandler::new(settings.host))"
-                        ),
+                        )) as _,
+                        "tls" => {
+                            Box::new(obfs::TlsObfsStreamHandler::new(settings.host.as_bytes())) as _
+                        }
                         method => {
                             return Err(anyhow!(
                                 "invalid [{}] outbound settings: unknown obfs method {}",
