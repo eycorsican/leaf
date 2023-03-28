@@ -179,7 +179,6 @@ impl AsyncWrite for Stream {
                     ready!(poll_write_buf(Pin::new(stream), cx, req))?;
                     if req.position() as usize == req.get_ref().len() {
                         *write_state = WriteState::Transfer;
-                        return Poll::Ready(Ok(()));
                     }
                 }
                 WriteState::Transfer => break,
