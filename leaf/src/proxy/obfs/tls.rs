@@ -303,7 +303,7 @@ fn generate_tls_request(host: &[u8], payload: &[u8]) -> Vec<u8> {
     ticket.0.session_ticket_ext_len = (payload.len() as u16).to_be();
     server_name.0.ext_len = (host.len() as u16 + 3 + 2).to_be();
     server_name.0.server_name_list_len = (host.len() as u16 + 3).to_be();
-    server_name.0.server_name_len = host.len() as u16;
+    server_name.0.server_name_len = (host.len() as u16).to_be();
 
     let mut req = Vec::with_capacity(total_len);
     unsafe {
