@@ -123,6 +123,7 @@ message TlsOutboundSettings {
 	string server_name = 1;
 	repeated string alpn = 2;
 	string certificate = 3;
+	bool insecure = 4;
 }
 
 message WebSocketOutboundSettings {

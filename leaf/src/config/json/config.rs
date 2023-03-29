@@ -148,6 +148,7 @@ pub struct TlsOutboundSettings {
     pub server_name: Option<String>,
     pub alpn: Option<Vec<String>>,
     pub certificate: Option<String>,
+    pub insecure: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -610,7 +611,8 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     let ext_settings: ObfsOutboundSettings =
                         serde_json::from_str(ext_outbound.settings.as_ref().unwrap().get())
                             .unwrap();
-                    if let Some(ext_method) = ext_settings.method { // TODO checks
+                    if let Some(ext_method) = ext_settings.method {
+                        // TODO checks
                         settings.method = ext_method;
                     } else {
                         settings.method = "http".to_string();
@@ -674,6 +676,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                                 settings.certificate = path;
                             }
                         }
+                        settings.insecure = ext_settings.insecure.unwrap_or_default();
                     }
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;

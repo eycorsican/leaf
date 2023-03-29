@@ -172,7 +172,7 @@ chrono = "0.4"
 colored = "2.0"
 
 # TLS/rustls/QUIC
-tokio-rustls = { version = "0.23", optional = true }
+tokio-rustls = { version = "0.23", features = ["dangerous_configuration"], optional = true }
 webpki-roots = { version = "0.22", optional = true }
 rustls-pemfile = { version = "1.0.2", optional = true }
 

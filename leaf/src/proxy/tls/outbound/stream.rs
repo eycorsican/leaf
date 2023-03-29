@@ -26,6 +26,32 @@ use {
 
 use crate::{proxy::*, session::Session};
 
+#[cfg(feature = "rustls-tls")]
+mod dangerous {
+    use std::time::SystemTime;
+    use tokio_rustls::rustls::{
+        client::{ServerCertVerified, ServerCertVerifier},
+        Certificate, ServerName,
+    };
+
+    pub(super) struct NotVerified;
+
+    impl ServerCertVerifier for NotVerified {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &Certificate,
+            _intermediates: &[Certificate],
+            server_name: &ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _ocsp_response: &[u8],
+            _now: SystemTime,
+        ) -> core::result::Result<ServerCertVerified, rustls::Error> {
+            log::debug!("TLS cert for {:?} not verified", server_name);
+            Ok(ServerCertVerified::assertion())
+        }
+    }
+}
+
 pub struct Handler {
     server_name: String,
     #[cfg(feature = "rustls-tls")]
@@ -39,6 +65,7 @@ impl Handler {
         server_name: String,
         alpns: Vec<String>,
         certificate: Option<String>,
+        insecure: bool,
     ) -> Result<Self> {
         #[cfg(feature = "rustls-tls")]
         {
@@ -66,12 +93,14 @@ impl Handler {
                     }),
                 );
             }
-
             let mut config = ClientConfig::builder()
                 .with_safe_defaults()
                 .with_root_certificates(root_cert_store)
                 .with_no_client_auth();
-
+            if insecure {
+                let mut dangerous_config = config.dangerous();
+                dangerous_config.set_certificate_verifier(Arc::new(dangerous::NotVerified));
+            }
             for alpn in alpns {
                 config.alpn_protocols.push(alpn.as_bytes().to_vec());
             }
@@ -95,6 +124,9 @@ impl Handler {
                     .collect::<Vec<Vec<u8>>>()
                     .concat();
                 builder.set_alpn_protos(&wire).expect("set alpn failed");
+            }
+            if insecure {
+                builder.set_verify(openssl::ssl::SslVerifyMode::NONE);
             }
             let ssl_connector = builder.build();
             Ok(Handler {

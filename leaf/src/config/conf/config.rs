@@ -63,6 +63,7 @@ pub struct Proxy {
     pub ws: Option<bool>,
     pub tls: Option<bool>,
     pub tls_cert: Option<String>,
+    pub tls_insecure: Option<bool>,
     pub ws_path: Option<String>,
     pub ws_host: Option<String>,
 
@@ -95,6 +96,7 @@ impl Default for Proxy {
             ws: Some(false),
             tls: Some(false),
             tls_cert: None,
+            tls_insecure: Some(false),
             ws_path: None,
             ws_host: None,
             sni: None,
@@ -390,6 +392,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 "tls" => proxy.tls = if v == "true" { Some(true) } else { Some(false) },
                 "tls-cert" => {
                     proxy.tls_cert = Some(v.to_string());
+                }
+                "tls-insecure" => {
+                    proxy.tls_insecure = if v == "true" { Some(true) } else { Some(false) }
                 }
                 "ws-path" => {
                     proxy.ws_path = Some(v.to_string());
@@ -923,6 +928,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                             tls_settings.certificate = path;
                         }
                     }
+                    tls_settings.insecure = ext_proxy.tls_insecure.unwrap_or_default();
                     let tls_settings = tls_settings.write_to_bytes().unwrap();
                     tls_outbound.settings = tls_settings;
                     tls_outbound.tag = format!("{}_tls_xxx", ext_proxy.tag.clone());
@@ -1068,6 +1074,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                             tls_settings.certificate = path;
                         }
                     }
+                    tls_settings.insecure = ext_proxy.tls_insecure.unwrap_or_default();
                     let tls_settings = tls_settings.write_to_bytes().unwrap();
                     tls_outbound.settings = tls_settings;
                     tls_outbound.tag = format!("{}_tls_xxx", ext_proxy.tag.clone());
