@@ -22,6 +22,13 @@ pub struct Log {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct CatInboundSettings {
+    pub network: Option<String>,
+    pub address: String,
+    pub port: u16,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ShadowsocksInboundSettings {
     pub method: Option<String>,
     pub password: Option<String>,
@@ -346,6 +353,17 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                             settings.mtu = 1500;
                         }
                     }
+                    let settings = settings.write_to_bytes().unwrap();
+                    inbound.settings = settings;
+                    inbounds.push(inbound);
+                }
+                "cat" => {
+                    let mut settings = internal::CatInboundSettings::new();
+                    let ext_settings: CatInboundSettings =
+                        serde_json::from_str(ext_inbound.settings.as_ref().unwrap().get()).unwrap();
+                    settings.network = ext_settings.network.unwrap_or("tcp".to_string());
+                    settings.address = ext_settings.address;
+                    settings.port = ext_settings.port as u32;
                     let settings = settings.write_to_bytes().unwrap();
                     inbound.settings = settings;
                     inbounds.push(inbound);

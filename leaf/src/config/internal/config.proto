@@ -42,6 +42,12 @@ message TunInboundSettings {
 	repeated string fake_dns_include = 8;
 }
 
+message CatInboundSettings {
+	string network = 1;
+	string address = 2;
+	uint32 port = 3;
+}
+
 message ShadowsocksInboundSettings {
 	string method = 1;
 	string password = 2;

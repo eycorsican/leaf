@@ -51,6 +51,7 @@ all-endpoints = [
     "inbound-shadowsocks",
     "inbound-socks",
     "inbound-tun",
+    "inbound-cat",
     # outbounds
     "outbound-direct",
     "outbound-drop",
@@ -111,6 +112,7 @@ inbound-amux = ["tokio-util"]
 inbound-quic = ["quinn", "rustls", "webpki-roots"]
 inbound-tls = []
 inbound-chain = []
+inbound-cat = ["tokio/io-std"]
 
 plugin = []
 stat = []
