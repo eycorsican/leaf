@@ -218,7 +218,7 @@ tokio-util = { version = "0.6", default-features = false, features = ["io"], opt
 
 # QUIC
 quinn = { version = "0.8", default-features = false, features = ["tls-rustls"], optional = true }
-rustls = { version = "0.20", optional = true }
+rustls = { version = "0.20", optional = true, features = ["dangerous_configuration"] }
 
 # API
 warp = { version = "0.3", default-features = false, optional = true }

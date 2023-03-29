@@ -239,6 +239,7 @@ impl OutboundManager {
                         settings.server_name.clone(),
                         settings.alpn.clone(),
                         certificate,
+                        settings.allow_insecure,
                     )?);
                     HandlerBuilder::default()
                         .tag(tag.clone())

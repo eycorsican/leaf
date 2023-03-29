@@ -141,6 +141,8 @@ pub struct TlsOutboundSettings {
     pub server_name: Option<String>,
     pub alpn: Option<Vec<String>>,
     pub certificate: Option<String>,
+    #[serde(rename = "allowInsecure")]
+    pub allow_insecure: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -633,6 +635,9 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                             for ext_alpn in ext_alpns {
                                 alpns.push(ext_alpn);
                             }
+                        }
+                        if let Some(ext_allow_insecure) = ext_settings.allow_insecure {
+                            settings.allow_insecure = ext_allow_insecure as u32;
                         }
                         if alpns.len() > 0 {
                             settings.alpn = alpns;

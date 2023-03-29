@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use futures::TryFutureExt;
 use log::*;
 
+use super::skip::SkipServerVerification;
+
 #[cfg(feature = "rustls-tls")]
 use {
     std::sync::Arc,
@@ -18,7 +20,7 @@ use {
 
 #[cfg(feature = "openssl-tls")]
 use {
-    openssl::ssl::{Ssl, SslConnector, SslMethod},
+    openssl::ssl::{Ssl, SslConnector, SslMethod, SslVerifyMode},
     std::pin::Pin,
     std::sync::Once,
     tokio_openssl::SslStream,
@@ -39,6 +41,7 @@ impl Handler {
         server_name: String,
         alpns: Vec<String>,
         certificate: Option<String>,
+        allow_insecure: u32,
     ) -> Result<Self> {
         #[cfg(feature = "rustls-tls")]
         {
@@ -67,10 +70,18 @@ impl Handler {
                 );
             }
 
-            let mut config = ClientConfig::builder()
-                .with_safe_defaults()
-                .with_root_certificates(root_cert_store)
-                .with_no_client_auth();
+            let mut config;
+            if allow_insecure > 0 {
+                config = ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_custom_certificate_verifier(SkipServerVerification::new())
+                    .with_no_client_auth();
+            } else {
+                config = ClientConfig::builder()
+                    .with_safe_defaults()
+                    .with_root_certificates(root_cert_store)
+                    .with_no_client_auth();
+            }
 
             for alpn in alpns {
                 config.alpn_protocols.push(alpn.as_bytes().to_vec());
@@ -88,6 +99,9 @@ impl Handler {
             }
             let mut builder =
                 SslConnector::builder(SslMethod::tls()).expect("create ssl connector failed");
+            if allow_insecure > 0 {
+                builder.set_verify(SslVerifyMode::NONE);
+            }
             if alpns.len() > 0 {
                 let wire = alpns
                     .into_iter()

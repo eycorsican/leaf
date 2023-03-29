@@ -2070,6 +2070,7 @@ pub struct TlsOutboundSettings {
     // special fields
     // @@protoc_insertion_point(special_field:TlsOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
+    pub allow_insecure: u32
 }
 
 impl<'a> ::std::default::Default for &'a TlsOutboundSettings {
@@ -2103,6 +2104,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 26 => {
                     self.certificate = is.read_string()?;
                 },
+                32 => {
+                    self.allow_insecure = is.read_uint32()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -2124,6 +2128,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         if !self.certificate.is_empty() {
             my_size += ::protobuf::rt::string_size(3, &self.certificate);
         }
+        if self.allow_insecure != 0 {
+            my_size += ::protobuf::rt::uint32_size(4, self.allow_insecure);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -2138,6 +2145,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         };
         if !self.certificate.is_empty() {
             os.write_string(3, &self.certificate)?;
+        }
+        if self.allow_insecure != 0 {
+            os.write_uint32(4, self.allow_insecure)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -2160,6 +2170,7 @@ impl ::protobuf::Message for TlsOutboundSettings {
         self.alpn.clear();
         self.certificate.clear();
         self.special_fields.clear();
+        self.allow_insecure = 0;
     }
 
     fn default_instance() -> &'static TlsOutboundSettings {
@@ -2168,6 +2179,7 @@ impl ::protobuf::Message for TlsOutboundSettings {
             alpn: ::std::vec::Vec::new(),
             certificate: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
+            allow_insecure: 0,
         };
         &instance
     }
