@@ -248,24 +248,7 @@ impl AsyncWrite for Stream {
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let Self {
-            stream,
-            write_state,
-            ..
-        } = &mut *self;
-        loop {
-            match write_state {
-                WriteState::Initial { .. } => return Poll::Ready(Ok(())),
-                WriteState::WritingRequest(req) => {
-                    ready!(poll_write_buf(Pin::new(stream), cx, req))?;
-                    if req.position() as usize == req.get_ref().len() {
-                        *write_state = WriteState::WritingPayload { chunk_remaining: 0 };
-                    }
-                }
-                _ => break,
-            }
-        }
-        Pin::new(&mut *stream).poll_flush(cx)
+        Pin::new(&mut self.stream).poll_flush(cx)
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
