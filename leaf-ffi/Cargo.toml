@@ -2,12 +2,12 @@
 name = "leaf-ffi"
 version = "0.1.0"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
-edition = "2021"
+edition = "2018"
 
 [lib]
 name = "leaf"
 path = "src/lib.rs"
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "dylib"]
 
 [features]
 default = [
@@ -26,8 +26,3 @@ auto-reload = ["leaf/auto-reload"]
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
-tokio = { version = "1", features = ["rt"] }
-futures = "0.3"
-
-[build-dependencies]
-bindgen = "0.57"
