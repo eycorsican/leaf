@@ -286,46 +286,46 @@ jobs:
           asset_name: leaf-${{ matrix.target }}.zip
           asset_content_type: application/octet-stream
 
-   release-mobile-libs:
-     needs: [create-release]
-     runs-on: macos-latest
-     steps:
-       - name: download upload url
-         uses: actions/download-artifact@v2
-         with:
-           name: upload_url.txt
+  release-mobile-libs:
+    needs: [create-release]
+    runs-on: macos-latest
+    steps:
+      - name: download upload url
+        uses: actions/download-artifact@v2
+        with:
+          name: upload_url.txt
 
-       - name: get upload url
-         run: |
-           upload_url=`cat upload_url.txt`
-           echo "uploadurl=$upload_url" >> $GITHUB_ENV
+      - name: get upload url
+        run: |
+          upload_url=`cat upload_url.txt`
+          echo "uploadurl=$upload_url" >> $GITHUB_ENV
 
-       - name: download asset
-         uses: actions/download-artifact@v2
-         with:
-           name: leaf.xcframework.zip
+      - name: download asset
+        uses: actions/download-artifact@v2
+        with:
+          name: leaf.xcframework.zip
 
-       - name: download asset
-         uses: actions/download-artifact@v2
-         with:
-           name: leaf-android-libs.zip
+      - name: download asset
+        uses: actions/download-artifact@v2
+        with:
+          name: leaf-android-libs.zip
 
-       - name: upload asset
-         uses: actions/upload-release-asset@v1
-         env:
-           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-         with:
-           upload_url: ${{ env.uploadurl }}
-           asset_path: ./leaf.xcframework.zip
-           asset_name: leaf.xcframework.zip
-           asset_content_type: application/octet-stream
+      - name: upload asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ env.uploadurl }}
+          asset_path: ./leaf.xcframework.zip
+          asset_name: leaf.xcframework.zip
+          asset_content_type: application/octet-stream
 
-       - name: upload asset
-         uses: actions/upload-release-asset@v1
-         env:
-           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-         with:
-           upload_url: ${{ env.uploadurl }}
-           asset_path: ./leaf-android-libs.zip
-           asset_name: leaf-android-libs.zip
-           asset_content_type: application/octet-stream
+      - name: upload asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ env.uploadurl }}
+          asset_path: ./leaf-android-libs.zip
+          asset_name: leaf-android-libs.zip
+          asset_content_type: application/octet-stream
