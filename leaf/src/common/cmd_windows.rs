@@ -3,7 +3,7 @@ use std::process::Command;
 
 use anyhow::{anyhow, Result};
 
-use crate::app::inbound::tunio_wrapper::win_route::Routable;
+use crate::app::inbound::tunio_wrapper::win_route::{Routable,get_best_interface_ex};
 use crate::option;
 use netconfig::sys::InterfaceExt;
 use netconfig::Interface;
@@ -83,46 +83,10 @@ pub fn get_default_ipv6_address() -> Result<String> {
 }
 
 pub fn get_default_interface() -> Result<String> {
-    let out = Command::new("powershell")
-        .arg("-Command")
-        .arg("Get-NetRoute")
-        .arg("-DestinationPrefix")
-        .arg("0.0.0.0/0")
-        .output()
-        .expect("failed to execute command");
+    let iface = get_best_interface_ex("0.0.0.0/32".parse().unwrap())?;
 
-    assert!(out.status.success());
-
-    let out = String::from_utf8_lossy(&out.stdout).to_string();
-    let mut cols = out.lines().filter(|l| l.contains("0.0.0.0")).map(|l| {
-        l.split_whitespace()
-            .map(str::trim)
-            .nth(0)
-            .expect("can't find default interface")
-    });
-    let if_id: String = cols.next().expect("").into();
-
-    //Get-NetIPInterface -InterfaceIndex 67 | Select-Object -ExpandProperty InterfaceAlias
-    let out = Command::new("powershell")
-        .arg("-Command")
-        .arg("Get-NetIPInterface")
-        .arg("-InterfaceIndex")
-        .arg(if_id)
-        .arg("|")
-        .arg("Select-Object")
-        .arg("-ExpandProperty")
-        .arg("InterfaceAlias")
-        .output()
-        .expect("failed to execute command");
-    assert!(out.status.success());
-
-    let out = String::from_utf8_lossy(&out.stdout).to_string();
-
-    let alias = out
-        .lines()
-        .next()
-        .expect("can't find default interface")
-        .into();
+    let alias:String = iface.alias().map_err(|err|anyhow!("Default interface not found"))?.into();
+    log::debug!("tun: default interface: {:?}", alias);
     Ok(alias)
 }
 

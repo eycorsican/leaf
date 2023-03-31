@@ -1,10 +1,11 @@
 use anyhow::{anyhow, Result};
 use ipnet::IpNet;
 use netconfig::Interface;
-use std::net::SocketAddr;
+use std::{mem::transmute_copy, net::SocketAddr};
 use windows::Win32::{
     NetworkManagement::IpHelper::{
-        CreateIpForwardEntry2, InitializeIpForwardEntry, IP_ADDRESS_PREFIX, MIB_IPFORWARD_ROW2,
+        CreateIpForwardEntry2, GetBestInterfaceEx, InitializeIpForwardEntry, IP_ADDRESS_PREFIX,
+        MIB_IPFORWARD_ROW2,
     },
     Networking::WinSock::SOCKADDR_INET,
 };
@@ -32,4 +33,17 @@ impl Routable for Interface {
 
         unsafe { CreateIpForwardEntry2(&mut row) }.map_err((anyhow::Error::from))
     }
+}
+
+// GetBestInterfaceEx() 
+// See https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getbestinterfaceex
+pub fn get_best_interface_ex(dest: IpNet) -> Result<Interface> {
+    let mut if_index: u32 = 0;
+    let sock_addr: SOCKADDR_INET = SocketAddr::new(dest.addr(), 0).into();
+
+    let ret_val = unsafe { GetBestInterfaceEx(&mut transmute_copy(&sock_addr), &mut if_index) };
+    if ret_val != 0 {
+        return Err(anyhow!("best interface not found"));
+    }
+    Interface::try_from_index(if_index).map_err(|err| anyhow!("best interface not found"))
 }
