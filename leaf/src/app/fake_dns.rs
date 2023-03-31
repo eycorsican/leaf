@@ -180,13 +180,21 @@ impl FakeDnsImpl {
             // multiple domains point to a same IP.
             self.domain_to_ip.remove(&prev_domain);
         }
+        let ip = self.get_ip();
         self.domain_to_ip.insert(domain.to_owned(), self.cursor);
-        let ip = Self::u32_to_ip(self.cursor);
         self.cursor += 1;
+        ip
+    }
+
+    fn get_ip(&mut self) -> Ipv4Addr {
         if self.cursor > self.max_cursor {
             self.cursor = self.min_cursor;
         }
-        ip
+        let ip = Self::u32_to_ip(self.cursor);
+        match ip.octets()[3] {
+            0 | 255 => { self.cursor += 1;self.get_ip() },
+            _ => ip,
+        }
     }
 
     fn accept(&self, domain: &str) -> bool {
