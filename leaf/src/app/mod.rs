@@ -24,6 +24,13 @@ pub mod api;
 ))]
 pub mod fake_dns;
 
+#[cfg(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "linux"
+))]
+pub mod process_finder;
+
 pub type SyncDnsClient = Arc<RwLock<dns_client::DnsClient>>;
 
 #[cfg(feature = "stat")]

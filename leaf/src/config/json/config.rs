@@ -257,6 +257,10 @@ pub struct Rule {
     pub domain_keyword: Option<Vec<String>>,
     #[serde(rename = "domainSuffix")]
     pub domain_suffix: Option<Vec<String>>,
+    #[serde(rename = "processPid")]
+    pub process_pid: Option<Vec<String>>,
+    #[serde(rename = "processName")]
+    pub process_name: Option<Vec<String>>,
     pub geoip: Option<Vec<String>>,
     pub external: Option<Vec<String>>,
     #[serde(rename = "portRange")]
@@ -995,6 +999,26 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                         );
                         domain.value = ext_domain_suffix;
                         rule.domains.push(domain);
+                    }
+                }
+                if let Some(ext_process_pids) = ext_rule.process_pid.as_mut() {
+                    for ext_process_pid in ext_process_pids.drain(0..) {
+                        let mut process = internal::router::rule::Process::new();
+                        process.type_ = protobuf::EnumOrUnknown::new(
+                            internal::router::rule::process::Type::PID,
+                        );
+                        process.value = ext_process_pid;
+                        rule.processes.push(process);
+                    }
+                }
+                if let Some(ext_process_names) = ext_rule.process_name.as_mut() {
+                    for ext_process_name in ext_process_names.drain(0..) {
+                        let mut process = internal::router::rule::Process::new();
+                        process.type_ = protobuf::EnumOrUnknown::new(
+                            internal::router::rule::process::Type::NAME,
+                        );
+                        process.value = ext_process_name;
+                        rule.processes.push(process);
                     }
                 }
                 if let Some(ext_geoips) = ext_rule.geoip.as_mut() {
