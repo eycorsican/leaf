@@ -703,7 +703,8 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         rule.target = params[2].to_string();
 
         match rule.type_field.as_str() {
-            "IP-CIDR" | "DOMAIN" | "DOMAIN-SUFFIX" | "DOMAIN-KEYWORD" | "GEOIP" | "EXTERNAL"
+            "IP-CIDR" | "DOMAIN" | "DOMAIN-SUFFIX" | "DOMAIN-KEYWORD"
+            | "PROCESS-PID" | "PROCESS-NAME" | "GEOIP" | "EXTERNAL"
             | "PORT-RANGE" | "NETWORK" | "INBOUND-TAG" => {
                 rule.filter = Some(params[1].to_string());
             }
@@ -1409,6 +1410,20 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                         protobuf::EnumOrUnknown::new(internal::router::rule::domain::Type::DOMAIN);
                     domain.value = ext_filter;
                     rule.domains.push(domain);
+                }
+                "PROCESS-PID" => {
+                    let mut process = internal::router::rule::Process::new();
+                    process.type_ =
+                        protobuf::EnumOrUnknown::new(internal::router::rule::process::Type::PID);
+                    process.value = ext_filter;
+                    rule.processes.push(process);
+                }
+                "PROCESS-NAME" => {
+                    let mut process = internal::router::rule::Process::new();
+                    process.type_ =
+                        protobuf::EnumOrUnknown::new(internal::router::rule::process::Type::NAME);
+                    process.value = ext_filter;
+                    rule.processes.push(process);
                 }
                 "GEOIP" => {
                     let mut mmdb = internal::router::rule::Mmdb::new();
