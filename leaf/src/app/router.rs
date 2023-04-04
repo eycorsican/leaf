@@ -13,11 +13,7 @@ use crate::app::SyncDnsClient;
 use crate::config;
 use crate::session::{Network, Session, SocksAddr};
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 use crate::app::process_finder;
 
 pub trait Condition: Send + Sync + Unpin {
@@ -361,35 +357,26 @@ impl Condition for DomainMatcher {
     }
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 struct ProcessPidMatcher {
     value: String,
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl ProcessPidMatcher {
     fn new(value: String) -> Self {
         ProcessPidMatcher { value }
     }
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl Condition for ProcessPidMatcher {
     fn apply(&self, sess: &Session) -> bool {
-        let port_info = process_finder::find_process(&sess.network.to_string(),
-                                                     sess.source.ip(), sess.source.port());
+        let port_info = process_finder::find_process(
+            &sess.network.to_string(),
+            sess.source.ip(),
+            sess.source.port(),
+        );
         if let Some(port) = port_info {
             if let Some(process_info) = port.process_info {
                 if process_info.pid.to_string() == self.value {
@@ -402,39 +389,37 @@ impl Condition for ProcessPidMatcher {
     }
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 struct ProcessNameMatcher {
     value: String,
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl ProcessNameMatcher {
     fn new(value: String) -> Self {
         ProcessNameMatcher { value }
     }
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl Condition for ProcessNameMatcher {
     fn apply(&self, sess: &Session) -> bool {
-        let port_info = process_finder::find_process(&sess.network.to_string(),
-                                                     sess.source.ip(), sess.source.port());
+        let port_info = process_finder::find_process(
+            &sess.network.to_string(),
+            sess.source.ip(),
+            sess.source.port(),
+        );
         if let Some(port) = port_info {
             if let Some(info) = port.process_info {
-                if info.process_path.to_lowercase().contains(&self.value.to_lowercase()) {
-                    debug!("[{}] matches process name [{}]", info.process_path, &self.value);
+                if info
+                    .process_path
+                    .to_lowercase()
+                    .contains(&self.value.to_lowercase())
+                {
+                    debug!(
+                        "[{}] matches process name [{}]",
+                        info.process_path, &self.value
+                    );
                     return true;
                 }
             }
@@ -443,20 +428,12 @@ impl Condition for ProcessNameMatcher {
     }
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 struct ProcessMatcher {
     condition: Box<dyn Condition>,
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl ProcessMatcher {
     fn new(processes: &mut Vec<config::router::rule::Process>) -> Self {
         let mut cond_or = ConditionOr::new();
@@ -477,11 +454,7 @@ impl ProcessMatcher {
     }
 }
 
-#[cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux"
-))]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl Condition for ProcessMatcher {
     fn apply(&self, sess: &Session) -> bool {
         self.condition.apply(sess)
@@ -601,11 +574,7 @@ impl Router {
                 cond_and.add(Box::new(InboundTagMatcher::new(&mut rr.inbound_tags)));
             }
 
-            #[cfg(any(
-                target_os = "windows",
-                target_os = "macos",
-                target_os = "linux"
-            ))]
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
             if rr.processes.len() > 0 {
                 cond_and.add(Box::new(ProcessMatcher::new(&mut rr.processes)));
             }
