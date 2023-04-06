@@ -9,12 +9,11 @@ use maxminddb::geoip2::Country;
 use maxminddb::Mmap;
 use tracing::{debug, warn};
 
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+use crate::app::process_finder;
 use crate::app::SyncDnsClient;
 use crate::config;
 use crate::session::{Network, Session, SocksAddr};
-
-#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-use crate::app::process_finder;
 
 pub trait Condition: Send + Sync + Unpin {
     fn apply(&self, sess: &Session) -> bool;
@@ -372,17 +371,15 @@ impl ProcessPidMatcher {
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl Condition for ProcessPidMatcher {
     fn apply(&self, sess: &Session) -> bool {
-        let port_info = process_finder::find_process(
+        let process_id = process_finder::find_process_id(
             &sess.network.to_string(),
-            sess.source.ip(),
+            &sess.source.ip(),
             sess.source.port(),
         );
-        if let Some(port) = port_info {
-            if let Some(process_info) = port.process_info {
-                if process_info.pid.to_string() == self.value {
-                    debug!("{} matches process id [{}]", process_info.pid, self.value);
-                    return true;
-                }
+        if let Some(pid) = process_id {
+            if pid.to_string() == self.value {
+                debug!("{} matches process id [{}]", pid, self.value);
+                return true;
             }
         }
         false
@@ -406,7 +403,7 @@ impl Condition for ProcessNameMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let port_info = process_finder::find_process(
             &sess.network.to_string(),
-            sess.source.ip(),
+            &sess.source.ip(),
             sess.source.port(),
         );
         if let Some(port) = port_info {
@@ -574,9 +571,11 @@ impl Router {
                 cond_and.add(Box::new(InboundTagMatcher::new(&mut rr.inbound_tags)));
             }
 
-            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
             if rr.processes.len() > 0 {
+                #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
                 cond_and.add(Box::new(ProcessMatcher::new(&mut rr.processes)));
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+                warn!("The 'process' rule is not applicable to the current operating system");
             }
 
             if cond_and.is_empty() {
