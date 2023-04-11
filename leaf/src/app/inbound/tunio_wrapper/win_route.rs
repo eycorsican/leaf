@@ -31,11 +31,14 @@ impl Routable for Interface {
         row.NextHop = SocketAddr::new(next_hop.addr(), 0).into();
         row.Metric = metric;
 
-        unsafe { CreateIpForwardEntry2(&mut row) }.map_err((anyhow::Error::from))
+        unsafe { CreateIpForwardEntry2(&mut row) }
+            .to_hresult()
+            .ok()
+            .map_err(|e| anyhow::anyhow!(e))
     }
 }
 
-// GetBestInterfaceEx() 
+// GetBestInterfaceEx()
 // See https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getbestinterfaceex
 pub fn get_best_interface_ex(dest: IpNet) -> Result<Interface> {
     let mut if_index: u32 = 0;
