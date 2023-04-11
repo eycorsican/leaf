@@ -17,18 +17,22 @@ use tokio::time::timeout;
 
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;
+#[cfg(target_os = "windows")]
+use {
+    netconfig::{sys::InterfaceExt, Interface},
+    std::os::windows::io::AsRawSocket,
+    windows::core::PSTR,
+    windows::Win32::Networking::WinSock::{
+        getsockopt, setsockopt, IPPROTO, IPPROTO_IP, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+        IPV6_UNICAST_IF, IP_MULTICAST_IF, IP_UNICAST_IF, SOCKET, SOCK_DGRAM, SOL_SOCKET, SO_TYPE,
+        WINSOCK_SOCKET_TYPE,
+    },
+};
+
 #[cfg(target_os = "android")]
 use {
     std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
     tokio::net::UnixStream,
-};
-#[cfg(target_os = "windows")]
-use {
-    std::os::windows::io::AsRawSocket,
-    windows::Win32::Networking::WinSock::{
-        setsockopt, IPPROTO, IPPROTO_IP, IPPROTO_IPV6, IPV6_UNICAST_IF, IP_UNICAST_IF, SOCKET,
-    },
-    netconfig::{sys::InterfaceExt, Interface},
 };
 
 use crate::{
@@ -282,6 +286,50 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                     let IPPROTO(levelv4) = IPPROTO_IP;
                     let IPPROTO(levelv6) = IPPROTO_IPV6;
 
+                    // multicast bind. multicast binding only supports udp socket
+                    let mut optval = [0u8; 4];
+                    let mut optlen: i32 = 4;
+                    let ret = unsafe {
+                        getsockopt(
+                            SOCKET(socket.as_raw_socket() as usize),
+                            SOL_SOCKET,
+                            SO_TYPE,
+                            PSTR::from_raw(optval.as_mut_ptr()),
+                            &mut optlen,
+                        )
+                    };
+                    if ret != 0 {
+                        last_err = Some(io::Error::last_os_error());
+                        log::error!("getsockopt failed {:?}", last_err);
+                        continue;
+                    }
+                    if WINSOCK_SOCKET_TYPE(i32::from_ne_bytes(optval)) == SOCK_DGRAM {
+                        let ret = match indicator {
+                            SocketAddr::V4(..) => unsafe {
+                                setsockopt(
+                                    SOCKET(socket.as_raw_socket() as usize),
+                                    levelv4,
+                                    IP_MULTICAST_IF,
+                                    Some(&indx.to_be_bytes()),
+                                )
+                            },
+                            SocketAddr::V6(..) => unsafe {
+                                setsockopt(
+                                    SOCKET(socket.as_raw_socket() as usize),
+                                    levelv6,
+                                    IPV6_MULTICAST_IF,
+                                    Some(&indx.to_be_bytes()),
+                                )
+                            },
+                        };
+
+                        if ret != 0 {
+                            last_err = Some(io::Error::last_os_error());
+                            log::error!("interface multicast bind error {:?}", last_err);
+                            continue;
+                        }
+                    }
+
                     let ret = match indicator {
                         SocketAddr::V4(..) => unsafe {
                             setsockopt(
@@ -300,10 +348,9 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                             )
                         },
                     };
-                    let ret = 0;
                     if ret != 0 {
                         last_err = Some(io::Error::last_os_error());
-                        log::error!("interface bind error");
+                        log::error!("interface unicast bind error");
                         continue;
                     }
                     // It seems that in *nix, bind operation is negligible if it is binded to a device by setsockopt
