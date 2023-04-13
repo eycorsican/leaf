@@ -3,7 +3,9 @@ use std::process::Command;
 
 use anyhow::{anyhow, Result};
 
-use crate::app::inbound::tunio_wrapper::win_route::{Routable,get_best_interface_ex};
+use crate::app::inbound::tunio_wrapper::win_route::{
+    get_best_interface_ex, set_ipv4_dns, set_ipv6_dns, Routable,
+};
 use crate::option;
 use netconfig::sys::InterfaceExt;
 use netconfig::Interface;
@@ -85,7 +87,10 @@ pub fn get_default_ipv6_address() -> Result<String> {
 pub fn get_default_interface() -> Result<String> {
     let iface = get_best_interface_ex("0.0.0.0/32".parse().unwrap())?;
 
-    let alias:String = iface.alias().map_err(|err|anyhow!("Default interface not found"))?.into();
+    let alias: String = iface
+        .alias()
+        .map_err(|err| anyhow!("Default interface not found"))?
+        .into();
     log::debug!("tun: default interface: {:?}", alias);
     Ok(alias)
 }
@@ -110,7 +115,11 @@ pub fn add_default_ipv4_route(gateway: Ipv4Addr, interface: String, primary: boo
         // Fixme: use a better method to get the interface alias of tun
         let ifa = Interface::try_from_alias(&*option::DEFAULT_TUN_NAME)
             .map_err(|err| anyhow!(err.to_string()))?;
-        ifa.add_route("0.0.0.0/0".parse()?, format!("0.0.0.0/0").parse()?, 0)?
+        ifa.add_route("0.0.0.0/0".parse()?, format!("0.0.0.0/0").parse()?, 0)?;
+        set_ipv4_dns(
+            &*option::DEFAULT_TUN_NAME,
+            vec!["8.8.8.8".parse().unwrap(), "1.1.1.1".parse().unwrap()],
+        )?
     }
     Ok(())
 }
@@ -120,7 +129,14 @@ pub fn add_default_ipv6_route(gateway: Ipv6Addr, interface: String, primary: boo
         // Fixme: use a better method to get the interface alias of tun
         let ifa = Interface::try_from_alias(&*option::DEFAULT_TUN_NAME)
             .map_err(|err| anyhow!(err.to_string()))?;
-        ifa.add_route("::/0".parse()?, format!("::/0").parse()?, 0)?
+        ifa.add_route("::/0".parse()?, format!("::/0").parse()?, 0)?;
+        set_ipv6_dns(
+            &*option::DEFAULT_TUN_NAME,
+            vec![
+                "2001:4860:4860::8888".parse().unwrap(),
+                "2001:4860:4860::8844".parse().unwrap(),
+            ],
+        )?
     }
     Ok(())
 }
