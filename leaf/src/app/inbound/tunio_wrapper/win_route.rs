@@ -1,13 +1,20 @@
 use anyhow::{anyhow, Result};
 use ipnet::IpNet;
-use netconfig::Interface;
-use std::{mem::transmute_copy, net::SocketAddr};
-use windows::Win32::{
-    NetworkManagement::IpHelper::{
-        CreateIpForwardEntry2, GetBestInterfaceEx, InitializeIpForwardEntry, IP_ADDRESS_PREFIX,
-        MIB_IPFORWARD_ROW2,
+use netconfig::{sys::InterfaceExt, Interface};
+use std::{
+    mem::transmute_copy,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+};
+use windows::{
+    core::{GUID, PWSTR},
+    Win32::{
+        NetworkManagement::IpHelper::{
+            CreateIpForwardEntry2, GetBestInterfaceEx, InitializeIpForwardEntry,
+            SetInterfaceDnsSettings, DNS_INTERFACE_SETTINGS, DNS_INTERFACE_SETTINGS_VERSION1,
+            DNS_SETTING_IPV6, DNS_SETTING_NAMESERVER, IP_ADDRESS_PREFIX, MIB_IPFORWARD_ROW2,
+        },
+        Networking::WinSock::SOCKADDR_INET,
     },
-    Networking::WinSock::SOCKADDR_INET,
 };
 
 pub trait Routable {
@@ -49,4 +56,62 @@ pub fn get_best_interface_ex(dest: IpNet) -> Result<Interface> {
         return Err(anyhow!("best interface not found"));
     }
     Interface::try_from_index(if_index).map_err(|err| anyhow!("best interface not found"))
+}
+
+// SetInterfaceDnsSettings()
+// See https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-setinterfacednssettings
+pub fn set_ipv4_dns(alias: &str, name_servers: Vec<Ipv4Addr>) -> Result<()> {
+    let mut dns_wstr = name_servers
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",")
+        .encode_utf16()
+        .collect::<Vec<u16>>();
+    dns_wstr.push(0); // ensure ending with null
+
+    let dns_settings = DNS_INTERFACE_SETTINGS {
+        Version: DNS_INTERFACE_SETTINGS_VERSION1,
+        Flags: DNS_SETTING_NAMESERVER as u64,
+        NameServer: PWSTR::from_raw(dns_wstr.as_mut_ptr()),
+        ..Default::default()
+    };
+    let guid = Interface::try_from_alias(&alias)
+        .map_err(|err| anyhow!("interface not found: {}", err.to_string()))?
+        .guid()
+        .map_err(|err| anyhow!("interface guid not found: {}", err.to_string()))?;
+
+    unsafe { SetInterfaceDnsSettings(GUID::from_u128(guid), &dns_settings) }
+        .to_hresult()
+        .ok()
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+// SetInterfaceDnsSettings()
+// See https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-setinterfacednssettings
+pub fn set_ipv6_dns(alias: &str, name_servers: Vec<Ipv6Addr>) -> Result<()> {
+    let mut dns_wstr = name_servers
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<String>>()
+        .join(",")
+        .encode_utf16()
+        .collect::<Vec<u16>>();
+    dns_wstr.push(0); // ensure ending with null
+
+    let dns_settings = DNS_INTERFACE_SETTINGS {
+        Version: DNS_INTERFACE_SETTINGS_VERSION1,
+        Flags: (DNS_SETTING_NAMESERVER | DNS_SETTING_IPV6) as u64,
+        NameServer: PWSTR::from_raw(dns_wstr.as_mut_ptr()),
+        ..Default::default()
+    };
+    let guid = Interface::try_from_alias(&alias)
+        .map_err(|err| anyhow!("interface not found: {}", err.to_string()))?
+        .guid()
+        .map_err(|err| anyhow!("interface guid not found: {}", err.to_string()))?;
+
+    unsafe { SetInterfaceDnsSettings(GUID::from_u128(guid), &dns_settings) }
+        .to_hresult()
+        .ok()
+        .map_err(|e| anyhow::anyhow!(e))
 }
