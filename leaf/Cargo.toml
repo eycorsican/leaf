@@ -107,7 +107,7 @@ outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid",
 inbound-trojan = ["sha2", "hex"]
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
-inbound-http = ["hyper/server", "hyper/http1"]
+inbound-http = ["http"]
 inbound-tun = ["tun", "netstack-lwip"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
@@ -187,9 +187,6 @@ tokio-tungstenite = { version = "0.16", optional = true }
 # WebSocket
 url = { version = "2.2", optional = true }
 http = { version = "0.2", optional = true }
-
-# HTTP inbound
-hyper = { version = "0.14", default-features = false, optional = true }
 
 # SOCKS outbound
 async-socks5 = { version = "0.5", optional = true }
