@@ -47,7 +47,7 @@ all-endpoints = [
     "inbound-ws",
     "inbound-tls",
     "inbound-trojan",
-    # "inbound-http",
+    "inbound-http",
     "inbound-shadowsocks",
     "inbound-socks",
     "inbound-tun",
