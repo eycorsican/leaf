@@ -101,6 +101,7 @@ impl RequestHead {
                 return;
             }
         }
+        self.headers.push((name, value));
     }
 }
 
@@ -122,7 +123,7 @@ impl TryFrom<Vec<u8>> for RequestHead {
     type Error = io::Error;
     fn try_from(head: Vec<u8>) -> Result<Self, Self::Error> {
         let (request_line, header) = split_slice_once(&head, &EOL)
-            .ok_or(bad_request())?;
+            .unwrap_or((head, Vec::new()));
         let (method, uri, version) = RequestHead::parse_request_line(&request_line)?;
         let headers = RequestHead::parse_headers(&header)?;
         let target_format = if uri.to_string() == "*" {
