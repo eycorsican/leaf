@@ -120,29 +120,46 @@ impl OutboundDatagramHandler for Handler {
             let a = &self.actors[i];
 
             debug!(
-                "failover handles udp [{}] to [{}]",
+                "[{}] handles [{}:{}] to [{}]",
+                a.tag(),
+                sess.network,
                 sess.destination,
                 a.tag()
             );
 
-            match timeout(
-                Duration::from_secs(self.fail_timeout as u64),
-                a.datagram()?.handle(
-                    sess,
-                    connect_datagram_outbound(sess, self.dns_client.clone(), a).await?,
-                ),
-            )
-            .await
-            {
-                // return before timeout
+            let try_outbound = async move {
+                a.datagram()?
+                    .handle(
+                        sess,
+                        connect_datagram_outbound(sess, self.dns_client.clone(), a).await?,
+                    )
+                    .await
+            };
+
+            match timeout(Duration::from_secs(self.fail_timeout as u64), try_outbound).await {
                 Ok(t) => match t {
-                    // return ok
                     Ok(v) => return Ok(v),
-                    // return err
-                    Err(_) => continue,
+                    Err(e) => {
+                        trace!(
+                            "[{}] failed to handle [{}:{}]: {}",
+                            a.tag(),
+                            sess.network,
+                            sess.destination,
+                            e,
+                        );
+                        continue;
+                    }
                 },
-                // after timeout
-                Err(_) => continue,
+                Err(e) => {
+                    trace!(
+                        "[{}] failed to handle [{}:{}]: {}",
+                        a.tag(),
+                        sess.network,
+                        sess.destination,
+                        e,
+                    );
+                    continue;
+                }
             }
         }
 

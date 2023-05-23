@@ -159,32 +159,23 @@ impl OutboundStreamHandler for Handler {
             let a = &self.actors[actor_idx];
 
             debug!(
-                "failover handles tcp [{}] to [{}]",
+                "[{}] handles [{}:{}] to [{}]",
+                a.tag(),
+                sess.network,
                 sess.destination,
                 a.tag()
             );
 
-            match timeout(
-                Duration::from_secs(self.fail_timeout as u64),
-                a.stream()?.handle(
-                    sess,
-                    match connect_stream_outbound(sess, self.dns_client.clone(), a).await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            trace!(
-                                "[{}] failed to handle [{}]: {}",
-                                a.tag(),
-                                sess.destination,
-                                e,
-                            );
-                            continue;
-                        }
-                    },
-                ),
-            )
-            .await
-            {
-                // return before timeout
+            let try_outbound = async move {
+                a.stream()?
+                    .handle(
+                        sess,
+                        connect_stream_outbound(sess, self.dns_client.clone(), a).await?,
+                    )
+                    .await
+            };
+
+            match timeout(Duration::from_secs(self.fail_timeout as u64), try_outbound).await {
                 Ok(t) => match t {
                     Ok(v) => {
                         // Only cache for fallback actors.
@@ -199,8 +190,9 @@ impl OutboundStreamHandler for Handler {
                     }
                     Err(e) => {
                         trace!(
-                            "[{}] failed to handle [{}]: {}",
+                            "[{}] failed to handle [{}:{}]: {}",
                             a.tag(),
+                            sess.network,
                             sess.destination,
                             e,
                         );
@@ -209,8 +201,9 @@ impl OutboundStreamHandler for Handler {
                 },
                 Err(e) => {
                     trace!(
-                        "[{}] failed to handle [{}]: {}",
+                        "[{}] failed to handle [{}:{}]: {}",
                         a.tag(),
+                        sess.network,
                         sess.destination,
                         e,
                     );
