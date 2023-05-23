@@ -168,7 +168,18 @@ impl OutboundStreamHandler for Handler {
                 Duration::from_secs(self.fail_timeout as u64),
                 a.stream()?.handle(
                     sess,
-                    connect_stream_outbound(sess, self.dns_client.clone(), a).await?,
+                    match connect_stream_outbound(sess, self.dns_client.clone(), a).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            trace!(
+                                "[{}] failed to handle [{}]: {}",
+                                a.tag(),
+                                sess.destination,
+                                e,
+                            );
+                            continue;
+                        }
+                    },
                 ),
             )
             .await
