@@ -30,26 +30,28 @@ fn log_request(
     handshake_time: Option<u128>,
 ) {
     let hs = handshake_time.map_or("failed".to_string(), |hs| format!("{}ms", hs));
-    if !*crate::option::LOG_NO_COLOR {
+    let (network, outbound_tag) = if !*crate::option::LOG_NO_COLOR {
         use colored::Colorize;
         let network_color = match sess.network {
             Network::Tcp => colored::Color::Blue,
             Network::Udp => colored::Color::Yellow,
         };
-        info!(
-            "[{}] [{}] [{}] [{}] {}",
-            &sess.inbound_tag,
-            sess.network.to_string().color(network_color),
-            outbound_tag.color(*outbound_tag_color),
-            hs,
-            &sess.destination,
-        );
+        (
+            sess.network.to_string().color(network_color).to_string(),
+            outbound_tag.color(*outbound_tag_color).to_string(),
+        )
     } else {
-        info!(
-            "[{}] [{}] [{}] [{}] {}",
-            sess.network, &sess.inbound_tag, outbound_tag, hs, &sess.destination,
-        );
-    }
+        (sess.network.to_string(), outbound_tag.to_string())
+    };
+    info!(
+        "[{}] [{}] [{}] [{}] [{}] [{}]",
+        sess.forwarded_source.unwrap_or_else(|| sess.source.ip()),
+        network,
+        &sess.inbound_tag,
+        outbound_tag,
+        hs,
+        &sess.destination,
+    );
 }
 
 pub struct Dispatcher {
