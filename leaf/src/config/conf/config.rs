@@ -989,6 +989,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_sni) = &ext_proxy.sni {
                         quic_settings.server_name = ext_sni.clone();
                     }
+                    quic_settings.alpn = vec!["http/1.1".to_string()];
                     if let Some(ext_tls_cert) = &ext_proxy.tls_cert {
                         let cert = Path::new(ext_tls_cert);
                         if cert.is_absolute() {
