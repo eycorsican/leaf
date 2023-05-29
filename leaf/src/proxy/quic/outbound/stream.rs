@@ -149,7 +149,7 @@ impl Manager {
             self.dns_client
                 .read()
                 .await
-                .lookup(&self.address)
+                .direct_lookup(&self.address)
                 .map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::Other,
