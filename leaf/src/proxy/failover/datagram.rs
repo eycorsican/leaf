@@ -96,6 +96,8 @@ impl OutboundDatagramHandler for Handler {
 
         let schedule = self.schedule.lock().await.clone();
 
+        // Use the last resort outbound if all outbounds have failed in
+        // the last health check.
         if schedule.is_empty() && self.last_resort.is_some() {
             let a = &self.last_resort.as_ref().unwrap();
             debug!(
@@ -161,6 +163,23 @@ impl OutboundDatagramHandler for Handler {
                     continue;
                 }
             }
+        }
+
+        // Use the last resort outbound if all scheduled outbounds have
+        // failed.
+        if let Some(a) = self.last_resort.as_ref() {
+            debug!(
+                "failover handles udp [{}] to last resort [{}]",
+                sess.destination,
+                a.tag()
+            );
+            return a
+                .datagram()?
+                .handle(
+                    sess,
+                    connect_datagram_outbound(sess, self.dns_client.clone(), a).await?,
+                )
+                .await;
         }
 
         Err(io::Error::new(

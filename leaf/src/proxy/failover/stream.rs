@@ -135,6 +135,8 @@ impl OutboundStreamHandler for Handler {
 
         let schedule = self.schedule.lock().await.clone();
 
+        // Use the last resort outbound if all outbounds have failed in
+        // the last health check.
         if schedule.is_empty() && self.last_resort.is_some() {
             let a = &self.last_resort.as_ref().unwrap();
             debug!(
@@ -210,6 +212,21 @@ impl OutboundStreamHandler for Handler {
                     continue;
                 }
             }
+        }
+
+        if let Some(a) = self.last_resort.as_ref() {
+            debug!(
+                "failover handles tcp [{}] to last resort [{}]",
+                sess.destination,
+                a.tag()
+            );
+            return a
+                .stream()?
+                .handle(
+                    sess,
+                    connect_stream_outbound(sess, self.dns_client.clone(), a).await?,
+                )
+                .await;
         }
 
         Err(io::Error::new(
