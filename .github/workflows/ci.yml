@@ -114,7 +114,7 @@ jobs:
       - name: install llvm
         if: ${{ matrix.os == 'macos-latest' }}
         run: |
-          brew update && brew install llvm protobuf
+          brew install llvm protobuf
 
       - name: build
         run: |
@@ -148,7 +148,7 @@ jobs:
       - name: install toolchain
         run: |
           cargo install cbindgen
-          brew update && brew install llvm unzip protobuf
+          brew install llvm unzip protobuf
 
       - name: build
         run: |
