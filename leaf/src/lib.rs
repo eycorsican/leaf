@@ -281,7 +281,11 @@ lazy_static! {
 }
 
 pub fn reload(key: RuntimeId) -> Result<(), Error> {
-    if let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&key) {
+    if let Some(m) = RUNTIME_MANAGER
+        .lock()
+        .map_err(|_| Error::RuntimeManager)?
+        .get(&key)
+    {
         return m.blocking_reload();
     }
     Err(Error::RuntimeManager)
@@ -539,7 +543,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     RUNTIME_MANAGER
         .lock()
-        .unwrap()
+        .map_err(|_| Error::RuntimeManager)?
         .insert(rt_id, runtime_manager);
 
     log::trace!("added runtime {}", &rt_id);
@@ -551,7 +555,10 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     drop(inbound_manager);
 
-    RUNTIME_MANAGER.lock().unwrap().remove(&rt_id);
+    RUNTIME_MANAGER
+        .lock()
+        .map_err(|_| Error::RuntimeManager)?
+        .remove(&rt_id);
 
     rt.shutdown_background();
 
