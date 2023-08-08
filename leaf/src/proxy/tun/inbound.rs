@@ -223,6 +223,11 @@ pub fn new(
         assert!(settings.fd == -1, "tun-auto is not compatible with tun-fd");
     }
 
+    let (stack, mut tcp_listener, udp_socket) = netstack::NetStack::with_buffer_size(
+        *crate::option::NETSTACK_OUTPUT_CHANNEL_SIZE,
+        *crate::option::NETSTACK_UDP_UPLINK_CHANNEL_SIZE,
+    )?;
+
     Ok(Box::pin(async move {
         let fakedns = Arc::new(FakeDns::new(fake_dns_mode));
         for filter in fake_dns_filters.into_iter() {
@@ -232,10 +237,6 @@ pub fn new(
         let inbound_tag = inbound.tag.clone();
         let framed = tun.into_framed();
         let (mut tun_sink, mut tun_stream) = framed.split();
-        let (stack, mut tcp_listener, udp_socket) = netstack::NetStack::with_buffer_size(
-            *crate::option::NETSTACK_OUTPUT_CHANNEL_SIZE,
-            *crate::option::NETSTACK_UDP_UPLINK_CHANNEL_SIZE,
-        );
         let (mut stack_sink, mut stack_stream) = stack.split();
 
         let mut futs: Vec<Runner> = Vec::new();
