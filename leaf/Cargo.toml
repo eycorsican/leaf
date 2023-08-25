@@ -148,7 +148,7 @@ serde_derive = { version = "1.0", optional = true }
 serde = { version = "1.0", optional = true }
 
 # config-conf
-regex = { version = "1", default-features = false, features = ["std", "perf"], optional = true }
+regex = { version = "1", optional = true }
 
 # Openssl
 openssl = { version = "0.10", features = ["vendored"], optional = true }
@@ -235,7 +235,7 @@ jni = "0.21"
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fork", features = ["async"], optional = true }
-netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", optional = true }
+netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", rev = "3e0f0d2", optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pnet_datalink = { version = "0.28", package = "pnet_datalink" }

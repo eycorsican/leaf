@@ -6,6 +6,7 @@ members = [
     "leaf-plugins/shadowsocks",
 ]
 default-members = ["leaf-bin"]
+resolver = "2"
 
 [profile.release]
 opt-level = 3
