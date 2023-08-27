@@ -21,18 +21,27 @@ fi
 rustup target add x86_64-apple-darwin
 rustup target add aarch64-apple-darwin
 rustup target add aarch64-apple-ios
+rustup target add x86_64-apple-ios
+rustup target add aarch64-apple-ios-sim
 cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target x86_64-apple-darwin
 cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target aarch64-apple-darwin
 cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target aarch64-apple-ios
+cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target x86_64-apple-ios
+cargo build -p $package $release_flag --no-default-features --features "default-ring outbound-quic" --target aarch64-apple-ios-sim
 
 # Directories to put the libraries.
 rm -rf target/apple/$mode
 mkdir -p target/apple/$mode/include
 mkdir -p target/apple/$mode/ios
+mkdir -p target/apple/$mode/ios-sim
 mkdir -p target/apple/$mode/macos
 
 # Put built libraries to folders where we can find them easier later
 cp target/aarch64-apple-ios/$mode/$lib target/apple/$mode/ios/
+lipo -create \
+	-arch x86_64 target/x86_64-apple-ios/$mode/$lib \
+	-arch arm64 target/aarch64-apple-ios-sim/$mode/$lib \
+	-output target/apple/$mode/ios-sim/$lib
 # Create a single library for multiple archs
 lipo -create \
 	-arch x86_64 target/x86_64-apple-darwin/$mode/$lib \
@@ -60,6 +69,8 @@ EOF
 # use a single XCFramework for both platforms.
 xcodebuild -create-xcframework \
 	-library "$wd/ios/$lib" \
+	-headers "$wd/include" \
+	-library "$wd/ios-sim/$lib" \
 	-headers "$wd/include" \
 	-library "$wd/macos/$lib" \
 	-headers "$wd/include" \
