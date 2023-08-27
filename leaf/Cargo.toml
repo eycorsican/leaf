@@ -99,7 +99,7 @@ outbound-static= []
 outbound-tryall = []
 outbound-chain = []
 outbound-amux= ["tokio-util"]
-outbound-quic = ["quinn", "rustls", "webpki-roots"]
+outbound-quic = ["quinn", "rustls", "webpki-roots", "rustls-pemfile"]
 outbound-select = []
 outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util"]
 

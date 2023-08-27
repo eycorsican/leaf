@@ -22,6 +22,10 @@ default-openssl = [
     "leaf/default-openssl",
 ]
 
+outbound-quic = [
+    "leaf/outbound-quic",
+]
+
 auto-reload = ["leaf/auto-reload"]
 
 [dependencies]
