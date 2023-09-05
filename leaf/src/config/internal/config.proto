@@ -105,6 +105,7 @@ message ShadowsocksOutboundSettings {
 	uint32 port = 2;
 	string method = 3; // TODO use enum
 	string password = 4;
+	optional string prefix = 5;
 }
 
 message ObfsOutboundSettings {

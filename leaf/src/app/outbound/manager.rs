@@ -165,12 +165,13 @@ impl OutboundManager {
                     let settings =
                         config::ShadowsocksOutboundSettings::parse_from_bytes(&outbound.settings)
                             .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
-                    let stream = Box::new(shadowsocks::outbound::StreamHandler {
-                        address: settings.address.clone(),
-                        port: settings.port as u16,
-                        cipher: settings.method.clone(),
-                        password: settings.password.clone(),
-                    });
+                    let stream = Box::new(shadowsocks::outbound::StreamHandler::new(
+                        settings.address.clone(),
+                        settings.port as u16,
+                        settings.method.clone(),
+                        settings.password.clone(),
+                        settings.prefix.as_ref().cloned(),
+                    )?);
                     let datagram = Box::new(shadowsocks::outbound::DatagramHandler {
                         address: settings.address,
                         port: settings.port as u16,

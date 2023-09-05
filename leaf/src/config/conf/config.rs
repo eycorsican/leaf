@@ -51,6 +51,7 @@ pub struct Proxy {
 
     // shadowsocks
     pub encrypt_method: Option<String>,
+    pub prefix: Option<String>,
 
     // shadowsocks, trojan
     pub password: Option<String>,
@@ -89,6 +90,7 @@ impl Default for Proxy {
             address: None,
             port: None,
             encrypt_method: Some("chacha20-ietf-poly1305".to_string()),
+            prefix: None,
             password: None,
             obfs_type: None,
             obfs_host: None,
@@ -375,6 +377,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             match k {
                 "encrypt-method" => {
                     proxy.encrypt_method = Some(v.to_string());
+                }
+                "prefix" => {
+                    proxy.prefix = Some(v.to_string());
                 }
                 "password" => {
                     proxy.password = Some(v.to_string());
@@ -872,6 +877,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     } else {
                         settings.method = "chacha20-ietf-poly1305".to_string();
                     }
+                    settings.prefix = ext_proxy.prefix.clone();
                     if let Some(ext_password) = &ext_proxy.password {
                         settings.password = ext_password.clone();
                     }

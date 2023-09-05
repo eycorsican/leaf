@@ -19,7 +19,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
-        let mut stream = ShadowedStream::new(stream, &self.cipher, &self.password)?;
+        let mut stream = ShadowedStream::new(stream, &self.cipher, &self.password, None)?;
         let destination = SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
         sess.destination = destination;
         Ok(InboundTransport::Stream(Box::new(stream), sess))

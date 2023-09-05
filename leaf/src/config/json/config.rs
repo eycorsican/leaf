@@ -113,6 +113,7 @@ pub struct ShadowsocksOutboundSettings {
     pub port: Option<u16>,
     pub method: Option<String>,
     pub password: Option<String>,
+    pub prefix: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -602,6 +603,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_password) = ext_settings.password {
                         settings.password = ext_password;
                     }
+                    settings.prefix = ext_settings.prefix.as_ref().cloned();
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
                     outbounds.push(outbound);

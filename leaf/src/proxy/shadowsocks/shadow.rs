@@ -8,7 +8,7 @@ use futures::{
     task::{Context, Poll},
 };
 use log::*;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::crypto::{
@@ -43,10 +43,11 @@ pub struct ShadowedStream<T> {
     read_state: ReadState,
     write_state: WriteState,
     read_pos: usize,
+    prefix: Option<Box<[u8]>>,
 }
 
 impl<T> ShadowedStream<T> {
-    pub fn new(s: T, cipher: &str, password: &str) -> io::Result<Self> {
+    pub fn new(s: T, cipher: &str, password: &str, prefix: Option<Box<[u8]>>) -> io::Result<Self> {
         let cipher = AeadCipher::new(cipher).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::Other,
@@ -56,6 +57,18 @@ impl<T> ShadowedStream<T> {
         let psk = kdf(password, cipher.key_len()).map_err(|e| {
             io::Error::new(io::ErrorKind::Other, format!("derive key failed: {}", e))
         })?;
+        if let Some(prefix) = prefix.as_ref() {
+            if prefix.len() > cipher.key_len() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!(
+                        "prefix length exceeding cipher key length: {} > {}",
+                        prefix.len(),
+                        cipher.key_len()
+                    ),
+                ));
+            }
+        }
         Ok(ShadowedStream {
             inner: s,
             cipher,
@@ -69,6 +82,7 @@ impl<T> ShadowedStream<T> {
             read_state: ReadState::WaitingSalt,
             write_state: WriteState::WaitingSalt,
             read_pos: 0,
+            prefix,
         })
     }
 }
@@ -215,10 +229,12 @@ where
                     self.write_buf.reserve(salt_size);
                     unsafe { self.write_buf.set_len(salt_size) };
                     let mut rng = StdRng::from_entropy();
-                    for i in 0..salt_size {
-                        self.write_buf[i] = rng.gen();
+                    if let Some(prefix) = self.prefix.as_ref().cloned() {
+                        self.write_buf[..prefix.len()].copy_from_slice(&prefix);
+                        rng.fill_bytes(&mut self.write_buf[prefix.len()..salt_size]);
+                    } else {
+                        rng.fill_bytes(&mut self.write_buf[..salt_size]);
                     }
-
                     let key = hkdf_sha1(
                         &self.psk,
                         &self.write_buf[..salt_size],
