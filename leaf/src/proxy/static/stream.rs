@@ -56,6 +56,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         match self.method {
@@ -64,11 +65,17 @@ impl OutboundStreamHandler for Handler {
                 let mut rng = StdRng::from_entropy();
                 let next: usize = rng.gen_range(0..self.actors.len());
                 self.next.store(next, Ordering::Relaxed);
-                self.actors[current].stream()?.handle(sess, stream).await
+                self.actors[current]
+                    .stream()?
+                    .handle(sess, lhs, stream)
+                    .await
             }
             Method::RandomOnce => {
                 let current = self.next.load(Ordering::Relaxed);
-                self.actors[current].stream()?.handle(sess, stream).await
+                self.actors[current]
+                    .stream()?
+                    .handle(sess, lhs, stream)
+                    .await
             }
             Method::RoundRobin => {
                 let current = self.next.load(Ordering::Relaxed);
@@ -78,7 +85,10 @@ impl OutboundStreamHandler for Handler {
                     current + 1
                 };
                 self.next.store(next, Ordering::Relaxed);
-                self.actors[current].stream()?.handle(sess, stream).await
+                self.actors[current]
+                    .stream()?
+                    .handle(sess, lhs, stream)
+                    .await
             }
         }
     }

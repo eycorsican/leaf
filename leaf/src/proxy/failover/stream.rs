@@ -100,6 +100,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         *self.last_active.lock().await = Instant::now();
@@ -123,6 +124,7 @@ impl OutboundStreamHandler for Handler {
                     Duration::from_secs(self.fail_timeout as u64),
                     a.stream()?.handle(
                         sess,
+                        None,
                         connect_stream_outbound(sess, self.dns_client.clone(), a).await?,
                     ),
                 )
@@ -148,6 +150,7 @@ impl OutboundStreamHandler for Handler {
                 .stream()?
                 .handle(
                     sess,
+                    None,
                     connect_stream_outbound(sess, self.dns_client.clone(), a).await?,
                 )
                 .await;
@@ -172,6 +175,7 @@ impl OutboundStreamHandler for Handler {
                 a.stream()?
                     .handle(
                         sess,
+                        None,
                         connect_stream_outbound(sess, self.dns_client.clone(), a).await?,
                     )
                     .await
@@ -224,6 +228,7 @@ impl OutboundStreamHandler for Handler {
                 .stream()?
                 .handle(
                     sess,
+                    None,
                     connect_stream_outbound(sess, self.dns_client.clone(), a).await?,
                 )
                 .await;

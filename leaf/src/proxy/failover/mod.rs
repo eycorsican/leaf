@@ -68,7 +68,8 @@ pub(self) async fn health_check(
                 } else {
                     return Measure(idx, u128::MAX);
                 };
-                match h.handle(&sess, stream).await {
+                // TODO Mock an LHS stream with the given payload.
+                match h.handle(&sess, None, stream).await {
                     Ok(mut stream) => {
                         if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
                             return Measure(idx, u128::MAX - 2);

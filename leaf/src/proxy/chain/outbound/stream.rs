@@ -57,12 +57,18 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        mut lhs: Option<&mut AnyStream>,
         mut stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         for (i, a) in self.actors.iter().enumerate() {
             let new_sess = self.next_session(sess.clone(), i + 1);
             let s = stream.take();
-            stream.replace(a.stream()?.handle(&new_sess, s).await?);
+            let lhs_stream = if i == self.actors.len() - 1 {
+                lhs.take()
+            } else {
+                None
+            };
+            stream.replace(a.stream()?.handle(&new_sess, lhs_stream, s).await?);
         }
         Ok(stream
             .map(|x| Box::new(x))

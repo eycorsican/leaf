@@ -192,7 +192,7 @@ impl Dispatcher {
                 return;
             }
         };
-        match th.handle(&sess, stream).await {
+        match th.handle(&sess, Some(&mut lhs), stream).await {
             Ok(mut rhs) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 

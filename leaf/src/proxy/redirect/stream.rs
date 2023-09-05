@@ -19,6 +19,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
+        _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))

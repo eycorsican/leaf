@@ -2,7 +2,9 @@ use std::io;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use bytes::BufMut;
 use bytes::BytesMut;
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 
 use super::shadow::ShadowedStream;
@@ -48,6 +50,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        mut lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         let stream = stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
@@ -60,7 +63,24 @@ impl OutboundStreamHandler for Handler {
         let mut buf = BytesMut::new();
         sess.destination
             .write_buf(&mut buf, SocksAddrWireType::PortLast);
-        stream.write_all(&buf).await?;
+
+        let mut read_buf = Vec::with_capacity(2 * 1024);
+        if let Some(lhs) = lhs.as_mut() {
+            match tokio::time::timeout(Duration::from_millis(10), lhs.read_buf(&mut read_buf)).await
+            {
+                Ok(res) => {
+                    let n = res?;
+                    buf.put_slice(&read_buf[..n]);
+                    stream.write_all(&buf).await?;
+                }
+                Err(_) => {
+                    stream.write_all(&buf).await?;
+                }
+            }
+        } else {
+            stream.write_all(&buf).await?;
+        }
+
         Ok(Box::new(stream))
     }
 }

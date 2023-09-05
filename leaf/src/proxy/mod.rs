@@ -48,6 +48,8 @@ pub mod drop;
 pub mod failover;
 #[cfg(feature = "inbound-http")]
 pub mod http;
+#[cfg(feature = "outbound-obfs")]
+pub mod obfs;
 #[cfg(any(feature = "inbound-quic", feature = "outbound-quic"))]
 pub mod quic;
 #[cfg(feature = "outbound-redirect")]
@@ -56,8 +58,6 @@ pub mod redirect;
 pub mod select;
 #[cfg(any(feature = "inbound-shadowsocks", feature = "outbound-shadowsocks"))]
 pub mod shadowsocks;
-#[cfg(feature = "outbound-obfs")]
-pub mod obfs;
 #[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
 pub mod socks;
 #[cfg(feature = "outbound-static")]
@@ -567,7 +567,12 @@ pub trait OutboundStreamHandler<S = AnyStream>: Send + Sync + Unpin {
 
     /// Handles a session with the given stream. On success, returns a
     /// stream wraps the incoming stream.
-    async fn handle<'a>(&'a self, sess: &'a Session, stream: Option<S>) -> io::Result<S>;
+    async fn handle<'a>(
+        &'a self,
+        sess: &'a Session,
+        lhs: Option<&mut S>,
+        stream: Option<S>,
+    ) -> io::Result<S>;
 }
 
 type AnyOutboundStreamHandler = Box<dyn OutboundStreamHandler>;

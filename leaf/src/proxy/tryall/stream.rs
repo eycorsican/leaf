@@ -25,6 +25,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         let mut tasks = Vec::new();
@@ -39,7 +40,7 @@ impl OutboundStreamHandler for Handler {
                 let stream =
                     crate::proxy::connect_stream_outbound(sess, self.dns_client.clone(), a).await?;
                 a.stream()?
-                    .handle(sess, stream)
+                    .handle(sess, None, stream)
                     .await
                     .map(|stream| HandleResult { idx: i, stream })
             };

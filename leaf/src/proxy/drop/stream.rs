@@ -15,6 +15,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         _sess: &'a Session,
+        _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         Err(io::Error::new(io::ErrorKind::Other, "dropped"))

@@ -95,18 +95,18 @@ impl Handler {
                                 .await?,
                         );
                     } else {
-                        stream.replace(a.stream()?.handle(&new_sess, Some(s)).await?);
+                        stream.replace(a.stream()?.handle(&new_sess, None, Some(s)).await?);
                     }
                 } else {
                     if self.unreliable_chain(i + 1) {
                         dgram.replace(uh.handle(&new_sess, None).await?);
                     } else {
-                        stream.replace(a.stream()?.handle(&new_sess, None).await?);
+                        stream.replace(a.stream()?.handle(&new_sess, None, None).await?);
                     }
                 }
             } else {
                 let s = stream.take();
-                stream.replace(a.stream()?.handle(&new_sess, s).await?);
+                stream.replace(a.stream()?.handle(&new_sess, None, s).await?);
             }
         }
         Ok(dgram.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no datagram"))?)

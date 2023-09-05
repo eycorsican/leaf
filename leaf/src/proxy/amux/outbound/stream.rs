@@ -98,7 +98,7 @@ impl MuxManager {
         let mut sess = sess.clone();
         sess.destination = SocksAddr::try_from((&self.address, self.port))?;
         for (_, a) in self.actors.iter().enumerate() {
-            conn = a.stream()?.handle(&sess, Some(conn)).await?;
+            conn = a.stream()?.handle(&sess, None, Some(conn)).await?;
         }
 
         // Create the stream over this new connection.
@@ -149,6 +149,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         Ok(Box::new(self.manager.new_stream(sess).await?))

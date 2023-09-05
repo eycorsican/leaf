@@ -1,5 +1,5 @@
-use std::io;
 use async_socks5::Auth;
+use std::io;
 
 use async_trait::async_trait;
 use futures::future::TryFutureExt;
@@ -22,6 +22,7 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         let mut stream =
@@ -31,7 +32,7 @@ impl OutboundStreamHandler for Handler {
             (auth_username, auth_password) => Some(Auth {
                 username: auth_username.to_owned(),
                 password: auth_password.to_owned(),
-            })
+            }),
         };
         match &sess.destination {
             SocksAddr::Ip(a) => {
