@@ -112,7 +112,10 @@ pub async fn new_socks_stream(socks_addr: &str, socks_port: u16, sess: &Session)
         .unwrap();
     timeout(
         Duration::from_secs(2),
-        handler.stream().unwrap().handle(sess, Some(Box::new(stream))),
+        handler
+            .stream()
+            .unwrap()
+            .handle(sess, None, Some(Box::new(stream))),
     )
     .await
     .unwrap()
