@@ -24,6 +24,8 @@ pub struct MuxManager {
     pub actors: Vec<AnyOutboundHandler>,
     pub max_accepts: usize,
     pub concurrency: usize,
+    pub max_recv_bytes: usize,
+    pub max_lifetime: u64,
     pub dns_client: SyncDnsClient,
     // TODO Verify whether the run loops in connectors are aborted after
     // a config reload.
@@ -38,6 +40,8 @@ impl MuxManager {
         actors: Vec<AnyOutboundHandler>,
         max_accepts: usize,
         concurrency: usize,
+        max_recv_bytes: usize,
+        max_lifetime: u64,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
@@ -48,8 +52,7 @@ impl MuxManager {
         let fut = async move {
             loop {
                 connectors2.lock().await.retain(|c| !c.is_done());
-                log::trace!("active connectors {}", connectors2.lock().await.len());
-                tokio::time::sleep(Duration::from_secs(20)).await;
+                tokio::time::sleep(Duration::from_secs(5)).await;
             }
         };
         let (abortable, abort_handle) = abortable(fut);
@@ -62,6 +65,8 @@ impl MuxManager {
                 actors,
                 max_accepts,
                 concurrency,
+                max_recv_bytes,
+                max_lifetime,
                 dns_client,
                 connectors,
                 monitor_task: Mutex::new(Some(monitor_task)),
@@ -104,17 +109,24 @@ impl MuxManager {
         // Create the stream over this new connection.
         let mut connector = {
             if sess.new_conn_once {
-                MuxSession::connector(conn, 1, 1)
+                MuxSession::connector(conn, 1, 1, 0, 0)
             } else {
-                MuxSession::connector(conn, self.max_accepts, self.concurrency)
+                MuxSession::connector(
+                    conn,
+                    self.max_accepts,
+                    self.concurrency,
+                    self.max_recv_bytes,
+                    self.max_lifetime,
+                )
             }
         };
         let s = match connector.new_stream().await {
             Some(s) => s,
             None => return Err(io::Error::new(io::ErrorKind::Other, "new stream failed")),
         };
-        self.connectors.lock().await.push(connector);
-
+        let mut conns = self.connectors.lock().await;
+        conns.push(connector);
+        log::debug!("created new amux conn, total: {}", conns.len());
         Ok(s)
     }
 }
@@ -132,10 +144,20 @@ impl Handler {
         actors: Vec<AnyOutboundHandler>,
         max_accepts: usize,
         concurrency: usize,
+        max_recv_bytes: usize,
+        max_lifetime: u64,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
-        let (manager, abort_handles) =
-            MuxManager::new(address, port, actors, max_accepts, concurrency, dns_client);
+        let (manager, abort_handles) = MuxManager::new(
+            address,
+            port,
+            actors,
+            max_accepts,
+            concurrency,
+            max_recv_bytes,
+            max_lifetime,
+            dns_client,
+        );
         (Handler { manager }, abort_handles)
     }
 }

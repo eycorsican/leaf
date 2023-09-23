@@ -77,6 +77,8 @@ pub struct Proxy {
     pub amux: Option<bool>,
     pub amux_max: Option<i32>,
     pub amux_con: Option<i32>,
+    pub amux_max_recv: Option<u64>,
+    pub amux_max_lifetime: Option<u64>,
 
     pub quic: Option<bool>,
 }
@@ -106,6 +108,8 @@ impl Default for Proxy {
             amux: Some(false),
             amux_max: Some(8),
             amux_con: Some(2),
+            amux_max_recv: Some(0),
+            amux_max_lifetime: Some(0),
             quic: Some(false),
         }
     }
@@ -429,6 +433,22 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         None
                     };
                     proxy.amux_con = i;
+                }
+                "amux-max-recv" => {
+                    let i = if let Ok(i) = v.parse::<u64>() {
+                        Some(i)
+                    } else {
+                        None
+                    };
+                    proxy.amux_max_recv = i;
+                }
+                "amux-max-lifetime" => {
+                    let i = if let Ok(i) = v.parse::<u64>() {
+                        Some(i)
+                    } else {
+                        None
+                    };
+                    proxy.amux_max_lifetime = i;
                 }
                 "quic" => proxy.quic = if v == "true" { Some(true) } else { Some(false) },
                 "interface" => {
@@ -978,6 +998,8 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_concurrency) = &ext_proxy.amux_con {
                         amux_settings.concurrency = *ext_concurrency as u32;
                     }
+                    amux_settings.max_recv_bytes = ext_proxy.amux_max_recv.unwrap_or_default();
+                    amux_settings.max_lifetime = ext_proxy.amux_max_lifetime.unwrap_or_default();
                     let amux_settings = amux_settings.write_to_bytes().unwrap();
                     amux_outbound.settings = amux_settings;
                     amux_outbound.protocol = "amux".to_string();

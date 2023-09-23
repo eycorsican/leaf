@@ -2655,6 +2655,10 @@ pub struct AMuxOutboundSettings {
     pub max_accepts: u32,
     // @@protoc_insertion_point(field:AMuxOutboundSettings.concurrency)
     pub concurrency: u32,
+    // @@protoc_insertion_point(field:AMuxOutboundSettings.max_recv_bytes)
+    pub max_recv_bytes: u64,
+    // @@protoc_insertion_point(field:AMuxOutboundSettings.max_lifetime)
+    pub max_lifetime: u64,
     // special fields
     // @@protoc_insertion_point(special_field:AMuxOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -2697,6 +2701,12 @@ impl ::protobuf::Message for AMuxOutboundSettings {
                 40 => {
                     self.concurrency = is.read_uint32()?;
                 },
+                48 => {
+                    self.max_recv_bytes = is.read_uint64()?;
+                },
+                56 => {
+                    self.max_lifetime = is.read_uint64()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -2724,6 +2734,12 @@ impl ::protobuf::Message for AMuxOutboundSettings {
         if self.concurrency != 0 {
             my_size += ::protobuf::rt::uint32_size(5, self.concurrency);
         }
+        if self.max_recv_bytes != 0 {
+            my_size += ::protobuf::rt::uint64_size(6, self.max_recv_bytes);
+        }
+        if self.max_lifetime != 0 {
+            my_size += ::protobuf::rt::uint64_size(7, self.max_lifetime);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -2744,6 +2760,12 @@ impl ::protobuf::Message for AMuxOutboundSettings {
         }
         if self.concurrency != 0 {
             os.write_uint32(5, self.concurrency)?;
+        }
+        if self.max_recv_bytes != 0 {
+            os.write_uint64(6, self.max_recv_bytes)?;
+        }
+        if self.max_lifetime != 0 {
+            os.write_uint64(7, self.max_lifetime)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -2767,6 +2789,8 @@ impl ::protobuf::Message for AMuxOutboundSettings {
         self.actors.clear();
         self.max_accepts = 0;
         self.concurrency = 0;
+        self.max_recv_bytes = 0;
+        self.max_lifetime = 0;
         self.special_fields.clear();
     }
 
@@ -2777,6 +2801,8 @@ impl ::protobuf::Message for AMuxOutboundSettings {
             actors: ::std::vec::Vec::new(),
             max_accepts: 0,
             concurrency: 0,
+            max_recv_bytes: 0,
+            max_lifetime: 0,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

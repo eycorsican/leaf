@@ -148,6 +148,8 @@ message AMuxOutboundSettings {
 	repeated string actors = 3;
 	uint32 max_accepts = 4;
 	uint32 concurrency = 5;
+	uint64 max_recv_bytes = 6;
+	uint64 max_lifetime = 7;
 }
 
 message QuicOutboundSettings {

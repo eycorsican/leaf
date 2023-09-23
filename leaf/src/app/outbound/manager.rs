@@ -504,6 +504,8 @@ impl OutboundManager {
                             actors.clone(),
                             settings.max_accepts as usize,
                             settings.concurrency as usize,
+                            settings.max_recv_bytes as usize,
+                            settings.max_lifetime,
                             dns_client.clone(),
                         );
                         let handler = HandlerBuilder::default()

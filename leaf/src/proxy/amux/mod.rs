@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{io, pin::Pin};
@@ -19,11 +19,11 @@ use futures::{
     task::{Context, Poll},
     Future, TryFutureExt,
 };
-use log::trace;
+use log::{debug, trace};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex;
-use tokio::time::sleep;
+use tokio::time::{sleep, Instant};
 
 #[cfg(feature = "inbound-amux")]
 pub mod inbound;
@@ -404,6 +404,7 @@ impl MuxSession {
         mut frame_stream: SplitStream<MuxConnection<S>>,
         recv_end: Option<Arc<Mutex<bool>>>,
         mut accept: Option<Accept>,
+        recv_bytes_counter: Option<Arc<AtomicUsize>>,
     ) -> AbortHandle
     where
         S: 'static + AsyncRead + AsyncWrite + Unpin + Send,
@@ -440,6 +441,9 @@ impl MuxSession {
                                 if let Some(stream_read_tx) =
                                     streams.lock().await.get(&stream_id).cloned()
                                 {
+                                    if let Some(c) = recv_bytes_counter.as_ref() {
+                                        c.fetch_add(data.len(), Ordering::Relaxed);
+                                    }
                                     // FIXME error
                                     let _ = stream_read_tx.send(data).await;
                                 }
@@ -513,7 +517,13 @@ impl MuxSession {
         handle
     }
 
-    pub fn connector<S>(conn: S, max_accepts: usize, concurrency: usize) -> MuxConnector
+    pub fn connector<S>(
+        conn: S,
+        max_accepts: usize,
+        concurrency: usize,
+        max_recv_bytes: usize,
+        max_lifetime: u64,
+    ) -> MuxConnector
     where
         S: 'static + AsyncRead + AsyncWrite + Unpin + Send,
     {
@@ -521,11 +531,13 @@ impl MuxSession {
         let (frame_write_tx, frame_write_rx) = mpsc::channel::<MuxFrame>(1);
         let (recv_end, send_end) = (Arc::new(Mutex::new(false)), Arc::new(Mutex::new(false)));
         let streams: Streams = Arc::new(Mutex::new(HashMap::new()));
+        let recv_bytes_counter = Arc::new(AtomicUsize::new(0));
         let recv_handle = Self::run_frame_receive_loop(
             streams.clone(),
             frame_stream,
             Some(recv_end.clone()),
             None,
+            Some(recv_bytes_counter.clone()),
         );
         let send_handle = Self::run_frame_send_loop(
             streams.clone(),
@@ -534,9 +546,14 @@ impl MuxSession {
             Some(send_end.clone()),
         );
         let session_id = random_u16();
+        let started_at = Instant::now();
         MuxConnector::new(
             max_accepts,
             concurrency,
+            max_recv_bytes,
+            recv_bytes_counter,
+            max_lifetime,
+            started_at,
             session_id,
             streams,
             frame_write_tx,
@@ -565,6 +582,7 @@ impl MuxSession {
                 stream_accept_tx,
                 frame_write_tx,
             }),
+            None,
         );
         let send_handle = Self::run_frame_send_loop(streams, frame_sink, frame_write_rx, None);
         MuxAcceptor::new(session_id, stream_accept_rx, recv_handle, send_handle)
@@ -576,6 +594,16 @@ pub struct MuxConnector {
     max_accepts: usize,
     // Stream concurrency.
     concurrency: usize,
+    // New streams will not be created on the connection if total received
+    // bytes of the connection exceeds this value.
+    max_recv_bytes: usize,
+    // A counter to count currently received bytes on the connection.
+    recv_bytes_counter: Arc<AtomicUsize>,
+    // New streams will not be created on the connection if the lifetime of
+    // the connection exceeds this value, in seconds.
+    max_lifetime: u64,
+    // The time the connection is started.
+    started_at: Instant,
     // ID for debugging purposes.
     session_id: SessionId,
     // Counter for number of streams created.
@@ -604,6 +632,10 @@ impl MuxConnector {
     pub fn new(
         max_accepts: usize,
         concurrency: usize,
+        max_recv_bytes: usize,
+        recv_bytes_counter: Arc<AtomicUsize>,
+        max_lifetime: u64,
+        started_at: Instant,
         session_id: SessionId,
         streams: Streams,
         frame_write_tx: Sender<MuxFrame>,
@@ -621,6 +653,10 @@ impl MuxConnector {
         MuxConnector {
             max_accepts,
             concurrency,
+            max_recv_bytes,
+            recv_bytes_counter,
+            max_lifetime,
+            started_at,
             session_id,
             total_accepted: 0,
             streams,
@@ -642,15 +678,21 @@ impl MuxConnector {
         if self.done.load(Ordering::SeqCst) {
             return true;
         } else {
-            if self.total_accepted >= self.max_accepts {
+            if self.total_accepted >= self.max_accepts
+                || (self.max_recv_bytes > 0
+                    && self.recv_bytes_counter.load(Ordering::Relaxed) >= self.max_recv_bytes)
+                || (self.max_lifetime > 0
+                    && Instant::now().duration_since(self.started_at).as_secs()
+                        >= self.max_lifetime)
+            {
                 for end in self.stream_ends.iter() {
                     if !end.load(Ordering::Relaxed) {
                         return false;
                     }
                 }
-                return true;
+                true
             } else {
-                return false;
+                false
             }
         }
     }
@@ -667,13 +709,39 @@ impl MuxConnector {
             self.done.store(true, Ordering::Relaxed);
             return None;
         }
+        if self.max_recv_bytes > 0
+            && self.recv_bytes_counter.load(Ordering::Relaxed) >= self.max_recv_bytes
+        {
+            debug!(
+                "exceeding allowed received bytes ({}): {}",
+                self.session_id, self.max_recv_bytes
+            );
+            return None;
+        }
+        if self.max_lifetime > 0
+            && Instant::now().duration_since(self.started_at).as_secs() >= self.max_lifetime
+        {
+            debug!(
+                "exceeding allowed lifetime ({}): {}s",
+                self.session_id, self.max_lifetime
+            );
+            return None;
+        }
         if self.total_accepted >= self.max_accepts {
             if self.streams.lock().await.is_empty() {
                 self.done.store(true, Ordering::Relaxed);
             }
+            debug!(
+                "exceeding allowed accpets ({}): {}",
+                self.session_id, self.max_accepts
+            );
             return None;
         }
         if self.streams.lock().await.len() >= self.concurrency {
+            debug!(
+                "exceeding allowed concurrency ({}): {}",
+                self.session_id, self.concurrency
+            );
             return None;
         }
         let frame_write_tx = self.frame_write_tx.clone();
