@@ -6,6 +6,9 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::future::{abortable, AbortHandle};
 use futures::FutureExt;
+use rand::prelude::SliceRandom;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -85,7 +88,9 @@ impl MuxManager {
 
         if !sess.new_conn_once {
             // Try to create the stream from existing connections.
-            for c in self.connectors.lock().await.iter_mut() {
+            let mut conns = self.connectors.lock().await;
+            conns.shuffle(&mut StdRng::from_entropy());
+            for c in conns.iter_mut() {
                 if let Some(s) = c.new_stream().await {
                     return Ok(s);
                 }
