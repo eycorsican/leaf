@@ -7,6 +7,7 @@ use bytes::{BufMut, BytesMut};
 use futures::future::TryFutureExt;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
+use tracing::{trace};
 
 use crate::{proxy::*, session::*};
 

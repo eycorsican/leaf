@@ -6,11 +6,11 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
 use futures::future::select_ok;
-use log::*;
 use lru::LruCache;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
+use tracing::{debug, trace};
 use trust_dns_proto::{
     op::{
         header::MessageType, op_code::OpCode, query::Query, response_code::ResponseCode, Message,

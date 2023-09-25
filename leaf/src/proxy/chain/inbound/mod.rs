@@ -6,14 +6,15 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
+use tracing::{debug, warn};
 
 use crate::proxy::*;
 
-mod stream;
 mod datagram;
+mod stream;
 
-pub use stream::Handler as StreamHandler;
 pub use datagram::Handler as DatagramHandler;
+pub use stream::Handler as StreamHandler;
 
 enum State {
     WaitingIncoming,
@@ -57,7 +58,7 @@ impl Stream for Incoming {
                             self.state = State::Pending(0, t);
                         }
                         Some(_) => {
-                            log::warn!("unexpected non-stream chain inbound incoming transport");
+                            warn!("unexpected non-stream chain inbound incoming transport");
                             continue;
                         }
                         None => {
@@ -80,9 +81,10 @@ impl Stream for Incoming {
                             // Otherwise proceed with a new task for the next actor.
                             let new_sess = new_sess.clone();
                             let a = self.actors[idx + 1].clone();
-                            let t = Box::pin(
-                                async move { a.stream()?.handle(new_sess, new_stream).await },
-                            );
+                            let t =
+                                Box::pin(
+                                    async move { a.stream()?.handle(new_sess, new_stream).await },
+                                );
                             self.state = State::Pending(idx + 1, t);
                         }
                         Ok(InboundTransport::Datagram(socket, sess)) => {
@@ -93,12 +95,12 @@ impl Stream for Incoming {
                             )));
                         }
                         Err(e) => {
-                            log::debug!("chain inbound incoming error: {}", e);
+                            debug!("chain inbound incoming error: {}", e);
                             self.state = State::WaitingIncoming;
                             continue;
                         }
                         _ => {
-                            log::warn!("unexpected chain inbound incoming transport");
+                            warn!("unexpected chain inbound incoming transport");
                             self.state = State::WaitingIncoming;
                             return Poll::Ready(None);
                         }

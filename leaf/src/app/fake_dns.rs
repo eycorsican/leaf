@@ -3,8 +3,8 @@ use std::net::{IpAddr, Ipv4Addr};
 
 use anyhow::{anyhow, Result};
 use byteorder::{BigEndian, ByteOrder};
-use log::*;
 use tokio::sync::RwLock;
+use tracing::debug;
 use trust_dns_proto::op::{
     header::MessageType, op_code::OpCode, response_code::ResponseCode, Message,
 };
@@ -192,7 +192,10 @@ impl FakeDnsImpl {
         }
         let ip = Self::u32_to_ip(self.cursor);
         match ip.octets()[3] {
-            0 | 255 => { self.cursor += 1;self.get_ip() },
+            0 | 255 => {
+                self.cursor += 1;
+                self.get_ip()
+            }
             _ => ip,
         }
     }

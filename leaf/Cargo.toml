@@ -140,7 +140,6 @@ directories = "4.0"
 async-ffi = "0.2"
 libloading = "0.7"
 async-recursion = "1.0"
-parking_lot = "0.12"
 
 # config-json
 serde_json = { version = "1.0", features = ["raw_value"], optional = true }
@@ -166,8 +165,9 @@ trust-dns-proto = { version = "0.20", default-features = false }
 lru = "0.7"
 
 # Logging
-log = { version = "0.4", features = ["std"] }
-log4rs = "1.2"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = "0.3"
 chrono = "0.4"
 colored = "2.0"
 

@@ -8,12 +8,12 @@ use async_trait::async_trait;
 use futures::future::select_ok;
 use futures::stream::Stream;
 use futures::TryFutureExt;
-use log::*;
 use socket2::SockRef;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, TcpStream, UdpSocket};
 use tokio::time::timeout;
+use tracing::{trace};
 
 #[cfg(unix)]
 use std::os::unix::io::AsRawFd;

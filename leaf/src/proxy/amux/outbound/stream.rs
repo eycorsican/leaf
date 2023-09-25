@@ -10,6 +10,7 @@ use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::sync::Mutex;
+use tracing::debug;
 
 use crate::{
     app::SyncDnsClient,
@@ -131,7 +132,7 @@ impl MuxManager {
         };
         let mut conns = self.connectors.lock().await;
         conns.push(connector);
-        log::debug!("created new amux conn, total: {}", conns.len());
+        debug!("created new amux conn, total: {}", conns.len());
         Ok(s)
     }
 }

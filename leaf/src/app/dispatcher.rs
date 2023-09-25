@@ -4,9 +4,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_recursion::async_recursion;
-use log::*;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::RwLock;
+use tracing::{debug, info, trace, warn};
 
 use crate::{
     app::SyncDnsClient,
@@ -82,7 +82,7 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
-        log::debug!("dispatching {}:{}", &sess.network, &sess.destination);
+        debug!("dispatching {}:{}", &sess.network, &sess.destination);
         let mut lhs: Box<dyn ProxyStream> = if *option::DOMAIN_SNIFFING
             && !sess.destination.is_domain()
             && sess.destination.port() == 443
@@ -156,7 +156,7 @@ impl Dispatcher {
             warn!("handler not found");
             return;
         };
-        log::debug!(
+        debug!(
             "handling {}:{} with {}",
             &sess.network,
             &sess.destination,
@@ -182,7 +182,7 @@ impl Dispatcher {
         let th = match h.stream() {
             Ok(th) => th,
             Err(e) => {
-                log::warn!(
+                warn!(
                     "dispatch tcp {} -> {} to [{}] failed: {}",
                     &sess.source,
                     &sess.destination,
@@ -255,7 +255,7 @@ impl Dispatcher {
         &self,
         mut sess: Session,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
-        log::debug!("dispatching {}:{}", &sess.network, &sess.destination);
+        debug!("dispatching {}:{}", &sess.network, &sess.destination);
         let outbound = {
             let router = self.router.read().await;
             match router.pick_route(&sess).await {
@@ -294,7 +294,7 @@ impl Dispatcher {
         let handshake_start = tokio::time::Instant::now();
         let transport =
             crate::proxy::connect_datagram_outbound(&sess, self.dns_client.clone(), &h).await?;
-        log::debug!(
+        debug!(
             "handling {}:{} with {}",
             &sess.network,
             &sess.destination,

@@ -19,11 +19,11 @@ use futures::{
     task::{Context, Poll},
     Future, TryFutureExt,
 };
-use log::{debug, trace};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Instant};
+use tracing::{debug, trace};
 
 #[cfg(feature = "inbound-amux")]
 pub mod inbound;
@@ -466,7 +466,7 @@ impl MuxSession {
                     }
                     // Borken pipe.
                     Err(e) => {
-                        log::debug!("receiving frame failed: {}", e);
+                        debug!("receiving frame failed: {}", e);
                         break;
                     }
                 }

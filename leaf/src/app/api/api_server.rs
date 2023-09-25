@@ -4,6 +4,7 @@ use std::iter::FromIterator;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
+use tracing::info;
 use warp::Filter;
 
 use crate::RuntimeManager;
@@ -315,7 +316,7 @@ impl ApiServer {
             .or(filters::stat_html(self.runtime_manager.clone()))
             .or(filters::stat_json(self.runtime_manager.clone()));
 
-        log::info!("api server listening tcp {}", &listen_addr);
+        info!("api server listening tcp {}", &listen_addr);
         Box::pin(warp::serve(routes).bind(listen_addr))
     }
 }

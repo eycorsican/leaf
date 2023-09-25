@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use protobuf::Message;
+use tracing::warn;
 
 use anyhow::{anyhow, Result};
 
@@ -75,7 +76,7 @@ impl OutboundSelector {
         if let Some(i) = self.handlers.iter().position(|x| x == tag) {
             self.selected.store(i, Ordering::Relaxed);
             if let Err(e) = persist_selected_to_cache(self.id.clone(), tag.to_string()) {
-                log::warn!("persist selector state failed: {}", e);
+                warn!("persist selector state failed: {}", e);
             }
             Ok(())
         } else {

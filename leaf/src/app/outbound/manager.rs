@@ -6,9 +6,9 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use futures::future::AbortHandle;
-use log::*;
 use protobuf::Message;
 use tokio::sync::RwLock;
+use tracing::{debug, trace};
 
 #[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;

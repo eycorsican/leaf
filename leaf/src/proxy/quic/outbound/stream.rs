@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use futures::TryFutureExt;
 use rustls::OwnedTrustAnchor;
 use tokio::sync::RwLock;
+use tracing::{debug, trace};
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
 
@@ -104,7 +105,7 @@ impl Manager {
         for conn in self.connections.read().await.iter() {
             match conn.open_bi().await {
                 Ok((send, recv)) => {
-                    log::trace!(
+                    trace!(
                         "opened QUIC stream on existing connection (rtt {} ms) in {} ms",
                         conn.rtt().as_millis(),
                         start.elapsed().as_millis(),
@@ -112,7 +113,7 @@ impl Manager {
                     return Ok(QuicProxyStream { recv, send });
                 }
                 Err(e) => {
-                    log::debug!("open QUIC stream failed: {}", e);
+                    debug!("open QUIC stream failed: {}", e);
                 }
             }
         }
@@ -151,7 +152,7 @@ impl Manager {
 
         self.connections.write().await.push(conn);
 
-        log::trace!("opened QUIC stream on new connection",);
+        trace!("opened QUIC stream on new connection",);
 
         Ok(QuicProxyStream { recv, send })
     }

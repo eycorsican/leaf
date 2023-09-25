@@ -2,6 +2,7 @@ use std::io;
 
 use async_trait::async_trait;
 use futures::future::select_ok;
+use tracing::{debug};
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
 

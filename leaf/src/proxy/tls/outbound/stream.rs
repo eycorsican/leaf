@@ -5,7 +5,7 @@ use std::io::BufReader;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::TryFutureExt;
-use log::*;
+use tracing::{trace};
 
 #[cfg(feature = "rustls-tls")]
 use {
@@ -41,12 +41,11 @@ mod dangerous {
             &self,
             _end_entity: &Certificate,
             _intermediates: &[Certificate],
-            server_name: &ServerName,
+            _server_name: &ServerName,
             _scts: &mut dyn Iterator<Item = &[u8]>,
             _ocsp_response: &[u8],
             _now: SystemTime,
         ) -> core::result::Result<ServerCertVerified, Error> {
-            log::debug!("TLS cert for {:?} not verified", server_name);
             Ok(ServerCertVerified::assertion())
         }
     }

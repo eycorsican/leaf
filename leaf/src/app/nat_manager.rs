@@ -3,11 +3,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use futures::future::{abortable, BoxFuture};
-use log::*;
 use tokio::sync::{
     mpsc::{self, Sender},
     oneshot, Mutex, MutexGuard,
 };
+use tracing::{debug, error, trace};
 
 use crate::app::dispatcher::Dispatcher;
 use crate::option;

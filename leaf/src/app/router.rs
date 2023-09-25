@@ -5,9 +5,9 @@ use anyhow::anyhow;
 use anyhow::Result;
 use cidr::IpCidr;
 use futures::TryFutureExt;
-use log::*;
 use maxminddb::geoip2::Country;
 use memmap2::Mmap;
+use tracing::{debug, trace, warn};
 
 use crate::app::SyncDnsClient;
 use crate::config;
@@ -504,7 +504,7 @@ impl Router {
     }
 
     pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<&'a String> {
-        log::debug!("picking route for {}:{}", &sess.network, &sess.destination);
+        debug!("picking route for {}:{}", &sess.network, &sess.destination);
         for rule in &self.rules {
             if rule.apply(sess) {
                 return Ok(&rule.target);
@@ -526,7 +526,7 @@ impl Router {
             if !ips.is_empty() {
                 let mut new_sess = sess.clone();
                 new_sess.destination = SocksAddr::from((ips[0], sess.destination.port()));
-                log::trace!(
+                trace!(
                     "re-matching with resolved ip [{}] for [{}]",
                     ips[0],
                     sess.destination.host()

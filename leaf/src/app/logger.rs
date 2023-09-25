@@ -1,147 +1,120 @@
-use std::io;
-use std::io::Write;
-use std::sync::Mutex;
+use std::fs::OpenOptions;
+use std::path::Path;
+use std::sync::RwLock;
 
-use anyhow::{anyhow, Result};
-use log4rs::append::file::FileAppender;
-use log4rs::append::{console::ConsoleAppender, Append};
-use log4rs::config::{Appender, Config, Root};
-use log4rs::encode::{pattern::PatternEncoder, Encode};
-use log4rs::Handle;
+use anyhow::Result;
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::{
+    filter::LevelFilter, fmt, layer::Layered, prelude::*, registry::Registry, reload,
+    reload::Handle,
+};
 
 use crate::config;
 
-static HANDLE: Mutex<Option<Handle>> = Mutex::new(None);
+type FilterHandle = Handle<LevelFilter, Registry>;
 
-#[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
-mod mobile {
-    use super::*;
+type WriterLayer = fmt::Layer<
+    Layered<reload::Layer<LevelFilter, Registry>, Registry>,
+    tracing_subscriber::fmt::format::DefaultFields,
+    tracing_subscriber::fmt::format::Format,
+    tracing_appender::non_blocking::NonBlocking,
+>;
+type WriterHandle = Handle<WriterLayer, Layered<reload::Layer<LevelFilter, Registry>, Registry>>;
 
-    #[derive(Debug)]
-    pub(crate) struct MobileConsoleAppender {
-        pub writer: Mutex<MobileConsoleWriter>,
-        pub encoder: Box<dyn Encode>,
-    }
+struct HandleController {
+    filter: FilterHandle,
+    writer: WriterHandle,
+    writer_guard: WorkerGuard,
+}
 
-    impl log4rs::append::Append for MobileConsoleAppender {
-        fn append(&self, record: &log::Record<'_>) -> Result<()> {
-            // No need flush with the current mobile console writer impl
-            self.encoder.encode(&mut *self.writer.lock().unwrap(), record)
-        }
-
-        fn flush(&self) {}
-    }
-
-    #[derive(Debug)]
-    pub(crate) struct MobileConsoleWriter(pub crate::mobile::logger::ConsoleWriter);
-
-    impl log4rs::encode::Write for MobileConsoleWriter {
-        fn set_style(&mut self, _style: &log4rs::encode::Style) -> io::Result<()> {
-            Ok(())
+impl HandleController {
+    pub fn new(filter: FilterHandle, writer: WriterHandle, writer_guard: WorkerGuard) -> Self {
+        Self {
+            filter,
+            writer,
+            writer_guard,
         }
     }
 
-    impl Write for MobileConsoleWriter {
-        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-            self.0.write(buf)
-        }
-
-        fn flush(&mut self) -> io::Result<()> {
-            self.0.flush()
-        }
+    pub fn reload(
+        &mut self,
+        filter: LevelFilter,
+        writer: WriterLayer,
+        writer_guard: WorkerGuard,
+    ) -> Result<(), reload::Error> {
+        self.filter.modify(|f| *f = filter)?;
+        self.writer.reload(writer)?;
+        self.writer_guard = writer_guard;
+        Ok(())
     }
 }
 
-#[derive(Debug)]
-struct ModuleFilter;
+static HANDLE: RwLock<Option<HandleController>> = RwLock::new(None);
 
-impl log4rs::filter::Filter for ModuleFilter {
-    fn filter(&self, record: &log::Record<'_>) -> log4rs::filter::Response {
-        if let Some(m) = record.module_path() {
-            if m.starts_with("leaf") || m.starts_with("netstack_lwip") || m.starts_with("rust_tun")
+fn get_writer(config: &config::Log) -> Result<(WriterLayer, WorkerGuard)> {
+    Ok(match config.output.unwrap() {
+        config::log::Output::CONSOLE => {
+            #[cfg(target_os = "macos")]
             {
-                return log4rs::filter::Response::Neutral;
-            } else {
-                if record.level() <= log::Level::Warn {
-                    return log4rs::filter::Response::Neutral;
+                if *crate::option::LOG_CONSOLE_OUT {
+                    let writer = crate::mobile::logger::ConsoleWriter::default();
+                    let (writer, writer_guard) = tracing_appender::non_blocking(writer);
+                    let writer = fmt::Layer::default().with_ansi(false).with_writer(writer);
+                    (writer, writer_guard)
                 } else {
-                    return log4rs::filter::Response::Reject;
+                    let (writer, writer_guard) = tracing_appender::non_blocking(std::io::stdout());
+                    let writer = fmt::Layer::default().with_writer(writer);
+                    (writer, writer_guard)
                 }
             }
-        }
-        log4rs::filter::Response::Neutral
-    }
-}
-
-pub fn setup_logger(config: &protobuf::MessageField<crate::config::Log>) -> Result<()> {
-    let Some(config) = config.as_ref() else {
-        return Err(anyhow!("empty log config"));
-    };
-    let loglevel = match config.level.unwrap() {
-        config::log::Level::TRACE => log::LevelFilter::Trace,
-        config::log::Level::DEBUG => log::LevelFilter::Debug,
-        config::log::Level::INFO => log::LevelFilter::Info,
-        config::log::Level::WARN => log::LevelFilter::Warn,
-        config::log::Level::ERROR => log::LevelFilter::Error,
-    };
-    let mut builder = Config::builder();
-    let mut root = Root::builder();
-    let appender = Appender::builder().filter(Box::new(ModuleFilter));
-    let encoder = if *crate::option::LOG_NO_COLOR {
-        PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}][{l}] {m}{n}")
-    } else {
-        PatternEncoder::new("[{d(%Y-%m-%d %H:%M:%S)}][{h({l})}] {m}{n}")
-    };
-    match config.output.unwrap() {
-        config::log::Output::CONSOLE => {
-            #[cfg(any(target_os = "windows", target_os = "linux"))]
-            let console = Box::new(
-                ConsoleAppender::builder()
-                    .encoder(Box::new(encoder))
-                    .build(),
-            );
+            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            {
+                let (writer, writer_guard) = tracing_appender::non_blocking(std::io::stdout());
+                let writer = fmt::Layer::default().with_writer(writer);
+                (writer, writer_guard)
+            }
             #[cfg(any(target_os = "ios", target_os = "android"))]
-            let console = Box::new(mobile::MobileConsoleAppender {
-                writer: Mutex::new(mobile::MobileConsoleWriter(
-                    crate::mobile::logger::ConsoleWriter::default(),
-                )),
-                encoder: Box::new(encoder),
-            });
-            #[cfg(target_os = "macos")]
-            let console: Box<dyn Append> = {
-                if *crate::option::LOG_CONSOLE_OUT {
-                    Box::new(mobile::MobileConsoleAppender {
-                        writer: Mutex::new(mobile::MobileConsoleWriter(
-                            crate::mobile::logger::ConsoleWriter::default(),
-                        )),
-                        encoder: Box::new(encoder),
-                    })
-                } else {
-                    Box::new(
-                        ConsoleAppender::builder()
-                            .encoder(Box::new(encoder))
-                            .build(),
-                    )
-                }
-            };
-            builder = builder.appender(appender.build("console", console));
-            root = root.appender("console");
+            {
+                let writer = crate::mobile::logger::ConsoleWriter::default();
+                let (writer, writer_guard) = tracing_appender::non_blocking(writer);
+                let writer = fmt::Layer::default().with_ansi(false).with_writer(writer);
+                (writer, writer_guard)
+            }
         }
         config::log::Output::FILE => {
-            let file_out = FileAppender::builder()
-                .encoder(Box::new(encoder))
-                .build(&config.output_file)
-                .unwrap();
-            builder = builder.appender(appender.build("file", Box::new(file_out)));
-            root = root.appender("file");
+            let p = Path::new(&config.output_file);
+            let writer = OpenOptions::new().append(true).create(true).open(p)?;
+            let (writer, writer_guard) = tracing_appender::non_blocking(writer);
+            let writer = fmt::Layer::default().with_ansi(false).with_writer(writer);
+            (writer, writer_guard)
         }
-    }
-    let config = builder.build(root.build(loglevel)).unwrap();
-    let mut handle = HANDLE.lock().unwrap();
-    if let Some(handle) = handle.as_ref() {
-        handle.set_config(config);
+    })
+}
+
+pub fn setup_logger(config: &config::Log) -> Result<()> {
+    let filter = match config.level.unwrap() {
+        config::log::Level::TRACE => LevelFilter::TRACE,
+        config::log::Level::DEBUG => LevelFilter::DEBUG,
+        config::log::Level::INFO => LevelFilter::INFO,
+        config::log::Level::WARN => LevelFilter::WARN,
+        config::log::Level::ERROR => LevelFilter::ERROR,
+    };
+    let (writer, writer_guard) = get_writer(config)?;
+    let mut h = HANDLE.write().unwrap();
+    if let Some(h) = h.as_mut() {
+        h.reload(filter, writer, writer_guard)?;
     } else {
-        *handle = Some(log4rs::init_config(config).unwrap());
+        let (filter, filter_handle) = reload::Layer::new(filter);
+        let (writer, writer_handle) = reload::Layer::new(writer);
+        tracing_subscriber::registry()
+            .with(filter)
+            .with(writer)
+            .init();
+        *h = Some(HandleController::new(
+            filter_handle,
+            writer_handle,
+            writer_guard,
+        ));
     }
     Ok(())
 }

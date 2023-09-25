@@ -6,11 +6,11 @@ use std::time::Duration;
 use anyhow::Result;
 
 use futures::stream::StreamExt;
-use log::*;
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 use tokio::time::timeout;
+use tracing::{debug, info, trace, warn};
 
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::{NatManager, UdpPacket};
@@ -183,7 +183,7 @@ async fn handle_tcp_listen(
             )
             .await
             {
-                log::debug!("handle inbound stream failed: {}", e);
+                debug!("handle inbound stream failed: {}", e);
             }
         });
     }
@@ -234,7 +234,7 @@ impl NetworkInboundListener {
                 )
                 .await
                 {
-                    log::warn!("handler tcp listen failed: {}", e);
+                    warn!("handler tcp listen failed: {}", e);
                 }
             }));
         }
@@ -253,7 +253,7 @@ impl NetworkInboundListener {
                 )
                 .await
                 {
-                    log::warn!("handler udp listen failed: {}", e);
+                    warn!("handler udp listen failed: {}", e);
                 }
             }));
         }

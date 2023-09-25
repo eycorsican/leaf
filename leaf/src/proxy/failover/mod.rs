@@ -1,11 +1,11 @@
 use std::str::FromStr;
 use std::{sync::Arc, time::Duration};
 
-use log::*;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Instant};
+use tracing::{debug, trace, warn};
 use trust_dns_proto::{
     op::{header::MessageType, op_code::OpCode, query::Query, Message},
     rr::{record_type::RecordType, Name},

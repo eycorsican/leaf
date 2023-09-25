@@ -4,10 +4,10 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::future::{abortable, AbortHandle};
 use futures::FutureExt;
-use log::*;
 use lru_time_cache::LruCache;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
+use tracing::{debug, trace};
 
 use crate::{app::SyncDnsClient, proxy::*, session::*};
 

@@ -9,6 +9,7 @@ use bytes::{BufMut, BytesMut};
 use futures::TryFutureExt;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tracing::{trace};
 
 use crate::{
     proxy::*,

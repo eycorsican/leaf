@@ -7,9 +7,9 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
-use log::*;
 use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tracing::{debug};
 
 use crate::common::crypto::{
     aead::{AeadCipher, AeadDecryptor, AeadEncryptor},

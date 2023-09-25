@@ -8,6 +8,7 @@ use futures::{
     task::{Context, Poll},
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tracing::info;
 
 use crate::{proxy::*, session::*};
 
@@ -165,7 +166,7 @@ impl Counter {
 
 #[inline]
 fn log_session_end(c: &Counter) {
-    log::info!(
+    info!(
         "[{}] [{}] [{}] [{}] [{}] [{}] [{}] [END]",
         c.sess
             .forwarded_source

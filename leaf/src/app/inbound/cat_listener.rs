@@ -6,11 +6,11 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::task::{Context, Poll};
 use futures::TryFutureExt;
-use log::*;
 use protobuf::Message;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
+use tracing::{debug, info};
 
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::{NatManager, UdpPacket};
@@ -208,7 +208,7 @@ impl CatInboundListener {
                     }
                 }
             }
-            log::info!("cat done");
+            info!("cat done");
         }))
     }
 }
