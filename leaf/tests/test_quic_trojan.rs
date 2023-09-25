@@ -62,6 +62,7 @@ fn test_quic_trojan() {
     {
         "inbounds": [
             {
+                "tag": "quic-in",
                 "protocol": "chain",
                 "address": "127.0.0.1",
                 "port": 3001,
@@ -146,6 +147,7 @@ fn test_quic_trojan() {
     {
         "inbounds": [
             {
+                "tag": "quic-in",
                 "protocol": "chain",
                 "address": "127.0.0.1",
                 "port": 3002,

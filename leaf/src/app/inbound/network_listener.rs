@@ -107,8 +107,9 @@ async fn handle_inbound_transport(
         InboundTransport::Incoming(mut incoming) => {
             while let Some(transport) = incoming.next().await {
                 match transport {
-                    BaseInboundTransport::Stream(stream, sess) => {
+                    BaseInboundTransport::Stream(stream, mut sess) => {
                         let dispatcher_cloned = dispatcher.clone();
+                        sess.inbound_tag = handler.tag().clone();
                         tokio::spawn(async move {
                             dispatcher_cloned.dispatch_stream(sess, stream).await
                         });

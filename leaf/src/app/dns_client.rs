@@ -183,6 +183,7 @@ impl DnsClient {
                 let sess = Session {
                     network: Network::Udp,
                     destination: SocksAddr::from(server),
+                    inbound_tag: "internal".to_string(),
                     ..Default::default()
                 };
                 if let Some(dispatcher) = dispatcher_weak.upgrade() {
