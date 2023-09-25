@@ -135,8 +135,7 @@ async fn handle_conn(
 #[async_trait]
 impl InboundDatagramHandler for Handler {
     async fn handle<'a>(&'a self, socket: AnyInboundDatagram) -> io::Result<AnyInboundTransport> {
-        // FIXME What is a good size for this?
-        let (stream_tx, stream_rx) = channel(1024);
+        let (stream_tx, stream_rx) = channel(*crate::option::QUIC_ACCEPT_CHANNEL_SIZE);
         let endpoint = quinn::Endpoint::new(
             quinn::EndpointConfig::default(),
             Some(self.server_config.clone()),

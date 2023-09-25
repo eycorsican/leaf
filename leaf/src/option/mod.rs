@@ -132,6 +132,10 @@ lazy_static! {
         get_env_var_or("UDP_DOWNLINK_CHANNEL_SIZE", 256)
     };
 
+    pub static ref QUIC_ACCEPT_CHANNEL_SIZE: usize = {
+        get_env_var_or("QUIC_ACCEPT_CHANNEL_SIZE", 1024)
+    };
+
     /// Buffer size for UDP datagrams receiving/sending, in KB.
     pub static ref DATAGRAM_BUFFER_SIZE: usize = {
         get_env_var_or("DATAGRAM_BUFFER_SIZE", 2)
