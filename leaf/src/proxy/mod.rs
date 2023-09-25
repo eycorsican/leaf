@@ -13,10 +13,10 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, TcpStream, UdpSocket};
 use tokio::time::timeout;
-use tracing::{trace};
+use tracing::trace;
 
 #[cfg(unix)]
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsFd, AsRawFd};
 #[cfg(windows)]
 use std::os::windows::io::AsRawSocket;
 #[cfg(target_os = "android")]
@@ -163,7 +163,7 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-trait BindSocket: AsRawFd {
+trait BindSocket: AsFd {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
 }
 
@@ -232,14 +232,14 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
 
                     let ret = match indicator {
                         SocketAddr::V4(..) => libc::setsockopt(
-                            socket.as_raw_fd(),
+                            socket.as_fd().as_raw_fd(),
                             libc::IPPROTO_IP,
                             libc::IP_BOUND_IF,
                             &ifidx as *const _ as *const libc::c_void,
                             std::mem::size_of::<libc::c_uint>() as libc::socklen_t,
                         ),
                         SocketAddr::V6(..) => libc::setsockopt(
-                            socket.as_raw_fd(),
+                            socket.as_fd().as_raw_fd(),
                             libc::IPPROTO_IPV6,
                             libc::IPV6_BOUND_IF,
                             &ifidx as *const _ as *const libc::c_void,
@@ -334,7 +334,7 @@ fn apply_socket_opts_internal(s: SockRef) -> io::Result<()> {
 }
 
 #[cfg(unix)]
-fn apply_socket_opts<S: AsRawFd>(socket: &S) -> io::Result<()> {
+fn apply_socket_opts<S: AsFd>(socket: &S) -> io::Result<()> {
     let sock_ref = SockRef::from(socket);
     apply_socket_opts_internal(sock_ref)
 }

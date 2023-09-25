@@ -6,7 +6,7 @@ use anyhow::Result;
 use cidr::IpCidr;
 use futures::TryFutureExt;
 use maxminddb::geoip2::Country;
-use memmap2::Mmap;
+use maxminddb::Mmap;
 use tracing::{debug, trace, warn};
 
 use crate::app::SyncDnsClient;

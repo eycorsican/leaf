@@ -117,6 +117,7 @@ impl RuntimeManager {
         self.stat_manager.clone()
     }
 
+    #[cfg(feature = "outbound-select")]
     pub async fn set_outbound_selected(&self, outbound: &str, select: &str) -> Result<(), Error> {
         if let Some(selector) = self.outbound_manager.read().await.get_selector(outbound) {
             selector
@@ -129,6 +130,7 @@ impl RuntimeManager {
         }
     }
 
+    #[cfg(feature = "outbound-select")]
     pub async fn get_outbound_selected(&self, outbound: &str) -> Result<String, Error> {
         if let Some(selector) = self.outbound_manager.read().await.get_selector(outbound) {
             return Ok(selector.read().await.get_selected_tag());
@@ -136,6 +138,7 @@ impl RuntimeManager {
         Err(Error::Config(anyhow!("not found")))
     }
 
+    #[cfg(feature = "outbound-select")]
     pub async fn get_outbound_selects(&self, outbound: &str) -> Result<Vec<String>, Error> {
         if let Some(selector) = self.outbound_manager.read().await.get_selector(outbound) {
             return Ok(selector.read().await.get_available_tags());

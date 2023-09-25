@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr};
 
 use anyhow::{anyhow, Result};
-use byteorder::{BigEndian, ByteOrder};
 use tokio::sync::RwLock;
 use tracing::debug;
 use trust_dns_proto::op::{
     header::MessageType, op_code::OpCode, response_code::ResponseCode, Message,
 };
 use trust_dns_proto::rr::{
-    dns_class::DNSClass, record_data::RData, record_type::RecordType, resource::Record,
+    dns_class::DNSClass, rdata, record_data::RData, record_type::RecordType, resource::Record,
 };
 
 pub enum FakeDnsMode {
@@ -158,7 +157,7 @@ impl FakeDnsImpl {
                 .set_rr_type(RecordType::A)
                 .set_ttl(self.ttl)
                 .set_dns_class(DNSClass::IN)
-                .set_rdata(RData::A(ip));
+                .set_data(Some(RData::A(rdata::A(ip))));
             resp.add_answer(ans);
         }
 
@@ -226,7 +225,7 @@ impl FakeDnsImpl {
     }
 
     fn ip_to_u32(ip: &Ipv4Addr) -> u32 {
-        BigEndian::read_u32(&ip.octets())
+        u32::from_be_bytes(ip.octets())
     }
 }
 

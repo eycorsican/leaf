@@ -1,14 +1,18 @@
 use std::{
     collections::{hash_map, HashMap},
     convert::From,
-    sync::Arc,
 };
+
+#[cfg(feature = "outbound-select")]
+use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use futures::future::AbortHandle;
 use protobuf::Message;
-use tokio::sync::RwLock;
 use tracing::{debug, trace};
+
+#[cfg(feature = "outbound-select")]
+use tokio::sync::RwLock;
 
 #[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;
@@ -52,12 +56,14 @@ use crate::{
     proxy::{outbound::HandlerBuilder, *},
 };
 
+#[cfg(feature = "outbound-select")]
 use super::selector::OutboundSelector;
 
 pub struct OutboundManager {
     handlers: HashMap<String, AnyOutboundHandler>,
     #[cfg(feature = "plugin")]
     external_handlers: super::plugin::ExternalHandlers,
+    #[cfg(feature = "outbound-select")]
     selectors: Arc<super::Selectors>,
     default_handler: Option<String>,
     abort_handles: Vec<AbortHandle>,
@@ -596,15 +602,22 @@ impl OutboundManager {
         outbounds: &Vec<Outbound>,
         handlers: &mut HashMap<String, AnyOutboundHandler>,
         #[cfg(feature = "plugin")] external_handlers: &mut super::plugin::ExternalHandlers,
-        selectors: &mut super::Selectors,
+
+        #[cfg(feature = "outbound-select")] selectors: &mut super::Selectors,
     ) -> Result<()> {
         // FIXME a better way to find outbound deps?
         for _i in 0..8 {
             #[allow(unused_labels)]
             'outbounds: for outbound in outbounds.iter() {
                 let tag = String::from(&outbound.tag);
-                if handlers.contains_key(&tag) || selectors.contains_key(&tag) {
+                if handlers.contains_key(&tag) {
                     continue;
+                }
+                #[cfg(feature = "outbound-select")]
+                {
+                    if selectors.contains_key(&tag) {
+                        continue;
+                    }
                 }
                 #[allow(clippy::single_match)]
                 match outbound.protocol.as_str() {
@@ -648,7 +661,12 @@ impl OutboundManager {
                             selected: selected.clone(),
                         });
                         let datagram = Box::new(select::DatagramHandler { actors, selected });
-                        selectors.insert(tag.clone(), selector);
+
+                        #[cfg(feature = "outbound-select")]
+                        {
+                            selectors.insert(tag.clone(), selector);
+                        }
+
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())
                             .stream_handler(stream)
@@ -676,9 +694,12 @@ impl OutboundManager {
         dns_client: SyncDnsClient,
     ) -> Result<()> {
         // Save outound select states.
-        let mut selected_outbounds = HashMap::new();
-        for (k, v) in self.selectors.iter() {
-            selected_outbounds.insert(k.to_owned(), v.read().await.get_selected_tag());
+        #[cfg(feature = "outbound-select")]
+        {
+            let mut selected_outbounds = HashMap::new();
+            for (k, v) in self.selectors.iter() {
+                selected_outbounds.insert(k.to_owned(), v.read().await.get_selected_tag());
+            }
         }
 
         // Load new outbounds.
@@ -688,7 +709,10 @@ impl OutboundManager {
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles: Vec<AbortHandle> = Vec::new();
+
+        #[cfg(feature = "outbound-select")]
         let mut selectors: super::Selectors = HashMap::new();
+
         for _i in 0..4 {
             Self::load_handlers(
                 outbounds,
@@ -704,15 +728,19 @@ impl OutboundManager {
                 &mut handlers,
                 #[cfg(feature = "plugin")]
                 &mut external_handlers,
+                #[cfg(feature = "outbound-select")]
                 &mut selectors,
             )?;
         }
 
         // Restore outbound select states.
-        for (k, v) in selected_outbounds.iter() {
-            for (k2, v2) in selectors.iter_mut() {
-                if k == k2 {
-                    let _ = v2.write().await.set_selected(v);
+        #[cfg(feature = "outbound-select")]
+        {
+            for (k, v) in selected_outbounds.iter() {
+                for (k2, v2) in selectors.iter_mut() {
+                    if k == k2 {
+                        let _ = v2.write().await.set_selected(v);
+                    }
                 }
             }
         }
@@ -723,11 +751,16 @@ impl OutboundManager {
         }
 
         self.handlers = handlers;
+
         #[cfg(feature = "plugin")]
         {
             self.external_handlers = external_handlers;
         }
-        self.selectors = Arc::new(selectors);
+        #[cfg(feature = "outbound-select")]
+        {
+            self.selectors = Arc::new(selectors);
+        }
+
         self.default_handler = default_handler;
         self.abort_handles = abort_handles;
         Ok(())
@@ -739,6 +772,7 @@ impl OutboundManager {
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles: Vec<AbortHandle> = Vec::new();
+        #[cfg(feature = "outbound-select")]
         let mut selectors: super::Selectors = HashMap::new();
         for _i in 0..4 {
             Self::load_handlers(
@@ -755,6 +789,7 @@ impl OutboundManager {
                 &mut handlers,
                 #[cfg(feature = "plugin")]
                 &mut external_handlers,
+                #[cfg(feature = "outbound-select")]
                 &mut selectors,
             )?;
         }
@@ -762,6 +797,8 @@ impl OutboundManager {
             handlers,
             #[cfg(feature = "plugin")]
             external_handlers,
+
+            #[cfg(feature = "outbound-select")]
             selectors: Arc::new(selectors),
             default_handler,
             abort_handles,
@@ -786,6 +823,7 @@ impl OutboundManager {
         }
     }
 
+    #[cfg(feature = "outbound-select")]
     pub fn get_selector(&self, tag: &str) -> Option<Arc<RwLock<OutboundSelector>>> {
         self.selectors.get(tag).map(Clone::clone)
     }

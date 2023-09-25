@@ -4,7 +4,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use byteorder::{BigEndian, ByteOrder};
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 use tokio::time::timeout;
@@ -47,7 +46,8 @@ where
                         if sbuf[1] != 0x3 {
                             return Ok(None);
                         }
-                        let header_len = BigEndian::read_u16(&sbuf[3..5]) as usize;
+                        let header_len =
+                            u16::from_be_bytes(sbuf[3..5].try_into().unwrap()) as usize;
                         if sbuf.len() < 5 + header_len {
                             continue;
                         }
@@ -64,7 +64,8 @@ where
                         if sbuf.len() < 2 {
                             continue;
                         }
-                        let cipher_suite_bytes = BigEndian::read_u16(&sbuf[..2]) as usize;
+                        let cipher_suite_bytes =
+                            u16::from_be_bytes(sbuf[..2].try_into().unwrap()) as usize;
                         if sbuf.len() < 2 + cipher_suite_bytes {
                             continue;
                         }
@@ -80,7 +81,8 @@ where
                         if sbuf.len() < 2 {
                             continue;
                         }
-                        let extensions_bytes = BigEndian::read_u16(&sbuf[..2]) as usize;
+                        let extensions_bytes =
+                            u16::from_be_bytes(sbuf[..2].try_into().unwrap()) as usize;
                         if sbuf.len() < 2 + extensions_bytes {
                             continue;
                         }
@@ -90,8 +92,9 @@ where
                             if sbuf.len() < 4 {
                                 continue 'outer;
                             }
-                            let extension = BigEndian::read_u16(&sbuf[..2]);
-                            let extension_len = BigEndian::read_u16(&sbuf[2..4]) as usize;
+                            let extension = u16::from_be_bytes(sbuf[..2].try_into().unwrap());
+                            let extension_len =
+                                u16::from_be_bytes(sbuf[2..4].try_into().unwrap()) as usize;
                             sbuf = &sbuf[4..];
                             if sbuf.len() < extension_len {
                                 continue 'outer;
@@ -102,7 +105,8 @@ where
                                 if ebuf.len() < 2 {
                                     continue 'outer;
                                 }
-                                let entry_len = BigEndian::read_u16(&ebuf[..2]) as usize;
+                                let entry_len =
+                                    u16::from_be_bytes(ebuf[..2].try_into().unwrap()) as usize;
                                 ebuf = &ebuf[2..];
                                 if ebuf.len() < entry_len {
                                     continue 'outer;
@@ -119,7 +123,8 @@ where
                                     if ebuf.len() < 2 {
                                         continue 'outer;
                                     }
-                                    let hostname_len = BigEndian::read_u16(&ebuf[..2]) as usize;
+                                    let hostname_len =
+                                        u16::from_be_bytes(ebuf[..2].try_into().unwrap()) as usize;
                                     ebuf = &ebuf[2..];
                                     if ebuf.len() < hostname_len {
                                         continue 'outer;

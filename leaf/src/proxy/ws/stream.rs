@@ -10,6 +10,7 @@ use futures::{
     task::{Context, Poll},
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tracing::trace;
 use tungstenite::error::Error as WsError;
 use tungstenite::Message;
 
@@ -59,6 +60,7 @@ impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRe
                         if data.len() > to_read {
                             self.buf.extend_from_slice(&data[to_read..]);
                         }
+                        trace!("poll_read {} bytes", buf.filled().len());
                         Ok(())
                     }
                     Message::Close(_) => Ok(()),
@@ -75,6 +77,7 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
         cx: &mut Context,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
+        trace!("poll_write {} bytes", buf.len());
         ready!(Pin::new(&mut self.inner)
             .poll_ready(cx)
             .map_err(|_| broken_pipe()))?;
@@ -83,6 +86,8 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
         Pin::new(&mut self.inner)
             .start_send(msg)
             .map_err(|_| broken_pipe())?;
+
+        let _ = Pin::new(&mut self.inner).poll_flush(cx);
 
         Poll::Ready(Ok(buf.len()))
     }

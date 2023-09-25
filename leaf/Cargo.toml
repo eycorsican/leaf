@@ -100,15 +100,15 @@ outbound-tryall = []
 outbound-chain = []
 outbound-amux= ["tokio-util"]
 outbound-quic = ["quinn", "rustls", "webpki-roots", "rustls-pemfile"]
-outbound-select = []
-outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util"]
+outbound-select = ["directories"]
+outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util", "byteorder"]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["http"]
-inbound-tun = ["tun", "netstack-lwip"]
+inbound-tun = ["tun", "netstack-lwip", "pnet_datalink"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
 inbound-quic = ["quinn", "rustls", "webpki-roots"]
@@ -116,7 +116,7 @@ inbound-tls = []
 inbound-chain = []
 inbound-cat = ["tokio/io-std"]
 
-plugin = []
+plugin = ["async-ffi", "libloading"]
 stat = []
 api = ["warp"]
 auto-reload = ["notify"]
@@ -125,21 +125,39 @@ ctrlc = ["tokio/signal"]
 [dependencies]
 # Common
 tokio = { version = "1", features = ["sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
-futures-util = "0.3"
 protobuf = "3.2"
 thiserror = "1.0"
 futures = "0.3"
 async-trait = "0.1"
-byteorder = "1"
 bytes = "1"
-lazy_static = "1.4.0"
+lazy_static = "1.4"
 anyhow = "1.0"
 rand = "0.8"
-socket2 = "0.4"
-directories = "4.0"
-async-ffi = "0.2"
-libloading = "0.7"
+socket2 = "0.5"
 async-recursion = "1.0"
+
+# DNS
+trust-dns-proto = { version = "0.23", default-features = false }
+lru = "0.11"
+
+# Logging
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = "0.3"
+chrono = "0.4"
+colored = "2.0"
+
+# Router
+maxminddb = { version = "0.23", features = ["mmap"] }
+memmap2 = "0.8"
+cidr = "0.2"
+
+# outbound-select
+directories = { version = "4.0", optional = true }
+
+# plugin
+async-ffi = { version = "0.2", optional = true }
+libloading = { version = "0.7", optional = true }
 
 # config-json
 serde_json = { version = "1.0", features = ["raw_value"], optional = true }
@@ -155,46 +173,30 @@ openssl = { version = "0.10", features = ["vendored"], optional = true }
 # Ring
 ring = { version = "0.16", optional = true }
 
-# Router
-maxminddb = { version = "0.21", features = ["mmap"] }
-memmap2 = "0.3"
-cidr = { version = "0.2" }
-
-# DNS
-trust-dns-proto = { version = "0.20", default-features = false }
-lru = "0.7"
-
-# Logging
-tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = "0.3"
-chrono = "0.4"
-colored = "2.0"
-
 # TLS/rustls/QUIC
-tokio-rustls = { version = "0.23", features = ["dangerous_configuration"], optional = true }
-webpki-roots = { version = "0.22", optional = true }
-rustls-pemfile = { version = "1.0.2", optional = true }
+tokio-rustls = { version = "0.24", features = ["dangerous_configuration"], optional = true }
+webpki-roots = { version = "0.25", optional = true }
+rustls-pemfile = { version = "1.0", optional = true }
 
 # TLS/openssl
 openssl-probe = { version = "0.1", optional = true }
 tokio-openssl = { version = "0.6", optional = true }
 
 # WebSocket
-tungstenite = { version = "0.16", default-features = false, optional = true }
-tokio-tungstenite = { version = "0.16", optional = true }
+tungstenite = { version = "0.20", default-features = false, optional = true }
+tokio-tungstenite = { version = "0.20", optional = true }
 
 # WebSocket
-url = { version = "2.2", optional = true }
+url = { version = "2.4", optional = true }
 http = { version = "0.2", optional = true }
 
 # SOCKS outbound
 async-socks5 = { version = "0.5", optional = true }
 
 # Shadowsocks
-hkdf = { version = "0.11", optional = true }
+hkdf = { version = "0.12", optional = true }
 md-5 = { version = "0.10", optional = true }
-sha-1 = { version = "0.9", optional = true }
+sha-1 = { version = "0.10", optional = true }
 percent-encoding = { version = "2", optional = true }
 
 # Obfs
@@ -202,7 +204,7 @@ base64 = { version = "0.21", optional = true }
 memchr = { version = "2", optional = true }
 
 # Trojan
-sha2 = { version = "0.9", optional = true }
+sha2 = { version = "0.10", optional = true }
 hex = { version = "0.4", optional = true }
 
 # VMess
@@ -213,12 +215,13 @@ aes = { version = "0.8", optional = true }
 sha3 = { version = "0.10", optional = true }
 digest = { version = "0.10", optional = true }
 uuid = { version = "1", optional = true }
+byteorder = { version = "1", optional = true }
 
 # Failover
 lru_time_cache = { version = "0.11", optional = true }
 
 # amux
-tokio-util = { version = "0.6", default-features = false, features = ["io"], optional = true }
+tokio-util = { version = "0.7", default-features = false, features = ["io"], optional = true }
 
 # QUIC
 quinn = { version = "0.10", default-features = false, features = ["tls-rustls", "runtime-tokio"], optional = true }
@@ -228,7 +231,7 @@ rustls = { version = "0.21", optional = true }
 warp = { version = "0.3", default-features = false, optional = true }
 
 # Auto reload
-notify = { version = "5.0.0-pre.13", optional = true }
+notify = { version = "6", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
@@ -239,7 +242,7 @@ tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fork", fea
 netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", rev = "4fef23", optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
-pnet_datalink = { version = "0.28", package = "pnet_datalink" }
+pnet_datalink = { version = "0.34", package = "pnet_datalink", optional = true }
 libc = "0.2"
 
 # Used in mobile logger
@@ -247,11 +250,11 @@ libc = "0.2"
 memchr = { version = "2" }
 
 [dev-dependencies]
-rcgen = "0.8"
-sha2 = "0.9"
+rcgen = "0.11"
+sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.59"
+bindgen = "0.68"
 protobuf-codegen = "3.2"

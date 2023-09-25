@@ -2,12 +2,11 @@ use std::cmp::min;
 use std::io;
 
 use async_trait::async_trait;
-use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use futures::future::TryFutureExt;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
-use tracing::{trace};
+use tracing::trace;
 
 use crate::{proxy::*, session::*};
 
@@ -98,7 +97,7 @@ where
         let mut buf2 = BytesMut::new();
         buf2.resize(2, 0);
         let _ = self.0.read_exact(&mut buf2).await?;
-        let payload_len = BigEndian::read_u16(&buf2);
+        let payload_len = u16::from_be_bytes(buf2[..2].try_into().unwrap());
         let _ = self.0.read_exact(&mut buf2).await?;
         if &buf2[..2] != b"\r\n" {
             return Err(io::Error::new(io::ErrorKind::Other, "Expected CLRF"));

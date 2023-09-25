@@ -5,7 +5,6 @@ use std::{
     string::ToString,
 };
 
-use byteorder::{BigEndian, ByteOrder};
 use bytes::BufMut;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
@@ -463,7 +462,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     if buf.len() < 4 + 2 {
                         return Err(insuff_bytes());
                     }
-                    let port = BigEndian::read_u16(&buf[..2]);
+                    let port = u16::from_be_bytes(buf[..2].try_into().unwrap());
                     let buf = &buf[2..];
                     let mut ip_bytes = [0u8; 4];
                     (&mut ip_bytes).copy_from_slice(&buf[..4]);
@@ -475,7 +474,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     if buf.len() < 16 + 2 {
                         return Err(insuff_bytes());
                     }
-                    let port = BigEndian::read_u16(&buf[..2]);
+                    let port = u16::from_be_bytes(buf[..2].try_into().unwrap());
                     let buf = &buf[2..];
                     let mut ip_bytes = [0u8; 16];
                     (&mut ip_bytes).copy_from_slice(&buf[..16]);
@@ -487,7 +486,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     if buf.len() < 3 {
                         return Err(insuff_bytes());
                     }
-                    let port = BigEndian::read_u16(&buf[..2]);
+                    let port = u16::from_be_bytes(buf[..2].try_into().unwrap());
                     let buf = &buf[2..];
                     let domain_len = buf[0] as usize;
                     let buf = &buf[1..];

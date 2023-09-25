@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::io;
 
+use ::http::{HeaderName, HeaderValue};
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use tokio_tungstenite::client_async_with_config;
+use tungstenite::client::IntoClientRequest;
 use tungstenite::protocol::WebSocketConfig;
 use url::Url;
 
@@ -19,20 +21,24 @@ struct Request<'a> {
     pub headers: &'a HashMap<String, String>,
 }
 
-impl<'a> tungstenite::client::IntoClientRequest for Request<'a> {
+impl<'a> IntoClientRequest for Request<'a> {
     fn into_client_request(
         self,
     ) -> tungstenite::error::Result<tungstenite::handshake::client::Request> {
-        let mut builder = ::http::Request::builder()
-            .method("GET")
-            .uri(self.uri)
-            .header("User-Agent", &*crate::option::HTTP_USER_AGENT);
+        let mut req = self.uri.into_client_request()?;
         for (k, v) in self.headers.iter() {
-            if k != "Host" {
-                builder = builder.header(k, v);
+            if k.to_uppercase() != "HOST" {
+                req.headers_mut()
+                    .insert(HeaderName::try_from(k)?, HeaderValue::from_str(&v)?);
             }
         }
-        Ok(builder.body(())?)
+        if !crate::option::HTTP_USER_AGENT.is_empty() {
+            req.headers_mut().insert(
+                ::http::header::USER_AGENT,
+                HeaderValue::from_static(&*crate::option::HTTP_USER_AGENT),
+            );
+        }
+        Ok(req)
     }
 }
 
@@ -60,12 +66,8 @@ impl OutboundStreamHandler for Handler {
                 uri: &url.to_string(),
                 headers: &self.headers,
             };
-            let ws_config = WebSocketConfig {
-                max_send_queue: Some(4),
-                max_message_size: Some(64 << 20),
-                max_frame_size: Some(16 << 20),
-                accept_unmasked_frames: false,
-            };
+            let mut ws_config = WebSocketConfig::default();
+            ws_config.write_buffer_size = 0;
             let (socket, _) = client_async_with_config(req, stream, Some(ws_config))
                 .map_err(|e| {
                     io::Error::new(

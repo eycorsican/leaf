@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
+use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
@@ -74,10 +75,10 @@ impl DnsClient {
         let servers = Self::load_servers(dns)?;
         let hosts = Self::load_hosts(dns);
         let ipv4_cache = Arc::new(TokioMutex::new(LruCache::<String, CacheEntry>::new(
-            *option::DNS_CACHE_SIZE,
+            NonZeroUsize::new(*option::DNS_CACHE_SIZE).unwrap(),
         )));
         let ipv6_cache = Arc::new(TokioMutex::new(LruCache::<String, CacheEntry>::new(
-            *option::DNS_CACHE_SIZE,
+            NonZeroUsize::new(*option::DNS_CACHE_SIZE).unwrap(),
         )));
 
         Ok(Self {
@@ -232,14 +233,16 @@ impl DnsClient {
                                 let mut ips = Vec::new();
                                 for ans in resp.answers() {
                                     // TODO checks?
-                                    match ans.rdata() {
-                                        RData::A(ip) => {
-                                            ips.push(IpAddr::V4(ip.to_owned()));
+                                    if let Some(data) = ans.data() {
+                                        match data {
+                                            RData::A(ip) => {
+                                                ips.push(IpAddr::V4(**ip));
+                                            }
+                                            RData::AAAA(ip) => {
+                                                ips.push(IpAddr::V6(**ip));
+                                            }
+                                            _ => (),
                                         }
-                                        RData::AAAA(ip) => {
-                                            ips.push(IpAddr::V6(ip.to_owned()));
-                                        }
-                                        _ => (),
                                     }
                                 }
                                 if !ips.is_empty() {

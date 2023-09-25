@@ -4,12 +4,11 @@ use std::net::SocketAddr;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use futures::TryFutureExt;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tracing::{trace};
+use tracing::trace;
 
 use crate::{
     proxy::*,
@@ -67,7 +66,7 @@ where
             .read_exact(&mut buf2)
             .map_err(|e| ProxyError::DatagramFatal(e.into()))
             .await?;
-        let payload_len = BigEndian::read_u16(&buf2) as usize;
+        let payload_len = u16::from_be_bytes(buf2[..2].try_into().unwrap()) as usize;
         if buf.len() < payload_len {
             return Err(ProxyError::DatagramFatal(anyhow!("Small buffer")));
         }

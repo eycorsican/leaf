@@ -3,6 +3,7 @@ use std::io::{self, ErrorKind};
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use tokio_tungstenite::accept_hdr_async;
+use tracing::debug;
 use tungstenite::handshake::server::{Callback, ErrorResponse, Request, Response};
 
 use crate::{proxy::*, session::Session};
@@ -63,14 +64,12 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
+        let s = accept_hdr_async(stream, SimpleCallback::new(&mut sess, &self.path))
+            .map_err(|e| io::Error::new(ErrorKind::Other, format!("accept ws failed: {}", e)))
+            .await?;
+        debug!("accepted WS stream");
         Ok(InboundTransport::Stream(
-            Box::new(super::ws_stream::WebSocketToStream::new(
-                accept_hdr_async(stream, SimpleCallback::new(&mut sess, &self.path))
-                    .map_err(|e| {
-                        io::Error::new(ErrorKind::Other, format!("accept ws failed: {}", e))
-                    })
-                    .await?,
-            )),
+            Box::new(super::ws_stream::WebSocketToStream::new(s)),
             sess,
         ))
     }

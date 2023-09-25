@@ -5,14 +5,14 @@ use std::io::BufReader;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::TryFutureExt;
-use tracing::{trace};
+use tracing::trace;
 
 #[cfg(feature = "rustls-tls")]
 use {
     std::sync::Arc,
     tokio_rustls::{
-        rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore, ServerName},
-        webpki, TlsConnector,
+        rustls::{Certificate, ClientConfig, OwnedTrustAnchor, RootCertStore, ServerName},
+        TlsConnector,
     },
 };
 
@@ -72,25 +72,19 @@ impl Handler {
             if let Some(cert) = certificate {
                 let mut pem = BufReader::new(File::open(cert)?);
                 let certs = rustls_pemfile::certs(&mut pem)?;
-                let trust_anchors = certs.iter().map(|cert| {
-                    let ta = webpki::TrustAnchor::try_from_cert_der(&cert[..]).unwrap(); // FIXME
-                    OwnedTrustAnchor::from_subject_spki_name_constraints(
-                        ta.subject,
-                        ta.spki,
-                        ta.name_constraints,
-                    )
-                });
-                root_cert_store.add_server_trust_anchors(trust_anchors);
+                for cert in certs.into_iter().map(Certificate) {
+                    root_cert_store.add(&cert)?;
+                }
             } else {
-                root_cert_store.add_server_trust_anchors(
-                    webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+                root_cert_store.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(
+                    |ta| {
                         OwnedTrustAnchor::from_subject_spki_name_constraints(
                             ta.subject,
                             ta.spki,
                             ta.name_constraints,
                         )
-                    }),
-                );
+                    },
+                ));
             }
             let mut config = ClientConfig::builder()
                 .with_safe_defaults()

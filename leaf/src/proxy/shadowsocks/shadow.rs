@@ -1,7 +1,6 @@
 use std::mem::MaybeUninit;
 use std::{cmp::min, io, pin::Pin};
 
-use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::{
     ready,
@@ -9,7 +8,7 @@ use futures::{
 };
 use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::{debug};
+use tracing::debug;
 
 use crate::common::crypto::{
     aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
@@ -176,7 +175,8 @@ where
                     }
                     let dec = me.dec.as_mut().expect("uninitialized cipher");
                     dec.decrypt(&mut me.read_buf).map_err(|_| crypto_err())?;
-                    let payload_len = BigEndian::read_u16(&me.read_buf) as usize;
+                    let payload_len =
+                        u16::from_be_bytes(me.read_buf[..2].try_into().unwrap()) as usize;
 
                     // ready to read payload
                     me.read_state = ReadState::WaitingData(payload_len);
@@ -265,7 +265,7 @@ where
                     let length_size = 2 + me.cipher.tag_len();
                     length_and_payload.reserve(length_size);
                     unsafe { length_and_payload.set_len(2) };
-                    BigEndian::write_u16(&mut length_and_payload[..2], consume_len as u16);
+                    length_and_payload[..2].copy_from_slice(&(consume_len as u16).to_be_bytes());
                     enc.encrypt(&mut length_and_payload)
                         .map_err(|_| crypto_err())?;
                     let mut payload = length_and_payload.split_off(length_size);

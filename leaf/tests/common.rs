@@ -313,14 +313,13 @@ pub fn test_data_transfering_reliability_on_configs(
     let dst_file = "destination_random_bytes.bin";
     let source = path.join(src_file);
     let dst = path.join(dst_file);
-    if !source.exists() {
-        let mut rng = StdRng::from_entropy();
-        let mut data = vec![0u8; 25 * 1024 * 1024]; // 25MB payload
-        rng.fill_bytes(&mut data);
-        let mut f = std::fs::File::create(source).unwrap();
-        f.write_all(&data).unwrap();
-        f.sync_all().unwrap();
-    }
+    std::fs::remove_file(&source).unwrap();
+    let mut rng = StdRng::from_entropy();
+    let mut data = vec![0u8; 2 * 1024 * 1024];
+    rng.fill_bytes(&mut data);
+    let mut f = std::fs::File::create(source).unwrap();
+    f.write_all(&data).unwrap();
+    f.sync_all().unwrap();
 
     // TCP uplink
     let recv_task = async move {

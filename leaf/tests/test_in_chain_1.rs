@@ -16,6 +16,9 @@ mod common;
 fn test_in_chain_1() {
     let config1 = r#"
     {
+        "log": {
+            "level": "trace"
+        },
         "inbounds": [
             {
                 "protocol": "socks",
@@ -55,6 +58,9 @@ fn test_in_chain_1() {
 
     let config2 = r#"
     {
+        "log": {
+            "level": "trace"
+        },
         "inbounds": [
             {
                 "protocol": "chain",
