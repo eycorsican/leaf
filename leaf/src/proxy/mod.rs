@@ -18,7 +18,7 @@ use tracing::trace;
 #[cfg(unix)]
 use std::os::unix::io::{AsFd, AsRawFd};
 #[cfg(windows)]
-use std::os::windows::io::AsRawSocket;
+use std::os::windows::io::{AsRawSocket, AsSocket};
 #[cfg(target_os = "android")]
 use {
     std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
@@ -339,7 +339,7 @@ fn apply_socket_opts<S: AsFd>(socket: &S) -> io::Result<()> {
     apply_socket_opts_internal(sock_ref)
 }
 #[cfg(windows)]
-fn apply_socket_opts<S: AsRawSocket>(socket: &S) -> io::Result<()> {
+fn apply_socket_opts<S: AsSocket>(socket: &S) -> io::Result<()> {
     let sock_ref = SockRef::from(socket);
     apply_socket_opts_internal(sock_ref)
 }
