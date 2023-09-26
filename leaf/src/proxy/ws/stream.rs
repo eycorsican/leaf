@@ -48,7 +48,9 @@ impl<S: Stream<Item = Result<Message, WsError>> + Sink<Message> + Unpin> AsyncRe
             let to_read = min(buf.remaining(), self.buf.len());
             let for_read = self.buf.split_to(to_read);
             buf.put_slice(&for_read[..to_read]);
-            return Poll::Ready(Ok(()));
+            if buf.remaining() == 0 {
+                return Poll::Ready(Ok(()));
+            }
         }
         Poll::Ready(ready!(Pin::new(&mut self.inner).poll_next(cx)).map_or(
             Err(broken_pipe()),

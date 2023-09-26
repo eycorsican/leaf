@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io;
 use std::net::SocketAddr;
 
@@ -59,10 +59,8 @@ where
         let dst_addr = SocksAddr::read_from(&mut self.0, SocksAddrWireType::PortLast)
             .map_err(|e| ProxyError::DatagramFatal(e.into()))
             .await?;
-        let mut buf2 = BytesMut::new();
-        buf2.resize(2, 0);
-        let _ = self
-            .0
+        let mut buf2 = [0; 4];
+        self.0
             .read_exact(&mut buf2)
             .map_err(|e| ProxyError::DatagramFatal(e.into()))
             .await?;
@@ -70,21 +68,11 @@ where
         if buf.len() < payload_len {
             return Err(ProxyError::DatagramFatal(anyhow!("Small buffer")));
         }
-        let _ = self
-            .0
-            .read_exact(&mut buf2)
+        // TODO Check CRLF?
+        self.0
+            .read_exact(&mut buf[..payload_len])
             .map_err(|e| ProxyError::DatagramFatal(e.into()))
             .await?;
-        if &buf2[..2] != b"\r\n" {
-            return Err(ProxyError::DatagramFatal(anyhow!("Expeced CRLF")));
-        }
-        buf2.resize(payload_len, 0);
-        let _ = self
-            .0
-            .read_exact(&mut buf2)
-            .map_err(|e| ProxyError::DatagramFatal(e.into()))
-            .await?;
-        buf[..payload_len].copy_from_slice(&buf2[..payload_len]);
         trace!(
             "trojan inbound received UDP {} bytes for {}",
             payload_len,
@@ -126,16 +114,16 @@ where
 }
 
 pub struct Handler {
-    keys: HashMap<Vec<u8>, ()>,
+    keys: HashSet<Vec<u8>>,
 }
 
 impl Handler {
     pub fn new(passwords: Vec<String>) -> Self {
-        let mut keys = HashMap::new();
+        let mut keys = HashSet::new();
         for pass in passwords {
             let key = Sha224::digest(pass.as_bytes());
             let key = hex::encode(&key[..]);
-            keys.insert(key.as_bytes().to_vec(), ());
+            keys.insert(key.as_bytes().to_vec());
         }
         Handler { keys }
     }
@@ -148,26 +136,21 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         mut stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
-        let mut buf = BytesMut::new();
+        let mut buf = [0; 56];
         // read key
-        buf.resize(56, 0);
-        stream.read_exact(&mut buf).await?;
-        if !self.keys.contains_key(&buf[..]) {
+        stream.read_exact(&mut buf[..56]).await?;
+        if !self.keys.contains(&buf[..]) {
             return Err(io::Error::new(io::ErrorKind::Other, "invalid key"));
         }
-        // read crlf
-        buf.resize(2, 0);
-        stream.read_exact(&mut buf).await?;
-        // read cmd
-        buf.resize(1, 0);
-        stream.read_exact(&mut buf).await?;
-        let cmd = buf[0];
+        // read crlf and cmd
+        stream.read_exact(&mut buf[..3]).await?;
+        // TODO Check CRLF?
+        let cmd = buf[2];
         // read addr
         let dst_addr = SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;
         sess.destination = dst_addr;
         // read crlf
-        buf.resize(2, 0);
-        stream.read_exact(&mut buf).await?;
+        stream.read_exact(&mut buf[..2]).await?;
         match cmd {
             // tcp
             0x01 => Ok(InboundTransport::Stream(stream, sess)),
