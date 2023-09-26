@@ -134,13 +134,16 @@ impl NatManager {
             return;
         }
 
-        let sess = sess.cloned().unwrap_or(Session {
+        let mut sess = sess.cloned().unwrap_or(Session {
             network: Network::Udp,
             source: dgram_src.address,
             destination: pkt.dst_addr.clone(),
             inbound_tag: inbound_tag.to_string(),
             ..Default::default()
         });
+        if sess.inbound_tag.is_empty() {
+            sess.inbound_tag = inbound_tag.to_string();
+        }
 
         self.add_session(sess, dgram_src.clone(), client_ch_tx.clone(), &mut guard)
             .await;
