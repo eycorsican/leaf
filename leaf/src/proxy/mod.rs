@@ -257,7 +257,7 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                 unsafe {
                     let ifa = CString::new(iface.as_bytes()).unwrap();
                     let ret = libc::setsockopt(
-                        socket.as_raw_fd(),
+                        socket.as_fd().as_raw_fd(),
                         libc::SOL_SOCKET,
                         libc::SO_BINDTODEVICE,
                         ifa.as_ptr() as *const libc::c_void,

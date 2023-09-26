@@ -313,7 +313,9 @@ pub fn test_data_transfering_reliability_on_configs(
     let dst_file = "destination_random_bytes.bin";
     let source = path.join(src_file);
     let dst = path.join(dst_file);
-    std::fs::remove_file(&source).unwrap();
+    if source.exists() {
+        std::fs::remove_file(&source).unwrap();
+    }
     let mut rng = StdRng::from_entropy();
     let mut data = vec![0u8; 2 * 1024 * 1024];
     rng.fill_bytes(&mut data);
