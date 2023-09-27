@@ -104,12 +104,14 @@ where
                     .map_ok(|_| buf.len())
                     .map_err(|x| Error::new(ErrorKind::Other, x))
                     .await
+            },
+            SocksAddr::Domain(domain, port) => {
+                self.0
+                    .send_to(buf, (domain.to_owned(), *port))
+                    .map_ok(|_| buf.len())
+                    .map_err(|x| Error::new(ErrorKind::Other, x))
+                    .await
             }
-            // FIXME for this, we need our own socks5 impl
-            _ => Err(Error::new(
-                ErrorKind::Other,
-                "socks outbound does not support sending UDP packets to domain address",
-            )),
         }
     }
 
