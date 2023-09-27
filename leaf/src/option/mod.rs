@@ -136,6 +136,18 @@ lazy_static! {
         get_env_var_or("QUIC_ACCEPT_CHANNEL_SIZE", 1024)
     };
 
+    pub static ref AMUX_ACCEPT_CHANNEL_SIZE: usize = {
+        get_env_var_or("AMUX_ACCEPT_CHANNEL_SIZE", 1024)
+    };
+
+    pub static ref AMUX_STREAM_CHANNEL_SIZE: usize = {
+        get_env_var_or("AMUX_STREAM_CHANNEL_SIZE", 16)
+    };
+
+    pub static ref AMUX_FRAME_CHANNEL_SIZE: usize = {
+        get_env_var_or("AMUX_FRAME_CHANNEL_SIZE", 32)
+    };
+
     /// Buffer size for UDP datagrams receiving/sending, in KB.
     pub static ref DATAGRAM_BUFFER_SIZE: usize = {
         get_env_var_or("DATAGRAM_BUFFER_SIZE", 2)
