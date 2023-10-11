@@ -44,7 +44,7 @@ pub mod android {
 
     use anyhow::{anyhow, Result};
     use jni::{objects::*, JavaVM};
-    use parking_lot::RwLock;
+    use std::sync::RwLock;
 
     static JVM: RwLock<Option<JavaVM>> = RwLock::new(None);
     static CALLBACK_PROTECT_SOCKET: RwLock<Option<CallbackProtectSocket>> = RwLock::new(None);
@@ -55,31 +55,31 @@ pub mod android {
     }
 
     pub fn set_jvm(vm: JavaVM) {
-        *JVM.write() = Some(vm);
+        *JVM.write().unwrap() = Some(vm);
     }
 
     pub fn unset_jvm() {
-        *JVM.write() = None;
+        *JVM.write().unwrap() = None;
     }
 
     pub fn set_protect_socket_callback(class: GlobalRef, name: String) {
-        *CALLBACK_PROTECT_SOCKET.write() = Some(CallbackProtectSocket { class, name });
+        *CALLBACK_PROTECT_SOCKET.write().unwrap() = Some(CallbackProtectSocket { class, name });
     }
 
     pub fn unset_protect_socket_callback() {
-        *CALLBACK_PROTECT_SOCKET.write() = None;
+        *CALLBACK_PROTECT_SOCKET.write().unwrap() = None;
     }
 
     pub fn is_protect_socket_callback_set() -> bool {
-        CALLBACK_PROTECT_SOCKET.read().is_some()
+        CALLBACK_PROTECT_SOCKET.read().unwrap().is_some()
     }
 
     pub fn protect_socket(fd: RawFd) -> Result<()> {
-        let jvm_g = JVM.read();
+        let jvm_g = JVM.read().unwrap();
         let Some(vm) = jvm_g.as_ref() else {
             return Err(anyhow!("Java VM not set"));
         };
-        let cb_g = CALLBACK_PROTECT_SOCKET.read();
+        let cb_g = CALLBACK_PROTECT_SOCKET.read().unwrap();
         let Some(cb) = cb_g.as_ref() else {
             return Err(anyhow!("protect socket callback not set"));
         };

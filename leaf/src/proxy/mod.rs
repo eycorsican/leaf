@@ -130,7 +130,7 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
                 format!("failed to protect outbound socket {}: {:?}", fd, e),
             )
         })?;
-        log::debug!(
+        trace!(
             "protected socket {} in {} µs",
             fd,
             start.elapsed().as_micros()
