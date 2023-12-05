@@ -131,6 +131,14 @@ pub struct TrojanOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct VMessOutboundSettings {
+    pub address: Option<String>,
+    pub port: Option<u16>,
+    pub uuid: Option<String>,
+    pub security: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TryAllOutboundSettings {
     pub actors: Option<Vec<String>>,
     #[serde(rename = "delayBase")]
@@ -646,6 +654,24 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_password) = ext_settings.password {
                         settings.password = ext_password;
                     }
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
+                    outbounds.push(outbound);
+                }
+                "vmess" => {
+                    if ext_outbound.settings.is_none() {
+                        return Err(anyhow!("invalid vmess outbound settings"));
+                    }
+                    let mut settings = internal::VMessOutboundSettings::new();
+                    let ext_settings: VMessOutboundSettings =
+                        serde_json::from_str(ext_outbound.settings.as_ref().unwrap().get())
+                            .unwrap();
+                    settings.address = ext_settings.address.unwrap_or_default();
+                    settings.port = ext_settings.port.map(|x| x as u32).unwrap_or_default();
+                    settings.uuid = ext_settings.uuid.unwrap_or_default();
+                    settings.security = ext_settings
+                        .security
+                        .unwrap_or(String::from("chacha20-ietf-poly1305"));
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
                     outbounds.push(outbound);
