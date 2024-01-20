@@ -31,8 +31,6 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - mips-unknown-linux-musl
-          - mipsel-unknown-linux-musl
           - x86_64-unknown-linux-musl
           - i686-unknown-linux-musl
           - aarch64-unknown-linux-musl
