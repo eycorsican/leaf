@@ -138,7 +138,7 @@ pub(self) async fn health_check(
                         if send.send_to(&msg_buf, &addr).await.is_err() {
                             return Measure(idx, u128::MAX - 2);
                         }
-                        let mut buf = [0u8; 1500];
+                        let mut buf = vec![0u8; 1500];
                         match recv.recv_from(&mut buf).await {
                             Ok(_) => {
                                 let elapsed = tokio::time::Instant::now().duration_since(start);
