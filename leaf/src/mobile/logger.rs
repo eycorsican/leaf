@@ -29,6 +29,9 @@ fn log_out(data: &[u8]) {
 
 #[cfg(target_os = "android")]
 fn log_out(data: &[u8]) {
+    if data.is_empty() {
+        return;
+    }
     unsafe {
         let s = match ffi::CString::new(data) {
             Ok(s) => s,
