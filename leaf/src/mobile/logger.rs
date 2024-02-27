@@ -37,13 +37,10 @@ fn log_out(data: &[u8]) {
             Ok(s) => s,
             Err(_) => return,
         };
-        const ANDROID_LOG_TAG: &str = "leaf";
+        let tag = ffi::CString::new("leaf").unwrap();
         let _ = __android_log_print(
             android_LogPriority_ANDROID_LOG_VERBOSE as std::os::raw::c_int,
-            ffi::CString::new(ANDROID_LOG_TAG)
-                .unwrap()
-                .as_c_str()
-                .as_ptr(),
+            tag.as_c_str().as_ptr(),
             s.as_c_str().as_ptr(),
         );
     }
