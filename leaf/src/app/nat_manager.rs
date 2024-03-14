@@ -83,10 +83,9 @@ impl NatManager {
                 let n_removed = n_total - n_remaining;
                 drop(sessions); // release the lock
                 if n_removed > 0 {
-                    trace!(
+                    debug!(
                         "removed {} nat sessions, remaining {} sessions",
-                        n_removed,
-                        n_remaining
+                        n_removed, n_remaining
                     );
                 }
                 tokio::time::sleep(Duration::from_secs(

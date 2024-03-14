@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::{Arc, Weak};
@@ -177,12 +177,21 @@ impl DnsClient {
         server: &SocketAddr,
     ) -> Result<CacheEntry> {
         let socket = if is_direct {
+            debug!("direct lookup");
             let socket = self.new_udp_socket(server).await?;
             Box::new(StdOutboundDatagram::new(socket))
         } else {
+            debug!("dispatched lookup");
             if let Some(dispatcher_weak) = self.dispatcher.as_ref() {
+                // The source address will be used to determine which address the
+                // underlying socket will bind.
+                let source = match server {
+                    SocketAddr::V4(_) => SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
+                    SocketAddr::V6(_) => SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
+                };
                 let sess = Session {
                     network: Network::Udp,
+                    source,
                     destination: SocksAddr::from(server),
                     inbound_tag: "internal".to_string(),
                     ..Default::default()
@@ -265,7 +274,7 @@ impl DnsClient {
                                         break;
                                     };
                                     let entry = CacheEntry { ips, deadline };
-                                    trace!("ips for {}:\n{:#?}", host, &entry);
+                                    debug!("ips for {}: {:#?}", host, &entry);
                                     return Ok(entry);
                                 } else {
                                     // response with 0 records

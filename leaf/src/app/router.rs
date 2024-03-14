@@ -526,7 +526,7 @@ impl Router {
             if !ips.is_empty() {
                 let mut new_sess = sess.clone();
                 new_sess.destination = SocksAddr::from((ips[0], sess.destination.port()));
-                trace!(
+                debug!(
                     "re-matching with resolved ip [{}] for [{}]",
                     ips[0],
                     sess.destination.host()

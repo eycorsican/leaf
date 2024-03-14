@@ -6,7 +6,7 @@ use std::time::Duration;
 use async_recursion::async_recursion;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::RwLock;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     app::SyncDnsClient,
@@ -132,7 +132,7 @@ impl Dispatcher {
                     tag.to_owned()
                 }
                 Err(err) => {
-                    trace!("pick route failed: {}", err);
+                    debug!("pick route failed: {}", err);
                     if let Some(tag) = self.outbound_manager.read().await.default_handler() {
                         debug!(
                             "picked default route [{}] for {} -> {}",
@@ -267,7 +267,7 @@ impl Dispatcher {
                     tag.to_owned()
                 }
                 Err(err) => {
-                    trace!("pick route failed: {}", err);
+                    debug!("pick route failed: {}", err);
                     if let Some(tag) = self.outbound_manager.read().await.default_handler() {
                         debug!(
                             "picked default route [{}] for {} -> {}",
