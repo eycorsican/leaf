@@ -371,7 +371,7 @@ impl ProcessPidMatcher {
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl Condition for ProcessPidMatcher {
     fn apply(&self, sess: &Session) -> bool {
-        let process_id = process_finder::find_process_id(
+        let process_id = process_finder::find_pid(
             &sess.network.to_string(),
             &sess.source.ip(),
             sess.source.port(),
@@ -401,24 +401,22 @@ impl ProcessNameMatcher {
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 impl Condition for ProcessNameMatcher {
     fn apply(&self, sess: &Session) -> bool {
-        let port_info = process_finder::find_process(
+        let process_info = process_finder::find_process(
             &sess.network.to_string(),
             &sess.source.ip(),
             sess.source.port(),
         );
-        if let Some(port) = port_info {
-            if let Some(info) = port.process_info {
-                if info
-                    .process_path
-                    .to_lowercase()
-                    .contains(&self.value.to_lowercase())
-                {
-                    debug!(
-                        "[{}] matches process name [{}]",
-                        info.process_path, &self.value
-                    );
-                    return true;
-                }
+        if let Some(process) = process_info {
+            if process
+                .process_path
+                .to_lowercase()
+                .contains(&self.value.to_lowercase())
+            {
+                debug!(
+                    "[{}] matches process name [{}]",
+                    process.process_path, &self.value
+                );
+                return true;
             }
         }
         false
