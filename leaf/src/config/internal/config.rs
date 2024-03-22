@@ -4346,8 +4346,8 @@ pub mod router {
             }
         }
 
-        #[derive(PartialEq,Clone,Default,Debug)]
         // @@protoc_insertion_point(message:Router.Rule.Process)
+        #[derive(PartialEq,Clone,Default,Debug)]
         pub struct Process {
             // message fields
             // @@protoc_insertion_point(field:Router.Rule.Process.type)
@@ -4471,6 +4471,14 @@ pub mod router {
                     match value {
                         0 => ::std::option::Option::Some(Type::PID),
                         1 => ::std::option::Option::Some(Type::NAME),
+                        _ => ::std::option::Option::None
+                    }
+                }
+
+                fn from_str(str: &str) -> ::std::option::Option<Type> {
+                    match str {
+                        "PID" => ::std::option::Option::Some(Type::PID),
+                        "NAME" => ::std::option::Option::Some(Type::NAME),
                         _ => ::std::option::Option::None
                     }
                 }
