@@ -334,7 +334,7 @@ level 可以是 trace, debug, info, warn, error
     "hosts": {
         "example.com": [
             "192.168.0.1",
-            "192.168.0.2
+            "192.168.0.2"
         ],
         "server.com": [
             "192.168.0.3"
@@ -1059,7 +1059,7 @@ V2Ray 的 `dat` 文件格式，可以有如下形式：
 
 此外所有非组合类型的 outbound 必须正确配置一个 `bind` 地址，这是连接原网关的网卡的地址，即未连接 VPN 前网卡的 IP 地址：
 ```json
-"outbounds: [
+"outbounds": [
     {
         "bind": "192.168.0.99",
         "protocol": "shadowsocks",
