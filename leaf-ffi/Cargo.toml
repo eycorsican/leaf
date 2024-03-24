@@ -16,10 +16,12 @@ default = [
 
 default-ring = [
     "leaf/default-ring",
+    "auto-reload",
 ]
 
 default-openssl = [
     "leaf/default-openssl",
+    "auto-reload",
 ]
 
 outbound-quic = [
