@@ -29,6 +29,8 @@ cargo build -p $package $release_flag --no-default-features --features "default-
 cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target x86_64-apple-ios
 cargo build -p $package $release_flag --no-default-features --features "default-ring outbound-quic" --target aarch64-apple-ios-sim
 
+cargo install --force cbindgen
+
 # Directories to put the libraries.
 rm -rf target/apple/$mode
 mkdir -p target/apple/$mode/include
