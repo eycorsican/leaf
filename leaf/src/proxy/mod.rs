@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use futures::future::select_ok;
 use futures::stream::Stream;
 use futures::TryFutureExt;
-use socket2::SockRef;
+use socket2::{Domain, SockRef, Socket, Type};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, TcpStream, UdpSocket};
@@ -302,12 +302,14 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
 
 // New UDP socket.
 pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
-    use socket2::{Domain, Socket, Type};
     let socket = match indicator {
         SocketAddr::V4(..) => Socket::new(Domain::IPV4, Type::DGRAM, None)?,
         SocketAddr::V6(..) => Socket::new(Domain::IPV6, Type::DGRAM, None)?,
     };
+
     socket.set_nonblocking(true)?;
+
+    bind_socket(&socket, indicator).await?;
 
     #[cfg(target_os = "android")]
     protect_socket(socket.as_raw_fd()).await?;
