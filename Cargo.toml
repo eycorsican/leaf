@@ -1,11 +1,11 @@
 [workspace]
 members = [
     "leaf",
-    "leaf-bin",
+    "leaf-cli",
     "leaf-ffi",
     "leaf-plugins/shadowsocks",
 ]
-default-members = ["leaf-bin"]
+default-members = ["leaf-cli"]
 resolver = "2"
 
 [profile.release]
