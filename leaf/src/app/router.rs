@@ -7,7 +7,7 @@ use cidr::IpCidr;
 use futures::TryFutureExt;
 use maxminddb::geoip2::Country;
 use maxminddb::Mmap;
-use tracing::{debug, trace, warn};
+use tracing::{debug, warn};
 
 use crate::app::SyncDnsClient;
 use crate::config;

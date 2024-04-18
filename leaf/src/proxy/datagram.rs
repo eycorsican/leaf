@@ -68,6 +68,78 @@ impl OutboundDatagramSendHalf for StdOutboundDatagramSendHalf {
     }
 }
 
+pub struct DomainResolveOutboundDatagram {
+    inner: UdpSocket,
+    dns_client: SyncDnsClient,
+}
+
+impl DomainResolveOutboundDatagram {
+    pub fn new(inner: UdpSocket, dns_client: SyncDnsClient) -> Self {
+        Self { inner, dns_client }
+    }
+}
+
+impl OutboundDatagram for DomainResolveOutboundDatagram {
+    fn split(
+        self: Box<Self>,
+    ) -> (
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
+    ) {
+        let r = Arc::new(self.inner);
+        let s = r.clone();
+        (
+            Box::new(DomainResolveOutboundDatagramRecvHalf(r)),
+            Box::new(DomainResolveOutboundDatagramSendHalf(s, self.dns_client)),
+        )
+    }
+}
+
+pub struct DomainResolveOutboundDatagramRecvHalf(Arc<UdpSocket>);
+
+#[async_trait]
+impl OutboundDatagramRecvHalf for DomainResolveOutboundDatagramRecvHalf {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
+        match self.0.recv_from(buf).await {
+            Ok((n, a)) => Ok((n, SocksAddr::Ip(unmapped_ipv4(a)))),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+pub struct DomainResolveOutboundDatagramSendHalf(Arc<UdpSocket>, SyncDnsClient);
+
+#[async_trait]
+impl OutboundDatagramSendHalf for DomainResolveOutboundDatagramSendHalf {
+    async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
+        match target {
+            SocksAddr::Domain(domain, port) => {
+                let ips = self
+                    .1
+                    .read()
+                    .await
+                    .direct_lookup(domain)
+                    .map_err(|e| {
+                        io::Error::new(
+                            io::ErrorKind::Other,
+                            format!("lookup {} failed: {}", domain, e),
+                        )
+                    })
+                    .await?;
+                let ip = ips
+                    .first()
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no results"))?;
+                self.0.send_to(buf, SocketAddr::new(*ip, *port)).await
+            }
+            SocksAddr::Ip(addr) => self.0.send_to(buf, addr).await,
+        }
+    }
+
+    async fn close(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 /// An outbound datagram that sends to a domain target.
 pub struct DomainAssociatedOutboundDatagram {
     inner: UdpSocket,
@@ -133,7 +205,7 @@ pub struct DomainAssociatedOutboundDatagramRecvHalf(Arc<UdpSocket>, SocksAddr);
 impl OutboundDatagramRecvHalf for DomainAssociatedOutboundDatagramRecvHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
         match self.0.recv_from(buf).await {
-            Ok((n, a)) => Ok((n, self.1.clone())),
+            Ok((n, _a)) => Ok((n, self.1.clone())),
             Err(e) => Err(e),
         }
     }
@@ -150,7 +222,7 @@ impl OutboundDatagramSendHalf for DomainAssociatedOutboundDatagramSendHalf {
                     self.2
                         .read()
                         .await
-                        .lookup(domain)
+                        .direct_lookup(domain)
                         .map_err(|e| {
                             io::Error::new(
                                 io::ErrorKind::Other,

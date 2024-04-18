@@ -13,7 +13,7 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::{TcpSocket, TcpStream, UdpSocket};
 use tokio::time::timeout;
-use tracing::{debug, trace};
+use tracing::debug;
 
 #[cfg(unix)]
 use std::os::unix::io::{AsFd, AsRawFd};
@@ -83,11 +83,7 @@ pub mod vmess;
 #[cfg(any(feature = "inbound-ws", feature = "outbound-ws"))]
 pub mod ws;
 
-pub use datagram::{
-    DomainAssociatedOutboundDatagram, DomainAssociatedOutboundDatagramRecvHalf,
-    DomainAssociatedOutboundDatagramSendHalf, SimpleInboundDatagram, SimpleInboundDatagramRecvHalf,
-    SimpleInboundDatagramSendHalf, StdOutboundDatagram,
-};
+pub use datagram::*;
 
 #[derive(Error, Debug)]
 pub enum ProxyError {
@@ -411,7 +407,7 @@ pub async fn connect_datagram_outbound(
             Network::Udp => {
                 let socket = new_udp_socket(&sess.source).await?;
                 Ok(Some(OutboundTransport::Datagram(Box::new(
-                    StdOutboundDatagram::new(socket),
+                    DomainResolveOutboundDatagram::new(socket, dns_client.clone()),
                 ))))
             }
             Network::Tcp => {
