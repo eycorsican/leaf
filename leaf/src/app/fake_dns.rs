@@ -174,12 +174,12 @@ impl FakeDnsImpl {
     }
 
     fn allocate_ip(&mut self, domain: &str) -> Ipv4Addr {
+        let ip = self.get_ip();
         if let Some(prev_domain) = self.ip_to_domain.insert(self.cursor, domain.to_owned()) {
             // Remove the entry in the reverse map to make sure we won't have
             // multiple domains point to a same IP.
             self.domain_to_ip.remove(&prev_domain);
         }
-        let ip = self.get_ip();
         self.domain_to_ip.insert(domain.to_owned(), self.cursor);
         self.cursor += 1;
         ip
