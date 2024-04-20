@@ -59,8 +59,13 @@ pub struct StdOutboundDatagramSendHalf(Arc<UdpSocket>);
 #[async_trait]
 impl OutboundDatagramSendHalf for StdOutboundDatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
-        // The type does not accept domain name.
-        self.0.send_to(buf, target.must_ip()).await
+        match target {
+            SocksAddr::Ip(a) => self.0.send_to(buf, a).await,
+            SocksAddr::Domain(domain, port) => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("unexpected domain address {}:{}", domain, port),
+            )),
+        }
     }
 
     async fn close(&mut self) -> io::Result<()> {

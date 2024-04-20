@@ -118,7 +118,7 @@ jobs:
         run: |
           export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
           export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
-          cargo build --release --target ${{ matrix.target }} -p leaf-bin
+          cargo build --release --target ${{ matrix.target }} -p leaf-cli
 
       - name: rename and compress artifacts
         run: |
