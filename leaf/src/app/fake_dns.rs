@@ -129,7 +129,7 @@ impl FakeDnsImpl {
                 _ => return Err(anyhow!("unexpected Ipv6 fake IP")),
             }
         } else {
-            let ip = self.allocate_ip(&domain);
+            let ip = self.allocate_ip(&domain)?;
             debug!("allocate {} for {}", &ip, &domain);
             ip
         };
@@ -173,30 +173,34 @@ impl FakeDnsImpl {
         ip >= self.min_cursor && ip <= self.max_cursor
     }
 
-    fn allocate_ip(&mut self, domain: &str) -> Ipv4Addr {
+    fn allocate_ip(&mut self, domain: &str) -> Result<Ipv4Addr> {
         if let Some(prev_domain) = self.ip_to_domain.insert(self.cursor, domain.to_owned()) {
             // Remove the entry in the reverse map to make sure we won't have
             // multiple domains point to a same IP.
             self.domain_to_ip.remove(&prev_domain);
         }
-        let ip = self.get_ip();
         self.domain_to_ip.insert(domain.to_owned(), self.cursor);
-        self.cursor += 1;
-        ip
+        let ip = Self::u32_to_ip(self.cursor);
+        self.prepare_next_cursor()?;
+        Ok(ip)
     }
 
-    fn get_ip(&mut self) -> Ipv4Addr {
-        if self.cursor > self.max_cursor {
-            self.cursor = self.min_cursor;
-        }
-        let ip = Self::u32_to_ip(self.cursor);
-        match ip.octets()[3] {
-            0 | 255 => {
-                self.cursor += 1;
-                self.get_ip()
+    // Make sure `self.cursor` is valid and can be used immediately for next fake IP.
+    fn prepare_next_cursor(&mut self) -> Result<()> {
+        for _ in 0..3 {
+            self.cursor += 1;
+            if self.cursor > self.max_cursor {
+                self.cursor = self.min_cursor;
             }
-            _ => ip,
+            // avoid network and broadcast addresses
+            match Self::u32_to_ip(self.cursor).octets()[3] {
+                0 | 255 => {
+                    continue;
+                }
+                _ => return Ok(()),
+            }
         }
+        Err(anyhow!("unable to prepare next cursor"))
     }
 
     fn accept(&self, domain: &str) -> bool {
