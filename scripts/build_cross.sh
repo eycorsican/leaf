@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -ex
+
 target=$1
 
 if [[ "$target" == *"mips"* ]]; then

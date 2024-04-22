@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-set -x
+set -ex
 
 mode=release
 release_flag=--release
