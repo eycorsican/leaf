@@ -22,7 +22,7 @@ use std::os::windows::io::{AsRawSocket, AsSocket};
 #[cfg(target_os = "android")]
 use {
     std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
-    tokio::net::UnixStream,
+    tokio::net::UnixStream, tracing::trace,
 };
 
 use crate::{

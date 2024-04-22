@@ -24,7 +24,9 @@ fi
 
 BASE=`dirname "$0"`
 HOST_OS=`uname -s | tr "[:upper:]" "[:lower:]"`
-HOST_ARCH=`uname -m | tr "[:upper:]" "[:lower:]"`
+
+# HOST_ARCH=`uname -m | tr "[:upper:]" "[:lower:]"`
+HOST_ARCH=x86_64
 
 export PATH="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_OS-$HOST_ARCH/bin/":$PATH
 
