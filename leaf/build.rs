@@ -32,7 +32,7 @@ fn generate_mobile_bindings() {
         } else {
             "".to_string()
         })
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
 

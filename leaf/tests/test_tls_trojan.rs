@@ -176,11 +176,12 @@ fn test_tls_trojan() {
 
     let mut path = std::env::current_exe().unwrap();
     path.pop();
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    std::fs::write(&path.join("key.der"), &cert.serialize_private_key_der()).unwrap();
-    std::fs::write(&path.join("cert.der"), &cert.serialize_der().unwrap()).unwrap();
-    std::fs::write(&path.join("key.pem"), &cert.serialize_private_key_pem()).unwrap();
-    std::fs::write(&path.join("cert.pem"), &cert.serialize_pem().unwrap()).unwrap();
+    let rcgen::CertifiedKey { cert, key_pair } =
+        rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    std::fs::write(&path.join("key.der"), &key_pair.serialize_der()).unwrap();
+    std::fs::write(&path.join("cert.der"), &cert.der().to_vec()).unwrap();
+    std::fs::write(&path.join("key.pem"), &key_pair.serialize_pem()).unwrap();
+    std::fs::write(&path.join("cert.pem"), &cert.pem()).unwrap();
     let configs = vec![config1.to_string(), config2.to_string()];
     common::test_configs(configs, "127.0.0.1", 1086);
     let configs = vec![config3.to_string(), config4.to_string()];

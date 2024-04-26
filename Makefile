@@ -1,4 +1,4 @@
-.PHONY: local local-dev test proto-gen
+.PHONY: cli cli-dev test proto-gen
 
 CFG_COMMIT_HASH := $(shell git rev-parse HEAD | cut -c 1-7)
 export CFG_COMMIT_HASH := $(CFG_COMMIT_HASH)

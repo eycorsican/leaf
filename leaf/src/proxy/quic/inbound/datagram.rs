@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::task::{Context, Poll};
 use quinn::{RecvStream, SendStream};
+use rustls_pemfile_old::{certs, ec_private_keys, pkcs8_private_keys, rsa_private_keys};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::{debug, trace, warn};
 
@@ -61,7 +62,7 @@ impl Handler {
             Some(Some(ext)) if ext == "der" => {
                 vec![rustls::Certificate(cert)]
             }
-            _ => rustls_pemfile::certs(&mut &*cert)?
+            _ => certs(&mut &*cert)?
                 .into_iter()
                 .map(rustls::Certificate)
                 .collect(),
@@ -73,15 +74,15 @@ impl Handler {
         {
             Some(Some(ext)) if ext == "der" => rustls::PrivateKey(key),
             _ => {
-                let pkcs8 = rustls_pemfile::pkcs8_private_keys(&mut &*key)?;
+                let pkcs8 = pkcs8_private_keys(&mut &*key)?;
                 match pkcs8.into_iter().next() {
                     Some(x) => rustls::PrivateKey(x),
                     None => {
-                        let rsa = rustls_pemfile::rsa_private_keys(&mut &*key)?;
+                        let rsa = rsa_private_keys(&mut &*key)?;
                         match rsa.into_iter().next() {
                             Some(x) => rustls::PrivateKey(x),
                             None => {
-                                let rsa = rustls_pemfile::ec_private_keys(&mut &*key)?;
+                                let rsa = ec_private_keys(&mut &*key)?;
                                 match rsa.into_iter().next() {
                                     Some(x) => rustls::PrivateKey(x),
                                     None => {

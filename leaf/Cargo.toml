@@ -99,7 +99,7 @@ outbound-static= []
 outbound-tryall = []
 outbound-chain = []
 outbound-amux= ["tokio-util"]
-outbound-quic = ["quinn", "rustls", "webpki-roots", "rustls-pemfile"]
+outbound-quic = ["quinn", "rustls", "webpki-roots-old", "rustls-pemfile-old"]
 outbound-select = ["directories"]
 outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util", "byteorder"]
 
@@ -111,7 +111,7 @@ inbound-http = ["http"]
 inbound-tun = ["tun", "netstack-lwip", "pnet_datalink"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
-inbound-quic = ["quinn", "rustls", "webpki-roots"]
+inbound-quic = ["quinn", "rustls", "rustls-pemfile-old"]
 inbound-tls = []
 inbound-chain = []
 inbound-cat = ["tokio/io-std"]
@@ -125,31 +125,31 @@ ctrlc = ["tokio/signal"]
 [dependencies]
 # Common
 tokio = { version = "1", features = ["sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
-protobuf = "=3.3.0"
+protobuf = "=3.4.0"
 thiserror = "1.0"
 futures = "0.3"
 async-trait = "0.1"
-bytes = "1"
+bytes = "1.6"
 lazy_static = "1.4"
 anyhow = "1.0"
 rand = "0.8"
 socket2 = "0.5"
-async-recursion = "1.0"
+async-recursion = "1.1"
 
 # DNS
 trust-dns-proto = { version = "0.23", default-features = false }
-lru = "0.11"
+lru = "0.12"
 
 # Logging
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = "0.3"
 chrono = "0.4"
-colored = "2.0"
+colored = "2.1"
 
 # Router
-maxminddb = { version = "0.23", features = ["mmap"] }
-memmap2 = "0.8"
+maxminddb = { version = "0.24", features = ["mmap"] }
+memmap2 = "0.9"
 cidr = "0.2"
 
 # outbound-select
@@ -165,42 +165,44 @@ serde_derive = { version = "1.0", optional = true }
 serde = { version = "1.0", optional = true }
 
 # config-conf
-regex = { version = "1", optional = true }
+regex = { version = "1.10", optional = true }
 
 # Openssl
 openssl = { version = "0.10", features = ["vendored"], optional = true }
 
 # Ring
-ring = { version = "0.16", optional = true }
+ring = { version = "0.17", optional = true }
 
 # TLS/rustls/QUIC
-tokio-rustls = { version = "0.24", features = ["dangerous_configuration"], optional = true }
-webpki-roots = { version = "0.25", optional = true }
-rustls-pemfile = { version = "1.0", optional = true }
+tokio-rustls = { version = "0.26", optional = true }
+webpki-roots = { version = "0.26", optional = true }
+webpki-roots-old = { package = "webpki-roots", version = "0.25", optional = true }
+rustls-pemfile = { version = "2.1", optional = true }
+rustls-pemfile-old = { package = "rustls-pemfile", version = "1.0", optional = true }
 
 # TLS/openssl
 openssl-probe = { version = "0.1", optional = true }
 tokio-openssl = { version = "0.6", optional = true }
 
 # WebSocket
-tungstenite = { version = "0.20", default-features = false, optional = true }
-tokio-tungstenite = { version = "0.20", optional = true }
+tungstenite = { version = "0.21", default-features = false, optional = true }
+tokio-tungstenite = { version = "0.21", optional = true }
 
 # WebSocket
-url = { version = "2.4", optional = true }
-http = { version = "0.2", optional = true }
+url = { version = "2.5", optional = true }
+http = { version = "1.1", optional = true }
 
 # SOCKS outbound
-async-socks5 = { version = "0.5", optional = true }
+async-socks5 = { version = "0.6", optional = true }
 
 # Shadowsocks
 hkdf = { version = "0.12", optional = true }
 md-5 = { version = "0.10", optional = true }
 sha-1 = { version = "0.10", optional = true }
-percent-encoding = { version = "2", optional = true }
+percent-encoding = { version = "2.3", optional = true }
 
 # Obfs
-base64 = { version = "0.21", optional = true }
+base64 = { version = "0.22", optional = true }
 memchr = { version = "2", optional = true }
 
 # Trojan
@@ -239,7 +241,7 @@ jni = "0.21"
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
 tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fork", features = ["async"], optional = true }
-netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", rev = "809a733", optional = true }
+netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", rev = "9c7f2e3", optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pnet_datalink = { version = "0.34", package = "pnet_datalink", optional = true }
@@ -250,11 +252,11 @@ libc = "0.2"
 memchr = { version = "2" }
 
 [dev-dependencies]
-rcgen = "0.11"
+rcgen = "0.13"
 sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
 
 [build-dependencies]
 cc = "1.0"
-bindgen = "0.68"
-protobuf-codegen = "=3.3.0"
+bindgen = "0.69"
+protobuf-codegen = "=3.4.0"
