@@ -9,13 +9,13 @@ name = "leaf"
 path = "src/main.rs"
 
 [features]
-default = ["default-ring"]
-
-default-ring = ["leaf/default-ring", "leaf/ctrlc", "auto-reload"]
-
-default-openssl = ["leaf/default-openssl", "leaf/ctrlc", "auto-reload"]
-
-auto-reload = ["leaf/auto-reload"]
+default = [
+  "leaf/default-aws-lc",
+  "leaf/outbound-quic",
+  "leaf/outbound-quic",
+  "leaf/ctrlc",
+  "leaf/auto-reload",
+]
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }

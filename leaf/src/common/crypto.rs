@@ -204,8 +204,11 @@ pub mod aead {
     }
 }
 
-#[cfg(feature = "ring-aead")]
+#[cfg(any(feature = "aws-lc-aead", feature = "ring-aead"))]
 pub mod aead {
+    #[cfg(feature = "aws-lc-aead")]
+    use aws_lc_rs::aead::{self, Aad, Algorithm, LessSafeKey, Nonce, UnboundKey};
+    #[cfg(feature = "ring-aead")]
     use ring::aead::{self, Aad, Algorithm, LessSafeKey, Nonce, UnboundKey};
 
     use super::*;
@@ -349,7 +352,11 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(any(feature = "ring-aead", feature = "openssl-aead"))]
+    #[cfg(any(
+        feature = "aws-lc-aead",
+        feature = "ring-aead",
+        feature = "openssl-aead"
+    ))]
     fn test_aead_enc_dec() {
         struct ShadowsocksNonceSequence(Vec<u8>);
 

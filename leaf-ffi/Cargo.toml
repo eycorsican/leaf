@@ -11,7 +11,11 @@ crate-type = ["staticlib", "dylib"]
 
 [features]
 default = [
-    "default-ring",
+    "default-aws-lc",
+]
+
+default-aws-lc= [
+    "leaf/default-aws-lc",
 ]
 
 default-ring = [

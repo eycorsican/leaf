@@ -17,7 +17,7 @@ if [ "$1" = "debug" ]; then
 	release_flag=
 fi
 
-export IPHONEOS_DEPLOYMENT_TARGET=10
+export IPHONEOS_DEPLOYMENT_TARGET=10.0
 export MACOSX_DEPLOYMENT_TARGET=10.12
 
 # Build for all desired targets
@@ -26,11 +26,11 @@ rustup target add aarch64-apple-darwin
 rustup target add aarch64-apple-ios
 rustup target add x86_64-apple-ios
 rustup target add aarch64-apple-ios-sim
-cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target x86_64-apple-darwin
-cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target aarch64-apple-darwin
-cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target aarch64-apple-ios
-cargo build -p $package $release_flag --no-default-features --features "default-openssl outbound-quic" --target x86_64-apple-ios
-cargo build -p $package $release_flag --no-default-features --features "default-ring outbound-quic" --target aarch64-apple-ios-sim
+cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target x86_64-apple-darwin
+cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target aarch64-apple-darwin
+cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target aarch64-apple-ios
+cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target x86_64-apple-ios
+cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target aarch64-apple-ios-sim
 
 cargo install --force cbindgen
 

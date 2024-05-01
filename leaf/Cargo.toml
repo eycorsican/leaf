@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [features]
 default = [
-    "default-ring"
+    "default-aws-lc"
 ]
 
 default-ring = [
@@ -19,12 +19,19 @@ default-ring = [
     "all-endpoints",
     "ring-aead",
     "rustls-tls",
-    # quinn supports only rustls as tls backend for now
-    "inbound-quic",
-    "outbound-quic",
+    "rustls-tls-ring",
     "api",
     "stat",
-    # "plugin",
+]
+
+default-aws-lc = [
+    "all-configs",
+    "all-endpoints",
+    "aws-lc-aead",
+    "rustls-tls",
+    "rustls-tls-aws-lc",
+    "api",
+    "stat",
 ]
 
 default-openssl = [
@@ -33,6 +40,9 @@ default-openssl = [
     "openssl-aead",
     "openssl-tls",
 ]
+
+rustls-tls-aws-lc = ["tokio-rustls/aws_lc_rs"]
+rustls-tls-ring = ["tokio-rustls/ring"]
 
 # Grouping all features
 all-configs = [
@@ -74,6 +84,7 @@ all-endpoints = [
 
 # Ring-related
 ring-aead = ["ring"]
+aws-lc-aead = ["aws-lc-rs"]
 rustls-tls = ["tokio-rustls", "webpki-roots", "rustls-pemfile"]
 
 # Openssl-related, for platforms not supported by ring, such as mips
@@ -167,14 +178,14 @@ serde = { version = "1.0", optional = true }
 # config-conf
 regex = { version = "1.10", optional = true }
 
-# Openssl
 openssl = { version = "0.10", features = ["vendored"], optional = true }
 
-# Ring
 ring = { version = "0.17", optional = true }
 
+aws-lc-rs = { version = "1.7", features = ["bindgen"], optional = true }
+
 # TLS/rustls/QUIC
-tokio-rustls = { version = "0.26", optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "tls12"], optional = true }
 webpki-roots = { version = "0.26", optional = true }
 webpki-roots-old = { package = "webpki-roots", version = "0.25", optional = true }
 rustls-pemfile = { version = "2.1", optional = true }
