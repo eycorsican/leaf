@@ -17,6 +17,9 @@ if [ "$1" = "debug" ]; then
 	release_flag=
 fi
 
+export IPHONEOS_DEPLOYMENT_TARGET=10
+export MACOSX_DEPLOYMENT_TARGET=10.12
+
 # Build for all desired targets
 rustup target add x86_64-apple-darwin
 rustup target add aarch64-apple-darwin
