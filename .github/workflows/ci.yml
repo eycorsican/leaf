@@ -60,7 +60,7 @@ jobs:
         run: |
           export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
           export CFG_COMMIT_DATE=`git log --format="%ci" -n 1`
-          ./scripts/build_cross.sh ${{ matrix.target }}
+          cross build --release --target ${{ matrix.target }}
 
       - name: rename and compress artifacts
         if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
