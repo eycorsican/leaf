@@ -83,7 +83,7 @@ Clone & Build:
 ```sh
 git clone --recursive https://github.com/eycorsican/leaf.git
 cd leaf
-cargo build -p leaf-bin
+cargo build -p leaf-cli
 ```
 
 Run:

@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [features]
 default = [
-  "leaf/default-aws-lc",
+  "leaf/default-ring",
   "leaf/outbound-quic",
   "leaf/outbound-quic",
   "leaf/ctrlc",

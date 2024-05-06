@@ -25,7 +25,7 @@ jobs:
       - name: test leaf
         run: cargo test -p leaf
 
-  build-bin-cross:
+  build-cli-cross:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -86,14 +86,14 @@ jobs:
           name: leaf-${{ matrix.target }}
           path: leaf-${{ matrix.target }}
 
-  build-bin-local:
+  build-cli-macos:
+    runs-on: [macos-latest]
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-latest]
-        include:
-          - os: macos-latest
-            target: x86_64-apple-darwin
-    runs-on: ${{ matrix.os }}
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
     steps:
       - name: checkout
         uses: actions/checkout@v2
@@ -114,6 +114,10 @@ jobs:
         run: |
           brew install llvm protobuf
 
+      - name: install target
+        run: |
+          rustup target add ${{ matrix.target }}
+
       - name: build
         run: |
           export CFG_COMMIT_HASH=`git log --pretty=format:'%h' -n 1`
@@ -130,7 +134,7 @@ jobs:
           name: leaf-${{ matrix.target }}
           path: leaf-${{ matrix.target }}
 
-  build-apple:
+  build-lib-apple:
     runs-on: macos-latest
     steps:
       - name: checkout
@@ -163,7 +167,7 @@ jobs:
           name: leaf.xcframework.zip
           path: leaf.xcframework.zip
 
-  build-android:
+  build-lib-android:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
