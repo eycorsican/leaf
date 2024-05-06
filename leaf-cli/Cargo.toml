@@ -1,6 +1,6 @@
 [package]
 name = "leaf-cli"
-version = "0.10.12"
+version = "0.10.13"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
 edition = "2021"
 
