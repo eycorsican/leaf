@@ -116,15 +116,10 @@ impl ShakeSizeParser {
 
 pub trait PaddingLengthGenerator {
     fn next_padding_len(&mut self) -> u16;
-    fn max_padding_len(&self) -> u16;
 }
 
 impl PaddingLengthGenerator for ShakeSizeParser {
     fn next_padding_len(&mut self) -> u16 {
         self.next() % 64
-    }
-
-    fn max_padding_len(&self) -> u16 {
-        64
     }
 }

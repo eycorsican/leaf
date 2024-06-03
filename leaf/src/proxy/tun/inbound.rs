@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -23,7 +24,7 @@ use crate::{
 use super::netstack;
 
 async fn handle_inbound_stream(
-    stream: netstack::TcpStream,
+    stream: Pin<Box<netstack::TcpStream>>,
     local_addr: SocketAddr,
     remote_addr: SocketAddr,
     inbound_tag: String,
@@ -61,7 +62,7 @@ async fn handle_inbound_stream(
 }
 
 async fn handle_inbound_datagram(
-    socket: Box<netstack::UdpSocket>,
+    socket: Pin<Box<netstack::UdpSocket>>,
     inbound_tag: String,
     nat_manager: Arc<NatManager>,
     fakedns: Arc<FakeDns>,
