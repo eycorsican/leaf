@@ -43,7 +43,8 @@ pub struct General {
 pub struct Proxy {
     pub tag: String,
     pub protocol: String,
-    pub interface: String,
+
+    pub interface: Option<String>,
 
     // common
     pub address: Option<String>,
@@ -88,7 +89,7 @@ impl Default for Proxy {
         Proxy {
             tag: "".to_string(),
             protocol: "".to_string(),
-            interface: (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string(),
+            interface: None,
             address: None,
             port: None,
             encrypt_method: Some("chacha20-ietf-poly1305".to_string()),
@@ -452,7 +453,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 }
                 "quic" => proxy.quic = if v == "true" { Some(true) } else { Some(false) },
                 "interface" => {
-                    proxy.interface = v.to_string();
+                    proxy.interface = Some(v.to_string());
                 }
                 _ => {}
             }
@@ -851,7 +852,14 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
             outbound.protocol = ext_protocol.to_string();
             outbound.tag = ext_proxy.tag.clone();
             match outbound.protocol.as_str() {
-                "direct" | "drop" => {
+                "drop" => {
+                    outbounds.push(outbound);
+                }
+                "direct" => {
+                    let mut settings = internal::DirectOutboundSettings::new();
+                    settings.interface = ext_proxy.interface.clone();
+                    let settings = settings.write_to_bytes().unwrap();
+                    outbound.settings = settings;
                     outbounds.push(outbound);
                 }
                 "redirect" => {

@@ -112,12 +112,21 @@ impl OutboundManager {
 
             let h: AnyOutboundHandler = match outbound.protocol.as_str() {
                 #[cfg(feature = "outbound-direct")]
-                "direct" => HandlerBuilder::default()
-                    .tag(tag.clone())
-                    .color(colored::Color::Green)
-                    .stream_handler(Box::new(direct::StreamHandler))
-                    .datagram_handler(Box::new(direct::DatagramHandler))
-                    .build(),
+                "direct" => {
+                    let settings =
+                        config::DirectOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
+                    HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .color(colored::Color::Green)
+                        .stream_handler(Box::new(direct::StreamHandler {
+                            interface: settings.interface.clone(),
+                        }))
+                        .datagram_handler(Box::new(direct::DatagramHandler {
+                            interface: settings.interface.clone(),
+                        }))
+                        .build()
+                }
                 #[cfg(feature = "outbound-drop")]
                 "drop" => HandlerBuilder::default()
                     .tag(tag.clone())

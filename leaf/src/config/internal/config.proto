@@ -88,6 +88,10 @@ message Inbound {
 	bytes settings = 5;
 }
 
+message DirectOutboundSettings {
+	optional string interface = 1;
+}
+
 message RedirectOutboundSettings {
 	string address = 1;
 	uint32 port = 2;

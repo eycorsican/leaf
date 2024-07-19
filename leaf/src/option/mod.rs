@@ -214,11 +214,7 @@ lazy_static! {
         let binds = get_env_var_or("OUTBOUND_INTERFACE", "0.0.0.0,::".to_string());
         let mut outbound_binds = Vec::new();
         for item in binds.split(',').map(str::trim) {
-            if let Ok(addr) = crate::common::net::parse_bind_addr(item) {
-                outbound_binds.push(crate::proxy::OutboundBind::Ip(addr));
-            } else {
-                outbound_binds.push(crate::proxy::OutboundBind::Interface(item.to_owned()));
-            }
+            outbound_binds.push(item.into());
         }
         outbound_binds
     };

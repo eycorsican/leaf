@@ -110,10 +110,20 @@ pub trait Color {
     fn color(&self) -> &colored::Color;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OutboundBind {
     Ip(SocketAddr),
     Interface(String),
+}
+
+impl From<&str> for OutboundBind {
+    fn from(v: &str) -> Self {
+        if let Ok(addr) = crate::common::net::parse_bind_addr(v) {
+            crate::proxy::OutboundBind::Ip(addr)
+        } else {
+            crate::proxy::OutboundBind::Interface(v.to_string())
+        }
+    }
 }
 
 #[cfg(target_os = "android")]
@@ -199,7 +209,11 @@ impl TcpListener {
     }
 }
 
-async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::Result<()> {
+async fn bind_socket<T: BindSocket>(
+    socket: &T,
+    indicator: &SocketAddr,
+    bind: Option<OutboundBind>,
+) -> io::Result<()> {
     match indicator.ip() {
         IpAddr::V4(v4) if v4.is_loopback() => {
             socket.bind(&SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 0).into())?;
@@ -213,8 +227,13 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
         }
         _ => {}
     }
+    let mut binds: Vec<&OutboundBind> = Vec::new();
+    if let Some(bind) = bind.as_ref() {
+        binds.push(bind);
+    }
+    binds.extend(&*option::OUTBOUND_BINDS);
     let mut last_err = None;
-    for bind in option::OUTBOUND_BINDS.iter() {
+    for bind in binds.iter() {
         match bind {
             OutboundBind::Interface(iface) => {
                 #[cfg(target_os = "macos")]
@@ -297,7 +316,10 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
 }
 
 // New UDP socket.
-pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
+pub async fn new_udp_socket(
+    indicator: &SocketAddr,
+    iface: Option<OutboundBind>,
+) -> io::Result<UdpSocket> {
     let socket = match indicator {
         SocketAddr::V4(..) => Socket::new(Domain::IPV4, Type::DGRAM, None)?,
         SocketAddr::V6(..) => Socket::new(Domain::IPV6, Type::DGRAM, None)?,
@@ -305,7 +327,7 @@ pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
 
     socket.set_nonblocking(true)?;
 
-    bind_socket(&socket, indicator).await?;
+    bind_socket(&socket, indicator, iface).await?;
 
     #[cfg(target_os = "android")]
     protect_socket(socket.as_raw_fd()).await?;
@@ -342,13 +364,16 @@ pub enum DialOrder {
 }
 
 // A single TCP dial.
-async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<DialResult> {
+async fn tcp_dial_task(
+    dial_addr: SocketAddr,
+    bind: Option<OutboundBind>,
+) -> io::Result<DialResult> {
     let socket = match dial_addr {
         SocketAddr::V4(..) => TcpSocket::new_v4()?,
         SocketAddr::V6(..) => TcpSocket::new_v6()?,
     };
 
-    bind_socket(&socket, &dial_addr).await?;
+    bind_socket(&socket, &dial_addr, bind).await?;
 
     #[cfg(target_os = "android")]
     protect_socket(socket.as_raw_fd()).await?;
@@ -383,13 +408,14 @@ pub async fn connect_stream_outbound(
 ) -> io::Result<Option<AnyStream>> {
     match handler.stream()?.connect_addr() {
         OutboundConnect::Proxy(Network::Tcp, addr, port) => {
-            Ok(Some(new_tcp_stream(dns_client, &addr, &port).await?))
+            Ok(Some(new_tcp_stream(dns_client, &addr, &port, None).await?))
         }
-        OutboundConnect::Direct => Ok(Some(
+        OutboundConnect::Direct(iface) => Ok(Some(
             new_tcp_stream(
                 dns_client,
                 &sess.destination.host(),
                 &sess.destination.port(),
+                iface,
             )
             .await?,
         )),
@@ -406,21 +432,23 @@ pub async fn connect_datagram_outbound(
         OutboundConnect::Proxy(network, addr, port) => match network {
             Network::Udp => {
                 let socket = match addr.parse::<IpAddr>() {
-                    Ok(ip) if ip.is_loopback() => new_udp_socket(&SocketAddr::new(ip, 0)).await?,
-                    _ => new_udp_socket(&*crate::option::UNSPECIFIED_BIND_ADDR).await?,
+                    Ok(ip) if ip.is_loopback() => {
+                        new_udp_socket(&SocketAddr::new(ip, 0), None).await?
+                    }
+                    _ => new_udp_socket(&*crate::option::UNSPECIFIED_BIND_ADDR, None).await?,
                 };
                 Ok(Some(OutboundTransport::Datagram(Box::new(
                     DomainResolveOutboundDatagram::new(socket, dns_client.clone()),
                 ))))
             }
             Network::Tcp => {
-                let stream = new_tcp_stream(dns_client.clone(), &addr, &port).await?;
+                let stream = new_tcp_stream(dns_client.clone(), &addr, &port, None).await?;
                 Ok(Some(OutboundTransport::Stream(stream)))
             }
         },
-        OutboundConnect::Direct => match &sess.destination {
+        OutboundConnect::Direct(iface) => match &sess.destination {
             SocksAddr::Domain(domain, port) => {
-                let socket = new_udp_socket(&*crate::option::UNSPECIFIED_BIND_ADDR).await?;
+                let socket = new_udp_socket(&*crate::option::UNSPECIFIED_BIND_ADDR, iface).await?;
                 Ok(Some(OutboundTransport::Datagram(Box::new(
                     DomainAssociatedOutboundDatagram::new(
                         socket,
@@ -431,7 +459,7 @@ pub async fn connect_datagram_outbound(
                 ))))
             }
             SocksAddr::Ip(addr) => {
-                let socket = new_udp_socket(addr).await?;
+                let socket = new_udp_socket(addr, iface).await?;
                 Ok(Some(OutboundTransport::Datagram(Box::new(
                     StdOutboundDatagram::new(socket),
                 ))))
@@ -451,6 +479,7 @@ pub async fn new_tcp_stream(
     dns_client: SyncDnsClient,
     address: &String,
     port: &u16,
+    bind: Option<OutboundBind>,
 ) -> io::Result<AnyStream> {
     let mut resolver = Resolver::new(dns_client.clone(), address, port)
         .map_err(|e| {
@@ -475,7 +504,7 @@ pub async fn new_tcp_stream(
                     break; // break and execute tasks if there're any
                 }
             };
-            let t = tcp_dial_task(dial_addr);
+            let t = tcp_dial_task(dial_addr, bind.clone());
             tasks.push(Box::pin(t));
         }
         if !tasks.is_empty() {
@@ -516,7 +545,7 @@ pub trait TcpConnector: Send + Sync + Unpin {
         address: &String,
         port: &u16,
     ) -> io::Result<AnyStream> {
-        new_tcp_stream(dns_client, address, port).await
+        new_tcp_stream(dns_client, address, port, None).await
     }
 }
 
@@ -525,7 +554,7 @@ pub trait TcpConnector: Send + Sync + Unpin {
 pub trait UdpConnector: Send + Sync + Unpin {
     /// Creates a UDP socket.
     async fn new_udp_socket(&self, indicator: &SocketAddr) -> io::Result<UdpSocket> {
-        new_udp_socket(indicator).await
+        new_udp_socket(indicator, None).await
     }
 }
 
@@ -547,7 +576,7 @@ pub type AnyOutboundHandler = Arc<dyn OutboundHandler>;
 #[derive(Debug, Clone)]
 pub enum OutboundConnect {
     Proxy(Network, String, u16),
-    Direct,
+    Direct(Option<OutboundBind>),
     Next,
     Unknown,
 }
