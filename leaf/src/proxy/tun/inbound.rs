@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -7,6 +6,7 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use protobuf::Message;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
+use tokio::sync::Mutex;
 use tracing::{debug, error, info, trace, warn};
 use tun::{self, TunPacket};
 
@@ -24,7 +24,7 @@ use crate::{
 use super::netstack;
 
 async fn handle_inbound_stream(
-    stream: Pin<Box<netstack::TcpStream>>,
+    stream: netstack::TcpStream,
     local_addr: SocketAddr,
     remote_addr: SocketAddr,
     inbound_tag: String,
@@ -62,14 +62,14 @@ async fn handle_inbound_stream(
 }
 
 async fn handle_inbound_datagram(
-    socket: Pin<Box<netstack::UdpSocket>>,
+    socket: netstack::UdpSocket,
     inbound_tag: String,
     nat_manager: Arc<NatManager>,
     fakedns: Arc<FakeDns>,
 ) {
     // The socket to receive/send packets from/to the netstack.
-    let (ls, mut lr) = socket.split();
-    let ls = Arc::new(ls);
+    let (mut lr, ls) = socket.split();
+    let ls = Arc::new(Mutex::new(ls));
 
     // The channel for sending back datagrams from NAT manager to netstack.
     let (l_tx, mut l_rx): (TokioSender<UdpPacket>, TokioReceiver<UdpPacket>) =
@@ -94,7 +94,8 @@ async fn handle_inbound_datagram(
                     }
                 }
             };
-            if let Err(e) = ls_cloned.send_to(&pkt.data[..], &src_addr, &pkt.dst_addr.must_ip()) {
+            let mut ls_locked = ls_cloned.lock().await;
+            if let Err(e) = ls_locked.send((pkt.data[..].to_vec(), src_addr, pkt.dst_addr.must_ip().clone())).await {
                 warn!("A packet failed to send to the netstack: {}", e);
             }
         }
@@ -102,16 +103,17 @@ async fn handle_inbound_datagram(
 
     // Accept datagrams from netstack and send to NAT manager.
     loop {
-        match lr.recv_from().await {
-            Err(e) => {
-                warn!("Failed to accept a datagram from netstack: {}", e);
+        match lr.next().await {
+            None => {
+                warn!("Failed to accept a datagram from netstack");
             }
-            Ok((data, src_addr, dst_addr)) => {
+            Some((data, src_addr, dst_addr)) => {
                 // Fake DNS logic.
                 if dst_addr.port() == 53 {
                     match fakedns.generate_fake_response(&data).await {
                         Ok(resp) => {
-                            if let Err(e) = ls.send_to(resp.as_ref(), &dst_addr, &src_addr) {
+                            let mut ls_locked = ls.lock().await;
+                            if let Err(e) = ls_locked.send((resp, dst_addr, src_addr)).await {
                                 warn!("A packet failed to send to the netstack: {}", e);
                             }
                             continue;
@@ -224,10 +226,11 @@ pub fn new(
         assert!(settings.fd == -1, "tun-auto is not compatible with tun-fd");
     }
 
-    let (stack, mut tcp_listener, udp_socket) = netstack::NetStack::with_buffer_size(
-        *crate::option::NETSTACK_OUTPUT_CHANNEL_SIZE,
-        *crate::option::NETSTACK_UDP_UPLINK_CHANNEL_SIZE,
-    )?;
+    let (udp_socket, mut tcp_listener, stack) = netstack::StackBuilder::default()
+        .stack_buffer_size(*crate::option::NETSTACK_OUTPUT_CHANNEL_SIZE)
+        .udp_buffer_size(*crate::option::NETSTACK_UDP_UPLINK_CHANNEL_SIZE)
+        .tcp_buffer_size(*crate::option::NETSTACK_TCP_UPLINK_CHANNEL_SIZE)
+        .run();
 
     Ok(Box::pin(async move {
         let fakedns = Arc::new(FakeDns::new(fake_dns_mode));

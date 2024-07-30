@@ -1,3 +1,3 @@
 pub mod inbound;
 
-pub use netstack_lwip as netstack;
+pub use netstack_smoltcp as netstack;
