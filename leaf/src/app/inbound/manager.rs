@@ -19,6 +19,8 @@ use crate::proxy::http;
 use crate::proxy::quic;
 #[cfg(feature = "inbound-shadowsocks")]
 use crate::proxy::shadowsocks;
+#[cfg(feature = "inbound-simplesocks")]
+use crate::proxy::simplesocks;
 #[cfg(feature = "inbound-socks")]
 use crate::proxy::socks;
 #[cfg(feature = "inbound-tls")]
@@ -79,6 +81,17 @@ impl InboundManager {
                 "socks" => {
                     let stream = Arc::new(socks::inbound::StreamHandler);
                     let datagram = Arc::new(socks::inbound::DatagramHandler);
+                    let handler = Arc::new(proxy::inbound::Handler::new(
+                        tag.clone(),
+                        Some(stream),
+                        Some(datagram),
+                    ));
+                    handlers.insert(tag.clone(), handler);
+                }
+                #[cfg(feature = "inbound-simplesocks")]
+                "simplesocks" => {
+                    let stream = Arc::new(simplesocks::inbound::StreamHandler);
+                    let datagram = Arc::new(simplesocks::inbound::DatagramHandler);
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         tag.clone(),
                         Some(stream),

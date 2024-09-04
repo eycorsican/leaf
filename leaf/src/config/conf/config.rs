@@ -34,6 +34,8 @@ pub struct General {
     pub http_port: Option<u16>,
     pub socks_interface: Option<String>,
     pub socks_port: Option<u16>,
+    pub simplesocks_interface: Option<String>,
+    pub simplesocks_port: Option<u16>,
     pub api_interface: Option<String>,
     pub api_port: Option<u16>,
     pub routing_domain_resolve: Option<bool>,
@@ -330,6 +332,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "socks-port" => {
                 general.socks_port = get_value::<u16>(parts[1]);
+            }
+            "simplesocks-interface" => {
+                general.simplesocks_interface = get_string(parts[1]);
+            }
+            "simplesocks-port" => {
+                general.simplesocks_port = get_value::<u16>(parts[1]);
             }
             "api-interface" => {
                 general.api_interface = get_string(parts[1]);
@@ -773,6 +781,18 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
             inbound.tag = "socks".to_string();
             inbound.address = ext_general.socks_interface.as_ref().unwrap().to_string();
             inbound.port = ext_general.socks_port.unwrap() as u32;
+            inbounds.push(inbound);
+        }
+        if ext_general.simplesocks_interface.is_some() && ext_general.simplesocks_port.is_some() {
+            let mut inbound = internal::Inbound::new();
+            inbound.protocol = "simplesocks".to_string();
+            inbound.tag = "simplesocks".to_string();
+            inbound.address = ext_general
+                .simplesocks_interface
+                .as_ref()
+                .unwrap()
+                .to_string();
+            inbound.port = ext_general.simplesocks_port.unwrap() as u32;
             inbounds.push(inbound);
         }
 

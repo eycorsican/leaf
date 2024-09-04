@@ -58,6 +58,8 @@ pub mod redirect;
 pub mod select;
 #[cfg(any(feature = "inbound-shadowsocks", feature = "outbound-shadowsocks"))]
 pub mod shadowsocks;
+#[cfg(any(feature = "inbound-simplesocks"))]
+pub mod simplesocks;
 #[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
 pub mod socks;
 #[cfg(feature = "outbound-static")]

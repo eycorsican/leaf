@@ -60,6 +60,7 @@ all-endpoints = [
     "inbound-http",
     "inbound-shadowsocks",
     "inbound-socks",
+    "inbound-simplesocks",
     "inbound-tun",
     "inbound-cat",
     # outbounds
@@ -118,6 +119,7 @@ outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid",
 inbound-trojan = ["sha2", "hex"]
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
+inbound-simplesocks = []
 inbound-http = ["http"]
 inbound-tun = ["tun", "netstack-lwip", "pnet_datalink"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
