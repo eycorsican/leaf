@@ -257,7 +257,7 @@ where
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
     let env_lines = get_lines_by_section("Env", lines.iter());
     for line in env_lines {
-        let parts: Vec<&str> = line.split('=').map(str::trim).collect();
+        let parts: Vec<&str> = line.split('=').map(|s| s.trim_matches('\u{0}')).map(str::trim).collect();
         if parts.len() != 2 {
             continue;
         }
