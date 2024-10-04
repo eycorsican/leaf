@@ -174,12 +174,7 @@ pub fn new(
             .destination(&*option::DEFAULT_TUN_IPV4_GW)
             .mtu(1500);
 
-        #[cfg(not(any(
-            target_arch = "mips",
-            target_arch = "mips64",
-            target_arch = "mipsel",
-            target_arch = "mipsel64",
-        )))]
+        #[cfg(not(any(target_arch = "mips", target_arch = "mips64")))]
         {
             cfg.netmask(&*option::DEFAULT_TUN_IPV4_MASK);
         }
@@ -191,12 +186,7 @@ pub fn new(
             .destination(settings.gateway)
             .mtu(settings.mtu);
 
-        #[cfg(not(any(
-            target_arch = "mips",
-            target_arch = "mips64",
-            target_arch = "mipsel",
-            target_arch = "mipsel64",
-        )))]
+        #[cfg(not(any(target_arch = "mips", target_arch = "mips64")))]
         {
             cfg.netmask(settings.netmask);
         }
