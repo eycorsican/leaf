@@ -41,9 +41,9 @@ pub(self) async fn health_check(
 
     let measure = async move {
         let dest = match network {
-            Network::Tcp => SocksAddr::Domain("www.google.com".to_string(), 80),
+            Network::Tcp => SocksAddr::Domain("www.google.com".to_string(), 443),
             Network::Udp => {
-                SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53))
+                SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 53))
             }
         };
 
@@ -63,20 +63,38 @@ pub(self) async fn health_check(
                         Err(_) => return Measure(idx, u128::MAX),
                     };
                 let m: Measure;
-                let h = if let Ok(h) = h.stream() {
-                    h
-                } else {
+
+                let Ok(h) = h.stream() else {
                     return Measure(idx, u128::MAX);
                 };
+
                 // TODO Mock an LHS stream with the given payload.
                 match h.handle(&sess, None, stream).await {
-                    Ok(mut stream) => {
+                    Ok(stream) => {
+                        let Ok(tls_handler) = crate::proxy::tls::outbound::StreamHandler::new(
+                            String::from(""),
+                            vec![],
+                            None,
+                            false,
+                        ) else {
+                            return Measure(idx, u128::MAX);
+                        };
+
+                        let Ok(mut stream) = tls_handler.handle(&sess, None, Some(stream)).await
+                        else {
+                            return Measure(idx, u128::MAX - 1);
+                        };
+
                         if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
                             return Measure(idx, u128::MAX - 2);
                         }
-                        let mut buf = vec![0u8; 1];
+                        let mut buf = vec![0u8; 512];
                         match stream.read_exact(&mut buf).await {
-                            Ok(_) => {
+                            Ok(n) => {
+                                debug!(
+                                    "received health check response: {}",
+                                    String::from_utf8_lossy(&buf[..n])
+                                );
                                 let elapsed = Instant::now().duration_since(start);
                                 m = Measure(idx, elapsed.as_millis());
                             }
@@ -106,7 +124,7 @@ pub(self) async fn health_check(
                 match h.handle(&sess, transport).await {
                     Ok(socket) => {
                         let addr = SocksAddr::Ip(SocketAddr::new(
-                            IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)),
+                            IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)),
                             53,
                         ));
                         let mut msg = Message::new();
@@ -194,7 +212,11 @@ pub(self) async fn health_check_task(
             let mut measures = futures::future::join_all(checks).await;
 
             measures.sort_by(|a, b| a.1.cmp(&b.1));
-            trace!("sorted health check results:\n{:#?}", measures);
+            trace!(
+                "[{}] sorted health check results:\n{:#?}",
+                network,
+                measures
+            );
 
             let priorities: Vec<String> = measures
                 .iter()
@@ -207,7 +229,11 @@ pub(self) async fn health_check_task(
                 })
                 .collect();
 
-            debug!("priority after health check: {}", priorities.join(" > "));
+            debug!(
+                "[{}] priority after health check: {}",
+                network,
+                priorities.join(" > ")
+            );
 
             let mut schedule = schedule.lock().await;
             schedule.clear();

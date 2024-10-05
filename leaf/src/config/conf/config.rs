@@ -257,7 +257,11 @@ where
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
     let env_lines = get_lines_by_section("Env", lines.iter());
     for line in env_lines {
-        let parts: Vec<&str> = line.split('=').map(|s| s.trim_matches('\u{0}')).map(str::trim).collect();
+        let parts: Vec<&str> = line
+            .split('=')
+            .map(|s| s.trim_matches('\u{0}'))
+            .map(str::trim)
+            .collect();
         if parts.len() != 2 {
             continue;
         }
@@ -1348,7 +1352,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     if let Some(ext_health_check_timeout) = ext_proxy_group.health_check_timeout {
                         settings.health_check_timeout = ext_health_check_timeout as u32;
                     } else {
-                        settings.health_check_timeout = 4; // 4s
+                        settings.health_check_timeout = 6; // 6s
                     }
                     if let Some(ext_health_check_delay) = ext_proxy_group.health_check_delay {
                         settings.health_check_delay = ext_health_check_delay as u32;
