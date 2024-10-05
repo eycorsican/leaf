@@ -210,6 +210,8 @@ pub struct FailOverOutboundSettings {
     pub health_check_delay: Option<u32>,
     #[serde(rename = "healthCheckActive")]
     pub health_check_active: Option<u32>,
+    #[serde(rename = "healthCheckPrefers")]
+    pub health_check_prefers: Option<Vec<String>>,
     #[serde(rename = "checkInterval")]
     pub check_interval: Option<u32>,
     pub failover: Option<bool>,
@@ -788,9 +790,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                         serde_json::from_str(ext_outbound.settings.as_ref().unwrap().get())
                             .unwrap();
                     if let Some(ext_actors) = ext_settings.actors {
-                        for ext_actor in ext_actors {
-                            settings.actors.push(ext_actor);
-                        }
+                        settings.actors.extend_from_slice(&ext_actors);
                     }
                     settings.fail_timeout = ext_settings.fail_timeout.unwrap_or(4); // 4 secs
                     settings.health_check = ext_settings.health_check.unwrap_or(true);
@@ -798,6 +798,11 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     settings.health_check_delay = ext_settings.health_check_delay.unwrap_or(200); // 200ms
                     settings.health_check_active =
                         ext_settings.health_check_active.unwrap_or(15 * 60); // 15 mins
+                    if let Some(ext_health_check_prefers) = ext_settings.health_check_prefers {
+                        settings
+                            .health_check_prefers
+                            .extend_from_slice(&ext_health_check_prefers);
+                    }
                     settings.check_interval = ext_settings.check_interval.unwrap_or(300); // 300 secs
                     settings.failover = ext_settings.failover.unwrap_or(true);
                     settings.fallback_cache = ext_settings.fallback_cache.unwrap_or(false);

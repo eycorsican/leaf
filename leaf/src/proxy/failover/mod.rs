@@ -187,6 +187,7 @@ pub(self) async fn health_check_task(
     health_check_timeout: u32,
     health_check_delay: u32,
     health_check_active: u32,
+    health_check_prefers: Vec<String>,
     last_active: Arc<Mutex<Instant>>,
 ) {
     loop {
@@ -212,11 +213,53 @@ pub(self) async fn health_check_task(
             let mut measures = futures::future::join_all(checks).await;
 
             measures.sort_by(|a, b| a.1.cmp(&b.1));
-            trace!(
+
+            debug!(
                 "[{}] sorted health check results:\n{:#?}",
-                network,
-                measures
+                network, measures
             );
+
+            if !health_check_prefers.is_empty() {
+                let mut min_prefer_actor_ttl =
+                    Duration::from_secs(health_check_timeout as u64).as_millis();
+                for a in health_check_prefers.iter() {
+                    if let Ok(idx) = actors.binary_search_by_key(&a, |x| x.tag()) {
+                        if let Some(ttl) = measures.iter().find(|x| x.0 == idx) {
+                            if ttl.1 < min_prefer_actor_ttl {
+                                min_prefer_actor_ttl = ttl.1;
+                            }
+                        }
+                    }
+                }
+
+                fn is_prefer_actor(
+                    idx: usize,
+                    prefers: &[String],
+                    actors: &[AnyOutboundHandler],
+                ) -> bool {
+                    for a in prefers.iter() {
+                        if let Ok(m_idx) = actors.binary_search_by_key(&a, |x| x.tag()) {
+                            if idx == m_idx {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                }
+
+                for m in measures.iter_mut() {
+                    if is_prefer_actor(m.0, &health_check_prefers, &actors) {
+                        m.1 -= min_prefer_actor_ttl;
+                    }
+                }
+
+                measures.sort_by(|a, b| a.1.cmp(&b.1));
+
+                debug!(
+                    "[{}] sorted health check results after applying prefer actors:\n{:#?}",
+                    network, measures
+                );
+            }
 
             let priorities: Vec<String> = measures
                 .iter()

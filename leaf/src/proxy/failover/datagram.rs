@@ -31,6 +31,7 @@ impl Handler {
         health_check_timeout: u32,
         health_check_delay: u32,
         health_check_active: u32,
+        health_check_prefers: Vec<String>,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
@@ -49,6 +50,7 @@ impl Handler {
                 health_check_timeout,
                 health_check_delay,
                 health_check_active,
+                health_check_prefers,
                 last_active.clone(),
             ));
             abort_handles.push(abort_handle);

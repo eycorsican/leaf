@@ -184,6 +184,7 @@ message FailOverOutboundSettings {
 	uint32 health_check_timeout = 10;
 	uint32 health_check_delay = 11;
 	uint32 health_check_active = 12;
+	repeated string health_check_prefers = 13;
 }
 
 message SelectOutboundSettings {
