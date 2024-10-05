@@ -83,18 +83,19 @@ impl Dispatcher {
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
         debug!("dispatching {}:{}", &sess.network, &sess.destination);
-        let mut lhs: Box<dyn ProxyStream> = if *option::DOMAIN_SNIFFING
-            && !sess.destination.is_domain()
-            && sess.destination.port() == 443
-        {
+        let mut lhs: Box<dyn ProxyStream> = if sniff::should_sniff(&sess) {
             let mut lhs = sniff::SniffingStream::new(lhs);
-            match lhs.sniff().await {
+            match lhs.sniff(&sess).await {
                 Ok(res) => {
                     if let Some(domain) = res {
                         debug!(
                             "sniffed domain {} for tcp link {} <-> {}",
                             &domain, &sess.source, &sess.destination,
                         );
+                        // TODO Add an option to use the sniffed domain for routing only
+                        //
+                        // TODO Add DNS sniff, sniff domain name from DNS response, keep
+                        // an IP -> domain mapping, use this info for routing only.
                         sess.destination =
                             match SocksAddr::try_from((&domain, sess.destination.port())) {
                                 Ok(a) => a,
