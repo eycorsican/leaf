@@ -179,7 +179,7 @@ pub fn test_tcp_half_close_on_configs(configs: Vec<String>, socks_addr: &str, so
         // after the shutdown, but can still read data from server socket.
         // The server socket can write data to client, a read on the server socket
         // will return zero bytes (EOF) immediately. After TCP_DOWNLINK_TIMEOUT and
-        // reading out all previous transfered data, a read on client socket should
+        // reading out all previous transferred data, a read on client socket should
         // also return zero bytes immediately even though we havn't explicitly
         // shutdown the server socket, this verifies TCP_DOWNLINK_TIMEOUT works as
         // expected.

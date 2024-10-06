@@ -219,7 +219,7 @@ impl Dispatcher {
                 {
                     Ok((up_count, down_count)) => {
                         debug!(
-                            "tcp link {} <-> {} done, ({}, {}) bytes transfered [{}]",
+                            "tcp link {} <-> {} done, ({}, {}) bytes transferred [{}]",
                             &sess.source,
                             &sess.destination,
                             up_count,
