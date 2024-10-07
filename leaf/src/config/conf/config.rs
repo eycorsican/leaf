@@ -122,20 +122,21 @@ pub struct ProxyGroup {
 
     // failover
     pub health_check: Option<bool>,
-    pub check_interval: Option<i32>,
-    pub fail_timeout: Option<i32>,
+    pub check_interval: Option<u32>,
+    pub fail_timeout: Option<u32>,
     pub failover: Option<bool>,
     pub fallback_cache: Option<bool>,
-    pub cache_size: Option<i32>,
-    pub cache_timeout: Option<i32>,
+    pub cache_size: Option<u32>,
+    pub cache_timeout: Option<u32>,
     pub last_resort: Option<String>,
-    pub health_check_timeout: Option<i32>,
-    pub health_check_delay: Option<i32>,
-    pub health_check_active: Option<i32>,
+    pub health_check_timeout: Option<u32>,
+    pub health_check_delay: Option<u32>,
+    pub health_check_active: Option<u32>,
     pub health_check_prefers: Option<Vec<String>>,
+    pub health_check_on_start: Option<bool>,
 
     // tryall
-    pub delay_base: Option<i32>,
+    pub delay_base: Option<u32>,
 
     // static
     pub method: Option<String>,
@@ -159,6 +160,7 @@ impl Default for ProxyGroup {
             health_check_delay: None,
             health_check_active: None,
             health_check_prefers: None,
+            health_check_on_start: None,
             delay_base: None,
             method: None,
         }
@@ -564,19 +566,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         group.health_check = if v == "true" { Some(true) } else { Some(false) };
                     }
                     "check-interval" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.check_interval = i;
                     }
                     "fail-timeout" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.fail_timeout = i;
                     }
                     "failover" => {
@@ -586,19 +580,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         group.fallback_cache = if v == "true" { Some(true) } else { Some(false) };
                     }
                     "cache-size" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.cache_size = i;
                     }
                     "cache-timeout" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.cache_timeout = i;
                     }
                     "last-resort" => {
@@ -610,27 +596,15 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         group.last_resort = i;
                     }
                     "health-check-timeout" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.health_check_timeout = i;
                     }
                     "health-check-delay" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.health_check_delay = i;
                     }
                     "health-check-active" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.health_check_active = i;
                     }
                     "health-check-prefers" => {
@@ -642,12 +616,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         let i = if !i.is_empty() { Some(i) } else { None };
                         group.health_check_prefers = i;
                     }
+                    "health-check-on-start" => {
+                        group.health_check_on_start =
+                            if v == "true" { Some(true) } else { Some(false) };
+                    }
                     "delay-base" => {
-                        let i = if let Ok(i) = v.parse::<i32>() {
-                            Some(i)
-                        } else {
-                            None
-                        };
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
                         group.delay_base = i;
                     }
                     "method" => {
@@ -1316,68 +1290,26 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                 "failover" => {
                     let mut settings = internal::FailOverOutboundSettings::new();
                     if let Some(ext_actors) = &ext_proxy_group.actors {
-                        for ext_actor in ext_actors {
-                            settings.actors.push(ext_actor.to_string());
-                        }
+                        settings.actors.extend_from_slice(&ext_actors);
                     }
-                    if let Some(ext_fail_timeout) = ext_proxy_group.fail_timeout {
-                        settings.fail_timeout = ext_fail_timeout as u32;
-                    } else {
-                        settings.fail_timeout = 4;
-                    }
-                    if let Some(ext_health_check) = ext_proxy_group.health_check {
-                        settings.health_check = ext_health_check;
-                    } else {
-                        settings.health_check = true;
-                    }
-                    if let Some(ext_check_interval) = ext_proxy_group.check_interval {
-                        settings.check_interval = ext_check_interval as u32;
-                    } else {
-                        settings.check_interval = 5 * 60; // 5mins
-                    }
-                    if let Some(ext_failover) = ext_proxy_group.failover {
-                        settings.failover = ext_failover;
-                    } else {
-                        settings.failover = true;
-                    }
-                    if let Some(ext_fallback_cache) = ext_proxy_group.fallback_cache {
-                        settings.fallback_cache = ext_fallback_cache;
-                    } else {
-                        settings.fallback_cache = false;
-                    }
-                    if let Some(ext_cache_size) = ext_proxy_group.cache_size {
-                        settings.cache_size = ext_cache_size as u32;
-                    } else {
-                        settings.cache_size = 256;
-                    }
-                    if let Some(ext_cache_timeout) = ext_proxy_group.cache_timeout {
-                        settings.cache_timeout = ext_cache_timeout as u32;
-                    } else {
-                        settings.cache_timeout = 60; // 60mins
-                    }
-                    if let Some(ext_last_resort) = &ext_proxy_group.last_resort {
-                        settings.last_resort = ext_last_resort.clone();
-                    } else {
-                        settings.last_resort = "".to_string();
-                    }
-                    if let Some(ext_health_check_timeout) = ext_proxy_group.health_check_timeout {
-                        settings.health_check_timeout = ext_health_check_timeout as u32;
-                    } else {
-                        settings.health_check_timeout = 6; // 6s
-                    }
-                    if let Some(ext_health_check_delay) = ext_proxy_group.health_check_delay {
-                        settings.health_check_delay = ext_health_check_delay as u32;
-                    } else {
-                        settings.health_check_delay = 200; // 200ms
-                    }
-                    if let Some(ext_health_check_active) = ext_proxy_group.health_check_active {
-                        settings.health_check_active = ext_health_check_active as u32;
-                    } else {
-                        settings.health_check_active = 15 * 60; // 15mins
-                    }
+                    settings.fail_timeout = ext_proxy_group.fail_timeout.unwrap_or(4);
+                    settings.health_check = ext_proxy_group.health_check.unwrap_or(true);
+                    settings.check_interval = ext_proxy_group.check_interval.unwrap_or(5 * 60); // 5mins
+                    settings.failover = ext_proxy_group.failover.unwrap_or(true);
+                    settings.fallback_cache = ext_proxy_group.fallback_cache.unwrap_or(false);
+                    settings.cache_size = ext_proxy_group.cache_size.unwrap_or(256);
+                    settings.cache_timeout = ext_proxy_group.cache_timeout.unwrap_or(60); // 60mins
+                    settings.last_resort = ext_proxy_group.last_resort.as_ref().cloned();
+                    settings.health_check_timeout =
+                        ext_proxy_group.health_check_timeout.unwrap_or(6); // 6s
+                    settings.health_check_delay = ext_proxy_group.health_check_delay.unwrap_or(200); // 200ms
+                    settings.health_check_active =
+                        ext_proxy_group.health_check_active.unwrap_or(15 * 60); // 15mins
                     if let Some(prefers) = &ext_proxy_group.health_check_prefers {
                         settings.health_check_prefers.extend_from_slice(&prefers);
                     }
+                    settings.health_check_on_start =
+                        ext_proxy_group.health_check_on_start.unwrap_or(false);
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
                     outbounds.push(outbound);

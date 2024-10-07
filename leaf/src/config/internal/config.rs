@@ -3209,7 +3209,7 @@ pub struct FailOverOutboundSettings {
     // @@protoc_insertion_point(field:FailOverOutboundSettings.cache_timeout)
     pub cache_timeout: u32,
     // @@protoc_insertion_point(field:FailOverOutboundSettings.last_resort)
-    pub last_resort: ::std::string::String,
+    pub last_resort: ::std::option::Option<::std::string::String>,
     // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_timeout)
     pub health_check_timeout: u32,
     // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_delay)
@@ -3218,6 +3218,8 @@ pub struct FailOverOutboundSettings {
     pub health_check_active: u32,
     // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_prefers)
     pub health_check_prefers: ::std::vec::Vec<::std::string::String>,
+    // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_on_start)
+    pub health_check_on_start: bool,
     // special fields
     // @@protoc_insertion_point(special_field:FailOverOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -3270,7 +3272,7 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                     self.cache_timeout = is.read_uint32()?;
                 },
                 74 => {
-                    self.last_resort = is.read_string()?;
+                    self.last_resort = ::std::option::Option::Some(is.read_string()?);
                 },
                 80 => {
                     self.health_check_timeout = is.read_uint32()?;
@@ -3283,6 +3285,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                 },
                 106 => {
                     self.health_check_prefers.push(is.read_string()?);
+                },
+                112 => {
+                    self.health_check_on_start = is.read_bool()?;
                 },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
@@ -3320,8 +3325,8 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.cache_timeout != 0 {
             my_size += ::protobuf::rt::uint32_size(8, self.cache_timeout);
         }
-        if !self.last_resort.is_empty() {
-            my_size += ::protobuf::rt::string_size(9, &self.last_resort);
+        if let Some(v) = self.last_resort.as_ref() {
+            my_size += ::protobuf::rt::string_size(9, &v);
         }
         if self.health_check_timeout != 0 {
             my_size += ::protobuf::rt::uint32_size(10, self.health_check_timeout);
@@ -3335,6 +3340,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         for value in &self.health_check_prefers {
             my_size += ::protobuf::rt::string_size(13, &value);
         };
+        if self.health_check_on_start != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -3365,8 +3373,8 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.cache_timeout != 0 {
             os.write_uint32(8, self.cache_timeout)?;
         }
-        if !self.last_resort.is_empty() {
-            os.write_string(9, &self.last_resort)?;
+        if let Some(v) = self.last_resort.as_ref() {
+            os.write_string(9, v)?;
         }
         if self.health_check_timeout != 0 {
             os.write_uint32(10, self.health_check_timeout)?;
@@ -3380,6 +3388,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         for v in &self.health_check_prefers {
             os.write_string(13, &v)?;
         };
+        if self.health_check_on_start != false {
+            os.write_bool(14, self.health_check_on_start)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -3405,11 +3416,12 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         self.fallback_cache = false;
         self.cache_size = 0;
         self.cache_timeout = 0;
-        self.last_resort.clear();
+        self.last_resort = ::std::option::Option::None;
         self.health_check_timeout = 0;
         self.health_check_delay = 0;
         self.health_check_active = 0;
         self.health_check_prefers.clear();
+        self.health_check_on_start = false;
         self.special_fields.clear();
     }
 
@@ -3423,11 +3435,12 @@ impl ::protobuf::Message for FailOverOutboundSettings {
             fallback_cache: false,
             cache_size: 0,
             cache_timeout: 0,
-            last_resort: ::std::string::String::new(),
+            last_resort: ::std::option::Option::None,
             health_check_timeout: 0,
             health_check_delay: 0,
             health_check_active: 0,
             health_check_prefers: ::std::vec::Vec::new(),
+            health_check_on_start: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

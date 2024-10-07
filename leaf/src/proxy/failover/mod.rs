@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::{sync::Arc, time::Duration};
 
+use bytes::BytesMut;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
@@ -20,11 +21,12 @@ pub use datagram::Handler as DatagramHandler;
 pub use stream::Handler as StreamHandler;
 
 #[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(self) struct Measure(usize, u128); // (index, duration in millis)
+pub(self) struct Measure(usize, u128, String); // (index, duration in millis, tag)
 
 pub(self) async fn health_check(
     network: Network,
     idx: usize,
+    tag: String,
     h: AnyOutboundHandler,
     dns_client: SyncDnsClient,
     delay: Duration,
@@ -32,12 +34,9 @@ pub(self) async fn health_check(
 ) -> Measure {
     tokio::time::sleep(delay).await;
 
-    debug!(
-        "health checking [{}] ({}) index ({})",
-        h.tag(),
-        &network,
-        idx
-    );
+    debug!("health checking [{}] ({}) index ({})", &tag, &network, idx);
+
+    let tag_c = tag.clone();
 
     let measure = async move {
         let dest = match network {
@@ -60,12 +59,12 @@ pub(self) async fn health_check(
                 let stream =
                     match crate::proxy::connect_stream_outbound(&sess, dns_client, &h).await {
                         Ok(s) => s,
-                        Err(_) => return Measure(idx, u128::MAX),
+                        Err(_) => return Measure(idx, u128::MAX, tag),
                     };
                 let m: Measure;
 
                 let Ok(h) = h.stream() else {
-                    return Measure(idx, u128::MAX);
+                    return Measure(idx, u128::MAX, tag);
                 };
 
                 // TODO Mock an LHS stream with the given payload.
@@ -77,35 +76,36 @@ pub(self) async fn health_check(
                             None,
                             false,
                         ) else {
-                            return Measure(idx, u128::MAX);
+                            return Measure(idx, u128::MAX, tag);
                         };
 
                         let Ok(mut stream) = tls_handler.handle(&sess, None, Some(stream)).await
                         else {
-                            return Measure(idx, u128::MAX - 1);
+                            return Measure(idx, u128::MAX - 1, tag);
                         };
 
-                        if stream.write_all(b"HEAD / HTTP/1.1\r\n\r\n").await.is_err() {
-                            return Measure(idx, u128::MAX - 2);
+                        if stream.write_all(b"GET / HTTP/1.1\r\n\r\n").await.is_err() {
+                            return Measure(idx, u128::MAX - 2, tag);
                         }
-                        let mut buf = vec![0u8; 512];
-                        match stream.read_exact(&mut buf).await {
+                        let mut buf = BytesMut::with_capacity(2 * 1024);
+                        match stream.read_buf(&mut buf).await {
                             Ok(n) => {
                                 debug!(
-                                    "received health check response: {}",
-                                    String::from_utf8_lossy(&buf[..n])
+                                    "received {} bytes tcp health check response: {}",
+                                    n,
+                                    String::from_utf8_lossy(&buf[..n.min(12)]),
                                 );
                                 let elapsed = Instant::now().duration_since(start);
-                                m = Measure(idx, elapsed.as_millis());
+                                m = Measure(idx, elapsed.as_millis(), tag);
                             }
                             Err(_) => {
-                                m = Measure(idx, u128::MAX - 3);
+                                m = Measure(idx, u128::MAX - 3, tag);
                             }
                         }
                         let _ = stream.shutdown().await;
                     }
                     Err(_) => {
-                        m = Measure(idx, u128::MAX);
+                        m = Measure(idx, u128::MAX, tag);
                     }
                 }
                 return m;
@@ -114,12 +114,12 @@ pub(self) async fn health_check(
                 let transport =
                     match crate::proxy::connect_datagram_outbound(&sess, dns_client, &h).await {
                         Ok(t) => t,
-                        Err(_) => return Measure(idx, u128::MAX),
+                        Err(_) => return Measure(idx, u128::MAX, tag),
                     };
                 let h = if let Ok(h) = h.datagram() {
                     h
                 } else {
-                    return Measure(idx, u128::MAX);
+                    return Measure(idx, u128::MAX, tag);
                 };
                 match h.handle(&sess, transport).await {
                     Ok(socket) => {
@@ -132,7 +132,7 @@ pub(self) async fn health_check(
                             Ok(n) => n,
                             Err(e) => {
                                 warn!("invalid domain name: {}", e);
-                                return Measure(idx, u128::MAX);
+                                return Measure(idx, u128::MAX, tag);
                             }
                         };
                         let query = Query::query(name, RecordType::A);
@@ -147,25 +147,26 @@ pub(self) async fn health_check(
                             Ok(b) => b,
                             Err(e) => {
                                 warn!("encode message to buffer failed: {}", e);
-                                return Measure(idx, u128::MAX);
+                                return Measure(idx, u128::MAX, tag);
                             }
                         };
 
                         let (mut recv, mut send) = socket.split();
 
                         if send.send_to(&msg_buf, &addr).await.is_err() {
-                            return Measure(idx, u128::MAX - 2);
+                            return Measure(idx, u128::MAX - 2, tag);
                         }
                         let mut buf = vec![0u8; 1500];
                         match recv.recv_from(&mut buf).await {
-                            Ok(_) => {
+                            Ok((n, _)) => {
+                                debug!("received {} bytes udp health check response", n);
                                 let elapsed = tokio::time::Instant::now().duration_since(start);
-                                Measure(idx, elapsed.as_millis())
+                                Measure(idx, elapsed.as_millis(), tag)
                             }
-                            Err(_) => Measure(idx, u128::MAX - 3),
+                            Err(_) => Measure(idx, u128::MAX - 3, tag),
                         }
                     }
-                    Err(_) => Measure(idx, u128::MAX),
+                    Err(_) => Measure(idx, u128::MAX, tag),
                 }
             }
         }
@@ -173,7 +174,7 @@ pub(self) async fn health_check(
 
     timeout(Duration::from_secs(health_check_timeout.into()), measure)
         .await
-        .unwrap_or(Measure(idx, u128::MAX - 1))
+        .unwrap_or(Measure(idx, u128::MAX - 1, tag_c))
 }
 
 pub(self) async fn health_check_task(
@@ -204,6 +205,7 @@ pub(self) async fn health_check_task(
                 checks.push(Box::pin(health_check(
                     network,
                     i,
+                    a.tag().to_owned(),
                     a.clone(),
                     dns_client_cloned,
                     delay,
@@ -220,19 +222,18 @@ pub(self) async fn health_check_task(
             );
 
             if !health_check_prefers.is_empty() {
-                let mut min_prefer_actor_ttl =
+                // Find the minimal RTT among the preferred outbounds.
+                let mut min_prefer_actor_rtt =
                     Duration::from_secs(health_check_timeout as u64).as_millis();
                 for a in health_check_prefers.iter() {
-                    if let Ok(idx) = actors.binary_search_by_key(&a, |x| x.tag()) {
-                        if let Some(ttl) = measures.iter().find(|x| x.0 == idx) {
-                            if ttl.1 < min_prefer_actor_ttl {
-                                min_prefer_actor_ttl = ttl.1;
-                            }
+                    if let Some(rtt) = measures.iter().find(|x| &x.2 == a) {
+                        if rtt.1 < min_prefer_actor_rtt {
+                            min_prefer_actor_rtt = rtt.1;
                         }
                     }
                 }
 
-                fn is_prefer_actor(
+                fn is_preferred_actor(
                     idx: usize,
                     prefers: &[String],
                     actors: &[AnyOutboundHandler],
@@ -247,9 +248,13 @@ pub(self) async fn health_check_task(
                     false
                 }
 
+                // If an outbound is preferred, we subtract its RTT with the minimal
+                // RTT, the result is the optimal preferred outbound has zero RTT.
+                // The min RTT must not larger than the timeout value to avoid
+                // preferring unavailable outbounds.
                 for m in measures.iter_mut() {
-                    if is_prefer_actor(m.0, &health_check_prefers, &actors) {
-                        m.1 -= min_prefer_actor_ttl;
+                    if is_preferred_actor(m.0, &health_check_prefers, &actors) {
+                        m.1 -= min_prefer_actor_rtt;
                     }
                 }
 

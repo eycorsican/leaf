@@ -173,18 +173,34 @@ message ChainOutboundSettings {
 
 message FailOverOutboundSettings {
 	repeated string actors = 1;
+  // The connect timeout value for the outbounds, in seconds. Some outbounds don't
+  // need to "connect", those outbounds have zero connect time. Default 4.
 	uint32 fail_timeout = 2;
+  // Enable health check, to use other health check options, this must be true. Default
+  // true.
 	bool health_check = 3;
+  // Health check frequency, in seconds.
 	uint32 check_interval = 4;
+  // Use the next outbound if the current one failed, e.g. it's timeout. Default true.
 	bool failover = 5;
 	bool fallback_cache = 6;
 	uint32 cache_size = 7;
 	uint32 cache_timeout = 8;
-	string last_resort = 9;
+	optional string last_resort = 9;
+  // Timeout for health check request, in seconds. Default is 6.
 	uint32 health_check_timeout = 10;
+  // Put a random delay from (0..health_check_delay] before each health check, in
+  // milliseconds. Default is 200.
 	uint32 health_check_delay = 11;
+  // Health check would stop running if no incoming requests in this period, it's
+  // considered the outbound is inactive, in seconds. Default is 900.
 	uint32 health_check_active = 12;
+  // Specify a list of preferred outbounds, these outbounds would have higher priority
+  // if they are in good health.
 	repeated string health_check_prefers = 13;
+  // Health check would run on start if this is true, by default health check would
+  // start to run when the first request comes in. Default is false.
+	bool health_check_on_start = 14;
 }
 
 message SelectOutboundSettings {

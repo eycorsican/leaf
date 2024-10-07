@@ -38,13 +38,14 @@ impl Handler {
         health_check_delay: u32,
         health_check_active: u32,
         health_check_prefers: Vec<String>,
+        health_check_on_start: bool,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
         let schedule = Arc::new(Mutex::new((0..actors.len()).collect()));
         let last_active = Arc::new(Mutex::new(Instant::now()));
 
-        let task = if health_check {
+        let health_check_task = if health_check {
             let (abortable, abort_handle) = abortable(super::health_check_task(
                 Network::Tcp,
                 schedule.clone(),
@@ -60,10 +61,15 @@ impl Handler {
                 last_active.clone(),
             ));
             abort_handles.push(abort_handle);
-            let health_check_task: BoxFuture<'static, ()> = Box::pin(abortable.map(|_| ()));
-            Some(health_check_task)
+            let task: BoxFuture<'static, ()> = Box::pin(abortable.map(|_| ()));
+            if health_check_on_start {
+                tokio::spawn(task);
+                Mutex::new(None)
+            } else {
+                Mutex::new(Some(task))
+            }
         } else {
-            None
+            Mutex::new(None)
         };
 
         let cache = if fallback_cache {
@@ -82,7 +88,7 @@ impl Handler {
                 actors,
                 fail_timeout,
                 schedule,
-                health_check_task: Mutex::new(task),
+                health_check_task,
                 cache,
                 last_resort,
                 dns_client,
