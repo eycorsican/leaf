@@ -135,6 +135,8 @@ pub struct ProxyGroup {
     pub health_check_prefers: Option<Vec<String>>,
     pub health_check_on_start: Option<bool>,
     pub health_check_wait: Option<bool>,
+    pub health_check_attempts: Option<u32>,
+    pub health_check_success_percentage: Option<u32>,
 
     // tryall
     pub delay_base: Option<u32>,
@@ -163,6 +165,8 @@ impl Default for ProxyGroup {
             health_check_prefers: None,
             health_check_on_start: None,
             health_check_wait: None,
+            health_check_attempts: None,
+            health_check_success_percentage: None,
             delay_base: None,
             method: None,
         }
@@ -625,6 +629,14 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                     "health-check-wait" => {
                         group.health_check_wait =
                             if v == "true" { Some(true) } else { Some(false) };
+                    }
+                    "health-check-attempts" => {
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        group.health_check_attempts = i;
+                    }
+                    "health-check-success-percentage" => {
+                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        group.health_check_success_percentage = i;
                     }
                     "delay-base" => {
                         let i = if let Ok(i) = v.parse() { Some(i) } else { None };
@@ -1317,6 +1329,11 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     settings.health_check_on_start =
                         ext_proxy_group.health_check_on_start.unwrap_or(false);
                     settings.health_check_wait = ext_proxy_group.health_check_wait.unwrap_or(false);
+                    settings.health_check_attempts =
+                        ext_proxy_group.health_check_attempts.unwrap_or(1);
+                    settings.health_check_success_percentage = ext_proxy_group
+                        .health_check_success_percentage
+                        .unwrap_or(50);
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
                     outbounds.push(outbound);

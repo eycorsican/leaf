@@ -3222,6 +3222,10 @@ pub struct FailOverOutboundSettings {
     pub health_check_on_start: bool,
     // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_wait)
     pub health_check_wait: bool,
+    // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_attempts)
+    pub health_check_attempts: u32,
+    // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_success_percentage)
+    pub health_check_success_percentage: u32,
     // special fields
     // @@protoc_insertion_point(special_field:FailOverOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -3294,6 +3298,12 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                 120 => {
                     self.health_check_wait = is.read_bool()?;
                 },
+                128 => {
+                    self.health_check_attempts = is.read_uint32()?;
+                },
+                136 => {
+                    self.health_check_success_percentage = is.read_uint32()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -3351,6 +3361,12 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.health_check_wait != false {
             my_size += 1 + 1;
         }
+        if self.health_check_attempts != 0 {
+            my_size += ::protobuf::rt::uint32_size(16, self.health_check_attempts);
+        }
+        if self.health_check_success_percentage != 0 {
+            my_size += ::protobuf::rt::uint32_size(17, self.health_check_success_percentage);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -3402,6 +3418,12 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.health_check_wait != false {
             os.write_bool(15, self.health_check_wait)?;
         }
+        if self.health_check_attempts != 0 {
+            os.write_uint32(16, self.health_check_attempts)?;
+        }
+        if self.health_check_success_percentage != 0 {
+            os.write_uint32(17, self.health_check_success_percentage)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -3434,6 +3456,8 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         self.health_check_prefers.clear();
         self.health_check_on_start = false;
         self.health_check_wait = false;
+        self.health_check_attempts = 0;
+        self.health_check_success_percentage = 0;
         self.special_fields.clear();
     }
 
@@ -3454,6 +3478,8 @@ impl ::protobuf::Message for FailOverOutboundSettings {
             health_check_prefers: ::std::vec::Vec::new(),
             health_check_on_start: false,
             health_check_wait: false,
+            health_check_attempts: 0,
+            health_check_success_percentage: 0,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

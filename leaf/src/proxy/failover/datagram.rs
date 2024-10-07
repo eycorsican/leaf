@@ -38,6 +38,8 @@ impl Handler {
         health_check_prefers: Vec<String>,
         health_check_on_start: bool,
         health_check_wait: bool,
+        health_check_attempts: u32,
+        health_check_success_percentage: u32,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
@@ -66,6 +68,8 @@ impl Handler {
                 last_active.clone(),
                 is_first_health_check_done.clone(),
                 notify.as_ref().cloned(),
+                health_check_attempts,
+                health_check_success_percentage,
             ));
             abort_handles.push(abort_handle);
             let task: BoxFuture<'static, ()> = Box::pin(abortable.map(|_| ()));

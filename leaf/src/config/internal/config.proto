@@ -172,6 +172,7 @@ message ChainOutboundSettings {
 }
 
 message FailOverOutboundSettings {
+  // A list of outbound tags.
 	repeated string actors = 1;
   // The connect timeout value for the outbounds, in seconds. Some outbounds don't
   // need to "connect", those outbounds have zero connect time. Default 4.
@@ -186,6 +187,7 @@ message FailOverOutboundSettings {
 	bool fallback_cache = 6;
 	uint32 cache_size = 7;
 	uint32 cache_timeout = 8;
+  // The outbound to be used when all actors are unavailable.
 	optional string last_resort = 9;
   // Timeout for health check request, in seconds. Default is 6.
 	uint32 health_check_timeout = 10;
@@ -204,6 +206,14 @@ message FailOverOutboundSettings {
   // Hold incomming connections, wait for the initial health check to be done.
   // Default false.
 	bool health_check_wait = 15;
+  // Total number of health check requests per outbound, the RTT to be used to sort
+  // the outbounds is the average of all successful attempts. Default 1.
+	uint32 health_check_attempts = 16;
+  // The percentage of successful health check requests which to consider an outbound
+  // is available, must be a value between [0, 100], if the result is lower than this
+  // percentage, the outbound's RTT would be set to a timeout value, thus marks the
+  // outbound as unavailable. Default 50.
+	uint32 health_check_success_percentage = 17;
 }
 
 message SelectOutboundSettings {

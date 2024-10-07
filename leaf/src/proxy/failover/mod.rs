@@ -40,9 +40,12 @@ async fn single_health_check(
     tag: String,
     h: AnyOutboundHandler,
     dns_client: SyncDnsClient,
-    delay: Duration,
+    delay: u32,
 ) -> Measure {
-    tokio::time::sleep(delay).await;
+    tokio::time::sleep(Duration::from_millis(
+        StdRng::from_entropy().gen_range(0..=delay) as u64,
+    ))
+    .await;
 
     let dest = match network {
         Network::Tcp => SocksAddr::Domain("www.google.com".to_string(), 443),
@@ -91,12 +94,14 @@ async fn single_health_check(
                     let mut buf = BytesMut::with_capacity(2 * 1024);
                     match stream.read_buf(&mut buf).await {
                         Ok(n) => {
+                            let elapsed = Instant::now().duration_since(start);
                             debug!(
-                                "received {} bytes tcp health check response: {}",
+                                "received {} bytes tcp health check response from {} in {} ms: {}",
                                 n,
+                                &tag,
+                                elapsed.as_millis(),
                                 String::from_utf8_lossy(&buf[..n.min(12)]),
                             );
-                            let elapsed = Instant::now().duration_since(start);
                             m = Measure::new(idx, elapsed.as_millis(), tag);
                         }
                         Err(_) => {
@@ -158,8 +163,13 @@ async fn single_health_check(
                     let mut buf = vec![0u8; 1500];
                     match recv.recv_from(&mut buf).await {
                         Ok((n, _)) => {
-                            debug!("received {} bytes udp health check response", n);
                             let elapsed = tokio::time::Instant::now().duration_since(start);
+                            debug!(
+                                "received {} bytes udp health check response from {} in {} ms",
+                                n,
+                                &tag,
+                                elapsed.as_millis()
+                            );
                             Measure::new(idx, elapsed.as_millis(), tag)
                         }
                         Err(_) => Measure::new(idx, u128::MAX - 3, tag),
@@ -177,17 +187,58 @@ async fn health_check(
     tag: String,
     h: AnyOutboundHandler,
     dns_client: SyncDnsClient,
-    delay: Duration,
+    delay: u32,
     health_check_timeout: u64,
+    health_check_attempts: u32,
+    health_check_success_percentage: u32,
 ) -> Measure {
     debug!("health checking [{}] ({}) index ({})", &tag, &network, idx);
+    let health_check_timeout = Duration::from_secs(health_check_timeout);
+    let health_check_timeout_ms = health_check_timeout.as_millis();
+    let mut attempts = Vec::new();
+    for _ in 0..health_check_attempts {
+        attempts.push(timeout(
+            health_check_timeout,
+            single_health_check(
+                network,
+                idx,
+                tag.clone(),
+                h.clone(),
+                dns_client.clone(),
+                delay,
+            ),
+        ));
+    }
+    let measures = futures::future::join_all(attempts).await;
+    let measures = measures
+        .into_iter()
+        .map(|x| x.unwrap_or(Measure::new(idx, u128::MAX - 1, tag.clone())))
+        .collect::<Vec<_>>();
 
-    timeout(
-        Duration::from_secs(health_check_timeout),
-        single_health_check(network, idx, tag.clone(), h, dns_client, delay),
-    )
-    .await
-    .unwrap_or(Measure::new(idx, u128::MAX - 1, tag))
+    let n_success = measures
+        .iter()
+        .filter(|x| x.rtt < health_check_timeout_ms as u128)
+        .count();
+
+    debug!(
+        "{} out of {} successful checks for {} [{}]",
+        n_success, health_check_attempts, &network, &tag
+    );
+
+    use std::ops::Div;
+    let success_percentage = ((n_success as f32).div(health_check_attempts as f32) * 100.) as u32;
+    if success_percentage < health_check_success_percentage {
+        return Measure::new(idx, u128::MAX, tag);
+    }
+
+    let mean_rtt = measures
+        .iter()
+        .filter(|x| x.rtt < health_check_timeout_ms as u128)
+        .map(|x| x.rtt)
+        .sum::<u128>()
+        .div_euclid(n_success as u128);
+
+    Measure::new(idx, mean_rtt, tag)
 }
 
 pub(self) async fn health_check_task(
@@ -205,6 +256,8 @@ pub(self) async fn health_check_task(
     last_active: Arc<Mutex<Instant>>,
     is_first_health_check_done: Arc<AtomicBool>,
     wait_for_health_check: Option<Arc<Notify>>,
+    health_check_attempts: u32,
+    health_check_success_percentage: u32,
 ) {
     loop {
         let last_active = Instant::now()
@@ -213,18 +266,18 @@ pub(self) async fn health_check_task(
 
         if last_active < health_check_active.into() {
             let mut checks = Vec::new();
-            let mut rng = StdRng::from_entropy();
             for (i, a) in (&actors).iter().enumerate() {
                 let dns_client_cloned = dns_client.clone();
-                let delay = Duration::from_millis(rng.gen_range(0..=health_check_delay) as u64);
                 checks.push(Box::pin(health_check(
                     network,
                     i,
                     a.tag().to_owned(),
                     a.clone(),
                     dns_client_cloned,
-                    delay,
+                    health_check_delay,
                     health_check_timeout as u64,
+                    health_check_attempts,
+                    health_check_success_percentage,
                 )));
             }
             let mut measures = futures::future::join_all(checks).await;
