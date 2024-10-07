@@ -134,6 +134,7 @@ pub struct ProxyGroup {
     pub health_check_active: Option<u32>,
     pub health_check_prefers: Option<Vec<String>>,
     pub health_check_on_start: Option<bool>,
+    pub health_check_wait: Option<bool>,
 
     // tryall
     pub delay_base: Option<u32>,
@@ -161,6 +162,7 @@ impl Default for ProxyGroup {
             health_check_active: None,
             health_check_prefers: None,
             health_check_on_start: None,
+            health_check_wait: None,
             delay_base: None,
             method: None,
         }
@@ -618,6 +620,10 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                     }
                     "health-check-on-start" => {
                         group.health_check_on_start =
+                            if v == "true" { Some(true) } else { Some(false) };
+                    }
+                    "health-check-wait" => {
+                        group.health_check_wait =
                             if v == "true" { Some(true) } else { Some(false) };
                     }
                     "delay-base" => {
@@ -1310,6 +1316,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     }
                     settings.health_check_on_start =
                         ext_proxy_group.health_check_on_start.unwrap_or(false);
+                    settings.health_check_wait = ext_proxy_group.health_check_wait.unwrap_or(false);
                     let settings = settings.write_to_bytes().unwrap();
                     outbound.settings = settings;
                     outbounds.push(outbound);

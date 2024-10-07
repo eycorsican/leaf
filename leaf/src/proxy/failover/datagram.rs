@@ -1,10 +1,11 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::future::{abortable, AbortHandle};
 use futures::FutureExt;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 use tokio::time::Instant;
 use tracing::{debug, trace};
 
@@ -18,6 +19,9 @@ pub struct Handler {
     last_resort: Option<AnyOutboundHandler>,
     dns_client: SyncDnsClient,
     last_active: Arc<Mutex<Instant>>,
+    health_check: bool,
+    is_first_health_check_done: Arc<AtomicBool>,
+    wait_for_health_check: Option<Arc<Notify>>,
 }
 
 impl Handler {
@@ -33,13 +37,20 @@ impl Handler {
         health_check_active: u32,
         health_check_prefers: Vec<String>,
         health_check_on_start: bool,
+        health_check_wait: bool,
         dns_client: SyncDnsClient,
     ) -> (Self, Vec<AbortHandle>) {
         let mut abort_handles = Vec::new();
         let schedule = Arc::new(Mutex::new((0..actors.len()).collect()));
         let last_active = Arc::new(Mutex::new(Instant::now()));
+        let is_first_health_check_done = Arc::new(AtomicBool::new(false));
 
-        let health_check_task = if health_check {
+        let (health_check_task, wait_for_health_check) = if health_check {
+            let notify = if health_check_wait {
+                Some(Arc::new(Notify::new()))
+            } else {
+                None
+            };
             let (abortable, abort_handle) = abortable(super::health_check_task(
                 Network::Udp,
                 schedule.clone(),
@@ -53,17 +64,19 @@ impl Handler {
                 health_check_active,
                 health_check_prefers,
                 last_active.clone(),
+                is_first_health_check_done.clone(),
+                notify.as_ref().cloned(),
             ));
             abort_handles.push(abort_handle);
             let task: BoxFuture<'static, ()> = Box::pin(abortable.map(|_| ()));
             if health_check_on_start {
                 tokio::spawn(task);
-                Mutex::new(None)
+                (Mutex::new(None), notify)
             } else {
-                Mutex::new(Some(task))
+                (Mutex::new(Some(task)), notify)
             }
         } else {
-            Mutex::new(None)
+            (Mutex::new(None), None)
         };
 
         (
@@ -75,6 +88,9 @@ impl Handler {
                 last_resort,
                 dns_client,
                 last_active,
+                health_check,
+                is_first_health_check_done,
+                wait_for_health_check,
             },
             abort_handles,
         )
@@ -100,6 +116,14 @@ impl OutboundDatagramHandler for Handler {
 
         if let Some(task) = self.health_check_task.lock().await.take() {
             tokio::spawn(task);
+        }
+
+        if self.health_check && !self.is_first_health_check_done.load(Ordering::Relaxed) {
+            if let Some(w) = self.wait_for_health_check.as_ref() {
+                debug!("holding {}", &sess.destination);
+                w.notified().await;
+                debug!("{} resumed", &sess.destination);
+            }
         }
 
         let schedule = self.schedule.lock().await.clone();

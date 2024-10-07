@@ -201,6 +201,9 @@ message FailOverOutboundSettings {
   // Health check would run on start if this is true, by default health check would
   // start to run when the first request comes in. Default is false.
 	bool health_check_on_start = 14;
+  // Hold incomming connections, wait for the initial health check to be done.
+  // Default false.
+	bool health_check_wait = 15;
 }
 
 message SelectOutboundSettings {

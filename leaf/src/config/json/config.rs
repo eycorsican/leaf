@@ -216,6 +216,8 @@ pub struct FailOverOutboundSettings {
     pub check_interval: Option<u32>,
     #[serde(rename = "healthCheckOnStart")]
     pub health_check_on_start: Option<bool>,
+    #[serde(rename = "healthCheckWait")]
+    pub health_check_wait: Option<bool>,
     pub failover: Option<bool>,
     #[serde(rename = "fallbackCache")]
     pub fallback_cache: Option<bool>,
@@ -807,6 +809,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     }
                     settings.health_check_on_start =
                         ext_settings.health_check_on_start.unwrap_or(false);
+                    settings.health_check_wait = ext_settings.health_check_wait.unwrap_or(false);
                     settings.check_interval = ext_settings.check_interval.unwrap_or(300); // 300 secs
                     settings.failover = ext_settings.failover.unwrap_or(true);
                     settings.fallback_cache = ext_settings.fallback_cache.unwrap_or(false);

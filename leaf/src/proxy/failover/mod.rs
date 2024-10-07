@@ -1,10 +1,11 @@
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, time::Duration};
 
 use bytes::BytesMut;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, Notify};
 use tokio::time::{timeout, Instant};
 use tracing::{debug, trace, warn};
 use trust_dns_proto::{
@@ -190,6 +191,8 @@ pub(self) async fn health_check_task(
     health_check_active: u32,
     health_check_prefers: Vec<String>,
     last_active: Arc<Mutex<Instant>>,
+    is_first_health_check_done: Arc<AtomicBool>,
+    wait_for_health_check: Option<Arc<Notify>>,
 ) {
     loop {
         let last_active = Instant::now()
@@ -312,6 +315,14 @@ pub(self) async fn health_check_task(
             drop(schedule); // release
         } else {
             debug!("skip health check as no activities in {}s", last_active);
+        }
+
+        if !is_first_health_check_done.swap(true, Ordering::Relaxed) {
+            debug!("initial health check done");
+            if let Some(w) = wait_for_health_check.as_ref() {
+                debug!("notify holding connections");
+                w.notify_waiters();
+            }
         }
 
         tokio::time::sleep(Duration::from_secs(check_interval as u64)).await;

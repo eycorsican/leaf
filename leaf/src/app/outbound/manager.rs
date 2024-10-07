@@ -464,6 +464,7 @@ impl OutboundManager {
                             settings.health_check_active,
                             settings.health_check_prefers.clone(),
                             settings.health_check_on_start,
+                            settings.health_check_wait,
                             dns_client.clone(),
                         );
                         let (datagram, mut datagram_abort_handles) = failover::DatagramHandler::new(
@@ -478,6 +479,7 @@ impl OutboundManager {
                             settings.health_check_active,
                             settings.health_check_prefers,
                             settings.health_check_on_start,
+                            settings.health_check_wait,
                             dns_client.clone(),
                         );
                         let handler = HandlerBuilder::default()

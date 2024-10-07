@@ -3220,6 +3220,8 @@ pub struct FailOverOutboundSettings {
     pub health_check_prefers: ::std::vec::Vec<::std::string::String>,
     // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_on_start)
     pub health_check_on_start: bool,
+    // @@protoc_insertion_point(field:FailOverOutboundSettings.health_check_wait)
+    pub health_check_wait: bool,
     // special fields
     // @@protoc_insertion_point(special_field:FailOverOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -3289,6 +3291,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
                 112 => {
                     self.health_check_on_start = is.read_bool()?;
                 },
+                120 => {
+                    self.health_check_wait = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -3343,6 +3348,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.health_check_on_start != false {
             my_size += 1 + 1;
         }
+        if self.health_check_wait != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -3391,6 +3399,9 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         if self.health_check_on_start != false {
             os.write_bool(14, self.health_check_on_start)?;
         }
+        if self.health_check_wait != false {
+            os.write_bool(15, self.health_check_wait)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -3422,6 +3433,7 @@ impl ::protobuf::Message for FailOverOutboundSettings {
         self.health_check_active = 0;
         self.health_check_prefers.clear();
         self.health_check_on_start = false;
+        self.health_check_wait = false;
         self.special_fields.clear();
     }
 
@@ -3441,6 +3453,7 @@ impl ::protobuf::Message for FailOverOutboundSettings {
             health_check_active: 0,
             health_check_prefers: ::std::vec::Vec::new(),
             health_check_on_start: false,
+            health_check_wait: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
