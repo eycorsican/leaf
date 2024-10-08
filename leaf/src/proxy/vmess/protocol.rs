@@ -67,7 +67,7 @@ impl RequestHeader {
         buf.put_u8(self.option);
 
         let padding_len = StdRng::from_entropy().gen_range(0..16) as u8;
-        let security = (padding_len << 4) | self.security as u8;
+        let security = (padding_len << 4) | self.security;
 
         buf.put_u8(security);
         buf.put_u8(0);
