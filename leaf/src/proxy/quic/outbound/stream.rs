@@ -39,7 +39,7 @@ impl Manager {
             match fs::read(cert_path) {
                 Ok(cert) => {
                     match Path::new(&cert_path).extension().map(|ext| ext.to_str()) {
-                        Some(Some(ext)) if ext == "der" => {
+                        Some(Some("der")) => {
                             roots.add(&rustls::Certificate(cert)).unwrap(); // FIXME
                         }
                         _ => {
