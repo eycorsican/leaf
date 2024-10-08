@@ -222,7 +222,7 @@ impl NetworkInboundListener {
         let listen_addr = SocketAddr::new(self.address.parse()?, self.port);
         // Check whether this inbound listens on TCP.
         if self.handler.stream().is_ok() {
-            let listen_addr_cloned = listen_addr.clone();
+            let listen_addr_cloned = listen_addr;
             let handler_cloned = self.handler.clone();
             let dispatcher_cloned = self.dispatcher.clone();
             let nat_manager_cloned = self.nat_manager.clone();
@@ -241,7 +241,7 @@ impl NetworkInboundListener {
         }
         // Check whether this inbound binds on UDP.
         if self.handler.datagram().is_ok() {
-            let listen_addr_cloned = listen_addr.clone();
+            let listen_addr_cloned = listen_addr;
             let handler_cloned = self.handler.clone();
             let dispatcher_cloned = self.dispatcher.clone();
             let nat_manager_cloned = self.nat_manager.clone();

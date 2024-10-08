@@ -424,7 +424,7 @@ pub async fn connect_datagram_outbound(
                 Ok(Some(OutboundTransport::Datagram(Box::new(
                     DomainAssociatedOutboundDatagram::new(
                         socket,
-                        sess.source.clone(),
+                        sess.source,
                         SocksAddr::Domain(domain.to_owned(), port.to_owned()),
                         dns_client.clone(),
                     ),

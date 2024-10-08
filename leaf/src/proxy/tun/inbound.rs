@@ -34,8 +34,8 @@ async fn handle_inbound_stream(
     let mut sess = Session {
         network: Network::Tcp,
         source: local_addr,
-        local_addr: remote_addr.clone(),
-        destination: SocksAddr::Ip(remote_addr.clone()),
+        local_addr: remote_addr,
+        destination: SocksAddr::Ip(remote_addr),
         inbound_tag: inbound_tag,
         ..Default::default()
     };
