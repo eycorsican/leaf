@@ -678,7 +678,7 @@ impl MuxConnector {
 
     pub fn is_done(&self) -> bool {
         if self.done.load(Ordering::SeqCst) {
-            return true;
+            true
         } else {
             if self.total_accepted >= self.max_accepts
                 || (self.max_recv_bytes > 0

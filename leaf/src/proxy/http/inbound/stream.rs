@@ -167,13 +167,13 @@ impl HttpStream {
                 self.cache.clear();
                 self.cache.append(&mut head.into());
                 self.cache.append(&mut rest_buf);
-                return Ok(());
+                Ok(())
             },
             TargetFormat::Authority => {
                 self.origin.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?;
-                return Ok(());
+                Ok(())
             },
-            _ => return Err(bad_request()),
+            _ => Err(bad_request()),
         }
     }
 
