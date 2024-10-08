@@ -132,7 +132,6 @@ impl ClientSession {
     pub fn new() -> Self {
         let mut request_body_key = vec![0u8; 16];
         let mut request_body_iv = vec![0u8; 16];
-        let response_header: u8;
 
         // fill random bytes
         let mut rand_bytes = BytesMut::with_capacity(16 + 16 + 1);
@@ -143,7 +142,7 @@ impl ClientSession {
         }
         (&mut request_body_key[..]).copy_from_slice(&rand_bytes[..16]);
         (&mut request_body_iv[..]).copy_from_slice(&rand_bytes[16..32]);
-        response_header = rand_bytes[32];
+        let response_header: u8 = rand_bytes[32];
 
         let response_body_key = Md5::digest(&request_body_key).to_vec();
         let response_body_iv = Md5::digest(&request_body_iv).to_vec();
