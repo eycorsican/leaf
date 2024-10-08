@@ -249,6 +249,16 @@ message Router {
 			string country_code = 2;
 		}
 
+		message Process {
+			enum Type {
+				PID = 0;
+				NAME = 1;
+			}
+
+			Type type = 1;
+			string value = 2;
+		}
+
 		string target_tag = 1;
 		repeated Domain domains = 2;
 		repeated string ip_cidrs = 3;
@@ -256,6 +266,7 @@ message Router {
 		repeated string port_ranges = 5;
 		repeated string networks = 6;
 		repeated string inbound_tags = 7;
+		repeated Process processes = 8;
 	}
 
 	repeated Rule rules = 1;

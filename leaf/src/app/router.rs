@@ -9,6 +9,8 @@ use maxminddb::geoip2::Country;
 use maxminddb::Mmap;
 use tracing::{debug, warn};
 
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+use crate::app::process_finder;
 use crate::app::SyncDnsClient;
 use crate::config;
 use crate::session::{Network, Session, SocksAddr};
@@ -354,6 +356,106 @@ impl Condition for DomainMatcher {
     }
 }
 
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+struct ProcessPidMatcher {
+    value: String,
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+impl ProcessPidMatcher {
+    fn new(value: String) -> Self {
+        ProcessPidMatcher { value }
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+impl Condition for ProcessPidMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        let process_id = process_finder::find_pid(
+            &sess.network.to_string(),
+            &sess.source.ip(),
+            sess.source.port(),
+        );
+        if let Some(pid) = process_id {
+            if pid.to_string() == self.value {
+                debug!("{} matches process id [{}]", pid, self.value);
+                return true;
+            }
+        }
+        false
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+struct ProcessNameMatcher {
+    value: String,
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+impl ProcessNameMatcher {
+    fn new(value: String) -> Self {
+        ProcessNameMatcher { value }
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+impl Condition for ProcessNameMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        let process_info = process_finder::find_process(
+            &sess.network.to_string(),
+            &sess.source.ip(),
+            sess.source.port(),
+        );
+        if let Some(process) = process_info {
+            if process
+                .process_path
+                .to_lowercase()
+                .contains(&self.value.to_lowercase())
+            {
+                debug!(
+                    "[{}] matches process name [{}]",
+                    process.process_path, &self.value
+                );
+                return true;
+            }
+        }
+        false
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+struct ProcessMatcher {
+    condition: Box<dyn Condition>,
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+impl ProcessMatcher {
+    fn new(processes: &mut Vec<config::router::rule::Process>) -> Self {
+        let mut cond_or = ConditionOr::new();
+        for rr_process in processes.iter_mut() {
+            let filter = std::mem::take(&mut rr_process.value);
+            match rr_process.type_.unwrap() {
+                config::router::rule::process::Type::PID => {
+                    cond_or.add(Box::new(ProcessPidMatcher::new(filter)));
+                }
+                config::router::rule::process::Type::NAME => {
+                    cond_or.add(Box::new(ProcessNameMatcher::new(filter)));
+                }
+            }
+        }
+        ProcessMatcher {
+            condition: Box::new(cond_or),
+        }
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+impl Condition for ProcessMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        self.condition.apply(sess)
+    }
+}
+
 struct ConditionAnd {
     conditions: Vec<Box<dyn Condition>>,
 }
@@ -465,6 +567,13 @@ impl Router {
 
             if !rr.inbound_tags.is_empty() {
                 cond_and.add(Box::new(InboundTagMatcher::new(&mut rr.inbound_tags)));
+            }
+
+            if rr.processes.len() > 0 {
+                #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+                cond_and.add(Box::new(ProcessMatcher::new(&mut rr.processes)));
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+                warn!("The 'process' rule is not applicable to the current operating system");
             }
 
             if cond_and.is_empty() {

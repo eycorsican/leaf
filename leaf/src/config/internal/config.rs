@@ -3919,6 +3919,8 @@ pub mod router {
         pub networks: ::std::vec::Vec<::std::string::String>,
         // @@protoc_insertion_point(field:Router.Rule.inbound_tags)
         pub inbound_tags: ::std::vec::Vec<::std::string::String>,
+        // @@protoc_insertion_point(field:Router.Rule.processes)
+        pub processes: ::std::vec::Vec<rule::Process>,
         // special fields
         // @@protoc_insertion_point(special_field:Router.Rule.special_fields)
         pub special_fields: ::protobuf::SpecialFields,
@@ -3967,6 +3969,9 @@ pub mod router {
                     58 => {
                         self.inbound_tags.push(is.read_string()?);
                     },
+                    66 => {
+                        self.processes.push(is.read_message()?);
+                    },
                     tag => {
                         ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                     },
@@ -4002,6 +4007,10 @@ pub mod router {
             for value in &self.inbound_tags {
                 my_size += ::protobuf::rt::string_size(7, &value);
             };
+            for value in &self.processes {
+                let len = value.compute_size();
+                my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
+            };
             my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
             self.special_fields.cached_size().set(my_size as u32);
             my_size
@@ -4029,6 +4038,9 @@ pub mod router {
             for v in &self.inbound_tags {
                 os.write_string(7, &v)?;
             };
+            for v in &self.processes {
+                ::protobuf::rt::write_message_field_with_cached_size(8, v, os)?;
+            };
             os.write_unknown_fields(self.special_fields.unknown_fields())?;
             ::std::result::Result::Ok(())
         }
@@ -4053,6 +4065,7 @@ pub mod router {
             self.port_ranges.clear();
             self.networks.clear();
             self.inbound_tags.clear();
+            self.processes.clear();
             self.special_fields.clear();
         }
 
@@ -4065,6 +4078,7 @@ pub mod router {
                 port_ranges: ::std::vec::Vec::new(),
                 networks: ::std::vec::Vec::new(),
                 inbound_tags: ::std::vec::Vec::new(),
+                processes: ::std::vec::Vec::new(),
                 special_fields: ::protobuf::SpecialFields::new(),
             };
             &instance
@@ -4330,6 +4344,157 @@ pub mod router {
                 };
                 &instance
             }
+        }
+
+        // @@protoc_insertion_point(message:Router.Rule.Process)
+        #[derive(PartialEq,Clone,Default,Debug)]
+        pub struct Process {
+            // message fields
+            // @@protoc_insertion_point(field:Router.Rule.Process.type)
+            pub type_: ::protobuf::EnumOrUnknown<process::Type>,
+            // @@protoc_insertion_point(field:Router.Rule.Process.value)
+            pub value: ::std::string::String,
+            // special fields
+            // @@protoc_insertion_point(special_field:Router.Rule.Process.special_fields)
+            pub special_fields: ::protobuf::SpecialFields,
+        }
+
+        impl<'a> ::std::default::Default for &'a Process {
+            fn default() -> &'a Process {
+                <Process as ::protobuf::Message>::default_instance()
+            }
+        }
+
+        impl Process {
+            pub fn new() -> Process {
+                ::std::default::Default::default()
+            }
+        }
+
+        impl ::protobuf::Message for Process {
+            const NAME: &'static str = "Process";
+
+            fn is_initialized(&self) -> bool {
+                true
+            }
+
+            fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+                while let Some(tag) = is.read_raw_tag_or_eof()? {
+                    match tag {
+                        8 => {
+                            self.type_ = is.read_enum_or_unknown()?;
+                        },
+                        18 => {
+                            self.value = is.read_string()?;
+                        },
+                        tag => {
+                            ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                        },
+                    };
+                }
+                ::std::result::Result::Ok(())
+            }
+
+            // Compute sizes of nested messages
+            #[allow(unused_variables)]
+            fn compute_size(&self) -> u64 {
+                let mut my_size = 0;
+                if self.type_ != ::protobuf::EnumOrUnknown::new(process::Type::PID) {
+                    my_size += ::protobuf::rt::int32_size(1, self.type_.value());
+                }
+                if !self.value.is_empty() {
+                    my_size += ::protobuf::rt::string_size(2, &self.value);
+                }
+                my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+                self.special_fields.cached_size().set(my_size as u32);
+                my_size
+            }
+
+            fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+                if self.type_ != ::protobuf::EnumOrUnknown::new(process::Type::PID) {
+                    os.write_enum(1, ::protobuf::EnumOrUnknown::value(&self.type_))?;
+                }
+                if !self.value.is_empty() {
+                    os.write_string(2, &self.value)?;
+                }
+                os.write_unknown_fields(self.special_fields.unknown_fields())?;
+                ::std::result::Result::Ok(())
+            }
+
+            fn special_fields(&self) -> &::protobuf::SpecialFields {
+                &self.special_fields
+            }
+
+            fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+                &mut self.special_fields
+            }
+
+            fn new() -> Process {
+                Process::new()
+            }
+
+            fn clear(&mut self) {
+                self.type_ = ::protobuf::EnumOrUnknown::new(process::Type::PID);
+                self.value.clear();
+                self.special_fields.clear();
+            }
+
+            fn default_instance() -> &'static Process {
+                static instance: Process = Process {
+                    type_: ::protobuf::EnumOrUnknown::from_i32(0),
+                    value: ::std::string::String::new(),
+                    special_fields: ::protobuf::SpecialFields::new(),
+                };
+                &instance
+            }
+        }
+
+        /// Nested message and enums of message `Process`
+        pub mod process {
+            #[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
+            // @@protoc_insertion_point(enum:Router.Rule.Process.Type)
+            pub enum Type {
+                // @@protoc_insertion_point(enum_value:Router.Rule.Process.Type.PID)
+                PID = 0,
+                // @@protoc_insertion_point(enum_value:Router.Rule.Process.Type.NAME)
+                NAME = 1,
+            }
+
+            impl ::protobuf::Enum for Type {
+                const NAME: &'static str = "Type";
+
+                fn value(&self) -> i32 {
+                    *self as i32
+                }
+
+                fn from_i32(value: i32) -> ::std::option::Option<Type> {
+                    match value {
+                        0 => ::std::option::Option::Some(Type::PID),
+                        1 => ::std::option::Option::Some(Type::NAME),
+                        _ => ::std::option::Option::None
+                    }
+                }
+
+                fn from_str(str: &str) -> ::std::option::Option<Type> {
+                    match str {
+                        "PID" => ::std::option::Option::Some(Type::PID),
+                        "NAME" => ::std::option::Option::Some(Type::NAME),
+                        _ => ::std::option::Option::None
+                    }
+                }
+
+                const VALUES: &'static [Type] = &[
+                    Type::PID,
+                    Type::NAME,
+                ];
+            }
+
+            impl ::std::default::Default for Type {
+                fn default() -> Self {
+                    Type::PID
+                }
+            }
+
         }
     }
 }
