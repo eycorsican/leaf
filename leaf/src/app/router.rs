@@ -424,15 +424,15 @@ impl Router {
         for rr in routing_rules.iter_mut() {
             let mut cond_and = ConditionAnd::new();
 
-            if rr.domains.len() > 0 {
+            if !rr.domains.is_empty() {
                 cond_and.add(Box::new(DomainMatcher::new(&mut rr.domains)));
             }
 
-            if rr.ip_cidrs.len() > 0 {
+            if !rr.ip_cidrs.is_empty() {
                 cond_and.add(Box::new(IpCidrMatcher::new(&mut rr.ip_cidrs)));
             }
 
-            if rr.mmdbs.len() > 0 {
+            if !rr.mmdbs.is_empty() {
                 for mmdb in rr.mmdbs.iter() {
                     let reader = match mmdb_readers.get(&mmdb.file) {
                         Some(r) => r.clone(),
@@ -455,15 +455,15 @@ impl Router {
                 }
             }
 
-            if rr.port_ranges.len() > 0 {
+            if !rr.port_ranges.is_empty() {
                 cond_and.add(Box::new(PortMatcher::new(&rr.port_ranges)));
             }
 
-            if rr.networks.len() > 0 {
+            if !rr.networks.is_empty() {
                 cond_and.add(Box::new(NetworkMatcher::new(&mut rr.networks)));
             }
 
-            if rr.inbound_tags.len() > 0 {
+            if !rr.inbound_tags.is_empty() {
                 cond_and.add(Box::new(InboundTagMatcher::new(&mut rr.inbound_tags)));
             }
 

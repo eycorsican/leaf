@@ -347,7 +347,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                             fake_dns_exclude.push(ext_exclude);
                         }
                     }
-                    if fake_dns_exclude.len() > 0 {
+                    if !fake_dns_exclude.is_empty() {
                         settings.fake_dns_exclude = fake_dns_exclude;
                     }
 
@@ -357,7 +357,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                             fake_dns_include.push(ext_include);
                         }
                     }
-                    if fake_dns_include.len() > 0 {
+                    if !fake_dns_include.is_empty() {
                         settings.fake_dns_include = fake_dns_include;
                     }
 
@@ -707,7 +707,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                                 alpns.push(ext_alpn);
                             }
                         }
-                        if alpns.len() > 0 {
+                        if !alpns.is_empty() {
                             settings.alpn = alpns;
                         }
                         if let Some(ext_certificate) = ext_settings.certificate {
