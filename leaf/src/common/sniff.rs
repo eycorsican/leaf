@@ -65,7 +65,7 @@ where
         let bytes_str = String::from_utf8_lossy(buf);
         let parts: Vec<&str> = bytes_str.split("\r\n").collect();
 
-        if parts.len() == 0 {
+        if parts.is_empty() {
             return SniffResult::NotMatch;
         }
 
@@ -84,7 +84,7 @@ where
         }
 
         for (idx, &el) in parts.iter().enumerate() {
-            if idx == 0 || el == "" {
+            if idx == 0 || el.is_empty() {
                 continue;
             }
             let inner_parts: Vec<&str> = el.split(":").collect();

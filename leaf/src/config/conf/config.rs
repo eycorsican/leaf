@@ -797,7 +797,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                 for item in ext_always_real_ip {
                     fake_dns_exclude.push(item.clone())
                 }
-                if fake_dns_exclude.len() > 0 {
+                if !fake_dns_exclude.is_empty() {
                     settings.fake_dns_exclude = fake_dns_exclude;
                 }
             }
@@ -807,7 +807,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                 for item in ext_always_fake_ip {
                     fake_dns_include.push(item.clone())
                 }
-                if fake_dns_include.len() > 0 {
+                if !fake_dns_include.is_empty() {
                     settings.fake_dns_include = fake_dns_include;
                 }
             }

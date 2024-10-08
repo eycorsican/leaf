@@ -137,7 +137,7 @@ impl Handler {
             }
             let mut builder =
                 SslConnector::builder(SslMethod::tls()).expect("create ssl connector failed");
-            if alpns.len() > 0 {
+            if !alpns.is_empty() {
                 let wire = alpns
                     .into_iter()
                     .map(|a| [&[a.len() as u8], a.as_bytes()].concat())
