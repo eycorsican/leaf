@@ -241,7 +241,7 @@ async fn health_check(
     Measure::new(idx, mean_rtt, tag)
 }
 
-pub(self) async fn health_check_task(
+async fn health_check_task(
     network: Network,
     schedule: Arc<Mutex<Vec<usize>>>,
     actors: Vec<AnyOutboundHandler>,

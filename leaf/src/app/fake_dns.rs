@@ -44,7 +44,7 @@ impl FakeDns {
     }
 }
 
-pub(self) struct FakeDnsImpl {
+struct FakeDnsImpl {
     ip_to_domain: HashMap<u32, String>,
     domain_to_ip: HashMap<String, u32>,
     cursor: u32,
