@@ -497,9 +497,9 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     #[cfg(feature = "api")]
     {
         use std::net::SocketAddr;
-        let listen_addr = if !(&*option::API_LISTEN).is_empty() {
+        let listen_addr = if !option::API_LISTEN.is_empty() {
             Some(
-                (&*option::API_LISTEN)
+                option::API_LISTEN
                     .parse::<SocketAddr>()
                     .map_err(|e| Error::Config(anyhow!("parse SocketAddr failed: {}", e)))?,
             )

@@ -142,7 +142,7 @@ impl CatInboundListener {
         info!("reading stdin to target {}:{}", network, &target);
         Ok(Box::pin(async move {
             let sess = Session {
-                network: network,
+                network,
                 destination: target,
                 ..Default::default()
             };
@@ -171,8 +171,7 @@ impl CatInboundListener {
                     tokio::spawn(async move {
                         while let Some(pkt) = l_rx.recv().await {
                             let dst_addr = pkt.dst_addr.must_ip();
-                            if let Err(e) =
-                                ls.send_to(&pkt.data[..], &pkt.src_addr, &dst_addr).await
+                            if let Err(e) = ls.send_to(&pkt.data[..], &pkt.src_addr, dst_addr).await
                             {
                                 debug!("Send datagram failed: {}", e);
                                 break;
@@ -196,7 +195,7 @@ impl CatInboundListener {
                             }
                             Ok((n, dgram_src, dst_addr)) => {
                                 let pkt = UdpPacket::new(
-                                    (&buf[..n]).to_vec(),
+                                    buf[..n].to_vec(),
                                     SocksAddr::from(dgram_src.address),
                                     dst_addr,
                                 );

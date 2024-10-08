@@ -103,10 +103,7 @@ impl OutboundDatagramRecvHalf for DatagramRecvHalf {
         assert!(payload_len <= buf.len());
         buf[..payload_len]
             .copy_from_slice(&plaintext[src_addr.size()..src_addr.size() + payload_len]);
-        Ok((
-            payload_len,
-            self.2.as_ref().map(Clone::clone).unwrap_or(src_addr),
-        ))
+        Ok((payload_len, self.2.clone().unwrap_or(src_addr)))
     }
 }
 

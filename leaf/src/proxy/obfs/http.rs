@@ -178,12 +178,12 @@ impl AsyncWrite for Stream {
 
 fn generate_http_request(req_line: &[u8], body: &[u8]) -> Vec<u8> {
     let mut req = Vec::with_capacity(req_line.len() + 120);
-    req.extend_from_slice(&req_line);
+    req.extend_from_slice(req_line);
     let mut ws_key = [0; 16];
     thread_rng().fill_bytes(&mut ws_key);
     let mut b64 = [0; 32];
     let b64_len = BASE64_URL_SAFE
-        .encode_slice(&ws_key, &mut b64)
+        .encode_slice(ws_key, &mut b64)
         .expect("A base64 repr of 16 bytes should not exceed 32 chars");
     req.extend_from_slice(&b64[..b64_len]);
     req.extend_from_slice(b"\r\nContent-Length: ");

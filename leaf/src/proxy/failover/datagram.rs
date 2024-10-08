@@ -25,6 +25,7 @@ pub struct Handler {
 }
 
 impl Handler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         actors: Vec<AnyOutboundHandler>,
         fail_timeout: u32,

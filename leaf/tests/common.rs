@@ -102,8 +102,8 @@ fn new_socks_outbound(socks_addr: &str, socks_port: u16) -> AnyOutboundHandler {
     ));
     let outbound_manager =
         leaf::app::outbound::manager::OutboundManager::new(&config.outbounds, dns_client).unwrap();
-    let handler = outbound_manager.get("socks").unwrap();
-    handler
+    
+    (outbound_manager.get("socks").unwrap()) as _
 }
 
 pub async fn new_socks_stream(socks_addr: &str, socks_port: u16, sess: &Session) -> AnyStream {
@@ -493,7 +493,7 @@ pub fn test_data_transfering_reliability_on_configs(
                 .await
                 .unwrap()
                 .unwrap();
-            recvd_data.push((&buf[..n]).to_vec());
+            recvd_data.push(buf[..n].to_vec());
             recvd_bytes += n;
         }
         for data in recvd_data.into_iter() {
@@ -600,7 +600,7 @@ pub fn test_data_transfering_reliability_on_configs(
                 .await
                 .unwrap()
                 .unwrap();
-            recvd_data.push((&buf[..n]).to_vec());
+            recvd_data.push(buf[..n].to_vec());
             recvd_bytes += n;
         }
         for data in recvd_data.into_iter() {
@@ -714,7 +714,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         let msg = b"def";
         let n = timeout(
             Duration::from_secs(1),
-            s.send_to(&msg.to_vec(), &sess.destination),
+            s.send_to(msg.as_ref(), &sess.destination),
         )
         .await
         .unwrap()
@@ -740,7 +740,7 @@ pub fn test_configs(configs: Vec<String>, socks_addr: &str, socks_port: u16) {
         let msg = b"ghi";
         let n = timeout(
             Duration::from_secs(1),
-            s.send_to(&msg.to_vec(), &sess.destination),
+            s.send_to(msg.as_ref(), &sess.destination),
         )
         .await
         .unwrap()

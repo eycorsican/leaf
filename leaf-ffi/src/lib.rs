@@ -52,6 +52,7 @@ fn to_errno(e: leaf::Error) -> i32 {
 ///                   multi_thread is true.
 /// @return ERR_OK on finish running, any other errors means a startup failure.
 #[no_mangle]
+#[allow(unused_variables)]
 pub extern "C" fn leaf_run_with_options(
     rt_id: u16,
     config_path: *const c_char,
@@ -155,7 +156,7 @@ pub extern "C" fn leaf_shutdown(rt_id: u16) -> bool {
 #[no_mangle]
 pub extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
-        if let Err(e) = leaf::test_config(&config_path) {
+        if let Err(e) = leaf::test_config(config_path) {
             return to_errno(e);
         }
         ERR_OK

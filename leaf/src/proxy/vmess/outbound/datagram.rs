@@ -166,7 +166,7 @@ where
     T: AsyncRead + AsyncWrite + Send + Sync,
 {
     async fn send_to(&mut self, buf: &[u8], _target: &SocksAddr) -> io::Result<usize> {
-        self.0.write_all(&buf).map_ok(|_| buf.len()).await
+        self.0.write_all(buf).map_ok(|_| buf.len()).await
     }
 
     async fn close(&mut self) -> io::Result<()> {

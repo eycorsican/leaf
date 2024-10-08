@@ -38,6 +38,7 @@ pub struct MuxManager {
 }
 
 impl MuxManager {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: String,
         port: u16,
@@ -108,7 +109,7 @@ impl MuxManager {
         // Pass the TCP stream through all sub-transports, e.g. TLS, WebSocket.
         let mut sess = sess.clone();
         sess.destination = SocksAddr::try_from((&self.address, self.port))?;
-        for (_, a) in self.actors.iter().enumerate() {
+        for a in self.actors.iter() {
             conn = a.stream()?.handle(&sess, None, Some(conn)).await?;
         }
 
@@ -144,6 +145,7 @@ pub struct Handler {
 }
 
 impl Handler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         address: String,
         port: u16,

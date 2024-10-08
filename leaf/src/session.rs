@@ -418,10 +418,10 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                         return Err(insuff_bytes());
                     }
                     let mut ip_bytes = [0u8; 4];
-                    (&mut ip_bytes).copy_from_slice(&buf[1..5]);
+                    ip_bytes.copy_from_slice(&buf[1..5]);
                     let ip = Ipv4Addr::from(ip_bytes);
                     let mut port_bytes = [0u8; 2];
-                    (&mut port_bytes).copy_from_slice(&buf[5..7]);
+                    port_bytes.copy_from_slice(&buf[5..7]);
                     let port = u16::from_be_bytes(port_bytes);
                     Ok(Self::Ip((ip, port).into()))
                 }
@@ -430,10 +430,10 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                         return Err(insuff_bytes());
                     }
                     let mut ip_bytes = [0u8; 16];
-                    (&mut ip_bytes).copy_from_slice(&buf[1..17]);
+                    ip_bytes.copy_from_slice(&buf[1..17]);
                     let ip = Ipv6Addr::from(ip_bytes);
                     let mut port_bytes = [0u8; 2];
-                    (&mut port_bytes).copy_from_slice(&buf[17..19]);
+                    port_bytes.copy_from_slice(&buf[17..19]);
                     let port = u16::from_be_bytes(port_bytes);
                     Ok(Self::Ip((ip, port).into()))
                 }
@@ -446,11 +446,11 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                         return Err(insuff_bytes());
                     }
                     let domain =
-                        String::from_utf8((&buf[2..domain_len + 2]).to_vec()).map_err(|e| {
+                        String::from_utf8(buf[2..domain_len + 2].to_vec()).map_err(|e| {
                             io::Error::new(io::ErrorKind::Other, format!("invalid domain: {}", e))
                         })?;
                     let mut port_bytes = [0u8; 2];
-                    (&mut port_bytes).copy_from_slice(&buf[domain_len + 2..domain_len + 4]);
+                    port_bytes.copy_from_slice(&buf[domain_len + 2..domain_len + 4]);
                     let port = u16::from_be_bytes(port_bytes);
                     Ok(Self::Domain(domain, port))
                 }
@@ -465,7 +465,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     let port = u16::from_be_bytes(buf[..2].try_into().unwrap());
                     let buf = &buf[2..];
                     let mut ip_bytes = [0u8; 4];
-                    (&mut ip_bytes).copy_from_slice(&buf[..4]);
+                    ip_bytes.copy_from_slice(&buf[..4]);
                     let ip = Ipv4Addr::from(ip_bytes);
                     Ok(Self::Ip((ip, port).into()))
                 }
@@ -477,7 +477,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     let port = u16::from_be_bytes(buf[..2].try_into().unwrap());
                     let buf = &buf[2..];
                     let mut ip_bytes = [0u8; 16];
-                    (&mut ip_bytes).copy_from_slice(&buf[..16]);
+                    ip_bytes.copy_from_slice(&buf[..16]);
                     let ip = Ipv6Addr::from(ip_bytes);
                     Ok(Self::Ip((ip, port).into()))
                 }
@@ -493,7 +493,7 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     if buf.len() < domain_len {
                         return Err(insuff_bytes());
                     }
-                    let domain = String::from_utf8((&buf[..domain_len]).to_vec()).map_err(|e| {
+                    let domain = String::from_utf8(buf[..domain_len].to_vec()).map_err(|e| {
                         io::Error::new(io::ErrorKind::Other, format!("invalid domain: {}", e))
                     })?;
                     Ok(Self::Domain(domain, port))

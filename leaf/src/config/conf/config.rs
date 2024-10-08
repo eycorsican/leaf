@@ -88,7 +88,7 @@ impl Default for Proxy {
         Proxy {
             tag: "".to_string(),
             protocol: "".to_string(),
-            interface: (&*crate::option::UNSPECIFIED_BIND_ADDR).ip().to_string(),
+            interface: crate::option::UNSPECIFIED_BIND_ADDR.ip().to_string(),
             address: None,
             port: None,
             encrypt_method: Some("chacha20-ietf-poly1305".to_string()),
@@ -1281,7 +1281,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                         }
                     }
                     if let Some(ext_delay_base) = ext_proxy_group.delay_base {
-                        settings.delay_base = ext_delay_base as u32;
+                        settings.delay_base = ext_delay_base;
                     } else {
                         settings.delay_base = 0;
                     }
@@ -1308,7 +1308,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                 "failover" => {
                     let mut settings = internal::FailOverOutboundSettings::new();
                     if let Some(ext_actors) = &ext_proxy_group.actors {
-                        settings.actors.extend_from_slice(&ext_actors);
+                        settings.actors.extend_from_slice(ext_actors);
                     }
                     settings.fail_timeout = ext_proxy_group.fail_timeout.unwrap_or(4);
                     settings.health_check = ext_proxy_group.health_check.unwrap_or(true);
@@ -1324,7 +1324,7 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                     settings.health_check_active =
                         ext_proxy_group.health_check_active.unwrap_or(15 * 60); // 15mins
                     if let Some(prefers) = &ext_proxy_group.health_check_prefers {
-                        settings.health_check_prefers.extend_from_slice(&prefers);
+                        settings.health_check_prefers.extend_from_slice(prefers);
                     }
                     settings.health_check_on_start =
                         ext_proxy_group.health_check_on_start.unwrap_or(false);

@@ -36,7 +36,7 @@ pub fn kdf(pass: &str, size: usize) -> Result<Vec<u8>> {
     let mut sum = Md5::digest(pass).to_vec();
     std::io::Write::write(&mut key, &sum)?;
     while key.len() < size {
-        sum = Md5::digest(&[sum, pass.to_vec()].concat()).to_vec();
+        sum = Md5::digest([sum, pass.to_vec()].concat()).to_vec();
         std::io::Write::write(&mut key, &sum)?;
     }
     Ok(key)

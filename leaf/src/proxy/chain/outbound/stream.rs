@@ -23,16 +23,15 @@ impl Handler {
                     }
                     return oc;
                 }
-                _ => match a.datagram() {
-                    Ok(h) => {
+                _ => {
+                    if let Ok(h) = a.datagram() {
                         let oc = h.connect_addr();
                         if let OutboundConnect::Next = oc {
                             continue;
                         }
                         return oc;
                     }
-                    _ => (),
-                },
+                }
             }
         }
         OutboundConnect::Unknown
@@ -71,7 +70,7 @@ impl OutboundStreamHandler for Handler {
             stream.replace(a.stream()?.handle(&new_sess, lhs_stream, s).await?);
         }
         Ok(stream
-            .map(|x| Box::new(x))
+            .map(Box::new)
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "chain tcp invalid input"))?)
     }
 }

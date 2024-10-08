@@ -64,8 +64,7 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
         let header_size = 3 + dst_addr.size();
         let payload_size = n - header_size;
         assert!(buf.len() >= payload_size);
-        (&mut buf[..payload_size])
-            .copy_from_slice(&recv_buf[header_size..header_size + payload_size]);
+        buf[..payload_size].copy_from_slice(&recv_buf[header_size..header_size + payload_size]);
         Ok((payload_size, src_addr, dst_addr))
     }
 }

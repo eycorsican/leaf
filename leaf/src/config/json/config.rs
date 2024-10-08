@@ -847,12 +847,12 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                         }
                     }
                     if let Some(ext_max_accepts) = ext_settings.max_accepts {
-                        settings.max_accepts = ext_max_accepts as u32;
+                        settings.max_accepts = ext_max_accepts;
                     } else {
                         settings.max_accepts = 8;
                     }
                     if let Some(ext_concurrency) = ext_settings.concurrency {
-                        settings.concurrency = ext_concurrency as u32;
+                        settings.concurrency = ext_concurrency;
                     } else {
                         settings.concurrency = 2;
                     }
@@ -1064,7 +1064,7 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
             }
         }
     }
-    if servers.len() == 0 {
+    if servers.is_empty() {
         servers.push("1.1.1.1".to_string());
     }
     dns.servers = servers;

@@ -10,7 +10,7 @@ use crate::common::crypto::{
 };
 
 pub fn generate_chacha20poly1305_key(key: &[u8]) -> Vec<u8> {
-    let key_1 = Md5::digest(&key).to_vec();
+    let key_1 = Md5::digest(key).to_vec();
     let key_2 = Md5::digest(&key_1).to_vec();
     [key_1, key_2].concat()
 }

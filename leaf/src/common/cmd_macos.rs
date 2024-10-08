@@ -125,7 +125,7 @@ pub fn add_default_ipv4_route(gateway: Ipv4Addr, interface: String, primary: boo
 pub fn add_default_ipv6_route(gateway: Ipv6Addr, interface: String, primary: bool) -> Result<()> {
     // FIXME https://doc.rust-lang.org/std/net/struct.Ipv6Addr.html#method.is_global
     let gw = if (gateway.segments()[0] & 0xffc0) == 0xfe80 {
-        format!("{}%{}", gateway.to_string(), interface)
+        format!("{}%{}", gateway, interface)
     } else {
         gateway.to_string()
     };

@@ -34,7 +34,7 @@ impl InboundStreamHandler for Handler {
         if buf[1] == 0 {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("no socks5 authentication method specified"),
+                "no socks5 authentication method specified",
             ));
         }
         let nmethods = buf[1] as usize;
@@ -55,7 +55,7 @@ impl InboundStreamHandler for Handler {
             stream.write_all(&[0x05, 0xff]).await?;
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("unsupported socks5 authentication methods"),
+                "unsupported socks5 authentication methods",
             ));
         }
 
@@ -76,7 +76,7 @@ impl InboundStreamHandler for Handler {
             // TODO reply?
             return Err(io::Error::new(
                 io::ErrorKind::Other,
-                format!("non-zero socks5 reserved field"),
+                "non-zero socks5 reserved field",
             ));
         }
         let cmd = buf[1];

@@ -29,17 +29,14 @@ fn load_certs(path: &Path) -> io::Result<Vec<CertificateDer<'static>>> {
 #[cfg(feature = "rustls-tls")]
 fn load_keys(path: &Path) -> io::Result<Vec<PrivateKeyDer<'static>>> {
     let mut keys = pkcs8_private_keys(&mut BufReader::new(File::open(path)?))
-        .into_iter()
         .filter_map(|x| x.ok())
         .map(Into::into)
         .collect::<Vec<_>>();
     let mut keys2 = rsa_private_keys(&mut BufReader::new(File::open(path)?))
-        .into_iter()
         .filter_map(|x| x.ok())
         .map(Into::into)
         .collect::<Vec<_>>();
     let mut keys3 = ec_private_keys(&mut BufReader::new(File::open(path)?))
-        .into_iter()
         .filter_map(|x| x.ok())
         .map(Into::into)
         .collect::<Vec<_>>();

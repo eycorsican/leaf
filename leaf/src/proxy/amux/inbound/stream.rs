@@ -51,7 +51,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         mut stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
-        for (_, a) in self.actors.iter().enumerate() {
+        for a in self.actors.iter() {
             match a.stream()?.handle(sess, stream).await? {
                 InboundTransport::Stream(new_stream, new_sess) => {
                     stream = new_stream;

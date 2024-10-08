@@ -127,9 +127,8 @@ impl Drop for DatagramSendHalf {
 #[async_trait]
 impl OutboundDatagramSendHalf for DatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
-        self.0.send_to(buf, target).await.map(|n| {
+        self.0.send_to(buf, target).await.inspect(|&n| {
             self.1.fetch_add(n as u64, Ordering::Relaxed);
-            n
         })
     }
 
@@ -180,15 +179,14 @@ fn log_session_end(c: &Counter) {
     );
 }
 
+#[derive(Default)]
 pub struct StatManager {
     pub counters: Vec<Counter>,
 }
 
 impl StatManager {
     pub fn new() -> Self {
-        Self {
-            counters: Vec::new(),
-        }
+        Self::default()
     }
 
     pub fn cleanup_task(sm: super::SyncStatManager) -> crate::Runner {

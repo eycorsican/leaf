@@ -29,13 +29,13 @@ impl<'a> IntoClientRequest for Request<'a> {
         for (k, v) in self.headers.iter() {
             if k.to_uppercase() != "HOST" {
                 req.headers_mut()
-                    .insert(HeaderName::try_from(k)?, HeaderValue::from_str(&v)?);
+                    .insert(HeaderName::try_from(k)?, HeaderValue::from_str(v)?);
             }
         }
         if !crate::option::HTTP_USER_AGENT.is_empty() {
             req.headers_mut().insert(
                 ::http::header::USER_AGENT,
-                HeaderValue::from_static(&*crate::option::HTTP_USER_AGENT),
+                HeaderValue::from_static(&crate::option::HTTP_USER_AGENT),
             );
         }
         Ok(req)
@@ -63,11 +63,13 @@ impl OutboundStreamHandler for Handler {
             let mut url = Url::parse(&format!("ws://{}", host)).unwrap();
             url = url.join(self.path.as_str()).unwrap();
             let req = Request {
-                uri: &url.to_string(),
+                uri: url.as_ref(),
                 headers: &self.headers,
             };
-            let mut ws_config = WebSocketConfig::default();
-            ws_config.write_buffer_size = 0;
+            let ws_config = WebSocketConfig {
+                write_buffer_size: 0,
+                ..Default::default()
+            };
             let (socket, _) = client_async_with_config(req, stream, Some(ws_config))
                 .map_err(|e| {
                     io::Error::new(

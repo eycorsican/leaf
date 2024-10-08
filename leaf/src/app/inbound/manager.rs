@@ -66,7 +66,7 @@ pub struct InboundManager {
 
 impl InboundManager {
     pub fn new(
-        inbounds: &Vec<config::Inbound>,
+        inbounds: &[config::Inbound],
         dispatcher: Arc<Dispatcher>,
         nat_manager: Arc<NatManager>,
     ) -> Result<Self> {

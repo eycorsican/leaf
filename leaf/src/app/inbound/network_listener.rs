@@ -47,7 +47,7 @@ async fn handle_inbound_datagram(
                 &dst_addr,
                 pkt.data.len()
             );
-            if let Err(e) = ls.send_to(&pkt.data[..], &pkt.src_addr, &dst_addr).await {
+            if let Err(e) = ls.send_to(&pkt.data[..], &pkt.src_addr, dst_addr).await {
                 debug!("Send datagram failed: {}", e);
                 break;
             }
@@ -75,7 +75,7 @@ async fn handle_inbound_datagram(
                     n
                 );
                 let pkt = UdpPacket::new(
-                    (&buf[..n]).to_vec(),
+                    buf[..n].to_vec(),
                     SocksAddr::from(dgram_src.address),
                     dst_addr,
                 );

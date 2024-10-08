@@ -127,6 +127,12 @@ impl CopyBuffer {
     }
 }
 
+impl Default for CopyBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 enum TransferState {
     Running(CopyBuffer),
     ShuttingDown(u64),

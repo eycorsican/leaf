@@ -1,14 +1,14 @@
-use std::io;
-use std::str;
 use std::cmp;
 use std::convert::TryFrom;
-use std::{net::IpAddr, pin::Pin, task::Poll, task::Context};
+use std::io;
+use std::str;
+use std::{net::IpAddr, pin::Pin, task::Context, task::Poll};
 
-use anyhow::Result;
-use tokio::io::{AsyncWriteExt, AsyncReadExt, ReadBuf};
-use bytes::BytesMut;
-use async_trait::async_trait;
 use ::http::{Method, Uri};
+use anyhow::Result;
+use async_trait::async_trait;
+use bytes::BytesMut;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadBuf};
 
 use crate::{
     proxy::*,
@@ -24,7 +24,9 @@ fn bad_request() -> io::Error {
 }
 
 fn split_slice_once(s: &[u8], sep: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
-    s.windows(sep.len()).position(|w| w == sep).map(|loc| (s[..loc].to_vec(), s[loc..].to_vec()))
+    s.windows(sep.len())
+        .position(|w| w == sep)
+        .map(|loc| (s[..loc].to_vec(), s[loc..].to_vec()))
 }
 
 /// Parse destination
@@ -33,13 +35,13 @@ impl TryFrom<&Uri> for SocksAddr {
     fn try_from(uri: &Uri) -> Result<Self, Self::Error> {
         let (host, port) = (
             uri.host().ok_or(bad_request())?,
-            uri.port_u16().or_else(|| {
-                match uri.scheme_str() {
+            uri.port_u16()
+                .or_else(|| match uri.scheme_str() {
                     Some("http") => Some(80),
                     Some("https") => Some(443),
                     _ => None,
-                }
-            }).ok_or(bad_request())?
+                })
+                .ok_or(bad_request())?,
         );
         let addr = if let Ok(host) = host.parse::<IpAddr>() {
             SocksAddr::from((host, port))
@@ -105,12 +107,12 @@ impl RequestHead {
     }
 }
 
-impl Into<Vec<u8>> for RequestHead {
-    fn into(self) -> Vec<u8> {
+impl From<RequestHead> for Vec<u8> {
+    fn from(v: RequestHead) -> Self {
         let mut head = Vec::new();
-        let request_line = format!("{} {} {}\r\n", self.method, self.uri, self.version);
+        let request_line = format!("{} {} {}\r\n", v.method, v.uri, v.version);
         head.append(&mut request_line.into_bytes());
-        for (name, value) in self.headers {
+        for (name, value) in v.headers {
             let header = format!("{}: {}\r\n", name, value);
             head.append(&mut header.into_bytes());
         }
@@ -122,11 +124,10 @@ impl Into<Vec<u8>> for RequestHead {
 impl TryFrom<Vec<u8>> for RequestHead {
     type Error = io::Error;
     fn try_from(head: Vec<u8>) -> Result<Self, Self::Error> {
-        let (request_line, header) = split_slice_once(&head, &EOL)
-            .unwrap_or((head, Vec::new()));
+        let (request_line, header) = split_slice_once(&head, &EOL).unwrap_or((head, Vec::new()));
         let (method, uri, version) = RequestHead::parse_request_line(&request_line)?;
         let headers = RequestHead::parse_headers(&header)?;
-        let target_format = if uri.to_string() == "*" {
+        let target_format = if uri == "*" {
             TargetFormat::Asterisk
         } else if uri.scheme().is_some() {
             TargetFormat::Absolute
@@ -161,18 +162,24 @@ impl HttpStream {
 
         match head.target_format {
             TargetFormat::Absolute => {
-                let path_and_query = head.uri.path_and_query().map(|paq| paq.as_str()).unwrap_or("/");
+                let path_and_query = head
+                    .uri
+                    .path_and_query()
+                    .map(|paq| paq.as_str())
+                    .unwrap_or("/");
                 head.uri = path_and_query.parse().unwrap();
                 head.set_header("host".to_string(), addr.to_string());
                 self.cache.clear();
                 self.cache.append(&mut head.into());
                 self.cache.append(&mut rest_buf);
                 Ok(())
-            },
+            }
             TargetFormat::Authority => {
-                self.origin.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await?;
+                self.origin
+                    .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                    .await?;
                 Ok(())
-            },
+            }
             _ => Err(bad_request()),
         }
     }

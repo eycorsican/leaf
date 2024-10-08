@@ -157,7 +157,7 @@ table, th, td {
         );
         let sm = rm.stat_manager();
         let sm = sm.read().await;
-        let total_counters = sm.counters.iter().count();
+        let total_counters = sm.counters.len();
         let active_counters = sm
             .counters
             .iter()
@@ -174,9 +174,7 @@ table, th, td {
             sm.counters
                 .iter()
                 .filter(|x| !x.send_completed() || !x.recv_completed())
-                .map(|c| c.sess.forwarded_source)
-                .filter(|x| x.is_some())
-                .map(|x| x.unwrap()),
+                .filter_map(|c| c.sess.forwarded_source),
         )
         .len();
         body.push_str(&format!(

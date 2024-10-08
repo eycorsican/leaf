@@ -45,10 +45,11 @@ impl OutboundDatagramHandler for Handler {
         let a = &self.actors[self.next.load(Ordering::Relaxed)];
         match a.datagram() {
             Ok(h) => return h.connect_addr(),
-            _ => match a.stream() {
-                Ok(h) => return h.connect_addr(),
-                _ => (),
-            },
+            _ => {
+                if let Ok(h) = a.stream() {
+                    return h.connect_addr();
+                }
+            }
         }
         OutboundConnect::Unknown
     }
@@ -71,11 +72,17 @@ impl OutboundDatagramHandler for Handler {
                 let mut rng = StdRng::from_entropy();
                 let next: usize = rng.gen_range(0..self.actors.len());
                 self.next.store(next, Ordering::Relaxed);
-                self.actors[current].datagram()?.handle(sess, transport).await
+                self.actors[current]
+                    .datagram()?
+                    .handle(sess, transport)
+                    .await
             }
             Method::RandomOnce => {
                 let current = self.next.load(Ordering::Relaxed);
-                self.actors[current].datagram()?.handle(sess, transport).await
+                self.actors[current]
+                    .datagram()?
+                    .handle(sess, transport)
+                    .await
             }
             Method::RoundRobin => {
                 let current = self.next.load(Ordering::Relaxed);
@@ -85,7 +92,10 @@ impl OutboundDatagramHandler for Handler {
                     current + 1
                 };
                 self.next.store(next, Ordering::Relaxed);
-                self.actors[current].datagram()?.handle(sess, transport).await
+                self.actors[current]
+                    .datagram()?
+                    .handle(sess, transport)
+                    .await
             }
         }
     }

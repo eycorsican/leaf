@@ -114,7 +114,7 @@ async fn single_health_check(
                     m = Measure::new(idx, u128::MAX, tag);
                 }
             }
-            return m;
+            m
         }
         Network::Udp => {
             let transport =
@@ -181,6 +181,7 @@ async fn single_health_check(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn health_check(
     network: Network,
     idx: usize,
@@ -217,7 +218,7 @@ async fn health_check(
 
     let n_success = measures
         .iter()
-        .filter(|x| x.rtt < health_check_timeout_ms as u128)
+        .filter(|x| x.rtt < health_check_timeout_ms)
         .count();
 
     debug!(
@@ -233,7 +234,7 @@ async fn health_check(
 
     let mean_rtt = measures
         .iter()
-        .filter(|x| x.rtt < health_check_timeout_ms as u128)
+        .filter(|x| x.rtt < health_check_timeout_ms)
         .map(|x| x.rtt)
         .sum::<u128>()
         .div_euclid(n_success as u128);
@@ -241,6 +242,7 @@ async fn health_check(
     Measure::new(idx, mean_rtt, tag)
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn health_check_task(
     network: Network,
     schedule: Arc<Mutex<Vec<usize>>>,
@@ -266,7 +268,7 @@ async fn health_check_task(
 
         if last_active < health_check_active.into() {
             let mut checks = Vec::new();
-            for (i, a) in (&actors).iter().enumerate() {
+            for (i, a) in actors.iter().enumerate() {
                 let dns_client_cloned = dns_client.clone();
                 checks.push(Box::pin(health_check(
                     network,
@@ -299,7 +301,7 @@ async fn health_check_task(
                 }
 
                 fn is_preferred_actor(tag: &String, prefers: &[String]) -> bool {
-                    prefers.iter().find(|x| x == &tag).is_some()
+                    prefers.iter().any(|x| x == tag)
                 }
 
                 // If an outbound is preferred, we subtract its RTT with the minimal

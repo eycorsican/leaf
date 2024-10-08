@@ -36,7 +36,7 @@ async fn handle_inbound_stream(
         source: local_addr,
         local_addr: remote_addr,
         destination: SocksAddr::Ip(remote_addr),
-        inbound_tag: inbound_tag,
+        inbound_tag,
         ..Default::default()
     };
     // Whether to override the destination according to Fake DNS.
@@ -94,7 +94,7 @@ async fn handle_inbound_datagram(
                     }
                 }
             };
-            if let Err(e) = ls_cloned.send_to(&pkt.data[..], &src_addr, &pkt.dst_addr.must_ip()) {
+            if let Err(e) = ls_cloned.send_to(&pkt.data[..], &src_addr, pkt.dst_addr.must_ip()) {
                 warn!("A packet failed to send to the netstack: {}", e);
             }
         }

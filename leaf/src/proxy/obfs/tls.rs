@@ -200,7 +200,7 @@ impl AsyncWrite for Stream {
             match write_state {
                 WriteState::Initial { host } => {
                     buf = &buf[..buf.len().min(MAX_TLS_CHUNK_SIZE as usize)];
-                    let req = generate_tls_request(&host, buf);
+                    let req = generate_tls_request(host, buf);
                     *write_state = WriteState::WritingRequest(Cursor::new(req));
                 }
                 WriteState::WritingRequest(req) => {
@@ -289,6 +289,7 @@ fn generate_tls_request(host: &[u8], payload: &[u8]) -> Vec<u8> {
     server_name.0.server_name_len = (host.len() as u16).to_be();
 
     let mut req = Vec::with_capacity(total_len);
+    #[allow(clippy::missing_transmute_annotations)]
     unsafe {
         req.extend_from_slice(&transmute::<_, [u8; 138]>(hello));
         req.extend_from_slice(&transmute::<_, [u8; 4]>(ticket));

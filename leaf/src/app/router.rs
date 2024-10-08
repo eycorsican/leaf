@@ -73,7 +73,7 @@ struct IpCidrMatcher {
 }
 
 impl IpCidrMatcher {
-    fn new(ips: &mut Vec<String>) -> Self {
+    fn new(ips: &mut [String]) -> Self {
         let mut cidrs = Vec::new();
         for ip in ips.iter_mut() {
             let ip = std::mem::take(ip);
@@ -110,7 +110,7 @@ struct InboundTagMatcher {
 }
 
 impl InboundTagMatcher {
-    fn new(tags: &mut Vec<String>) -> Self {
+    fn new(tags: &mut [String]) -> Self {
         let mut values = Vec::new();
         for t in tags.iter_mut() {
             values.push(std::mem::take(t));
@@ -136,7 +136,7 @@ struct NetworkMatcher {
 }
 
 impl NetworkMatcher {
-    fn new(networks: &mut Vec<String>) -> Self {
+    fn new(networks: &mut [String]) -> Self {
         let mut values = Vec::new();
         for net in networks.iter_mut() {
             match std::mem::take(net).to_uppercase().as_str() {
@@ -166,7 +166,7 @@ struct PortMatcher {
 }
 
 impl PortMatcher {
-    fn new(port_ranges: &Vec<String>) -> Self {
+    fn new(port_ranges: &[String]) -> Self {
         let mut cond_or = ConditionOr::new();
         for pr in port_ranges.iter() {
             match PortRangeMatcher::new(pr) {
@@ -326,7 +326,7 @@ struct DomainMatcher {
 }
 
 impl DomainMatcher {
-    fn new(domains: &mut Vec<config::router::rule::Domain>) -> Self {
+    fn new(domains: &mut [config::router::rule::Domain]) -> Self {
         let mut cond_or = ConditionOr::new();
         for rr_domain in domains.iter_mut() {
             let filter = std::mem::take(&mut rr_domain.value);
@@ -419,7 +419,7 @@ pub struct Router {
 }
 
 impl Router {
-    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &mut Vec<config::router::Rule>) {
+    fn load_rules(rules: &mut Vec<Rule>, routing_rules: &mut [config::router::Rule]) {
         let mut mmdb_readers: HashMap<String, Arc<maxminddb::Reader<Mmap>>> = HashMap::new();
         for rr in routing_rules.iter_mut() {
             let mut cond_and = ConditionAnd::new();
@@ -439,7 +439,7 @@ impl Router {
                         None => match maxminddb::Reader::open_mmap(&mmdb.file) {
                             Ok(r) => {
                                 let r = Arc::new(r);
-                                mmdb_readers.insert((&mmdb.file).to_owned(), r.clone());
+                                mmdb_readers.insert(mmdb.file.to_owned(), r.clone());
                                 r
                             }
                             Err(e) => {

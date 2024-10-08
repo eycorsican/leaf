@@ -98,10 +98,10 @@ impl RequestHeader {
         let mut tmp = [0u8; 8];
         BigEndian::write_u64(&mut tmp, timestamp as u64);
         let mut hasher = Md5::new();
-        hasher.update(&tmp);
-        hasher.update(&tmp);
-        hasher.update(&tmp);
-        hasher.update(&tmp);
+        hasher.update(tmp);
+        hasher.update(tmp);
+        hasher.update(tmp);
+        hasher.update(tmp);
         let iv = hasher.finalize();
 
         // key for header ecnryption
@@ -140,8 +140,8 @@ impl ClientSession {
         for i in 0..rand_bytes.len() {
             rand_bytes[i] = rng.gen();
         }
-        (&mut request_body_key[..]).copy_from_slice(&rand_bytes[..16]);
-        (&mut request_body_iv[..]).copy_from_slice(&rand_bytes[16..32]);
+        request_body_key[..].copy_from_slice(&rand_bytes[..16]);
+        request_body_iv[..].copy_from_slice(&rand_bytes[16..32]);
         let response_header: u8 = rand_bytes[32];
 
         let response_body_key = Md5::digest(&request_body_key).to_vec();

@@ -59,14 +59,14 @@ impl MuxFrame {
         match self {
             MuxFrame::Stream(id, data) => {
                 buf.put_u8(FRAME_STREAM);
-                buf.put_u16(*id as u16);
+                buf.put_u16(*id);
                 assert!(data.len() <= MAX_STREAM_FRAME_DATA_LEN.into());
                 buf.put_u16(data.len() as u16);
                 buf.put_slice(data);
             }
             MuxFrame::StreamFin(id) => {
                 buf.put_u8(FRAME_STREAM_FIN);
-                buf.put_u16(*id as u16);
+                buf.put_u16(*id);
             }
         }
         buf.freeze()
@@ -422,14 +422,16 @@ impl MuxSession {
                                 }) = accept.as_mut()
                                 {
                                     // Accepts new stream for an unseen stream ID.
-                                    if !streams.lock().await.contains_key(&stream_id) {
+                                    if let std::collections::hash_map::Entry::Vacant(e) =
+                                        streams.lock().await.entry(stream_id)
+                                    {
                                         let (mux_stream, stream_read_tx) = MuxStream::new(
                                             *session_id,
                                             stream_id,
                                             frame_write_tx.clone(),
                                             Arc::new(AtomicBool::new(false)),
                                         );
-                                        streams.lock().await.insert(stream_id, stream_read_tx);
+                                        e.insert(stream_read_tx);
                                         if stream_accept_tx.send(mux_stream).await.is_err() {
                                             // The `Incoming` transport has been dropped.
                                             break;
@@ -679,23 +681,20 @@ impl MuxConnector {
     pub fn is_done(&self) -> bool {
         if self.done.load(Ordering::SeqCst) {
             true
-        } else {
-            if self.total_accepted >= self.max_accepts
-                || (self.max_recv_bytes > 0
-                    && self.recv_bytes_counter.load(Ordering::Relaxed) >= self.max_recv_bytes)
-                || (self.max_lifetime > 0
-                    && Instant::now().duration_since(self.started_at).as_secs()
-                        >= self.max_lifetime)
-            {
-                for end in self.stream_ends.iter() {
-                    if !end.load(Ordering::Relaxed) {
-                        return false;
-                    }
+        } else if self.total_accepted >= self.max_accepts
+            || (self.max_recv_bytes > 0
+                && self.recv_bytes_counter.load(Ordering::Relaxed) >= self.max_recv_bytes)
+            || (self.max_lifetime > 0
+                && Instant::now().duration_since(self.started_at).as_secs() >= self.max_lifetime)
+        {
+            for end in self.stream_ends.iter() {
+                if !end.load(Ordering::Relaxed) {
+                    return false;
                 }
-                true
-            } else {
-                false
             }
+            true
+        } else {
+            false
         }
     }
 

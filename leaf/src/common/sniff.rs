@@ -102,7 +102,7 @@ where
     fn sniff_tls_sni(&self, buf: &[u8]) -> SniffResult {
         // https://tls.ulfheim.net/
 
-        let sbuf = &buf[..];
+        let sbuf = buf;
         if sbuf.len() < 5 {
             return SniffResult::NotEnoughData;
         }
