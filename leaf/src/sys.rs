@@ -156,7 +156,7 @@ pub fn post_tun_creation_setup(net_info: &NetInfo) {
         #[cfg(target_os = "linux")]
         {
             if *option::GATEWAY_MODE {
-                common::cmd::add_iptable_forward(&*option::DEFAULT_TUN_NAME).unwrap();
+                common::cmd::add_iptable_forward(&option::DEFAULT_TUN_NAME).unwrap();
             }
         }
     }
@@ -223,7 +223,7 @@ pub fn post_tun_completion_setup(net_info: &NetInfo) {
         #[cfg(target_os = "linux")]
         {
             if *option::GATEWAY_MODE {
-                common::cmd::delete_iptable_forward(&*option::DEFAULT_TUN_NAME).unwrap();
+                common::cmd::delete_iptable_forward(&option::DEFAULT_TUN_NAME).unwrap();
             }
         }
     }
