@@ -14,8 +14,7 @@ pub fn get_default_ipv4_gateway() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("via"))
-        .next()
+        .find(|l| l.contains("via"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
@@ -37,8 +36,7 @@ pub fn get_default_ipv6_gateway() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("via"))
-        .next()
+        .find(|l| l.contains("via"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
@@ -59,8 +57,7 @@ pub fn get_default_ipv4_address() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("via"))
-        .next()
+        .find(|l| l.contains("via"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
@@ -82,8 +79,7 @@ pub fn get_default_ipv6_address() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("via"))
-        .next()
+        .find(|l| l.contains("via"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
@@ -104,8 +100,7 @@ pub fn get_default_interface() -> Result<String> {
     let out = String::from_utf8_lossy(&out.stdout).to_string();
     let cols: Vec<&str> = out
         .lines()
-        .filter(|l| l.contains("via"))
-        .next()
+        .find(|l| l.contains("via"))
         .unwrap()
         .split_whitespace()
         .map(str::trim)
@@ -124,9 +119,9 @@ pub fn add_interface_ipv4_address(
     Command::new("ip")
         .arg("addr")
         .arg("add")
-        .arg(format!("{}/{}", addr.to_string(), mask.to_string()))
+        .arg(format!("{}/{}", addr, mask))
         .arg("dev")
-        .arg(name.to_string())
+        .arg(name)
         .status()
         .expect("failed to execute command");
     Ok(())
@@ -137,9 +132,9 @@ pub fn add_interface_ipv6_address(name: &str, addr: Ipv6Addr, prefixlen: i32) ->
         .arg("-6")
         .arg("addr")
         .arg("add")
-        .arg(format!("{}/{}", addr.to_string(), prefixlen))
+        .arg(format!("{}/{}", addr, prefixlen))
         .arg("dev")
-        .arg(name.to_string())
+        .arg(name)
         .status()
         .expect("failed to execute command");
     Ok(())
@@ -316,16 +311,11 @@ pub fn get_ipv4_forwarding() -> Result<bool> {
         .output()
         .expect("failed to execute command");
     let out = String::from_utf8_lossy(&out.stdout).to_string();
-    let res = if out
+    let res = out
         .trim()
         .parse::<i8>()
         .expect("unexpected ip_forward value")
-        == 0
-    {
-        false
-    } else {
-        true
-    };
+        != 0;
     Ok(res)
 }
 
@@ -336,16 +326,11 @@ pub fn get_ipv6_forwarding() -> Result<bool> {
         .output()
         .expect("failed to execute command");
     let out = String::from_utf8_lossy(&out.stdout).to_string();
-    let res = if out
+    let res = out
         .trim()
         .parse::<i8>()
         .expect("unexpected ip_forward value")
-        == 0
-    {
-        false
-    } else {
-        true
-    };
+        != 0;
     Ok(res)
 }
 

@@ -1,7 +1,7 @@
-mod stream;
 mod datagram;
+mod stream;
 
-pub use stream::Handler as StreamHandler;
 pub use datagram::Handler as DatagramHandler;
+pub use stream::Handler as StreamHandler;
 
 use super::shadow;
