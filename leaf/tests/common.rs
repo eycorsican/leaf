@@ -102,7 +102,7 @@ fn new_socks_outbound(socks_addr: &str, socks_port: u16) -> AnyOutboundHandler {
     ));
     let outbound_manager =
         leaf::app::outbound::manager::OutboundManager::new(&config.outbounds, dns_client).unwrap();
-    
+
     (outbound_manager.get("socks").unwrap()) as _
 }
 
