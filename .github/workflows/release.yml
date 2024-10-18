@@ -16,7 +16,7 @@ jobs:
           - x86_64-pc-windows-gnu
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -73,14 +73,14 @@ jobs:
           - x86_64-apple-darwin
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
       - name: install rust toolchain
         uses: hecrj/setup-rust-action@v1
         with:
-          rust-version: nightly
+          rust-version: stable
 
       - name: install llvm
         if: ${{ matrix.os == 'macos-latest' }}
@@ -111,7 +111,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -144,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -190,7 +190,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
 
