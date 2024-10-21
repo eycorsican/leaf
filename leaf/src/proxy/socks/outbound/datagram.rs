@@ -13,6 +13,8 @@ use crate::{app::SyncDnsClient, proxy::*, session::*};
 pub struct Handler {
     pub address: String,
     pub port: u16,
+    pub username: String,
+    pub password: String,
     pub dns_client: SyncDnsClient,
 }
 
@@ -39,7 +41,14 @@ impl OutboundDatagramHandler for Handler {
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)
             .await?;
         let socket = self.new_udp_socket(&sess.source).await?;
-        let socket = SocksDatagram::associate(stream, socket, None::<Auth>, None::<AddrKind>)
+        let auth = match (&self.username, &self.password) {
+            (auth_username, _) if auth_username.is_empty() => None,
+            (auth_username, auth_password) => Some(Auth {
+                username: auth_username.to_owned(),
+                password: auth_password.to_owned(),
+            }),
+        };
+        let socket = SocksDatagram::associate(stream, socket, auth, None::<AddrKind>)
             .map_err(|x| Error::new(ErrorKind::Other, x))
             .await?;
         Ok(Box::new(Datagram { socket }))
