@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use lazy_static::lazy_static;
 use netstat2::{get_sockets_info, AddressFamilyFlags, ProtocolFlags, SocketInfo};
-use sysinfo::{Pid, ProcessExt, ProcessRefreshKind, System, SystemExt};
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 
 lazy_static! {
     static ref SYSTEM: Arc<Mutex<System>> = {
@@ -24,14 +24,19 @@ impl ProcessInfo {
     fn from_socket_info(socket_info: SocketInfo) -> Option<Self> {
         let pid = socket_info.associated_pids.first()?.to_owned();
         let mut system = SYSTEM.lock().ok()?;
-        let mut process = system.process(Pid::from(pid.to_owned() as usize));
+        let the_pid = Pid::from(pid.to_owned() as usize);
+        let mut process = system.process(the_pid);
         if process.is_none() {
-            system.refresh_processes_specifics(ProcessRefreshKind::default());
-            process = system.process(Pid::from(pid.to_owned() as usize));
+            system.refresh_processes_specifics(
+                ProcessesToUpdate::Some(&[the_pid]),
+                true,
+                ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+            );
+            process = system.process(the_pid);
         }
         let process = process?;
-        let name = process.name().to_owned();
-        let process_path = process.exe().to_string_lossy().to_string();
+        let name = process.name().to_string_lossy().to_string();
+        let process_path = process.exe()?.to_string_lossy().to_string();
         Some(ProcessInfo {
             name,
             pid,
@@ -53,7 +58,7 @@ fn get_socket_info(protocol: &str, ip: &IpAddr, port: u16) -> Option<SocketInfo>
     };
 
     let mut cache = CACHE.lock().unwrap();
-    let mut sockets = cache.clone().unwrap_or_else(|| {
+    let sockets = cache.clone().unwrap_or_else(|| {
         let new_sockets = get_sockets_info(af_flags, proto_flags).unwrap_or_default();
         *cache = Some(new_sockets.clone());
         new_sockets
@@ -65,7 +70,9 @@ fn get_socket_info(protocol: &str, ip: &IpAddr, port: u16) -> Option<SocketInfo>
         .or_else(|| {
             let new_sockets = get_sockets_info(af_flags, proto_flags).unwrap_or_default();
             *cache = Some(new_sockets.clone());
-            new_sockets.into_iter().find(|p| p.local_addr() == ip.to_owned() && p.local_port() == port)
+            new_sockets
+                .into_iter()
+                .find(|p| p.local_addr() == ip.to_owned() && p.local_port() == port)
         })
 }
 
