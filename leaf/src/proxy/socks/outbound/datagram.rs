@@ -38,10 +38,25 @@ impl OutboundDatagramHandler for Handler {
         let stream = self
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)
             .await?;
-        let socket = self.new_udp_socket(&sess.source).await?;
-        let socket = SocksDatagram::associate(stream, socket, None::<Auth>, None::<AddrKind>)
-            .map_err(|x| Error::new(ErrorKind::Other, x))
-            .await?;
+        let mut indicator = sess.source.clone();
+        if let Ok(ip) = self.address.parse::<IpAddr>() {
+            if ip.is_loopback() {
+                indicator = SocketAddr::new(ip, 0);
+            }
+        }
+        let socket = self.new_udp_socket(&indicator).await?;
+        let socket = SocksDatagram::associate(
+            stream,
+            socket,
+            None::<Auth>,
+            SocksAddr::try_from((self.address.clone(), self.port))
+                .unwrap()
+                .must_ip()
+                .clone()
+                .into(),
+        )
+        .map_err(|x| Error::new(ErrorKind::Other, x))
+        .await?;
         Ok(Box::new(Datagram { socket }))
     }
 }
