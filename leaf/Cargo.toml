@@ -246,6 +246,10 @@ warp = { version = "0.3", default-features = false, optional = true }
 # Auto reload
 notify = { version = "6", optional = true }
 
+# Process
+netstat2 = "0.11.0"
+sysinfo = "0.33.0"
+
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 
