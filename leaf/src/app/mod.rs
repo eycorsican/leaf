@@ -16,12 +16,6 @@ pub mod stat_manager;
 #[cfg(feature = "api")]
 pub mod api;
 
-#[cfg(any(
-    target_os = "ios",
-    target_os = "android",
-    target_os = "macos",
-    target_os = "linux"
-))]
 pub mod fake_dns;
 
 pub type SyncDnsClient = Arc<RwLock<dns_client::DnsClient>>;

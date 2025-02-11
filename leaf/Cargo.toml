@@ -246,13 +246,15 @@ warp = { version = "0.3", default-features = false, optional = true }
 # Auto reload
 notify = { version = "6", optional = true }
 
+# TUN
+tun = { version = "0.7", features = ["async"], optional = true  }
+netstack-lwip = { git = "https://github.com/lanthora/netstack-lwip", rev = "2971587", optional = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+ipconfig = "0.3"
+
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
-
-# TUN
-[target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
-tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fork", features = ["async"], optional = true }
-netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", rev = "b1f8596", optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pnet_datalink = { version = "0.34", package = "pnet_datalink", optional = true }
