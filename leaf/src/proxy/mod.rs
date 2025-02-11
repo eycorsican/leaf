@@ -68,15 +68,7 @@ pub mod tls;
 pub mod trojan;
 #[cfg(feature = "outbound-tryall")]
 pub mod tryall;
-#[cfg(all(
-    feature = "inbound-tun",
-    any(
-        target_os = "ios",
-        target_os = "android",
-        target_os = "macos",
-        target_os = "linux"
-    )
-))]
+#[cfg(feature = "inbound-tun")]
 pub mod tun;
 #[cfg(feature = "outbound-vmess")]
 pub mod vmess;

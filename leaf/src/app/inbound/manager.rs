@@ -36,28 +36,12 @@ use super::network_listener::NetworkInboundListener;
 #[cfg(feature = "inbound-cat")]
 use super::cat_listener::CatInboundListener;
 
-#[cfg(all(
-    feature = "inbound-tun",
-    any(
-        target_os = "ios",
-        target_os = "android",
-        target_os = "macos",
-        target_os = "linux"
-    )
-))]
+#[cfg(feature = "inbound-tun")]
 use super::tun_listener::TunInboundListener;
 
 pub struct InboundManager {
     network_listeners: HashMap<String, NetworkInboundListener>,
-    #[cfg(all(
-        feature = "inbound-tun",
-        any(
-            target_os = "ios",
-            target_os = "android",
-            target_os = "macos",
-            target_os = "linux"
-        )
-    ))]
+    #[cfg(feature = "inbound-tun")]
     tun_listener: Option<TunInboundListener>,
     #[cfg(feature = "inbound-cat")]
     cat_listener: Option<CatInboundListener>,
@@ -245,15 +229,7 @@ impl InboundManager {
 
         let mut network_listeners: HashMap<String, NetworkInboundListener> = HashMap::new();
 
-        #[cfg(all(
-            feature = "inbound-tun",
-            any(
-                target_os = "ios",
-                target_os = "android",
-                target_os = "macos",
-                target_os = "linux"
-            )
-        ))]
+        #[cfg(feature = "inbound-tun")]
         let mut tun_listener: Option<TunInboundListener> = None;
 
         #[cfg(feature = "inbound-cat")]
@@ -264,15 +240,7 @@ impl InboundManager {
         for inbound in inbounds.iter() {
             let tag = String::from(&inbound.tag);
             match inbound.protocol.as_str() {
-                #[cfg(all(
-                    feature = "inbound-tun",
-                    any(
-                        target_os = "ios",
-                        target_os = "android",
-                        target_os = "macos",
-                        target_os = "linux"
-                    )
-                ))]
+                #[cfg(feature = "inbound-tun")]
                 "tun" => {
                     let listener = TunInboundListener {
                         inbound: inbound.clone(),
@@ -312,15 +280,7 @@ impl InboundManager {
 
         Ok(InboundManager {
             network_listeners,
-            #[cfg(all(
-                feature = "inbound-tun",
-                any(
-                    target_os = "ios",
-                    target_os = "android",
-                    target_os = "macos",
-                    target_os = "linux"
-                )
-            ))]
+            #[cfg(feature = "inbound-tun")]
             tun_listener,
             #[cfg(feature = "inbound-cat")]
             cat_listener,
@@ -336,15 +296,7 @@ impl InboundManager {
         Ok(runners)
     }
 
-    #[cfg(all(
-        feature = "inbound-tun",
-        any(
-            target_os = "ios",
-            target_os = "android",
-            target_os = "macos",
-            target_os = "linux"
-        )
-    ))]
+    #[cfg(feature = "inbound-tun")]
     pub fn get_tun_runner(&self) -> Result<Runner> {
         if let Some(listener) = &self.tun_listener {
             return listener.listen();
@@ -360,15 +312,7 @@ impl InboundManager {
         Err(anyhow!("no cat inbound"))
     }
 
-    #[cfg(all(
-        feature = "inbound-tun",
-        any(
-            target_os = "ios",
-            target_os = "android",
-            target_os = "macos",
-            target_os = "linux"
-        )
-    ))]
+    #[cfg(feature = "inbound-tun")]
     pub fn has_tun_listener(&self) -> bool {
         self.tun_listener.is_some()
     }

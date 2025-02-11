@@ -1,14 +1,6 @@
 mod network_listener;
 
-#[cfg(all(
-    feature = "inbound-tun",
-    any(
-        target_os = "ios",
-        target_os = "android",
-        target_os = "macos",
-        target_os = "linux"
-    )
-))]
+#[cfg(feature = "inbound-tun")]
 mod tun_listener;
 
 #[cfg(feature = "inbound-cat")]
