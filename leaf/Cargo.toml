@@ -248,7 +248,7 @@ notify = { version = "6", optional = true }
 
 # TUN
 tun = { version = "0.7", features = ["async"], optional = true  }
-netstack-lwip = { git = "https://github.com/lanthora/netstack-lwip", rev = "2971587", optional = true }
+netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip", rev = "f434fef", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 ipconfig = "0.3"
