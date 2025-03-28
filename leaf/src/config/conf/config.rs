@@ -594,12 +594,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         group.cache_timeout = i;
                     }
                     "last-resort" => {
-                        let i = if let Ok(i) = v.parse::<String>() {
-                            Some(i)
+                        group.last_resort = if !v.is_empty() {
+                            Some(v.to_owned())
                         } else {
                             None
                         };
-                        group.last_resort = i;
                     }
                     "health-check-timeout" => {
                         let i = if let Ok(i) = v.parse() { Some(i) } else { None };
@@ -643,12 +642,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         group.delay_base = i;
                     }
                     "method" => {
-                        let i = if let Ok(i) = v.parse::<String>() {
-                            Some(i)
+                        group.method = if !v.is_empty() {
+                            Some(v.to_owned())
                         } else {
                             None
                         };
-                        group.method = i;
                     }
                     _ => {}
                 }

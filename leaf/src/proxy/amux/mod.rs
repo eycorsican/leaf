@@ -60,7 +60,7 @@ impl MuxFrame {
             MuxFrame::Stream(id, data) => {
                 buf.put_u8(FRAME_STREAM);
                 buf.put_u16(*id);
-                assert!(data.len() <= MAX_STREAM_FRAME_DATA_LEN.into());
+                assert!(data.len() <= MAX_STREAM_FRAME_DATA_LEN as usize);
                 buf.put_u16(data.len() as u16);
                 buf.put_slice(data);
             }

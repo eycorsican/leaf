@@ -266,7 +266,7 @@ async fn health_check_task(
             .duration_since(*last_active.lock().await)
             .as_secs();
 
-        if last_active < health_check_active.into() {
+        if last_active < health_check_active as u64 {
             let mut checks = Vec::new();
             for (i, a) in actors.iter().enumerate() {
                 let dns_client_cloned = dns_client.clone();
