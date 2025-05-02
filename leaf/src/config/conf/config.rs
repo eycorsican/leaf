@@ -740,12 +740,13 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
     let mut log = internal::Log::new();
     if let Some(ext_general) = &conf.general {
         if let Some(ext_loglevel) = &ext_general.loglevel {
-            match ext_loglevel.as_str() {
+            match ext_loglevel.to_lowercase().as_str() {
                 "trace" => log.level = protobuf::EnumOrUnknown::new(internal::log::Level::TRACE),
                 "debug" => log.level = protobuf::EnumOrUnknown::new(internal::log::Level::DEBUG),
                 "info" => log.level = protobuf::EnumOrUnknown::new(internal::log::Level::INFO),
                 "warn" => log.level = protobuf::EnumOrUnknown::new(internal::log::Level::WARN),
                 "error" => log.level = protobuf::EnumOrUnknown::new(internal::log::Level::ERROR),
+                "none" => log.level = protobuf::EnumOrUnknown::new(internal::log::Level::NONE),
                 _ => log.level = protobuf::EnumOrUnknown::new(internal::log::Level::WARN),
             }
         }

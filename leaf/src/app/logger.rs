@@ -98,6 +98,7 @@ pub fn setup_logger(config: &config::Log) -> Result<()> {
         config::log::Level::INFO => LevelFilter::INFO,
         config::log::Level::WARN => LevelFilter::WARN,
         config::log::Level::ERROR => LevelFilter::ERROR,
+        config::log::Level::NONE => return Ok(()),
     };
     let (writer, writer_guard) = get_writer(config)?;
     let mut h = HANDLE.write().unwrap();

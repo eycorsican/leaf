@@ -18,6 +18,7 @@ message Log {
 		DEBUG = 2;
 		WARN = 3;
 		ERROR = 4;
+		NONE = 5;
 	}
 
 	enum Output {
