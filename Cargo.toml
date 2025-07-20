@@ -3,6 +3,7 @@ members = [
     "leaf",
     "leaf-cli",
     "leaf-ffi",
+    "leaf-uniffi",
     "leaf-plugins/shadowsocks",
 ]
 default-members = ["leaf-cli"]

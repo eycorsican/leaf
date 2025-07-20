@@ -1,0 +1,44 @@
+[package]
+name = "leaf-uniffi"
+version = "0.1.0"
+authors = ["rikaaa0928 <rikaaa0928@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "leafuniffi"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "uniffi"
+path = "uniffi.rs"
+
+[features]
+default = [
+    "default-ring",
+]
+
+default-aws-lc= [
+    "leaf/default-aws-lc",
+]
+
+default-ring = [
+    "leaf/default-ring",
+]
+
+default-openssl = [
+    "leaf/default-openssl",
+]
+
+outbound-quic = [
+    "leaf/outbound-quic",
+]
+
+auto-reload = ["leaf/auto-reload"]
+
+[dependencies]
+leaf = { path = "../leaf", default-features = false, optional = true }
+uniffi = { version = "0.29.1", features = ["cli"] }
+
+[build-dependencies]
+uniffi = { version = "0.29.1", features = ["build"] }

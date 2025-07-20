@@ -3,3 +3,20 @@ passthrough = [
     "CFG_COMMIT_HASH",
     "CFG_COMMIT_DATE",
 ]
+[build]
+pre-build = [                                  # additional commands to run prior to building the package
+    "mkdir -vp ${CARGO_HOME:-$HOME/.cargo}",
+
+"""
+cat << EOF | tee -a ${CARGO_HOME:-$HOME/.cargo}/config.toml
+[source.crates-io]
+replace-with = 'mirror'
+
+[source.mirror]
+registry = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
+
+[registries.mirror]
+index = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
+EOF
+"""
+]
