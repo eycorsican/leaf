@@ -9,10 +9,6 @@ name = "leafuniffi"
 path = "src/lib.rs"
 crate-type = ["cdylib"]
 
-[[bin]]
-name = "uniffi"
-path = "uniffi.rs"
-
 [features]
 default = [
     "default-ring",
@@ -38,7 +34,7 @@ auto-reload = ["leaf/auto-reload"]
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
-uniffi = { version = "0.29.1", features = ["cli"] }
+uniffi = { version = "0.29.1" }
 
 [build-dependencies]
 uniffi = { version = "0.29.1", features = ["build"] }

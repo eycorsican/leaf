@@ -127,7 +127,7 @@ fi
 host_library_path="$BASE/../target/$src_path_segment/libleafuniffi.$host_lib_ext"
 
 # Generate the Kotlin bindings.
-cargo run -p $package --features=uniffi/cli --bin uniffi generate --library "$host_library_path" --language kotlin --out-dir "$kotlin_out_dir"
+cargo run -p uniffi-bin --features=uniffi/cli --bin uniffi generate --library "$host_library_path" --language kotlin --out-dir "$kotlin_out_dir"
 
 echo "Build finished."
 echo "JNI libraries are in: $jni_libs_dir"

@@ -5,6 +5,7 @@ members = [
     "leaf-ffi",
     "leaf-uniffi",
     "leaf-plugins/shadowsocks",
+    "uniffi-bin",
 ]
 default-members = ["leaf-cli"]
 resolver = "2"
