@@ -11,11 +11,8 @@ fn get_cache_file_path() -> Result<PathBuf> {
     let cache_loc = if !(&*crate::option::CACHE_LOCATION).is_empty() {
         Path::new(&*crate::option::CACHE_LOCATION).to_owned()
     } else {
-        let proj_dirs = if let Some(d) = directories::ProjectDirs::from("com", "github", "leaf") {
-            d
-        } else {
-            return Err(anyhow!("no home directory"));
-        };
+        let proj_dirs = directories::ProjectDirs::from("com", "github", "leaf")
+            .ok_or_else(|| anyhow!("no home directory"))?;
         proj_dirs.cache_dir().to_owned()
     };
     if !cache_loc.exists() {
