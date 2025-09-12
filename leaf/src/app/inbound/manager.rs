@@ -345,19 +345,13 @@ impl InboundManager {
     }
 
     #[cfg(feature = "inbound-tun")]
-    pub fn get_tun_runner(&self) -> Result<Runner> {
-        if let Some(listener) = &self.tun_listener {
-            return listener.listen();
-        }
-        Err(anyhow!("no tun inbound"))
+    pub fn get_tun_runner(&self) -> Option<Result<Runner>> {
+        self.tun_listener.as_ref().map(TunInboundListener::listen)
     }
 
     #[cfg(feature = "inbound-cat")]
-    pub fn get_cat_runner(&self) -> Result<Runner> {
-        if let Some(listener) = &self.cat_listener {
-            return listener.listen();
-        }
-        Err(anyhow!("no cat inbound"))
+    pub fn get_cat_runner(&self) -> Option<Result<Runner>> {
+        self.cat_listener.as_ref().map(CatInboundListener::listen)
     }
 
     #[cfg(feature = "inbound-tun")]

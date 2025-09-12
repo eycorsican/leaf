@@ -521,13 +521,13 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     }
 
     #[cfg(feature = "inbound-tun")]
-    if let Ok(r) = inbound_manager.get_tun_runner() {
-        runners.push(r);
+    if let Some(r) = inbound_manager.get_tun_runner() {
+        runners.push(r.map_err(Error::Config)?);
     }
 
     #[cfg(feature = "inbound-cat")]
-    if let Ok(r) = inbound_manager.get_cat_runner() {
-        runners.push(r);
+    if let Some(r) = inbound_manager.get_cat_runner() {
+        runners.push(r.map_err(Error::Config)?);
     }
 
     #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
