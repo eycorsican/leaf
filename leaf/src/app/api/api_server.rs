@@ -4,8 +4,17 @@ use std::iter::FromIterator;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{Html, Json},
+    routing::{get, post},
+    Router,
+};
 use tracing::info;
-use warp::Filter;
+
+#[cfg(feature = "outbound-select")]
+use axum::extract::Query;
 
 use crate::RuntimeManager;
 
@@ -43,13 +52,12 @@ mod models {
 
 mod handlers {
     use super::*;
-    use warp::http::StatusCode;
 
     #[cfg(feature = "outbound-select")]
     pub async fn select_update(
-        opts: models::SelectOptions,
-        rm: Arc<RuntimeManager>,
-    ) -> Result<impl warp::Reply, Infallible> {
+        Query(opts): Query<models::SelectOptions>,
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<StatusCode, Infallible> {
         if let models::SelectOptions {
             outbound: Some(outbound),
             select: Some(select),
@@ -64,41 +72,43 @@ mod handlers {
 
     #[cfg(feature = "outbound-select")]
     pub async fn select_get(
-        opts: models::SelectOptions,
-        rm: Arc<RuntimeManager>,
-    ) -> Result<impl warp::Reply, Infallible> {
+        Query(opts): Query<models::SelectOptions>,
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<Json<models::SelectReply>, Infallible> {
         if let models::SelectOptions {
             outbound: Some(outbound),
             ..
         } = opts
         {
             if let Ok(selected) = rm.get_outbound_selected(&outbound).await {
-                return Ok(warp::reply::json(&models::SelectReply {
+                return Ok(Json(models::SelectReply {
                     selected: Some(selected),
                 }));
             }
         }
-        Ok(warp::reply::json(&models::SelectReply { selected: None }))
+        Ok(Json(models::SelectReply { selected: None }))
     }
 
     #[cfg(feature = "outbound-select")]
     pub async fn select_list(
-        opts: models::SelectOptions,
-        rm: Arc<RuntimeManager>,
-    ) -> Result<impl warp::Reply, Infallible> {
+        Query(opts): Query<models::SelectOptions>,
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<Json<Vec<String>>, Infallible> {
         if let models::SelectOptions {
             outbound: Some(outbound),
             ..
         } = opts
         {
             if let Ok(selects) = rm.get_outbound_selects(&outbound).await {
-                return Ok(warp::reply::json(&selects));
+                return Ok(Json(selects));
             }
         }
-        Ok(warp::reply::json(&models::SelectReply { selected: None }))
+        Ok(Json(Vec::new()))
     }
 
-    pub async fn runtime_reload(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+    pub async fn runtime_reload(
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<StatusCode, Infallible> {
         if rm.reload().await.is_ok() {
             Ok(StatusCode::OK)
         } else {
@@ -106,7 +116,9 @@ mod handlers {
         }
     }
 
-    pub async fn runtime_shutdown(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+    pub async fn runtime_shutdown(
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<StatusCode, Infallible> {
         if rm.shutdown().await {
             Ok(StatusCode::OK)
         } else {
@@ -115,7 +127,9 @@ mod handlers {
     }
 
     #[cfg(feature = "stat")]
-    pub async fn stat_json(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+    pub async fn stat_json(
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<Json<Vec<models::Stat>>, Infallible> {
         let mut stats = Vec::new();
         let sm = rm.stat_manager();
         let sm = sm.read().await;
@@ -133,11 +147,13 @@ mod handlers {
                 recv_completed: c.recv_completed(),
             });
         }
-        Ok(warp::reply::json(&stats))
+        Ok(Json(stats))
     }
 
     #[cfg(feature = "stat")]
-    pub async fn stat_html(rm: Arc<RuntimeManager>) -> Result<impl warp::Reply, Infallible> {
+    pub async fn stat_html(
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<Html<String>, Infallible> {
         let mut body = String::from(
             r#"<html>
 <head><style>
@@ -152,7 +168,7 @@ table, th, td {
   font-weight: bold;
 }
 </style></head>
-<table style=\"border=4px solid\">
+<table style="border=4px solid">
         "#,
         );
         let sm = rm.stat_manager();
@@ -198,95 +214,7 @@ table, th, td {
             ));
         }
         body.push_str("</table></html>");
-        Ok(warp::reply::html(body))
-    }
-}
-
-mod filters {
-    use super::*;
-
-    fn with_runtime_manager(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = (Arc<RuntimeManager>,), Error = Infallible> + Clone {
-        warp::any().map(move || rm.clone())
-    }
-
-    // POST /api/v1/app/outbound/select?outbound=Proxy&select=p3
-    #[cfg(feature = "outbound-select")]
-    pub fn select_update(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        warp::path!("api" / "v1" / "app" / "outbound" / "select")
-            .and(warp::post())
-            .and(warp::query::<models::SelectOptions>())
-            .and(with_runtime_manager(rm))
-            .and_then(handlers::select_update)
-    }
-
-    // GET /api/v1/app/outbound/select?outbound=Proxy
-    #[cfg(feature = "outbound-select")]
-    pub fn select_get(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        warp::path!("api" / "v1" / "app" / "outbound" / "select")
-            .and(warp::get())
-            .and(warp::query::<models::SelectOptions>())
-            .and(with_runtime_manager(rm))
-            .and_then(handlers::select_get)
-    }
-
-    // GET /api/v1/app/outbound/selects?outbound=Proxy
-    #[cfg(feature = "outbound-select")]
-    pub fn select_list(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        warp::path!("api" / "v1" / "app" / "outbound" / "selects")
-            .and(warp::get())
-            .and(warp::query::<models::SelectOptions>())
-            .and(with_runtime_manager(rm))
-            .and_then(handlers::select_list)
-    }
-
-    // POST /api/v1/runtime/reload
-    pub fn runtime_reload(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        warp::path!("api" / "v1" / "runtime" / "reload")
-            .and(warp::post())
-            .and(with_runtime_manager(rm))
-            .and_then(handlers::runtime_reload)
-    }
-
-    // POST /api/v1/runtime/shutdown
-    pub fn runtime_shutdown(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        warp::path!("api" / "v1" / "runtime" / "shutdown")
-            .and(warp::post())
-            .and(with_runtime_manager(rm))
-            .and_then(handlers::runtime_shutdown)
-    }
-
-    // GET /api/v1/runtime/stat/html
-    #[cfg(feature = "stat")]
-    pub fn stat_html(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        warp::path!("api" / "v1" / "runtime" / "stat" / "html")
-            .and(warp::get())
-            .and(with_runtime_manager(rm))
-            .and_then(handlers::stat_html)
-    }
-
-    // GET /api/v1/runtime/stat/json
-    #[cfg(feature = "stat")]
-    pub fn stat_json(
-        rm: Arc<RuntimeManager>,
-    ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-        warp::path!("api" / "v1" / "runtime" / "stat" / "json")
-            .and(warp::get())
-            .and(with_runtime_manager(rm))
-            .and_then(handlers::stat_json)
+        Ok(Html(body))
     }
 }
 
@@ -300,21 +228,32 @@ impl ApiServer {
     }
 
     pub fn serve(&self, listen_addr: SocketAddr) -> crate::Runner {
-        let routes = filters::runtime_reload(self.runtime_manager.clone())
-            .or(filters::runtime_shutdown(self.runtime_manager.clone()));
+        let mut app = Router::new()
+            .route("/api/v1/runtime/reload", post(handlers::runtime_reload))
+            .route("/api/v1/runtime/shutdown", post(handlers::runtime_shutdown));
 
         #[cfg(feature = "outbound-select")]
-        let routes = routes
-            .or(filters::select_update(self.runtime_manager.clone()))
-            .or(filters::select_get(self.runtime_manager.clone()))
-            .or(filters::select_list(self.runtime_manager.clone()));
+        {
+            app = app
+                .route("/api/v1/app/outbound/select", post(handlers::select_update))
+                .route("/api/v1/app/outbound/select", get(handlers::select_get))
+                .route("/api/v1/app/outbound/selects", get(handlers::select_list));
+        }
 
         #[cfg(feature = "stat")]
-        let routes = routes
-            .or(filters::stat_html(self.runtime_manager.clone()))
-            .or(filters::stat_json(self.runtime_manager.clone()));
+        {
+            app = app
+                .route("/api/v1/runtime/stat/html", get(handlers::stat_html))
+                .route("/api/v1/runtime/stat/json", get(handlers::stat_json));
+        }
+
+        let app = app.with_state(self.runtime_manager.clone());
 
         info!("api server listening tcp {}", &listen_addr);
-        Box::pin(warp::serve(routes).bind(listen_addr))
+
+        Box::pin(async move {
+            let listener = tokio::net::TcpListener::bind(listen_addr).await.unwrap();
+            axum::serve(listener, app).await.unwrap();
+        })
     }
 }

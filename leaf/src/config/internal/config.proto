@@ -66,6 +66,13 @@ message AMuxInboundSettings {
 	repeated string actors = 1;
 }
 
+message NfInboundSettings {
+  string driver_name = 1;
+	string nfapi = 2;
+	repeated string fake_dns_exclude = 3;
+	repeated string fake_dns_include = 4;
+}
+
 message QuicInboundSettings {
 	string certificate = 1;
 	string certificate_key = 2;

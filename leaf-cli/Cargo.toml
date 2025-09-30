@@ -8,16 +8,29 @@ edition = "2021"
 name = "leaf"
 path = "src/main.rs"
 
-[features]
-default = [
-  "leaf/default-ring",
-  "leaf/outbound-quic",
-  "leaf/outbound-quic",
-  "leaf/ctrlc",
-  "leaf/auto-reload",
-]
-
 [dependencies]
-leaf = { path = "../leaf", default-features = false, optional = true }
 tokio = { version = "1", features = ["rt"] }
 argh = "0.1"
+
+[target.'cfg(not(windows))'.dependencies.leaf]
+path = "../leaf"
+default-features = false
+features = [
+  "default-ring",
+  "outbound-quic",
+  "outbound-quic",
+  "ctrlc",
+  "auto-reload"
+]
+
+[target.'cfg(windows)'.dependencies.leaf]
+path = "../leaf"
+default-features = false
+features = [
+  "default-ring",
+  "outbound-quic",
+  "outbound-quic",
+  "ctrlc",
+  "auto-reload",
+  "inbound-nf"
+]

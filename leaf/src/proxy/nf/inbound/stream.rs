@@ -1,0 +1,45 @@
+use async_trait::async_trait;
+
+use crate::app::fake_dns::FakeDns;
+use crate::{proxy::*, session::Session};
+
+pub struct Handler {
+    pub fake_dns: Arc<FakeDns>,
+}
+
+#[async_trait]
+impl InboundStreamHandler for Handler {
+    async fn handle<'a>(
+        &'a self,
+        mut sess: Session,
+        stream: AnyStream,
+    ) -> std::io::Result<AnyInboundTransport> {
+        let remote_addr =
+            if let Some(info) = super::TCP_INFO.lock().unwrap().remove(&sess.source.port()) {
+                info.remote_addr
+            } else {
+                return Err(std::io::Error::other(format!(
+                    "tcp conn not found, source={} ",
+                    &sess.source
+                )));
+            };
+
+        sess.destination = crate::session::SocksAddr::from(remote_addr);
+
+        let remote_ip = remote_addr.ip();
+        if self.fake_dns.is_fake_ip(&remote_ip).await {
+            if let Some(domain) = self.fake_dns.query_domain(&remote_ip).await {
+                sess.destination = SocksAddr::Domain(domain, remote_addr.port());
+            } else {
+                if remote_addr.port() != 443 && remote_addr.port() != 80 {
+                    return Err(std::io::Error::other(format!(
+                        "paired domain not found, addr={}",
+                        &remote_addr.ip()
+                    )));
+                }
+            }
+        }
+
+        Ok(InboundTransport::Stream(stream, sess))
+    }
+}

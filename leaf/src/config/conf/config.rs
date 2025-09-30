@@ -20,8 +20,15 @@ pub struct Tun {
 }
 
 #[derive(Debug, Default)]
+pub struct Nf {
+    pub driver_name: String,
+    pub nfapi: Option<String>,
+}
+
+#[derive(Debug, Default)]
 pub struct General {
     pub tun: Option<Tun>,
+    pub nf: Option<Nf>,
     pub tun_fd: Option<i32>,
     pub tun_auto: Option<bool>,
     pub loglevel: Option<String>,
@@ -306,6 +313,21 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         mtu: get_value::<i32>(&items[4]),
                     };
                     general.tun = Some(tun);
+                }
+            }
+            "nf" => {
+                // nf = driver_name, path/to/nfapi.dll
+                if let Some(items) = get_char_sep_slice(parts[1], ',') {
+                    let nfapi = if items.len() >= 2 {
+                        Some(items[1].trim().to_owned())
+                    } else {
+                        None
+                    };
+                    let nf = Nf {
+                        driver_name: items[0].trim().to_owned(),
+                        nfapi,
+                    };
+                    general.nf = Some(nf);
                 }
             }
             "loglevel" => {
@@ -779,6 +801,45 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
             inbound.tag = "socks".to_string();
             inbound.address = ext_general.socks_interface.as_ref().unwrap().to_string();
             inbound.port = ext_general.socks_port.unwrap() as u32;
+            inbounds.push(inbound);
+        }
+
+        if let Some(nf) = ext_general.nf.as_ref() {
+            let mut inbound = internal::Inbound::new();
+            inbound.protocol = "nf".to_string();
+            inbound.tag = "nf".to_string();
+            inbound.address = "127.0.0.1".to_string();
+            inbound.port = 0;
+            let mut settings = internal::NfInboundSettings::new();
+
+            let mut fake_dns_exclude = Vec::new();
+            if let Some(ext_always_real_ip) = &ext_general.always_real_ip {
+                for item in ext_always_real_ip {
+                    fake_dns_exclude.push(item.clone())
+                }
+                if !fake_dns_exclude.is_empty() {
+                    settings.fake_dns_exclude = fake_dns_exclude;
+                }
+            }
+
+            let mut fake_dns_include = Vec::new();
+            if let Some(ext_always_fake_ip) = &ext_general.always_fake_ip {
+                for item in ext_always_fake_ip {
+                    fake_dns_include.push(item.clone())
+                }
+                if !fake_dns_include.is_empty() {
+                    settings.fake_dns_include = fake_dns_include;
+                }
+            }
+
+            settings.driver_name = nf.driver_name.clone();
+            settings.nfapi = nf
+                .nfapi
+                .as_ref()
+                .cloned()
+                .unwrap_or("nfapi.dll".to_string());
+            let settings = settings.write_to_bytes().unwrap();
+            inbound.settings = settings;
             inbounds.push(inbound);
         }
 

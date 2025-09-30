@@ -15,6 +15,8 @@ use crate::Runner;
 use crate::proxy::amux;
 #[cfg(feature = "inbound-http")]
 use crate::proxy::http;
+#[cfg(feature = "inbound-nf")]
+use crate::proxy::nf;
 #[cfg(feature = "inbound-quic")]
 use crate::proxy::quic;
 #[cfg(feature = "inbound-shadowsocks")]
@@ -77,6 +79,33 @@ impl InboundManager {
                         tag.clone(),
                         Some(stream),
                         None,
+                    ));
+                    handlers.insert(tag.clone(), handler);
+                }
+                #[cfg(feature = "inbound-nf")]
+                "nf" => {
+                    let settings: crate::config::NfInboundSettings =
+                        protobuf::Message::parse_from_bytes(&inbound.settings)?;
+                    nf::inbound::init(settings.driver_name.clone(), &settings.nfapi)?;
+
+                    use crate::app::fake_dns::{FakeDns, FakeDnsMode};
+                    let fake_dns_exclude = settings.fake_dns_exclude.clone();
+                    let fake_dns_include = settings.fake_dns_include.clone();
+                    let (mode, filters) = if !fake_dns_include.is_empty() {
+                        (FakeDnsMode::Include, fake_dns_include)
+                    } else {
+                        (FakeDnsMode::Exclude, fake_dns_exclude)
+                    };
+                    let fake_dns = Arc::new(FakeDns::new(mode, filters));
+
+                    let stream = Arc::new(nf::inbound::StreamHandler {
+                        fake_dns: fake_dns.clone(),
+                    });
+                    let datagram = Arc::new(nf::inbound::DatagramHandler { fake_dns });
+                    let handler = Arc::new(crate::proxy::inbound::Handler::new(
+                        tag.clone(),
+                        Some(stream),
+                        Some(datagram),
                     ));
                     handlers.insert(tag.clone(), handler);
                 }
@@ -262,17 +291,15 @@ impl InboundManager {
                     cat_listener.replace(listener);
                 }
                 _ => {
-                    if inbound.port != 0 {
-                        if let Some(h) = handlers.get(&tag) {
-                            let listener = NetworkInboundListener {
-                                address: inbound.address.clone(),
-                                port: inbound.port as u16,
-                                handler: h.clone(),
-                                dispatcher: dispatcher.clone(),
-                                nat_manager: nat_manager.clone(),
-                            };
-                            network_listeners.insert(tag.clone(), listener);
-                        }
+                    if let Some(h) = handlers.get(&tag) {
+                        let listener = NetworkInboundListener {
+                            address: inbound.address.clone(),
+                            port: inbound.port as u16,
+                            handler: h.clone(),
+                            dispatcher: dispatcher.clone(),
+                            nat_manager: nat_manager.clone(),
+                        };
+                        network_listeners.insert(tag.clone(), listener);
                     }
                 }
             }

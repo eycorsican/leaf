@@ -7,7 +7,7 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use protobuf::Message;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     app::dispatcher::Dispatcher,
@@ -48,7 +48,7 @@ async fn handle_inbound_stream(
             // likely caused by poisoned DNS cache records, we
             // still have a chance to sniff the request domain
             // for TLS traffic in dispatcher.
-            if remote_addr.port() != 443 {
+            if remote_addr.port() != 443 && remote_addr.port() != 80 {
                 debug!(
                     "No paired domain found for this fake IP: {}, connection is rejected.",
                     &remote_addr.ip()
@@ -116,7 +116,7 @@ async fn handle_inbound_datagram(
                             continue;
                         }
                         Err(err) => {
-                            trace!("generate fake ip failed: {}", err);
+                            debug!("generate fake ip failed: {}", err);
                         }
                     }
                 }
@@ -206,6 +206,7 @@ pub fn new(
     } else {
         (FakeDnsMode::Exclude, fake_dns_exclude)
     };
+    let fakedns = Arc::new(FakeDns::new(fake_dns_mode, fake_dns_filters));
 
     let tun = tun::create_as_async(&cfg).map_err(|e| anyhow!("create tun failed: {}", e))?;
 
@@ -219,11 +220,6 @@ pub fn new(
     )?;
 
     Ok(Box::pin(async move {
-        let fakedns = Arc::new(FakeDns::new(fake_dns_mode));
-        for filter in fake_dns_filters.into_iter() {
-            fakedns.add_filter(filter).await;
-        }
-
         let inbound_tag = inbound.tag.clone();
         let framed = tun.into_framed();
         let (mut tun_sink, mut tun_stream) = framed.split();

@@ -111,7 +111,7 @@ outbound-tryall = []
 outbound-chain = []
 outbound-amux= ["tokio-util"]
 outbound-quic = ["quinn", "rustls", "webpki-roots-old", "rustls-pemfile-old"]
-outbound-select = ["directories"]
+outbound-select = ["directories", "axum/query"]
 outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util", "byteorder"]
 
 # Inbounds
@@ -126,10 +126,11 @@ inbound-quic = ["quinn", "rustls", "rustls-pemfile-old"]
 inbound-tls = []
 inbound-chain = []
 inbound-cat = ["tokio/io-std"]
+inbound-nf = ["libloading"]
 
 plugin = ["async-ffi", "libloading"]
 stat = []
-api = ["warp"]
+api = ["axum"]
 auto-reload = ["notify"]
 ctrlc = ["tokio/signal"]
 
@@ -146,6 +147,7 @@ anyhow = "1.0"
 rand = "0.8"
 socket2 = "0.5"
 async-recursion = "1.1"
+parking_lot = "*"
 
 # DNS
 trust-dns-proto = { version = "0.23", default-features = false }
@@ -241,7 +243,7 @@ quinn = { version = "0.10", default-features = false, features = ["tls-rustls", 
 rustls = { version = "0.21", optional = true }
 
 # API
-warp = { version = "0.3", default-features = false, optional = true }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json"], optional = true }
 
 # Auto reload
 notify = { version = "6", optional = true }
