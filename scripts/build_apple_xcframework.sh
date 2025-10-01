@@ -30,7 +30,7 @@ cargo build -p $package $release_flag --no-default-features --features "default-
 cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target aarch64-apple-darwin
 cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target aarch64-apple-ios
 cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target x86_64-apple-ios
-cargo build -p $package $release_flag --no-default-features --features "default-aws-lc outbound-quic" --target aarch64-apple-ios-sim
+cargo build -p $package $release_flag --no-default-features --features "default-ring outbound-quic" --target aarch64-apple-ios-sim
 
 cargo install --force cbindgen
 
