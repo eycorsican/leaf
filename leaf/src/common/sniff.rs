@@ -55,7 +55,7 @@ where
     pub fn new(inner: T) -> Self {
         SniffingStream {
             inner,
-            buf: BytesMut::new(),
+            buf: BytesMut::with_capacity(2 * 1024),
         }
     }
 
@@ -212,33 +212,30 @@ where
     }
 
     pub async fn sniff(&mut self, sess: &Session) -> io::Result<Option<String>> {
-        let mut buf = vec![0u8; 2 * 1024];
-        for _ in 0..2 {
-            match timeout(Duration::from_millis(100), self.inner.read(&mut buf)).await {
+        for _ in 0..3 {
+            match timeout(
+                Duration::from_millis(100),
+                self.inner.read_buf(&mut self.buf),
+            )
+            .await
+            {
                 Ok(res) => match res {
                     Ok(n) => {
-                        self.buf.extend_from_slice(&buf[..n]);
-                        let mut tls_not_match = true;
-                        let mut http_not_match = true;
                         if should_sniff_tls(sess) {
-                            tls_not_match = false;
-                            match self.sniff_tls_sni(&buf[..n]) {
-                                SniffResult::NotEnoughData => (),
-                                SniffResult::NotMatch => tls_not_match = true,
+                            match self.sniff_tls_sni(&self.buf[..]) {
+                                SniffResult::NotEnoughData => continue,
+                                SniffResult::NotMatch => (),
                                 SniffResult::Domain(domain) => return Ok(Some(domain)),
                             }
                         }
                         if should_sniff_http(sess) {
-                            http_not_match = false;
-                            match self.sniff_http_host(&buf[..n]) {
-                                SniffResult::NotEnoughData => (),
-                                SniffResult::NotMatch => http_not_match = true,
+                            match self.sniff_http_host(&self.buf[..n]) {
+                                SniffResult::NotEnoughData => continue,
+                                SniffResult::NotMatch => (),
                                 SniffResult::Domain(domain) => return Ok(Some(domain)),
                             }
                         }
-                        if tls_not_match && http_not_match {
-                            return Ok(None);
-                        }
+                        return Ok(None);
                     }
                     Err(e) => {
                         return Err(e);
