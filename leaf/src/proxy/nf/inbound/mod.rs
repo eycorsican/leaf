@@ -109,6 +109,8 @@ type NfTcpDisableFilteringFn = unsafe extern "C" fn(EndpointId);
 type NfUdpDisableFilteringFn = unsafe extern "C" fn(EndpointId);
 type NfAdjustProcessPriviledgesFn = unsafe extern "C" fn();
 type NfGetUdpConnInfoFn = unsafe extern "C" fn(EndpointId, *mut NfUdpConnInfo) -> NfStatus;
+type NfGetProcessNameFn = unsafe extern "C" fn(u32, *mut u8, u32) -> bool;
+type NfGetProcessNameFromKernelFn = unsafe extern "C" fn(u32, *mut u8, u32) -> bool;
 
 // FIXME Ensure no concurrent access to these fns from different threads.
 static NFAPI: RwLock<Option<libloading::Library>> = RwLock::new(None);
@@ -123,17 +125,21 @@ static mut NF_TCP_DISABLE_FILTERING: Option<NfTcpDisableFilteringFn> = None;
 static mut NF_UDP_DISABLE_FILTERING: Option<NfUdpDisableFilteringFn> = None;
 static mut NF_ADJUST_PROCESS_PRIVILEDGES: Option<NfAdjustProcessPriviledgesFn> = None;
 static mut NF_GET_UDP_CONN_INFO: Option<NfGetUdpConnInfoFn> = None;
+static mut NF_GET_PROCESS_NAME: Option<NfGetProcessNameFn> = None;
+static mut NF_GET_PROCESS_NAME_FROM_KERNEL: Option<NfGetProcessNameFromKernelFn> = None;
 
 static mut TX: Option<std::sync::mpsc::Sender<bool>> = None;
 static UDP_SEND_SOCKET: RwLock<Option<std::net::UdpSocket>> = RwLock::new(None);
 
 struct ConnInfo {
     remote_addr: SocketAddr,
+    process_name: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct UdpLocalInfo {
     local_address: SocketAddr,
+    process_name: Option<String>,
 }
 
 pub static UDP_LOCAL_INFO: LazyLock<Mutex<HashMap<EndpointId, UdpLocalInfo>>> =
@@ -283,11 +289,33 @@ unsafe extern "C" fn tcpConnectRequest(id: EndpointId, conn_info: *mut NfTcpConn
         return;
     }
 
+    let process_id = addr_of!((*conn_info).processId).read_unaligned();
+    let process_name = if let Ok(name) = get_process_name(process_id) {
+        Some(name)
+    } else {
+        None
+    };
+
+    debug!(
+        "tcpConnectRequest id={} local={} remote={} process_id={} process_name={}",
+        id,
+        &local_addr,
+        &remote_addr,
+        process_id,
+        process_name.as_deref().unwrap_or("Unknown")
+    );
+
     // TODO Remove timeout items.
     if TCP_INFO
         .lock()
         .unwrap()
-        .insert(local_addr.port(), ConnInfo { remote_addr })
+        .insert(
+            local_addr.port(),
+            ConnInfo {
+                remote_addr,
+                process_name,
+            },
+        )
         .is_some()
     {
         warn!("duplicated local_addr.port={}", local_addr.port());
@@ -364,12 +392,30 @@ unsafe extern "C" fn udpCreated(id: EndpointId, conn_info: *mut NfUdpConnInfo) {
         debug!("unable to get local address");
         return;
     };
-    trace!("udpCreated id={} local={}", id, &local_address);
+
+    let process_id = addr_of!((*conn_info).processId).read_unaligned();
+    let process_name = if let Ok(name) = get_process_name(process_id) {
+        Some(name)
+    } else {
+        None
+    };
+
+    debug!(
+        "udpCreated id={} local={} process_id={} process_name={}",
+        id,
+        &local_address,
+        process_id,
+        process_name.as_deref().unwrap_or("Unknown")
+    );
+
     // The local address here can be 0.0.0.0:0, we will check and override in udpSend.
-    UDP_LOCAL_INFO
-        .lock()
-        .unwrap()
-        .insert(id, UdpLocalInfo { local_address });
+    UDP_LOCAL_INFO.lock().unwrap().insert(
+        id,
+        UdpLocalInfo {
+            local_address,
+            process_name,
+        },
+    );
     UDP_ENDPOINT.lock().unwrap().insert(local_address, id);
 }
 
@@ -750,6 +796,18 @@ unsafe fn init_nf_fns<P: AsRef<OsStr>>(nfapi: P) -> Result<()> {
             .into_raw(),
     ));
 
+    let nf_get_process_name: libloading::Symbol<NfGetProcessNameFn> =
+        nfapi.get(b"nf_getProcessNameW\0")?;
+    NF_GET_PROCESS_NAME = Some(std::mem::transmute(nf_get_process_name.into_raw()));
+
+    NF_GET_PROCESS_NAME_FROM_KERNEL = Some(transmute(
+        nfapi
+            .get::<libloading::Symbol<NfGetProcessNameFromKernelFn>>(
+                b"nf_getProcessNameFromKernel\0",
+            )?
+            .into_raw(),
+    ));
+
     *NFAPI.write() = Some(nfapi);
 
     Ok(())
@@ -873,4 +931,27 @@ unsafe fn uninit_nf() {
 
 pub fn uninit() {
     unsafe { uninit_nf() };
+}
+
+/// # Safety
+pub unsafe fn get_process_name(pid: u32) -> Result<String> {
+    let mut process_name_buf = vec![0u16; MAX_PATH];
+    let process_name_len = process_name_buf.len() as u32;
+    if !NF_GET_PROCESS_NAME_FROM_KERNEL.unwrap()(
+        pid,
+        process_name_buf.as_mut_ptr() as _,
+        process_name_len,
+    ) && !NF_GET_PROCESS_NAME.unwrap()(pid, process_name_buf.as_mut_ptr() as _, process_name_len)
+    {
+        return Err(anyhow!("Unable to get process name pid={}", pid));
+    }
+    let process_name: OsString = OsString::from_wide(
+        process_name_buf
+            .into_iter()
+            .take_while(|x| *x != 0)
+            .collect::<Vec<_>>()
+            .as_slice(),
+    );
+    // Return the full path instead of just the filename
+    Ok(process_name.to_string_lossy().to_string())
 }

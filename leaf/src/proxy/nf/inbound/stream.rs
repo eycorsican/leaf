@@ -14,9 +14,9 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
-        let remote_addr =
+        let (remote_addr, process_name) =
             if let Some(info) = super::TCP_INFO.lock().unwrap().remove(&sess.source.port()) {
-                info.remote_addr
+                (info.remote_addr, info.process_name)
             } else {
                 return Err(std::io::Error::other(format!(
                     "tcp conn not found, source={} ",
@@ -25,6 +25,7 @@ impl InboundStreamHandler for Handler {
             };
 
         sess.destination = crate::session::SocksAddr::from(remote_addr);
+        sess.process_name = process_name;
 
         let remote_ip = remote_addr.ip();
         if self.fake_dns.is_fake_ip(&remote_ip).await {

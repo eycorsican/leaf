@@ -133,13 +133,14 @@ impl NatManager {
             source: dgram_src.address,
             destination: pkt.dst_addr.clone(),
             inbound_tag: inbound_tag.to_string(),
+            process_name: dgram_src.process_name.clone(),
             ..Default::default()
         });
         if sess.inbound_tag.is_empty() {
             sess.inbound_tag = inbound_tag.to_string();
         }
 
-        self.add_session(sess, *dgram_src, client_ch_tx.clone(), &mut guard)
+        self.add_session(sess, dgram_src.clone(), client_ch_tx.clone(), &mut guard)
             .await;
 
         debug!(
@@ -170,7 +171,7 @@ impl NatManager {
             mpsc::channel(*crate::option::UDP_UPLINK_CHANNEL_SIZE);
         let (downlink_abort_tx, downlink_abort_rx) = oneshot::channel();
 
-        guard.insert(raddr, (target_ch_tx, downlink_abort_tx, Instant::now()));
+        guard.insert(raddr.clone(), (target_ch_tx, downlink_abort_tx, Instant::now()));
 
         let dispatcher = self.dispatcher.clone();
         let sessions = self.sessions.clone();
@@ -178,13 +179,14 @@ impl NatManager {
         // Spawns a new task for dispatching to avoid blocking the current task,
         // because we have stream type transports for UDP traffic, establishing a
         // TCP stream would block the task.
+        let raddr_cloned = raddr.clone();
         tokio::spawn(async move {
             // new socket to communicate with the target.
             let socket = match dispatcher.dispatch_datagram(sess).await {
                 Ok(s) => s,
                 Err(e) => {
-                    debug!("dispatch {} failed: {}", &raddr, e);
-                    sessions.lock().await.remove(&raddr);
+                    debug!("dispatch {} failed: {}", &raddr_cloned, e);
+                    sessions.lock().await.remove(&raddr_cloned);
                     return;
                 }
             };
@@ -192,6 +194,7 @@ impl NatManager {
             let (mut target_sock_recv, mut target_sock_send) = socket.split();
 
             // downlink
+            let raddr_downlink = raddr_cloned.clone();
             let downlink_task = async move {
                 let mut buf = vec![0u8; *crate::option::DATAGRAM_BUFFER_SIZE * 1024];
                 loop {
@@ -199,7 +202,7 @@ impl NatManager {
                         Err(err) => {
                             debug!(
                                 "Failed to receive downlink packets on session {}: {}",
-                                &raddr, err
+                                &raddr_downlink, err
                             );
                             break;
                         }
@@ -208,12 +211,12 @@ impl NatManager {
                             let pkt = UdpPacket::new(
                                 buf[..n].to_vec(),
                                 addr.clone(),
-                                SocksAddr::from(raddr.address),
+                                SocksAddr::from(raddr_downlink.address),
                             );
                             if let Err(err) = client_ch_tx.send(pkt).await {
                                 debug!(
                                     "Failed to send downlink packets on session {} to {}: {}",
-                                    &raddr, &addr, err
+                                    &raddr_downlink, &addr, err
                                 );
                                 break;
                             }
@@ -221,7 +224,7 @@ impl NatManager {
                             // activity update
                             {
                                 let mut sessions = sessions.lock().await;
-                                if let Some(sess) = sessions.get_mut(&raddr) {
+                                if let Some(sess) = sessions.get_mut(&raddr_downlink) {
                                     if addr.port() == 53 {
                                         // If the destination port is 53, we assume it's a
                                         // DNS query and set a negative timeout so it will
@@ -237,7 +240,7 @@ impl NatManager {
                         }
                     }
                 }
-                sessions.lock().await.remove(&raddr);
+                sessions.lock().await.remove(&raddr_downlink);
             };
 
             let (downlink_task, downlink_task_handle) = abortable(downlink_task);
@@ -250,6 +253,7 @@ impl NatManager {
             });
 
             // uplink
+            let raddr_uplink = raddr_cloned.clone();
             tokio::spawn(async move {
                 while let Some(pkt) = target_ch_rx.recv().await {
                     trace!(
@@ -260,13 +264,13 @@ impl NatManager {
                     if let Err(e) = target_sock_send.send_to(&pkt.data, &pkt.dst_addr).await {
                         debug!(
                             "Failed to send uplink packets on session {} to {}: {:?}",
-                            &raddr, &pkt.dst_addr, e
+                            &raddr_uplink, &pkt.dst_addr, e
                         );
                         break;
                     }
                 }
                 if let Err(e) = target_sock_send.close().await {
-                    debug!("Failed to close outbound datagram {}: {}", &raddr, e);
+                    debug!("Failed to close outbound datagram {}: {}", &raddr_uplink, e);
                 }
             });
         });

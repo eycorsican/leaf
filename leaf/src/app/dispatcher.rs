@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::io::{self, ErrorKind};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -43,15 +44,43 @@ fn log_request(
     } else {
         (sess.network.to_string(), outbound_tag.to_string())
     };
-    info!(
-        "[{}] [{}] [{}] [{}] [{}] [{}]",
-        sess.forwarded_source.unwrap_or_else(|| sess.source.ip()),
-        network,
-        &sess.inbound_tag,
-        outbound_tag,
-        hs,
-        &sess.destination,
-    );
+
+    #[cfg(feature = "rule-process-name")]
+    {
+        let process_name = sess
+            .process_name
+            .as_ref()
+            .map(|x| {
+                Path::new(x)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(x)
+            })
+            .unwrap_or("");
+        info!(
+            "[{}] [{}] [{}] [{}] [{}] [{}] [{}]",
+            process_name,
+            sess.forwarded_source.unwrap_or_else(|| sess.source.ip()),
+            network,
+            &sess.inbound_tag,
+            outbound_tag,
+            hs,
+            &sess.destination,
+        );
+    }
+
+    #[cfg(not(feature = "rule-process-name"))]
+    {
+        info!(
+            "[{}] [{}] [{}] [{}] [{}] [{}]",
+            sess.forwarded_source.unwrap_or_else(|| sess.source.ip()),
+            network,
+            &sess.inbound_tag,
+            outbound_tag,
+            hs,
+            &sess.destination,
+        );
+    }
 }
 
 pub struct Dispatcher {

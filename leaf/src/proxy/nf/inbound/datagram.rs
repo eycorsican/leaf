@@ -78,8 +78,8 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
         assert!(buf.len() >= payload_size);
         let real_payload = &recv_buf[header_size..header_size + payload_size];
 
-        let local_addr = if let Some(info) = super::UDP_LOCAL_INFO.lock().unwrap().get(&id) {
-            info.local_address.clone()
+        let (local_addr, process_name) = if let Some(info) = super::UDP_LOCAL_INFO.lock().unwrap().get(&id) {
+            (info.local_address.clone(), info.process_name.clone())
         } else {
             return Err(ProxyError::DatagramWarn(anyhow!(format!(
                 "local socket not found id={}",
@@ -87,8 +87,9 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
             ))));
         };
 
-        // Override with real source address.
+        // Override with real source address and process name.
         src_addr.address = local_addr;
+        src_addr.process_name = process_name;
 
         if dst_addr.port() == 53 {
             match self.1.generate_fake_response(real_payload).await {

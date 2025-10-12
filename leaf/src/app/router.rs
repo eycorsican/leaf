@@ -8,6 +8,8 @@ use futures::TryFutureExt;
 use maxminddb::geoip2::Country;
 use maxminddb::Mmap;
 use tracing::{debug, warn};
+#[cfg(feature = "rule-process-name")]
+use regex::Regex;
 
 use crate::app::SyncDnsClient;
 use crate::config;
@@ -354,6 +356,42 @@ impl Condition for DomainMatcher {
     }
 }
 
+#[cfg(feature = "rule-process-name")]
+pub struct ProcessNameMatcher {
+    regexes: Vec<Regex>,
+}
+
+#[cfg(feature = "rule-process-name")]
+impl ProcessNameMatcher {
+    pub fn new(patterns: Vec<String>) -> Self {
+        let mut regexes = Vec::new();
+        for pattern in patterns {
+            if let Ok(regex) = Regex::new(&pattern) {
+                regexes.push(regex);
+            } else {
+                warn!("Invalid regex pattern: {}", pattern);
+            }
+        }
+        Self { regexes }
+    }
+}
+
+#[cfg(feature = "rule-process-name")]
+impl Condition for ProcessNameMatcher {
+    fn apply(&self, sess: &Session) -> bool {
+        if let Some(process_name) = sess.process_name.as_ref() {
+            for regex in &self.regexes {
+                if regex.is_match(process_name) {
+                    debug!("Matched process_name={} with regex", process_name);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+
 struct ConditionAnd {
     conditions: Vec<Box<dyn Condition>>,
 }
@@ -465,6 +503,11 @@ impl Router {
 
             if !rr.inbound_tags.is_empty() {
                 cond_and.add(Box::new(InboundTagMatcher::new(&mut rr.inbound_tags)));
+            }
+
+            #[cfg(feature = "rule-process-name")]
+            if !rr.process_names.is_empty() {
+                cond_and.add(Box::new(ProcessNameMatcher::new(rr.process_names.clone())));
             }
 
             if cond_and.is_empty() {
