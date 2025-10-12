@@ -264,6 +264,7 @@ message Router {
 		repeated string port_ranges = 5;
 		repeated string networks = 6;
 		repeated string inbound_tags = 7;
+		repeated string process_names = 8;
 	}
 
 	repeated Rule rules = 1;

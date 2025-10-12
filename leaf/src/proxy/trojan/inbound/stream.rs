@@ -78,7 +78,7 @@ where
             payload_len,
             &dst_addr
         );
-        Ok((payload_len, self.1, dst_addr))
+        Ok((payload_len, self.1.clone(), dst_addr))
     }
 }
 

@@ -4053,6 +4053,8 @@ pub mod router {
         pub networks: ::std::vec::Vec<::std::string::String>,
         // @@protoc_insertion_point(field:Router.Rule.inbound_tags)
         pub inbound_tags: ::std::vec::Vec<::std::string::String>,
+        // @@protoc_insertion_point(field:Router.Rule.process_names)
+        pub process_names: ::std::vec::Vec<::std::string::String>,
         // special fields
         // @@protoc_insertion_point(special_field:Router.Rule.special_fields)
         pub special_fields: ::protobuf::SpecialFields,
@@ -4101,6 +4103,9 @@ pub mod router {
                     58 => {
                         self.inbound_tags.push(is.read_string()?);
                     },
+                    66 => {
+                        self.process_names.push(is.read_string()?);
+                    },
                     tag => {
                         ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                     },
@@ -4136,6 +4141,9 @@ pub mod router {
             for value in &self.inbound_tags {
                 my_size += ::protobuf::rt::string_size(7, &value);
             };
+            for value in &self.process_names {
+                my_size += ::protobuf::rt::string_size(8, &value);
+            };
             my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
             self.special_fields.cached_size().set(my_size as u32);
             my_size
@@ -4163,6 +4171,9 @@ pub mod router {
             for v in &self.inbound_tags {
                 os.write_string(7, &v)?;
             };
+            for v in &self.process_names {
+                os.write_string(8, &v)?;
+            };
             os.write_unknown_fields(self.special_fields.unknown_fields())?;
             ::std::result::Result::Ok(())
         }
@@ -4187,6 +4198,7 @@ pub mod router {
             self.port_ranges.clear();
             self.networks.clear();
             self.inbound_tags.clear();
+            self.process_names.clear();
             self.special_fields.clear();
         }
 
@@ -4199,6 +4211,7 @@ pub mod router {
                 port_ranges: ::std::vec::Vec::new(),
                 networks: ::std::vec::Vec::new(),
                 inbound_tags: ::std::vec::Vec::new(),
+                process_names: ::std::vec::Vec::new(),
                 special_fields: ::protobuf::SpecialFields::new(),
             };
             &instance

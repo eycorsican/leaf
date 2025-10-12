@@ -275,6 +275,8 @@ pub struct Rule {
     pub network: Option<Vec<String>>,
     #[serde(rename = "inboundTag")]
     pub inbound_tag: Option<Vec<String>>,
+    #[serde(rename = "processName")]
+    pub process_name: Option<Vec<String>>,
     pub target: String,
 }
 
@@ -1074,6 +1076,12 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                 if let Some(ext_its) = ext_rule.inbound_tag.as_mut() {
                     for it in ext_its.drain(0..) {
                         rule.inbound_tags.push(it);
+                    }
+                }
+                #[cfg(feature = "rule-process-name")]
+                if let Some(ext_process_names) = ext_rule.process_name.as_mut() {
+                    for process_name in ext_process_names.drain(0..) {
+                        rule.process_names.push(process_name);
                     }
                 }
                 rules.push(rule);

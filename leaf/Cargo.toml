@@ -95,6 +95,9 @@ openssl-tls = ["openssl", "tokio-openssl", "openssl-probe"]
 config-conf = ["regex"]
 config-json = ["serde", "serde_derive", "serde_json"]
 
+# Router rules
+rule-process-name = ["regex"]
+
 # Outbounds
 outbound-direct = []
 outbound-drop = []
@@ -164,6 +167,7 @@ colored = "2.1"
 maxminddb = { version = "0.24", features = ["mmap"] }
 memmap2 = "0.9"
 cidr = "0.2"
+regex = { version = "1.10", optional = true }
 
 # outbound-select
 directories = { version = "4.0", optional = true }
@@ -178,7 +182,6 @@ serde_derive = { version = "1.0", optional = true }
 serde = { version = "1.0", optional = true }
 
 # config-conf
-regex = { version = "1.10", optional = true }
 
 openssl = { version = "0.10", features = ["vendored"], optional = true }
 

@@ -25,15 +25,32 @@ impl std::fmt::Display for Network {
 
 pub type StreamId = u64;
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct DatagramSource {
     pub address: SocketAddr,
     pub stream_id: Option<StreamId>,
+    pub process_name: Option<String>,
 }
 
 impl DatagramSource {
     pub fn new(address: SocketAddr, stream_id: Option<StreamId>) -> Self {
-        DatagramSource { address, stream_id }
+        DatagramSource {
+            address,
+            stream_id,
+            process_name: None,
+        }
+    }
+
+    pub fn new_with_process_name(
+        address: SocketAddr,
+        stream_id: Option<StreamId>,
+        process_name: Option<String>,
+    ) -> Self {
+        DatagramSource {
+            address,
+            stream_id,
+            process_name,
+        }
     }
 }
 
@@ -64,6 +81,8 @@ pub struct Session {
     pub stream_id: Option<StreamId>,
     /// Optional source address which is forwarded via HTTP reverse proxy.
     pub forwarded_source: Option<IpAddr>,
+    /// Optional process name that initiated this connection.
+    pub process_name: Option<String>,
     /// Instructs a multiplexed transport should creates a new underlying
     /// connection for this session, and it will be used only once.
     pub new_conn_once: bool,
@@ -80,6 +99,7 @@ impl Clone for Session {
             outbound_tag: self.outbound_tag.clone(),
             stream_id: self.stream_id,
             forwarded_source: self.forwarded_source,
+            process_name: self.process_name.clone(),
             new_conn_once: self.new_conn_once,
         }
     }
@@ -96,6 +116,7 @@ impl Default for Session {
             outbound_tag: "".to_string(),
             stream_id: None,
             forwarded_source: None,
+            process_name: None,
             new_conn_once: false,
         }
     }

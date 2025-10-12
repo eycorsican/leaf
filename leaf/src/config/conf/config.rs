@@ -724,7 +724,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
 
         match rule.type_field.as_str() {
             "IP-CIDR" | "DOMAIN" | "DOMAIN-SUFFIX" | "DOMAIN-KEYWORD" | "GEOIP" | "EXTERNAL"
-            | "PORT-RANGE" | "NETWORK" | "INBOUND-TAG" => {
+            | "PORT-RANGE" | "NETWORK" | "INBOUND-TAG" | "PROCESS-NAME" => {
                 rule.filter = Some(params[1].to_string());
             }
             _ => {}
@@ -1492,6 +1492,10 @@ pub fn to_internal(conf: &mut Config) -> Result<internal::Config> {
                 }
                 "INBOUND-TAG" => {
                     rule.inbound_tags.push(ext_filter);
+                }
+                #[cfg(feature = "rule-process-name")]
+                "PROCESS-NAME" => {
+                    rule.process_names.push(ext_filter);
                 }
                 _ => {}
             }
