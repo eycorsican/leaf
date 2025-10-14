@@ -164,13 +164,13 @@ trait BindSocket {
 
 impl BindSocket for TcpSocket {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()> {
-        self.bind(bind_addr.to_owned())
+        self.bind((*bind_addr).into())
     }
 }
 
 impl BindSocket for socket2::Socket {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()> {
-        self.bind(&bind_addr.to_owned().into())
+        self.bind(&(*bind_addr).into())
     }
 }
 
