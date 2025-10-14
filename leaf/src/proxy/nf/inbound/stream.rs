@@ -3,8 +3,10 @@ use async_trait::async_trait;
 use crate::app::fake_dns::FakeDns;
 use crate::{proxy::*, session::Session};
 
+use super::NfManager;
+
 pub struct Handler {
-    pub fake_dns: Arc<FakeDns>,
+    pub manager: Arc<NfManager>,
 }
 
 #[async_trait]
@@ -28,8 +30,8 @@ impl InboundStreamHandler for Handler {
         sess.process_name = process_name;
 
         let remote_ip = remote_addr.ip();
-        if self.fake_dns.is_fake_ip(&remote_ip).await {
-            if let Some(domain) = self.fake_dns.query_domain(&remote_ip).await {
+        if self.manager.fake_dns.is_fake_ip(&remote_ip).await {
+            if let Some(domain) = self.manager.fake_dns.query_domain(&remote_ip).await {
                 sess.destination = SocksAddr::Domain(domain, remote_addr.port());
             } else {
                 if remote_addr.port() != 443 && remote_addr.port() != 80 {

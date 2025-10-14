@@ -29,6 +29,8 @@ use tracing::{debug, instrument, trace, warn};
 
 use packed::{SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6};
 
+use crate::app::fake_dns::FakeDns;
+
 const MAX_PATH: usize = 260;
 const IPPROTO_TCP: i32 = 6;
 
@@ -908,24 +910,21 @@ fn init_if_needed<P: AsRef<OsStr>>(driver_name: String, nfapi: P) -> Result<()> 
 
 static IS_NF_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
-// TODO Guard initializing.
-pub fn init<P: AsRef<OsStr>>(driver_name: String, nfapi: P) -> Result<()> {
-    if !IS_NF_INITIALIZED.load(Ordering::Relaxed) {
+fn init<P: AsRef<OsStr>>(driver_name: String, nfapi: P) -> Result<()> {
+    if !IS_NF_INITIALIZED.swap(true, Ordering::Relaxed) {
         init_if_needed(driver_name, nfapi)?;
-        IS_NF_INITIALIZED.store(true, Ordering::Relaxed);
     }
     Ok(())
 }
 
 unsafe fn uninit_nf() {
-    if IS_NF_INITIALIZED.load(Ordering::Relaxed) {
+    if IS_NF_INITIALIZED.swap(false, Ordering::Relaxed) {
         NF_FREE.unwrap()();
         if let Some(nfapi) = NFAPI.write().take() {
             if let Err(e) = nfapi.close() {
                 debug!("close nf failed: {}", e);
             }
         }
-        IS_NF_INITIALIZED.store(false, Ordering::Relaxed);
     }
 }
 
@@ -954,4 +953,21 @@ pub unsafe fn get_process_name(pid: u32) -> Result<String> {
     );
     // Return the full path instead of just the filename
     Ok(process_name.to_string_lossy().to_string())
+}
+
+pub struct NfManager {
+    pub fake_dns: Arc<FakeDns>,
+}
+
+impl NfManager {
+    pub fn new(driver_name: String, nfapi: String, fake_dns: Arc<FakeDns>) -> Result<Self> {
+        init(driver_name, nfapi)?;
+        Ok(Self { fake_dns })
+    }
+}
+
+impl Drop for NfManager {
+    fn drop(&mut self) {
+        uninit();
+    }
 }

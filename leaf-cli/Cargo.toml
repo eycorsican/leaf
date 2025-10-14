@@ -32,5 +32,6 @@ features = [
   "outbound-quic",
   "ctrlc",
   "auto-reload",
-  "inbound-nf"
+  "inbound-nf",
+  "rule-process-name"
 ]

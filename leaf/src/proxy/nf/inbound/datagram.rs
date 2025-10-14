@@ -13,9 +13,10 @@ use crate::{
 };
 
 use super::packed::{SOCKADDR_IN, SOCKADDR_IN6};
+use super::NfManager;
 
 pub struct Handler {
-    pub fake_dns: Arc<FakeDns>,
+    pub manager: Arc<NfManager>,
 }
 
 #[async_trait]
@@ -24,7 +25,7 @@ impl InboundDatagramHandler for Handler {
         Ok(InboundTransport::Datagram(
             Box::new(Datagram {
                 socket,
-                fake_dns: self.fake_dns.clone(),
+                fake_dns: self.manager.fake_dns.clone(),
             }),
             None,
         ))
@@ -78,14 +79,15 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
         assert!(buf.len() >= payload_size);
         let real_payload = &recv_buf[header_size..header_size + payload_size];
 
-        let (local_addr, process_name) = if let Some(info) = super::UDP_LOCAL_INFO.lock().unwrap().get(&id) {
-            (info.local_address.clone(), info.process_name.clone())
-        } else {
-            return Err(ProxyError::DatagramWarn(anyhow!(format!(
-                "local socket not found id={}",
-                id
-            ))));
-        };
+        let (local_addr, process_name) =
+            if let Some(info) = super::UDP_LOCAL_INFO.lock().unwrap().get(&id) {
+                (info.local_address.clone(), info.process_name.clone())
+            } else {
+                return Err(ProxyError::DatagramWarn(anyhow!(format!(
+                    "local socket not found id={}",
+                    id
+                ))));
+            };
 
         // Override with real source address and process name.
         src_addr.address = local_addr;

@@ -86,8 +86,6 @@ impl InboundManager {
                 "nf" => {
                     let settings: crate::config::NfInboundSettings =
                         protobuf::Message::parse_from_bytes(&inbound.settings)?;
-                    nf::inbound::init(settings.driver_name.clone(), &settings.nfapi)?;
-
                     use crate::app::fake_dns::{FakeDns, FakeDnsMode};
                     let fake_dns_exclude = settings.fake_dns_exclude.clone();
                     let fake_dns_include = settings.fake_dns_include.clone();
@@ -97,11 +95,15 @@ impl InboundManager {
                         (FakeDnsMode::Exclude, fake_dns_exclude)
                     };
                     let fake_dns = Arc::new(FakeDns::new(mode, filters));
-
+                    let manager = Arc::new(nf::inbound::NfManager::new(
+                        settings.driver_name.clone(),
+                        settings.nfapi.clone(),
+                        fake_dns,
+                    )?);
                     let stream = Arc::new(nf::inbound::StreamHandler {
-                        fake_dns: fake_dns.clone(),
+                        manager: manager.clone(),
                     });
-                    let datagram = Arc::new(nf::inbound::DatagramHandler { fake_dns });
+                    let datagram = Arc::new(nf::inbound::DatagramHandler { manager });
                     let handler = Arc::new(crate::proxy::inbound::Handler::new(
                         tag.clone(),
                         Some(stream),
