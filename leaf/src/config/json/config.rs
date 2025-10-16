@@ -29,6 +29,17 @@ pub struct CatInboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct NfInboundSettings {
+    #[serde(rename = "driverName")]
+    pub driver_name: String,
+    pub nfapi: Option<String>,
+    #[serde(rename = "fakeDnsExclude")]
+    pub fake_dns_exclude: Option<Vec<String>>,
+    #[serde(rename = "fakeDnsInclude")]
+    pub fake_dns_include: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ShadowsocksInboundSettings {
     pub method: Option<String>,
     pub password: Option<String>,
@@ -264,6 +275,8 @@ pub struct Rule {
     pub network: Option<Vec<String>>,
     #[serde(rename = "inboundTag")]
     pub inbound_tag: Option<Vec<String>>,
+    #[serde(rename = "processName")]
+    pub process_name: Option<Vec<String>>,
     pub target: String,
 }
 
@@ -398,6 +411,37 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     settings.network = ext_settings.network.unwrap_or("tcp".to_string());
                     settings.address = ext_settings.address;
                     settings.port = ext_settings.port as u32;
+                    let settings = settings.write_to_bytes().unwrap();
+                    inbound.settings = settings;
+                    inbounds.push(inbound);
+                }
+                "nf" => {
+                    let mut settings = internal::NfInboundSettings::new();
+                    let ext_settings: NfInboundSettings =
+                        serde_json::from_str(ext_inbound.settings.as_ref().unwrap().get()).unwrap();
+
+                    let mut fake_dns_exclude = Vec::new();
+                    if let Some(ext_excludes) = ext_settings.fake_dns_exclude {
+                        for ext_exclude in ext_excludes {
+                            fake_dns_exclude.push(ext_exclude);
+                        }
+                    }
+                    if !fake_dns_exclude.is_empty() {
+                        settings.fake_dns_exclude = fake_dns_exclude;
+                    }
+
+                    let mut fake_dns_include = Vec::new();
+                    if let Some(ext_includes) = ext_settings.fake_dns_include {
+                        for ext_include in ext_includes {
+                            fake_dns_include.push(ext_include);
+                        }
+                    }
+                    if !fake_dns_include.is_empty() {
+                        settings.fake_dns_include = fake_dns_include;
+                    }
+
+                    settings.driver_name = ext_settings.driver_name;
+                    settings.nfapi = ext_settings.nfapi.unwrap_or("nfapi.dll".to_string());
                     let settings = settings.write_to_bytes().unwrap();
                     inbound.settings = settings;
                     inbounds.push(inbound);
@@ -1032,6 +1076,12 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                 if let Some(ext_its) = ext_rule.inbound_tag.as_mut() {
                     for it in ext_its.drain(0..) {
                         rule.inbound_tags.push(it);
+                    }
+                }
+                #[cfg(feature = "rule-process-name")]
+                if let Some(ext_process_names) = ext_rule.process_name.as_mut() {
+                    for process_name in ext_process_names.drain(0..) {
+                        rule.process_names.push(process_name);
                     }
                 }
                 rules.push(rule);

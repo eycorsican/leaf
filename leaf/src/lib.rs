@@ -41,7 +41,6 @@ pub mod mobile;
 #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
 mod sys;
 
-
 #[cfg(all(feature = "inbound-tun", target_os = "windows"))]
 mod winsys;
 
