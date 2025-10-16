@@ -1,0 +1,13 @@
+[package]
+name = "uniffi-bin"
+version = "0.1.0"
+authors = ["rikaaa0928 <rikaaa0928@gmail.com>"]
+edition = "2018"
+
+
+[[bin]]
+name = "uniffi"
+path = "uniffi.rs"
+
+[dependencies]
+uniffi = { version = "0.29.1", features = ["cli"] }
