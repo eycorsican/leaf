@@ -5,7 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{Html, Json},
     routing::{get, post},
@@ -34,7 +34,6 @@ mod models {
         pub selected: Option<String>,
     }
 
-    #[cfg(feature = "stat")]
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Stat {
         pub network: String,
@@ -47,6 +46,25 @@ mod models {
         pub bytes_recvd: u64,
         pub send_completed: bool,
         pub recv_completed: bool,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct LastPeerActive {
+        pub tag: String,
+        pub last_peer_active: Option<u32>,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct SinceLastPeerActive {
+        pub tag: String,
+        pub since_last_peer_active: Option<u32>,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct OutboundHealthCheck {
+        pub tag: String,
+        pub tcp_ms: Option<u128>,
+        pub udp_ms: Option<u128>,
     }
 }
 
@@ -126,7 +144,6 @@ mod handlers {
         }
     }
 
-    #[cfg(feature = "stat")]
     pub async fn stat_json(
         State(rm): State<Arc<RuntimeManager>>,
     ) -> Result<Json<Vec<models::Stat>>, Infallible> {
@@ -150,7 +167,6 @@ mod handlers {
         Ok(Json(stats))
     }
 
-    #[cfg(feature = "stat")]
     pub async fn stat_html(
         State(rm): State<Arc<RuntimeManager>>,
     ) -> Result<Html<String>, Infallible> {
@@ -216,6 +232,43 @@ table, th, td {
         body.push_str("</table></html>");
         Ok(Html(body))
     }
+
+    pub async fn last_peer_active(
+        Path(tag): Path<String>,
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<Json<models::LastPeerActive>, Infallible> {
+        let last_peer_active = rm.get_outbound_last_peer_active(&tag).await.ok().flatten();
+        Ok(Json(models::LastPeerActive {
+            tag,
+            last_peer_active,
+        }))
+    }
+
+    pub async fn since_last_peer_active(
+        Path(tag): Path<String>,
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<Json<models::SinceLastPeerActive>, Infallible> {
+        let sm = rm.stat_manager();
+        let since = sm.read().await.since_last_peer_active(&tag);
+        Ok(Json(models::SinceLastPeerActive {
+            tag,
+            since_last_peer_active: since,
+        }))
+    }
+
+    pub async fn outbound_health(
+        Path(tag): Path<String>,
+        State(rm): State<Arc<RuntimeManager>>,
+    ) -> Result<Json<models::OutboundHealthCheck>, Infallible> {
+        let (tcp_res, udp_res) = rm.health_check_outbound(&tag, None).await.unwrap_or((Err(anyhow::anyhow!("runtime")), Err(anyhow::anyhow!("runtime"))));
+        let tcp_ms = tcp_res.ok().map(|d| d.as_millis());
+        let udp_ms = udp_res.ok().map(|d| d.as_millis());
+        Ok(Json(models::OutboundHealthCheck {
+            tag,
+            tcp_ms,
+            udp_ms,
+        }))
+    }
 }
 
 pub struct ApiServer {
@@ -240,12 +293,12 @@ impl ApiServer {
                 .route("/api/v1/app/outbound/selects", get(handlers::select_list));
         }
 
-        #[cfg(feature = "stat")]
-        {
-            app = app
-                .route("/api/v1/runtime/stat/html", get(handlers::stat_html))
-                .route("/api/v1/runtime/stat/json", get(handlers::stat_json));
-        }
+        app = app
+            .route("/api/v1/runtime/stat/html", get(handlers::stat_html))
+            .route("/api/v1/runtime/stat/json", get(handlers::stat_json))
+            .route("/api/v1/runtime/outbound/{tag}/last_peer_active", get(handlers::last_peer_active))
+            .route("/api/v1/runtime/outbound/{tag}/since_last_peer_active", get(handlers::since_last_peer_active))
+            .route("/api/v1/runtime/outbound/{tag}/health", get(handlers::outbound_health));
 
         let app = app.with_state(self.runtime_manager.clone());
 

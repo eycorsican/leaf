@@ -21,7 +21,6 @@ default-ring = [
     "rustls-tls",
     "rustls-tls-ring",
     "api",
-    "stat",
 ]
 
 default-aws-lc = [
@@ -31,7 +30,6 @@ default-aws-lc = [
     "rustls-tls",
     "rustls-tls-aws-lc",
     "api",
-    "stat",
 ]
 
 default-openssl = [
@@ -132,7 +130,6 @@ inbound-cat = ["tokio/io-std"]
 inbound-nf = ["libloading"]
 
 plugin = ["async-ffi", "libloading"]
-stat = []
 api = ["axum"]
 auto-reload = ["notify"]
 ctrlc = ["tokio/signal"]

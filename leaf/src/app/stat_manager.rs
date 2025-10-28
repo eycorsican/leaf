@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::{io, pin::Pin};
 
@@ -18,6 +18,7 @@ pub struct Stream {
     pub bytes_sent: Arc<AtomicU64>,
     pub recv_completed: Arc<AtomicBool>,
     pub send_completed: Arc<AtomicBool>,
+    pub last_peer_active: Arc<AtomicU32>,
 }
 
 impl Drop for Stream {
@@ -40,6 +41,8 @@ impl AsyncRead for Stream {
         } else {
             self.bytes_recvd
                 .fetch_add(buf.filled().len() as u64, Ordering::Relaxed);
+            self.last_peer_active
+                .store(get_unix_timestamp(), Ordering::Relaxed);
         }
         Poll::Ready(Ok(()))
     }
@@ -73,6 +76,7 @@ pub struct Datagram {
     pub bytes_sent: Arc<AtomicU64>,
     pub recv_completed: Arc<AtomicBool>,
     pub send_completed: Arc<AtomicBool>,
+    pub last_peer_active: Arc<AtomicU32>,
 }
 
 impl OutboundDatagram for Datagram {
@@ -84,7 +88,12 @@ impl OutboundDatagram for Datagram {
     ) {
         let (r, s) = self.inner.split();
         (
-            Box::new(DatagramRecvHalf(r, self.bytes_recvd, self.recv_completed)),
+            Box::new(DatagramRecvHalf(
+                r,
+                self.bytes_recvd,
+                self.recv_completed,
+                self.last_peer_active,
+            )),
             Box::new(DatagramSendHalf(s, self.bytes_sent, self.send_completed)),
         )
     }
@@ -94,6 +103,7 @@ pub struct DatagramRecvHalf(
     Box<dyn OutboundDatagramRecvHalf>,
     Arc<AtomicU64>,
     Arc<AtomicBool>,
+    Arc<AtomicU32>,
 );
 
 impl Drop for DatagramRecvHalf {
@@ -107,6 +117,7 @@ impl OutboundDatagramRecvHalf for DatagramRecvHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
         self.0.recv_from(buf).await.map(|(n, a)| {
             self.1.fetch_add(n as u64, Ordering::Relaxed);
+            self.3.store(get_unix_timestamp(), Ordering::Relaxed);
             (n, a)
         })
     }
@@ -143,6 +154,7 @@ pub struct Counter {
     pub bytes_sent: Arc<AtomicU64>,
     pub recv_completed: Arc<AtomicBool>,
     pub send_completed: Arc<AtomicBool>,
+    pub last_peer_active: Arc<AtomicU32>,
 }
 
 impl Counter {
@@ -161,6 +173,17 @@ impl Counter {
     pub fn send_completed(&self) -> bool {
         self.send_completed.load(Ordering::Relaxed)
     }
+
+    pub fn last_peer_active(&self) -> u32 {
+        self.last_peer_active.load(Ordering::Relaxed)
+    }
+}
+
+fn get_unix_timestamp() -> u32 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|x| x.as_secs() as u32)
+        .unwrap_or(0)
 }
 
 #[inline]
@@ -212,12 +235,14 @@ impl StatManager {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let recv_completed = Arc::new(AtomicBool::new(false));
         let send_completed = Arc::new(AtomicBool::new(false));
+        let last_peer_active = Arc::new(AtomicU32::new(get_unix_timestamp()));
         self.counters.push(Counter {
             sess,
             bytes_recvd: bytes_recvd.clone(),
             bytes_sent: bytes_sent.clone(),
             recv_completed: recv_completed.clone(),
             send_completed: send_completed.clone(),
+            last_peer_active: last_peer_active.clone(),
         });
         Box::new(Stream {
             inner: stream,
@@ -225,6 +250,7 @@ impl StatManager {
             bytes_sent,
             recv_completed,
             send_completed,
+            last_peer_active,
         })
     }
 
@@ -237,12 +263,14 @@ impl StatManager {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let recv_completed = Arc::new(AtomicBool::new(false));
         let send_completed = Arc::new(AtomicBool::new(false));
+        let last_peer_active = Arc::new(AtomicU32::new(get_unix_timestamp()));
         self.counters.push(Counter {
             sess,
             bytes_recvd: bytes_recvd.clone(),
             bytes_sent: bytes_sent.clone(),
             recv_completed: recv_completed.clone(),
             send_completed: send_completed.clone(),
+            last_peer_active: last_peer_active.clone(),
         });
         Box::new(Datagram {
             inner: dgram,
@@ -250,6 +278,20 @@ impl StatManager {
             bytes_sent,
             recv_completed,
             send_completed,
+            last_peer_active,
         })
+    }
+
+    pub fn get_last_peer_active(&self, outbound_tag: &str) -> Option<u32> {
+        self.counters
+            .iter()
+            .filter(|counter| counter.sess.outbound_tag == outbound_tag)
+            .map(|counter| counter.last_peer_active())
+            .max()
+    }
+
+    pub fn since_last_peer_active(&self, outbound_tag: &str) -> Option<u32> {
+        self.get_last_peer_active(outbound_tag)
+            .map(|ts| get_unix_timestamp().saturating_sub(ts))
     }
 }

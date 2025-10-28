@@ -6,13 +6,13 @@ use std::{
 #[cfg(feature = "outbound-select")]
 use std::sync::Arc;
 
+#[cfg(feature = "outbound-select")]
+use tokio::sync::RwLock;
+
 use anyhow::{anyhow, Result};
 use futures::future::AbortHandle;
 use protobuf::Message;
 use tracing::{debug, trace};
-
-#[cfg(feature = "outbound-select")]
-use tokio::sync::RwLock;
 
 #[cfg(feature = "outbound-chain")]
 use crate::proxy::chain;
@@ -800,6 +800,7 @@ impl OutboundManager {
                 &mut selectors,
             )?;
         }
+
         Ok(OutboundManager {
             handlers,
             #[cfg(feature = "plugin")]
@@ -824,7 +825,7 @@ impl OutboundManager {
         self.default_handler.clone()
     }
 
-    pub fn handlers(&self) -> Handlers {
+    pub fn handlers(&self) -> Handlers<'_> {
         Handlers {
             inner: self.handlers.values(),
         }

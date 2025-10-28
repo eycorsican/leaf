@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::io::{self, ErrorKind};
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,11 +16,71 @@ use crate::{
     session::*,
 };
 
-#[cfg(feature = "stat")]
+use tokio::io::AsyncWriteExt;
+
+async fn healthcheck_respond_simple<T>(stream: &mut T) -> io::Result<()>
+where
+    T: AsyncWrite + Unpin,
+{
+    stream.write_all(b"PONG").await?;
+    stream.flush().await?;
+    Ok(())
+}
+
 use crate::app::SyncStatManager;
 
 use super::outbound::manager::OutboundManager;
 use super::router::Router;
+
+struct HealthcheckUdpRecvHalf {
+    responded: bool,
+    src_addr: SocksAddr,
+}
+
+#[async_trait::async_trait]
+impl OutboundDatagramRecvHalf for HealthcheckUdpRecvHalf {
+    async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
+        if self.responded {
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "no more data"));
+        }
+        let pong = b"PONG";
+        if buf.len() < pong.len() {
+            return Err(io::Error::new(io::ErrorKind::Other, "buffer too small"));
+        }
+        buf[..pong.len()].copy_from_slice(pong);
+        self.responded = true;
+        Ok((pong.len(), self.src_addr.clone()))
+    }
+}
+
+struct HealthcheckUdpSendHalf;
+
+#[async_trait::async_trait]
+impl OutboundDatagramSendHalf for HealthcheckUdpSendHalf {
+    async fn send_to(&mut self, buf: &[u8], _dst_addr: &SocksAddr) -> io::Result<usize> {
+        Ok(buf.len())
+    }
+
+    async fn close(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+struct HealthcheckUdpDatagram {
+    recv: HealthcheckUdpRecvHalf,
+    send: HealthcheckUdpSendHalf,
+}
+
+impl OutboundDatagram for HealthcheckUdpDatagram {
+    fn split(
+        self: Box<Self>,
+    ) -> (
+        Box<dyn OutboundDatagramRecvHalf>,
+        Box<dyn OutboundDatagramSendHalf>,
+    ) {
+        (Box::new(self.recv), Box::new(self.send))
+    }
+}
 
 #[inline]
 fn log_request(
@@ -51,7 +110,7 @@ fn log_request(
             .process_name
             .as_ref()
             .map(|x| {
-                Path::new(x)
+                std::path::Path::new(x)
                     .file_name()
                     .and_then(|name| name.to_str())
                     .unwrap_or(x)
@@ -87,7 +146,6 @@ pub struct Dispatcher {
     outbound_manager: Arc<RwLock<OutboundManager>>,
     router: Arc<RwLock<Router>>,
     dns_client: SyncDnsClient,
-    #[cfg(feature = "stat")]
     stat_manager: SyncStatManager,
 }
 
@@ -96,22 +154,31 @@ impl Dispatcher {
         outbound_manager: Arc<RwLock<OutboundManager>>,
         router: Arc<RwLock<Router>>,
         dns_client: SyncDnsClient,
-        #[cfg(feature = "stat")] stat_manager: SyncStatManager,
+        stat_manager: SyncStatManager,
     ) -> Self {
         Dispatcher {
             outbound_manager,
             router,
             dns_client,
-            #[cfg(feature = "stat")]
             stat_manager,
         }
     }
 
-    pub async fn dispatch_stream<T>(&self, mut sess: Session, lhs: T)
+    pub async fn dispatch_stream<T>(&self, mut sess: Session, mut lhs: T)
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
         debug!("dispatching {}:{}", &sess.network, &sess.destination);
+
+        if let Some(domain) = sess.destination.domain() {
+            if domain == "healthcheck.leaf" {
+                if let Err(e) = healthcheck_respond_simple(&mut lhs).await {
+                    debug!("healthcheck response failed: {}", e);
+                }
+                return;
+            }
+        }
+
         let mut lhs: Box<dyn ProxyStream> = if sniff::should_sniff(&sess) {
             let mut lhs = sniff::SniffingStream::new(lhs);
             match lhs.sniff(&sess).await {
@@ -228,14 +295,11 @@ impl Dispatcher {
 
                 log_request(&sess, h.tag(), h.color(), Some(elapsed.as_millis()));
 
-                #[cfg(feature = "stat")]
-                if *crate::option::ENABLE_STATS {
-                    rhs = self
-                        .stat_manager
-                        .write()
-                        .await
-                        .stat_stream(rhs, sess.clone());
-                }
+                rhs = self
+                    .stat_manager
+                    .write()
+                    .await
+                    .stat_stream(rhs, sess.clone());
 
                 match common::io::copy_buf_bidirectional_with_timeout(
                     &mut lhs,
@@ -286,6 +350,22 @@ impl Dispatcher {
         mut sess: Session,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
         debug!("dispatching {}:{}", &sess.network, &sess.destination);
+
+        if let Some(domain) = sess.destination.domain() {
+            if domain == "healthcheck.leaf" {
+                let recv = HealthcheckUdpRecvHalf {
+                    responded: false,
+                    src_addr: sess.destination.clone(),
+                };
+                let d = HealthcheckUdpDatagram {
+                    recv,
+                    send: HealthcheckUdpSendHalf,
+                };
+                let d: Box<dyn OutboundDatagram> = Box::new(d);
+                return Ok(d);
+            }
+        }
+
         let outbound = {
             let router = self.router.read().await;
             match router.pick_route(&sess).await {
@@ -337,14 +417,11 @@ impl Dispatcher {
 
                 log_request(&sess, h.tag(), h.color(), Some(elapsed.as_millis()));
 
-                #[cfg(feature = "stat")]
-                if *crate::option::ENABLE_STATS {
-                    d = self
-                        .stat_manager
-                        .write()
-                        .await
-                        .stat_outbound_datagram(d, sess.clone());
-                }
+                d = self
+                    .stat_manager
+                    .write()
+                    .await
+                    .stat_outbound_datagram(d, sess.clone());
 
                 Ok(d)
             }

@@ -204,7 +204,7 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
-fn remove_comments(text: &str) -> Cow<str> {
+fn remove_comments(text: &str) -> Cow<'_, str> {
     let re = Regex::new(r"(#[^*]*)").unwrap();
     re.replace(text, "")
 }

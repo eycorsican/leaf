@@ -9,6 +9,7 @@ use lazy_static::lazy_static;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
+use tokio::time::{timeout, Duration};
 use tracing::{error, info, trace, warn};
 
 #[cfg(feature = "auto-reload")]
@@ -21,7 +22,6 @@ use app::{
     nat_manager::NatManager, outbound::manager::OutboundManager, router::Router,
 };
 
-#[cfg(feature = "stat")]
 use crate::app::{stat_manager::StatManager, SyncStatManager};
 
 #[cfg(feature = "api")]
@@ -78,7 +78,6 @@ pub struct RuntimeManager {
     router: Arc<RwLock<Router>>,
     dns_client: Arc<RwLock<DnsClient>>,
     outbound_manager: Arc<RwLock<OutboundManager>>,
-    #[cfg(feature = "stat")]
     stat_manager: SyncStatManager,
     #[cfg(feature = "auto-reload")]
     watcher: Mutex<Option<RecommendedWatcher>>,
@@ -95,7 +94,7 @@ impl RuntimeManager {
         router: Arc<RwLock<Router>>,
         dns_client: Arc<RwLock<DnsClient>>,
         outbound_manager: Arc<RwLock<OutboundManager>>,
-        #[cfg(feature = "stat")] stat_manager: SyncStatManager,
+        stat_manager: SyncStatManager,
     ) -> Arc<Self> {
         Arc::new(Self {
             #[cfg(feature = "auto-reload")]
@@ -108,16 +107,70 @@ impl RuntimeManager {
             router,
             dns_client,
             outbound_manager,
-            #[cfg(feature = "stat")]
             stat_manager,
             #[cfg(feature = "auto-reload")]
             watcher: Mutex::new(None),
         })
     }
 
-    #[cfg(feature = "stat")]
     pub fn stat_manager(&self) -> SyncStatManager {
         self.stat_manager.clone()
+    }
+
+    pub async fn health_check_outbound(
+        &self,
+        tag: &str,
+        to: Option<Duration>,
+    ) -> Result<
+        (
+            Result<Duration, anyhow::Error>,
+            Result<Duration, anyhow::Error>,
+        ),
+        Error,
+    > {
+        let to = to.unwrap_or(Duration::from_secs(4));
+        let dns_client = self.dns_client.clone();
+        let handler = {
+            let om = self.outbound_manager.read().await;
+            om.get(tag)
+                .ok_or_else(|| Error::Config(anyhow!(format!("outbound {} not found", tag))))?
+        };
+
+        async fn test_tcp(
+            dns_client: Arc<RwLock<DnsClient>>,
+            handler: crate::proxy::AnyOutboundHandler,
+        ) -> anyhow::Result<Duration> {
+            crate::app::healthcheck::tcp(dns_client, handler).await
+        }
+
+        async fn test_udp(
+            dns_client: Arc<RwLock<DnsClient>>,
+            handler: crate::proxy::AnyOutboundHandler,
+        ) -> anyhow::Result<Duration> {
+            crate::app::healthcheck::udp(dns_client, handler).await
+        }
+
+        let (tcp_res, udp_res) = futures::future::join(
+            timeout(to, test_tcp(dns_client.clone(), handler.clone())),
+            timeout(to, test_udp(dns_client, handler)),
+        )
+        .await;
+
+        let tcp_res = match tcp_res.map_err(|e| e.into()) {
+            Err(e) => Err(e),
+            Ok(res) => match res {
+                Err(e) => Err(e),
+                Ok(duration) => Ok(duration),
+            },
+        };
+        let udp_res = match udp_res.map_err(|e| e.into()) {
+            Err(e) => Err(e),
+            Ok(res) => match res {
+                Err(e) => Err(e),
+                Ok(duration) => Ok(duration),
+            },
+        };
+        Ok((tcp_res, udp_res))
     }
 
     #[cfg(feature = "outbound-select")]
@@ -147,6 +200,18 @@ impl RuntimeManager {
             return Ok(selector.read().await.get_available_tags());
         }
         Err(Error::Config(anyhow!("not found")))
+    }
+
+    /// Get the last peer active time (in seconds) for an outbound
+    pub async fn get_outbound_last_peer_active(
+        &self,
+        outbound: &str,
+    ) -> Result<Option<u32>, Error> {
+        Ok(self
+            .stat_manager
+            .read()
+            .await
+            .get_last_peer_active(outbound))
     }
 
     // This function could block by an in-progress connection dialing.
@@ -401,15 +466,12 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         &mut config.router,
         dns_client.clone(),
     )));
-    #[cfg(feature = "stat")]
     let stat_manager = Arc::new(RwLock::new(StatManager::new()));
-    #[cfg(feature = "stat")]
     runners.push(StatManager::cleanup_task(stat_manager.clone()));
     let dispatcher = Arc::new(Dispatcher::new(
         outbound_manager.clone(),
         router.clone(),
         dns_client.clone(),
-        #[cfg(feature = "stat")]
         stat_manager.clone(),
     ));
 
@@ -482,7 +544,6 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         router,
         dns_client,
         outbound_manager,
-        #[cfg(feature = "stat")]
         stat_manager,
     );
 

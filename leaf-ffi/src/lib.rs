@@ -18,6 +18,8 @@ pub const ERR_SYNC_CHANNEL_RECV: i32 = 6;
 pub const ERR_RUNTIME_MANAGER: i32 = 7;
 /// No associated config file.
 pub const ERR_NO_CONFIG_FILE: i32 = 8;
+/// No data found.
+pub const ERR_NO_DATA: i32 = 9;
 
 fn to_errno(e: leaf::Error) -> i32 {
     match e {
@@ -162,5 +164,136 @@ pub extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
         ERR_OK
     } else {
         ERR_CONFIG_PATH
+    }
+}
+
+/// Runs a health check for an outbound.
+///
+/// This performs an active health check by sending a PING to healthcheck.leaf
+/// and waiting for a PONG response through the specified outbound, testing both
+/// TCP and UDP protocols.
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param outbound_tag The tag of the outbound to test.
+/// @param timeout_ms Timeout in milliseconds (0 for default 4 seconds).
+/// @return Returns ERR_OK if either TCP or UDP health check succeeds, error code otherwise.
+#[no_mangle]
+pub extern "C" fn leaf_health_check(
+    rt_id: u16,
+    outbound_tag: *const c_char,
+    timeout_ms: u64,
+) -> i32 {
+    use std::time::Duration;
+
+    let outbound_tag = if let Ok(tag) = unsafe { CStr::from_ptr(outbound_tag).to_str() } {
+        tag.to_string()
+    } else {
+        return ERR_CONFIG_PATH;
+    };
+
+    let manager = leaf::RUNTIME_MANAGER.lock().unwrap().get(&rt_id).cloned();
+    let result = if let Some(m) = manager {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let timeout = if timeout_ms == 0 {
+            None
+        } else {
+            Some(Duration::from_millis(timeout_ms))
+        };
+        rt.block_on(async move { m.health_check_outbound(&outbound_tag, timeout).await })
+    } else {
+        Err(leaf::Error::RuntimeManager)
+    };
+
+    match result {
+        Ok((tcp_res, udp_res)) => {
+            if tcp_res.is_ok() || udp_res.is_ok() {
+                ERR_OK
+            } else {
+                ERR_IO
+            }
+        }
+        Err(e) => to_errno(e),
+    }
+}
+
+/// Gets the last active time for an outbound.
+///
+/// This returns the timestamp of the last successful connection through the outbound.
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param outbound_tag The tag of the outbound.
+/// @param timestamp_s Pointer to store the timestamp in seconds since epoch.
+/// @return Returns ERR_OK on success, ERR_NO_DATA if no active time found, error code otherwise.
+#[no_mangle]
+pub extern "C" fn leaf_get_last_active(
+    rt_id: u16,
+    outbound_tag: *const c_char,
+    timestamp_s: *mut u32,
+) -> i32 {
+    let outbound_tag = if let Ok(tag) = unsafe { CStr::from_ptr(outbound_tag).to_str() } {
+        tag.to_string()
+    } else {
+        return ERR_CONFIG_PATH;
+    };
+
+    let manager = leaf::RUNTIME_MANAGER.lock().unwrap().get(&rt_id).cloned();
+    let result = if let Some(m) = manager {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move { m.get_outbound_last_peer_active(&outbound_tag).await })
+    } else {
+        return to_errno(leaf::Error::RuntimeManager);
+    };
+
+    match result {
+        Ok(Some(ts)) => {
+            unsafe { *timestamp_s = ts };
+            ERR_OK
+        }
+        Ok(None) => ERR_NO_DATA,
+        Err(e) => to_errno(e),
+    }
+}
+
+/// Gets seconds since last active time for an outbound.
+///
+/// This returns the number of seconds elapsed since the last successful
+/// connection through the specified outbound.
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param outbound_tag The tag of the outbound.
+/// @param since_s Pointer to store the seconds since last active.
+/// @return Returns ERR_OK on success, ERR_NO_DATA if no active time found, error code otherwise.
+#[no_mangle]
+pub extern "C" fn leaf_get_since_last_active(
+    rt_id: u16,
+    outbound_tag: *const c_char,
+    since_s: *mut u32,
+) -> i32 {
+    let outbound_tag = if let Ok(tag) = unsafe { CStr::from_ptr(outbound_tag).to_str() } {
+        tag.to_string()
+    } else {
+        return ERR_CONFIG_PATH;
+    };
+
+    let manager = leaf::RUNTIME_MANAGER.lock().unwrap().get(&rt_id).cloned();
+    let result = if let Some(m) = manager {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move { m.get_outbound_last_peer_active(&outbound_tag).await })
+    } else {
+        return to_errno(leaf::Error::RuntimeManager);
+    };
+
+    match result {
+        Ok(Some(ts)) => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as u32)
+                .unwrap_or(0);
+            let since = now.saturating_sub(ts);
+            unsafe { *since_s = since };
+            ERR_OK
+        }
+        Ok(None) => ERR_NO_DATA,
+        Err(e) => to_errno(e),
     }
 }
