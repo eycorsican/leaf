@@ -13,6 +13,8 @@ use crate::Runner;
 
 #[cfg(feature = "inbound-amux")]
 use crate::proxy::amux;
+#[cfg(feature = "inbound-hc")]
+use crate::proxy::hc;
 #[cfg(feature = "inbound-http")]
 use crate::proxy::http;
 #[cfg(feature = "inbound-nf")]
@@ -75,6 +77,23 @@ impl InboundManager {
                 #[cfg(feature = "inbound-http")]
                 "http" => {
                     let stream = Arc::new(http::inbound::StreamHandler);
+                    let handler = Arc::new(proxy::inbound::Handler::new(
+                        tag.clone(),
+                        Some(stream),
+                        None,
+                    ));
+                    handlers.insert(tag.clone(), handler);
+                }
+                #[cfg(feature = "inbound-hc")]
+                "hc" => {
+                    let settings =
+                        config::HcInboundSettings::parse_from_bytes(&inbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
+                    let stream = Arc::new(hc::inbound::Handler::new(
+                        settings.path,
+                        settings.request,
+                        settings.response,
+                    ));
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         tag.clone(),
                         Some(stream),

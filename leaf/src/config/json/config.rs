@@ -56,6 +56,14 @@ pub struct WebSocketInboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct HcInboundSettings {
+    pub path: String,
+    #[serde(default)]
+    pub request: Option<String>,
+    pub response: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AMuxInboundSettings {
     pub actors: Option<Vec<String>>,
 }
@@ -447,6 +455,17 @@ pub fn to_internal(json: &mut Config) -> Result<internal::Config> {
                     inbounds.push(inbound);
                 }
                 "http" => {
+                    inbounds.push(inbound);
+                }
+                "hc" => {
+                    let mut settings = internal::HcInboundSettings::new();
+                    let ext_settings: HcInboundSettings =
+                        serde_json::from_str(ext_inbound.settings.as_ref().unwrap().get()).unwrap();
+                    settings.path = ext_settings.path;
+                    settings.request = ext_settings.request.unwrap_or(String::new());
+                    settings.response = ext_settings.response;
+                    let settings = settings.write_to_bytes().unwrap();
+                    inbound.settings = settings;
                     inbounds.push(inbound);
                 }
                 "socks" => {

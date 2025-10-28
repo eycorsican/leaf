@@ -46,6 +46,8 @@ pub mod direct;
 pub mod drop;
 #[cfg(feature = "outbound-failover")]
 pub mod failover;
+#[cfg(feature = "inbound-hc")]
+pub mod hc;
 #[cfg(feature = "inbound-http")]
 pub mod http;
 #[cfg(feature = "inbound-nf")]

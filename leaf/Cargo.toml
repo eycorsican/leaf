@@ -56,6 +56,7 @@ all-endpoints = [
     "inbound-tls",
     "inbound-trojan",
     "inbound-http",
+    "inbound-hc",
     "inbound-shadowsocks",
     "inbound-socks",
     "inbound-tun",
@@ -120,6 +121,7 @@ inbound-trojan = ["sha2", "hex"]
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["http"]
+inbound-hc = []
 inbound-tun = ["tun", "netstack-lwip", "pnet_datalink"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]

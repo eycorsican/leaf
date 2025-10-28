@@ -88,6 +88,12 @@ message ChainInboundSettings {
 	repeated string actors = 1;
 }
 
+message HcInboundSettings {
+	string path = 1;
+	string request = 2;
+	string response = 3;
+}
+
 message Inbound {
 	string tag = 1;
 	string protocol = 2; // TODO use enum
