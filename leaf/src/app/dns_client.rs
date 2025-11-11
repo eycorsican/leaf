@@ -211,95 +211,93 @@ impl DnsClient {
         for _i in 0..*option::MAX_DNS_RETRIES {
             debug!("looking up host {} on {}", host, server);
             let start = tokio::time::Instant::now();
-            match s.send_to(&request, &server).await {
-                Ok(_) => {
-                    let mut buf = vec![0u8; 512];
-                    match timeout(
-                        Duration::from_secs(*option::DNS_TIMEOUT),
-                        r.recv_from(&mut buf),
-                    )
-                    .await
-                    {
-                        Ok(res) => match res {
-                            Ok((n, _)) => {
-                                let resp = match Message::from_vec(&buf[..n]) {
-                                    Ok(resp) => resp,
-                                    Err(err) => {
-                                        last_err = Some(anyhow!("parse message failed: {:?}", err));
-                                        // broken response, no retry
-                                        break;
-                                    }
-                                };
-                                if resp.response_code() != ResponseCode::NoError {
-                                    last_err =
-                                        Some(anyhow!("response error {}", resp.response_code()));
-                                    // error response, no retry
-                                    //
-                                    // TODO Needs more careful investigations, I'm not quite sure about
-                                    // this.
-                                    break;
-                                }
-                                let mut ips = Vec::new();
-                                for ans in resp.answers() {
-                                    // TODO checks?
-                                    if let Some(data) = ans.data() {
-                                        match data {
-                                            RData::A(ip) => {
-                                                ips.push(IpAddr::V4(**ip));
-                                            }
-                                            RData::AAAA(ip) => {
-                                                ips.push(IpAddr::V6(**ip));
-                                            }
-                                            _ => (),
-                                        }
-                                    }
-                                }
-                                if !ips.is_empty() {
-                                    let elapsed = tokio::time::Instant::now().duration_since(start);
-                                    let ttl = resp.answers().iter().next().unwrap().ttl();
-                                    debug!(
-                                        "return {} ips (ttl {}) for {} from {} in {}ms",
-                                        ips.len(),
-                                        ttl,
-                                        host,
-                                        server,
-                                        elapsed.as_millis(),
-                                    );
-                                    let deadline = if let Some(d) =
-                                        Instant::now().checked_add(Duration::from_secs(ttl.into()))
-                                    {
-                                        d
-                                    } else {
-                                        last_err = Some(anyhow!("invalid ttl"));
-                                        break;
-                                    };
-                                    let entry = CacheEntry { ips, deadline };
-                                    debug!("ips for {}: {:#?}", host, &entry);
-                                    return Ok(entry);
-                                } else {
-                                    // response with 0 records
-                                    //
-                                    // TODO Not sure how to due with this.
-                                    last_err = Some(anyhow!("no records"));
-                                    break;
-                                }
-                            }
-                            Err(err) => {
-                                last_err = Some(anyhow!("recv failed: {:?}", err));
-                                // socket recv_from error, retry
-                            }
-                        },
-                        Err(e) => {
-                            last_err = Some(anyhow!("recv timeout: {}", e));
-                            // timeout, retry
+            // 1) send DNS request
+            if let Err(err) = s.send_to(&request, &server).await {
+                last_err = Some(anyhow!("send failed: {:?}", err));
+                // socket send_to error, retry
+                continue;
+            }
+            // 2) wait response
+            let mut buf = vec![0u8; 512];
+            let recv_result = match timeout(
+                Duration::from_secs(*option::DNS_TIMEOUT),
+                r.recv_from(&mut buf),
+            )
+            .await
+            {
+                Ok(Ok((n, _))) => Ok((n, ())),
+                Ok(Err(err)) => Err(anyhow!("recv failed: {:?}", err)), // socket recv_from error
+                Err(e) => Err(anyhow!("recv timeout: {}", e)),          // timeout
+            };
+            // retry
+            if let Err(err) = recv_result {
+                last_err = Some(err);
+                continue;
+            }
+            // happy path !!
+            let n: usize = recv_result.unwrap().0;
+            // 3) parse resp
+            let resp = match Message::from_vec(&buf[..n]) {
+                Ok(resp) => resp,
+                Err(err) => {
+                    last_err = Some(anyhow!("parse message failed: {:?}", err));
+                    // broken response, no retry
+                    break;
+                }
+            };
+            // 4) check resp code
+            if resp.response_code() != ResponseCode::NoError {
+                last_err = Some(anyhow!("response error {}", resp.response_code()));
+                // error response, no retry
+                //
+                // TODO Needs more careful investigations, I'm not quite sure about
+                // this.
+                break;
+            }
+            // 5) find address
+            let mut ips = Vec::new();
+            for ans in resp.answers() {
+                // TODO checks?
+                if let Some(data) = ans.data() {
+                    match data {
+                        RData::A(ip) => {
+                            ips.push(IpAddr::V4(**ip));
                         }
+                        RData::AAAA(ip) => {
+                            ips.push(IpAddr::V6(**ip));
+                        }
+                        _ => (),
                     }
                 }
-                Err(err) => {
-                    last_err = Some(anyhow!("send failed: {:?}", err));
-                    // socket send_to error, retry
-                }
             }
+
+            if ips.is_empty() {
+                // response with 0 records
+                //
+                // TODO Not sure how to due with this.
+                last_err = Some(anyhow!("no records"));
+                break;
+            }
+            // 6) return cache entry
+            let elapsed = tokio::time::Instant::now().duration_since(start);
+            let ttl = resp.answers().iter().next().unwrap().ttl();
+            debug!(
+                "return {} ips (ttl {}) for {} from {} in {}ms",
+                ips.len(),
+                ttl,
+                host,
+                server,
+                elapsed.as_millis(),
+            );
+
+            let Some(deadline) = Instant::now().checked_add(Duration::from_secs(ttl.into())) else {
+                last_err = Some(anyhow!("invalid ttl"));
+                break;
+            };
+
+            let entry = CacheEntry { ips, deadline };
+            debug!("ips for {}: {:#?}", host, &entry);
+            return Ok(entry);
         }
         Err(last_err.unwrap_or_else(|| anyhow!("all lookup attempts failed")))
     }
