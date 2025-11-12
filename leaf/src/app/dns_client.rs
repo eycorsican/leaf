@@ -327,71 +327,28 @@ impl DnsClient {
     async fn get_cached(&self, host: &String) -> Result<Vec<IpAddr>> {
         let mut cached_ips = Vec::new();
 
-        // TODO reduce boilerplates
-        match (*crate::option::ENABLE_IPV6, *crate::option::PREFER_IPV6) {
-            (true, true) => {
-                if let Some(entry) = self.ipv6_cache.lock().await.get(host) {
-                    if entry
-                        .deadline
-                        .checked_duration_since(Instant::now())
-                        .is_none()
-                    {
-                        return Err(anyhow!("entry expired"));
-                    }
-                    let mut ips = entry.ips.to_vec();
-                    cached_ips.append(&mut ips);
+        let fetch_order = match (*crate::option::ENABLE_IPV6, *crate::option::PREFER_IPV6) {
+            (true, true) => vec![&self.ipv6_cache, &self.ipv4_cache],
+            (true, false) => vec![&self.ipv4_cache, &self.ipv6_cache],
+            _ => vec![&self.ipv4_cache],
+        };
+
+        // Query caches in priority order
+        for cache in fetch_order {
+            if let Some(entry) = cache.lock().await.get(host) {
+                if entry
+                    .deadline
+                    .checked_duration_since(Instant::now())
+                    .is_none()
+                {
+                    return Err(anyhow!("entry expired"));
                 }
-                if let Some(entry) = self.ipv4_cache.lock().await.get(host) {
-                    if entry
-                        .deadline
-                        .checked_duration_since(Instant::now())
-                        .is_none()
-                    {
-                        return Err(anyhow!("entry expired"));
-                    }
-                    let mut ips = entry.ips.to_vec();
-                    cached_ips.append(&mut ips);
-                }
-            }
-            (true, false) => {
-                if let Some(entry) = self.ipv4_cache.lock().await.get(host) {
-                    if entry
-                        .deadline
-                        .checked_duration_since(Instant::now())
-                        .is_none()
-                    {
-                        return Err(anyhow!("entry expired"));
-                    }
-                    let mut ips = entry.ips.to_vec();
-                    cached_ips.append(&mut ips);
-                }
-                if let Some(entry) = self.ipv6_cache.lock().await.get(host) {
-                    if entry
-                        .deadline
-                        .checked_duration_since(Instant::now())
-                        .is_none()
-                    {
-                        return Err(anyhow!("entry expired"));
-                    }
-                    let mut ips = entry.ips.to_vec();
-                    cached_ips.append(&mut ips);
-                }
-            }
-            _ => {
-                if let Some(entry) = self.ipv4_cache.lock().await.get(host) {
-                    if entry
-                        .deadline
-                        .checked_duration_since(Instant::now())
-                        .is_none()
-                    {
-                        return Err(anyhow!("entry expired"));
-                    }
-                    let mut ips = entry.ips.to_vec();
-                    cached_ips.append(&mut ips);
-                }
+                let mut ips = entry.ips.to_vec();
+                cached_ips.append(&mut ips);
             }
         }
 
+        // Return results or error if no cached IPs found
         if !cached_ips.is_empty() {
             Ok(cached_ips)
         } else {
