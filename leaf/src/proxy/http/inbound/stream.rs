@@ -162,6 +162,12 @@ impl HttpStream {
 
         match head.target_format {
             TargetFormat::Absolute => {
+                // drain() returns (before EOH, starting at EOH). To avoid duplicating
+                // the CRLFCRLF boundary when we rebuild headers below, drop the
+                // leading EOH from the remainder.
+                if rest_buf.starts_with(&EOH) {
+                    let _ = rest_buf.drain(..EOH.len());
+                }
                 let path_and_query = head
                     .uri
                     .path_and_query()
