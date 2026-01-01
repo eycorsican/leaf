@@ -580,7 +580,7 @@ impl Router {
                 }
             }
         }
-        Err(anyhow!("no matching rules"))
+        Err(anyhow!("no matching rules for {}", sess.destination))
     }
 }
 

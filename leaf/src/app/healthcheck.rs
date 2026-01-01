@@ -26,12 +26,13 @@ pub async fn tcp(
     let mut buf = Vec::with_capacity(4);
     let n = stream.read_buf(&mut buf).await?;
     if n == 0 {
-        Err(anyhow!("EOF"))
+        Err(anyhow!("EOF during TCP health check for [{}]", handler.tag()))
     } else if buf == b"PONG" {
         Ok(Instant::now().duration_since(start))
     } else {
         Err(anyhow!(
-            "Unexpected response: {}",
+            "Unexpected TCP health check response from [{}]: {}",
+            handler.tag(),
             String::from_utf8_lossy(&buf)
         ))
     }
@@ -57,6 +58,6 @@ pub async fn udp(
     if &buf[..n] == b"PONG" {
         Ok(Instant::now().duration_since(start))
     } else {
-        Err(anyhow!("Unexpected response"))
+        Err(anyhow!("Unexpected UDP health check response from [{}]", handler.tag()))
     }
 }

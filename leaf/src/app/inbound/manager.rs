@@ -153,7 +153,8 @@ impl InboundManager {
                 #[cfg(feature = "inbound-trojan")]
                 "trojan" => {
                     let settings =
-                        config::TrojanInboundSettings::parse_from_bytes(&inbound.settings)?;
+                        config::TrojanInboundSettings::parse_from_bytes(&inbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
                     let stream = Arc::new(trojan::inbound::StreamHandler::new(
                         settings.passwords.to_vec(),
                     ));
@@ -167,7 +168,8 @@ impl InboundManager {
                 #[cfg(feature = "inbound-ws")]
                 "ws" => {
                     let settings =
-                        config::WebSocketInboundSettings::parse_from_bytes(&inbound.settings)?;
+                        config::WebSocketInboundSettings::parse_from_bytes(&inbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
                     let stream = Arc::new(ws::inbound::StreamHandler::new(settings.path.clone()));
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         tag.clone(),
@@ -179,7 +181,8 @@ impl InboundManager {
                 #[cfg(feature = "inbound-quic")]
                 "quic" => {
                     let settings =
-                        config::QuicInboundSettings::parse_from_bytes(&inbound.settings)?;
+                        config::QuicInboundSettings::parse_from_bytes(&inbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
                     let datagram = Arc::new(quic::inbound::DatagramHandler::new(
                         settings.certificate.clone(),
                         settings.certificate_key.clone(),
@@ -194,7 +197,8 @@ impl InboundManager {
                 }
                 #[cfg(feature = "inbound-tls")]
                 "tls" => {
-                    let settings = config::TlsInboundSettings::parse_from_bytes(&inbound.settings)?;
+                    let settings = config::TlsInboundSettings::parse_from_bytes(&inbound.settings)
+                        .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
                     let stream = Arc::new(tls::inbound::StreamHandler::new(
                         settings.certificate.clone(),
                         settings.certificate_key.clone(),

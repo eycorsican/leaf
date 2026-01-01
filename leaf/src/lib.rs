@@ -133,7 +133,7 @@ impl RuntimeManager {
         let handler = {
             let om = self.outbound_manager.read().await;
             om.get(tag)
-                .ok_or_else(|| Error::Config(anyhow!(format!("outbound {} not found", tag))))?
+                .ok_or_else(|| Error::Config(anyhow!("outbound {} not found", tag)))?
         };
 
         async fn test_tcp(
@@ -182,7 +182,7 @@ impl RuntimeManager {
                 .set_selected(select)
                 .map_err(Error::Config)
         } else {
-            Err(Error::Config(anyhow!("selector not found")))
+            Err(Error::Config(anyhow!("selector {} not found", outbound)))
         }
     }
 
@@ -191,7 +191,7 @@ impl RuntimeManager {
         if let Some(selector) = self.outbound_manager.read().await.get_selector(outbound) {
             return Ok(selector.read().await.get_selected_tag());
         }
-        Err(Error::Config(anyhow!("not found")))
+        Err(Error::Config(anyhow!("selector {} not found", outbound)))
     }
 
     #[cfg(feature = "outbound-select")]
@@ -199,7 +199,7 @@ impl RuntimeManager {
         if let Some(selector) = self.outbound_manager.read().await.get_selector(outbound) {
             return Ok(selector.read().await.get_available_tags());
         }
-        Err(Error::Config(anyhow!("not found")))
+        Err(Error::Config(anyhow!("selector {} not found", outbound)))
     }
 
     /// Get the last peer active time (in seconds) for an outbound

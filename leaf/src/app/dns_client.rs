@@ -213,7 +213,7 @@ impl DnsClient {
             let start = tokio::time::Instant::now();
             // 1) send DNS request
             if let Err(err) = s.send_to(&request, &server).await {
-                last_err = Some(anyhow!("send failed: {:?}", err));
+                last_err = Some(anyhow!("send DNS request to {} failed: {}", server, err));
                 // socket send_to error, retry
                 continue;
             }
@@ -226,8 +226,8 @@ impl DnsClient {
             .await
             {
                 Ok(Ok((n, _))) => Ok((n, ())),
-                Ok(Err(err)) => Err(anyhow!("recv failed: {:?}", err)), // socket recv_from error
-                Err(e) => Err(anyhow!("recv timeout: {}", e)),          // timeout
+                Ok(Err(err)) => Err(anyhow!("recv DNS response from {} failed: {}", server, err)), // socket recv_from error
+                Err(e) => Err(anyhow!("recv DNS response from {} timeout: {}", server, e)),          // timeout
             };
             // retry
             if let Err(err) = recv_result {
@@ -240,14 +240,14 @@ impl DnsClient {
             let resp = match Message::from_vec(&buf[..n]) {
                 Ok(resp) => resp,
                 Err(err) => {
-                    last_err = Some(anyhow!("parse message failed: {:?}", err));
+                    last_err = Some(anyhow!("parse DNS message from {} failed: {}", server, err));
                     // broken response, no retry
                     break;
                 }
             };
             // 4) check resp code
             if resp.response_code() != ResponseCode::NoError {
-                last_err = Some(anyhow!("response error {}", resp.response_code()));
+                last_err = Some(anyhow!("DNS response from {} for {} error: {}", server, host, resp.response_code()));
                 // error response, no retry
                 //
                 // TODO Needs more careful investigations, I'm not quite sure about
@@ -275,7 +275,7 @@ impl DnsClient {
                 // response with 0 records
                 //
                 // TODO Not sure how to due with this.
-                last_err = Some(anyhow!("no records"));
+                last_err = Some(anyhow!("no records in DNS response from {} for {}", server, host));
                 break;
             }
             // 6) return cache entry
@@ -299,7 +299,7 @@ impl DnsClient {
             debug!("ips for {}: {:#?}", host, &entry);
             return Ok(entry);
         }
-        Err(last_err.unwrap_or_else(|| anyhow!("all lookup attempts failed")))
+        Err(last_err.unwrap_or_else(|| anyhow!("all lookup attempts for {} failed", host)))
     }
 
     fn new_query(name: Name, ty: RecordType) -> Message {
