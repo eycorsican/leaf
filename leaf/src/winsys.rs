@@ -6,8 +6,7 @@ pub fn get_default_interface_ips() -> String {
         Err(_) => return String::new(),
     };
 
-    let candidate = adapters.iter()
-        .find(|a| !a.gateways().is_empty());
+    let candidate = adapters.iter().find(|a| !a.gateways().is_empty());
 
     let adapter = match candidate {
         Some(adapter) => adapter,

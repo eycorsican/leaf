@@ -185,7 +185,10 @@ pub async fn health_check_outbound(
         .get(tag)
         .ok_or_else(|| anyhow!("outbound {} not found", tag))?;
     let (tcp_res, udp_res) = futures::future::join(
-        timeout(to, test_healthcheck_tcp(dns_client.clone(), handler.clone())),
+        timeout(
+            to,
+            test_healthcheck_tcp(dns_client.clone(), handler.clone()),
+        ),
         timeout(to, test_healthcheck_udp(dns_client, handler)),
     )
     .await;

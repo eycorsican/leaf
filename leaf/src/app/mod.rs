@@ -4,13 +4,13 @@ use tokio::sync::RwLock;
 
 pub mod dispatcher;
 pub mod dns_client;
+pub mod healthcheck;
 pub mod inbound;
 pub mod logger;
 pub mod nat_manager;
 pub mod outbound;
 pub mod router;
 pub mod stat_manager;
-pub mod healthcheck;
 
 #[cfg(feature = "api")]
 pub mod api;

@@ -260,7 +260,10 @@ table, th, td {
         Path(tag): Path<String>,
         State(rm): State<Arc<RuntimeManager>>,
     ) -> Result<Json<models::OutboundHealthCheck>, Infallible> {
-        let (tcp_res, udp_res) = rm.health_check_outbound(&tag, None).await.unwrap_or((Err(anyhow::anyhow!("runtime")), Err(anyhow::anyhow!("runtime"))));
+        let (tcp_res, udp_res) = rm.health_check_outbound(&tag, None).await.unwrap_or((
+            Err(anyhow::anyhow!("runtime")),
+            Err(anyhow::anyhow!("runtime")),
+        ));
         let tcp_ms = tcp_res.ok().map(|d| d.as_millis());
         let udp_ms = udp_res.ok().map(|d| d.as_millis());
         Ok(Json(models::OutboundHealthCheck {
@@ -296,9 +299,18 @@ impl ApiServer {
         app = app
             .route("/api/v1/runtime/stat/html", get(handlers::stat_html))
             .route("/api/v1/runtime/stat/json", get(handlers::stat_json))
-            .route("/api/v1/runtime/outbound/{tag}/last_peer_active", get(handlers::last_peer_active))
-            .route("/api/v1/runtime/outbound/{tag}/since_last_peer_active", get(handlers::since_last_peer_active))
-            .route("/api/v1/runtime/outbound/{tag}/health", get(handlers::outbound_health));
+            .route(
+                "/api/v1/runtime/outbound/{tag}/last_peer_active",
+                get(handlers::last_peer_active),
+            )
+            .route(
+                "/api/v1/runtime/outbound/{tag}/since_last_peer_active",
+                get(handlers::since_last_peer_active),
+            )
+            .route(
+                "/api/v1/runtime/outbound/{tag}/health",
+                get(handlers::outbound_health),
+            );
 
         let app = app.with_state(self.runtime_manager.clone());
 
