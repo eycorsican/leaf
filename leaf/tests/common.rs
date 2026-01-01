@@ -82,21 +82,20 @@ fn new_socks_outbound(socks_addr: &str, socks_port: u16) -> AnyOutboundHandler {
         username: None,
         password: None,
     };
-    let settings_str = serde_json::to_string(&settings).unwrap();
-    let raw_settings = serde_json::value::RawValue::from_string(settings_str).unwrap();
     let outbounds = vec![leaf::config::json::Outbound {
-        protocol: "socks".to_string(),
         tag: Some("socks".to_string()),
-        settings: Some(raw_settings),
+        settings: leaf::config::json::OutboundSettings::Socks {
+            settings: Some(settings),
+        },
     }];
-    let mut config = leaf::config::json::Config {
+    let config = leaf::config::json::Config {
         log: None,
         inbounds: None,
         outbounds: Some(outbounds),
         router: None,
         dns: None,
     };
-    let config = leaf::config::json::to_internal(&mut config).unwrap();
+    let config = leaf::config::json::to_internal(config).unwrap();
     let dns_client = Arc::new(RwLock::new(
         leaf::app::dns_client::DnsClient::new(&config.dns).unwrap(),
     ));

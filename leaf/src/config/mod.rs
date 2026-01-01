@@ -6,6 +6,7 @@ use anyhow::Result;
 pub mod external_rule;
 pub mod geosite;
 pub mod internal;
+pub mod common;
 
 #[cfg(feature = "config-json")]
 pub mod json;
