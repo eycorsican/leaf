@@ -7,8 +7,8 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use futures::TryFutureExt;
-use rustls::OwnedTrustAnchor;
-use rustls_pemfile_old::certs;
+use rustls::pki_types::CertificateDer;
+use rustls_pemfile::certs;
 use tokio::sync::RwLock;
 use tracing::{debug, trace};
 
@@ -40,16 +40,12 @@ impl Manager {
                 Ok(cert) => {
                     match Path::new(&cert_path).extension().map(|ext| ext.to_str()) {
                         Some(Some("der")) => {
-                            roots.add(&rustls::Certificate(cert)).unwrap(); // FIXME
+                            roots.add(CertificateDer::from(cert)).unwrap(); // FIXME
                         }
                         _ => {
-                            let certs: Vec<rustls::Certificate> = certs(&mut &*cert)
-                                .unwrap()
-                                .into_iter()
-                                .map(rustls::Certificate)
-                                .collect();
-                            for cert in certs {
-                                roots.add(&cert).unwrap();
+                            let mut reader = io::BufReader::new(&*cert);
+                            for cert in certs(&mut reader) {
+                                roots.add(cert.unwrap()).unwrap();
                             }
                         }
                     }
@@ -59,24 +55,21 @@ impl Manager {
                 }
             }
         } else {
-            roots.add_trust_anchors(webpki_roots_old::TLS_SERVER_ROOTS.iter().map(|ta| {
-                OwnedTrustAnchor::from_subject_spki_name_constraints(
-                    ta.subject,
-                    ta.spki,
-                    ta.name_constraints,
-                )
-            }));
+            roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         }
 
-        let mut client_crypto = rustls::ClientConfig::builder()
-            .with_safe_defaults()
-            .with_root_certificates(roots)
-            .with_no_client_auth();
+        let mut client_crypto = rustls::ClientConfig::builder_with_provider(
+            rustls::crypto::ring::default_provider().into(),
+        )
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
         for alpn in alpns {
             client_crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
         }
 
-        let mut client_config = quinn::ClientConfig::new(Arc::new(client_crypto));
+        let mut client_config = quinn::ClientConfig::new(Arc::new(quinn::crypto::rustls::QuicClientConfig::try_from(client_crypto).unwrap()));
         let mut transport_config = quinn::TransportConfig::default();
         transport_config.max_concurrent_bidi_streams(quinn::VarInt::from_u32(64));
         transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(

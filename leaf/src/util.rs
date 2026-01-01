@@ -95,7 +95,7 @@ async fn test_udp_outbound(
     handler: AnyOutboundHandler,
 ) -> Result<Duration> {
     use rand::{rngs::StdRng, Rng, SeedableRng};
-    use trust_dns_proto::{
+    use hickory_proto::{
         op::{header::MessageType, op_code::OpCode, query::Query, Message},
         rr::{record_type::RecordType, Name},
     };

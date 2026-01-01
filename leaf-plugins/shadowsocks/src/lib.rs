@@ -9,11 +9,12 @@ use bytes::BufMut;
 use bytes::BytesMut;
 use leaf::{
     app::outbound::plugin::{
-        ExternalTcpOutboundHandler, ExternalUdpOutboundHandler, PluginRegistrar, PluginSpec,
+        ExternalOutboundDatagramHandler, ExternalOutboundStreamHandler, PluginRegistrar,
+        PluginSpec,
     },
     proxy::shadowsocks::shadow::{self, ShadowedDatagram, ShadowedStream},
     proxy::*,
-    session::{Session, SocksAddr, SocksAddrWireType},
+    session::{Network, Session, SocksAddr, SocksAddrWireType},
 };
 use tokio::io::AsyncWriteExt;
 
@@ -51,23 +52,26 @@ pub struct TcpHandler {
     pub password: String,
 }
 
-impl ExternalTcpOutboundHandler for TcpHandler {
-    type Stream = AnyStream;
-
+impl ExternalOutboundStreamHandler for TcpHandler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
-        Some(OutboundConnect::Proxy(self.address.clone(), self.port))
+        Some(OutboundConnect::Proxy(
+            Network::Tcp,
+            self.address.clone(),
+            self.port,
+        ))
     }
 
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        stream: Option<Self::Stream>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Self::Stream>> {
+        stream: Option<AnyStream>,
+    ) -> BorrowingFfiFuture<'a, io::Result<AnyStream>> {
         async move {
-            let mut stream = ShadowedStream::new(stream.unwrap(), &self.cipher, &self.password)?;
+            let mut stream =
+                ShadowedStream::new(stream.unwrap(), &self.cipher, &self.password, None)?;
             let mut buf = BytesMut::new();
             sess.destination
-                .write_buf(&mut buf, SocksAddrWireType::PortLast)?;
+                .write_buf(&mut buf, SocksAddrWireType::PortLast);
             // FIXME combine header and first payload
             stream.write_all(&buf).await?;
             Ok(Box::new(stream) as Box<dyn ProxyStream>)
@@ -83,32 +87,32 @@ pub struct UdpHandler {
     pub password: String,
 }
 
-#[async_trait]
-impl ExternalUdpOutboundHandler for UdpHandler {
-    type Stream = AnyStream;
-    type Datagram = AnyOutboundDatagram;
-
+impl ExternalOutboundDatagramHandler for UdpHandler {
     fn connect_addr(&self) -> Option<OutboundConnect> {
         if !self.address.is_empty() && self.port != 0 {
-            Some(OutboundConnect::Proxy(self.address.clone(), self.port))
+            Some(OutboundConnect::Proxy(
+                Network::Udp,
+                self.address.clone(),
+                self.port,
+            ))
         } else {
             None
         }
     }
 
     fn transport_type(&self) -> DatagramTransportType {
-        DatagramTransportType::Datagram
+        DatagramTransportType::Unreliable
     }
 
     fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport<Self::Stream, Self::Datagram>>,
-    ) -> BorrowingFfiFuture<'a, io::Result<Self::Datagram>> {
+        transport: Option<AnyOutboundTransport>,
+    ) -> BorrowingFfiFuture<'a, io::Result<AnyOutboundDatagram>> {
         async move {
             let server_addr = SocksAddr::try_from((&self.address, self.port))?;
 
-            let socket = if let Some(OutboundTransport::Datagram(socket)) = transport {
+            let socket = if let Some(AnyOutboundTransport::Datagram(socket)) = transport {
                 socket
             } else {
                 return Err(io::Error::new(io::ErrorKind::Other, "invalid input"));
@@ -201,7 +205,7 @@ pub struct DatagramSendHalf {
 impl OutboundDatagramSendHalf for DatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
         let mut buf2 = BytesMut::new();
-        target.write_buf(&mut buf2, SocksAddrWireType::PortLast)?;
+        target.write_buf(&mut buf2, SocksAddrWireType::PortLast);
         buf2.put_slice(buf);
 
         let ciphertext = self.dgram.encrypt(buf2).map_err(|_| shadow::crypto_err())?;
@@ -209,5 +213,9 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
             Ok(_) => Ok(buf.len()),
             Err(err) => Err(err),
         }
+    }
+
+    async fn close(&mut self) -> io::Result<()> {
+        self.send_half.close().await
     }
 }

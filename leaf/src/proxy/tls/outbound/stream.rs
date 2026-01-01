@@ -68,7 +68,6 @@ mod dangerous {
         }
 
         fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-            // Non-exhaustive, new variants can be added in the future.
             vec![
                 SignatureScheme::RSA_PKCS1_SHA1,
                 SignatureScheme::ECDSA_SHA1_Legacy,
@@ -91,9 +90,9 @@ mod dangerous {
 pub struct Handler {
     server_name: String,
     #[cfg(feature = "rustls-tls")]
-    tls_config: Arc<ClientConfig>,
+    tls_config: Option<Arc<ClientConfig>>,
     #[cfg(feature = "openssl-tls")]
-    ssl_connector: SslConnector,
+    ssl_connector: Option<SslConnector>,
 }
 
 impl Handler {
@@ -103,6 +102,14 @@ impl Handler {
         certificate: Option<String>,
         insecure: bool,
     ) -> Result<Self> {
+        let mut handler = Handler {
+            server_name,
+            #[cfg(feature = "rustls-tls")]
+            tls_config: None,
+            #[cfg(feature = "openssl-tls")]
+            ssl_connector: None,
+        };
+
         #[cfg(feature = "rustls-tls")]
         {
             let mut roots = RootCertStore::empty();
@@ -114,26 +121,31 @@ impl Handler {
             } else {
                 roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
             }
-            let mut config = ClientConfig::builder()
-                .with_root_certificates(roots)
-                .with_no_client_auth();
-            if insecure {
-                let mut dangerous_config = config.dangerous();
-                dangerous_config.set_certificate_verifier(Arc::new(dangerous::NotVerified));
-            }
-            for alpn in alpns {
+            let builder = ClientConfig::builder_with_provider(
+                rustls::crypto::ring::default_provider().into(),
+            )
+            .with_safe_default_protocol_versions()
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+
+            let mut config = if insecure {
+                builder
+                    .dangerous()
+                    .with_custom_certificate_verifier(Arc::new(dangerous::NotVerified))
+                    .with_no_client_auth()
+            } else {
+                builder.with_root_certificates(roots).with_no_client_auth()
+            };
+            for alpn in &alpns {
                 config.alpn_protocols.push(alpn.as_bytes().to_vec());
             }
-            Ok(Handler {
-                server_name,
-                tls_config: Arc::new(config),
-            })
+            handler.tls_config = Some(Arc::new(config));
         }
+
         #[cfg(feature = "openssl-tls")]
         {
             {
                 static ONCE: Once = Once::new();
-                ONCE.call_once(openssl_probe::init_ssl_cert_env_vars);
+                ONCE.call_once(|| unsafe { openssl_probe::init_openssl_env_vars() });
             }
             let mut builder =
                 SslConnector::builder(SslMethod::tls()).expect("create ssl connector failed");
@@ -148,12 +160,9 @@ impl Handler {
             if insecure {
                 builder.set_verify(openssl::ssl::SslVerifyMode::NONE);
             }
-            let ssl_connector = builder.build();
-            Ok(Handler {
-                server_name,
-                ssl_connector,
-            })
+            handler.ssl_connector = Some(builder.build());
         }
+        Ok(handler)
     }
 }
 
@@ -177,9 +186,9 @@ impl OutboundStreamHandler for Handler {
         };
         if let Some(stream) = stream {
             #[cfg(feature = "rustls-tls")]
-            {
+            if let Some(tls_config) = self.tls_config.as_ref() {
                 trace!("handling TLS {} with rustls", &name);
-                let connector = TlsConnector::from(self.tls_config.clone());
+                let connector = TlsConnector::from(tls_config.clone());
                 let domain = ServerName::try_from(name.as_str()).map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -196,12 +205,12 @@ impl OutboundStreamHandler for Handler {
                     })
                     .await?;
                 // FIXME check negotiated alpn
-                Ok(Box::new(tls_stream))
+                return Ok(Box::new(tls_stream));
             }
             #[cfg(feature = "openssl-tls")]
-            {
+            if let Some(ssl_connector) = self.ssl_connector.as_ref() {
                 trace!("handling TLS {} with openssl", &name);
-                let mut ssl = Ssl::new(self.ssl_connector.context()).map_err(|e| {
+                let mut ssl = Ssl::new(ssl_connector.context()).map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
                         format!("new ssl failed: {}", e),
@@ -228,8 +237,9 @@ impl OutboundStreamHandler for Handler {
                         )
                     })
                     .await?;
-                Ok(Box::new(stream))
+                return Ok(Box::new(stream));
             }
+            Err(io::Error::other("no tls backend available"))
         } else {
             Err(io::Error::other("invalid tls input"))
         }

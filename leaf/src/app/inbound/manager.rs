@@ -17,7 +17,7 @@ use crate::proxy::amux;
 use crate::proxy::hc;
 #[cfg(feature = "inbound-http")]
 use crate::proxy::http;
-#[cfg(feature = "inbound-nf")]
+#[cfg(all(feature = "inbound-nf", windows))]
 use crate::proxy::nf;
 #[cfg(feature = "inbound-quic")]
 use crate::proxy::quic;
@@ -101,7 +101,7 @@ impl InboundManager {
                     ));
                     handlers.insert(tag.clone(), handler);
                 }
-                #[cfg(feature = "inbound-nf")]
+                #[cfg(all(feature = "inbound-nf", windows))]
                 "nf" => {
                     let settings: crate::config::NfInboundSettings =
                         protobuf::Message::parse_from_bytes(&inbound.settings)?;

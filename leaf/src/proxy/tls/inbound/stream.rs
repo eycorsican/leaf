@@ -23,25 +23,25 @@ pub struct Handler {
 
 #[cfg(feature = "rustls-tls")]
 fn load_certs(path: &Path) -> io::Result<Vec<CertificateDer<'static>>> {
-    certs(&mut BufReader::new(File::open(path)?)).collect()
+    let mut reader = BufReader::new(File::open(path)?);
+    certs(&mut reader).collect()
 }
 
 #[cfg(feature = "rustls-tls")]
 fn load_keys(path: &Path) -> io::Result<Vec<PrivateKeyDer<'static>>> {
-    let mut keys = pkcs8_private_keys(&mut BufReader::new(File::open(path)?))
-        .filter_map(|x| x.ok())
-        .map(Into::into)
-        .collect::<Vec<_>>();
-    let mut keys2 = rsa_private_keys(&mut BufReader::new(File::open(path)?))
-        .filter_map(|x| x.ok())
-        .map(Into::into)
-        .collect::<Vec<_>>();
-    let mut keys3 = ec_private_keys(&mut BufReader::new(File::open(path)?))
-        .filter_map(|x| x.ok())
-        .map(Into::into)
-        .collect::<Vec<_>>();
-    keys.append(&mut keys3);
-    keys.append(&mut keys2);
+    let mut reader = BufReader::new(File::open(path)?);
+    let mut keys = Vec::new();
+    for key in pkcs8_private_keys(&mut reader) {
+        keys.push(PrivateKeyDer::Pkcs8(key?));
+    }
+    let mut reader = BufReader::new(File::open(path)?);
+    for key in rsa_private_keys(&mut reader) {
+        keys.push(PrivateKeyDer::Pkcs1(key?));
+    }
+    let mut reader = BufReader::new(File::open(path)?);
+    for key in ec_private_keys(&mut reader) {
+        keys.push(PrivateKeyDer::Sec1(key?));
+    }
     Ok(keys)
 }
 
@@ -51,15 +51,21 @@ impl Handler {
         {
             let certs = load_certs(Path::new(&certificate))?;
             let mut keys = load_keys(Path::new(&certificate_key))?;
-            let config = ServerConfig::builder()
-                .with_no_client_auth()
-                .with_single_cert(certs, keys.remove(0))
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+            let config = ServerConfig::builder_with_provider(
+                rustls::crypto::ring::default_provider().into(),
+            )
+            .with_safe_default_protocol_versions()
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
+            .with_no_client_auth()
+            .with_single_cert(certs, keys.remove(0))
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
             let acceptor = TlsAcceptor::from(Arc::new(config));
-            Ok(Self { acceptor })
+            return Ok(Self { acceptor });
         }
-        #[cfg(feature = "openssl-tls")]
+        #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
         unimplemented!();
+        #[cfg(all(not(feature = "rustls-tls"), not(feature = "openssl-tls")))]
+        Err(anyhow::anyhow!("no tls feature enabled"))
     }
 }
 
@@ -72,13 +78,15 @@ impl InboundStreamHandler for Handler {
     ) -> std::io::Result<AnyInboundTransport> {
         #[cfg(feature = "rustls-tls")]
         {
-            Ok(InboundTransport::Stream(
+            return Ok(InboundTransport::Stream(
                 Box::new(self.acceptor.accept(stream).await?),
                 sess,
-            ))
+            ));
         }
 
-        #[cfg(feature = "openssl-tls")]
+        #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
         unimplemented!();
+        #[cfg(all(not(feature = "rustls-tls"), not(feature = "openssl-tls")))]
+        Err(io::Error::new(io::ErrorKind::Other, "no tls feature enabled"))
     }
 }

@@ -27,10 +27,11 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
+        lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         let a = &self.actors[self.selected.load(Ordering::Relaxed)];
-        log::debug!("select handles to [{}]", a.tag());
-        a.stream()?.handle(sess, stream).await
+        tracing::debug!("select handles to [{}]", a.tag());
+        a.stream()?.handle(sess, lhs, stream).await
     }
 }

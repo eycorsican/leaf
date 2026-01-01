@@ -8,7 +8,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
 use tokio::time::{timeout, Instant};
 use tracing::{debug, trace, warn};
-use trust_dns_proto::{
+use hickory_proto::{
     op::{header::MessageType, op_code::OpCode, query::Query, Message},
     rr::{record_type::RecordType, Name},
 };

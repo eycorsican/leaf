@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use futures::stream::Stream;
 use futures::task::{Context, Poll};
 use quinn::{RecvStream, SendStream};
-use rustls_pemfile_old::{certs, ec_private_keys, pkcs8_private_keys, rsa_private_keys};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::{debug, trace, warn};
 
@@ -60,35 +61,29 @@ impl Handler {
 
         let cert = match Path::new(&certificate).extension().map(|ext| ext.to_str()) {
             Some(Some(ext)) if ext == "der" => {
-                vec![rustls::Certificate(cert)]
+                vec![CertificateDer::from(cert)]
             }
-            _ => certs(&mut &*cert)?
-                .into_iter()
-                .map(rustls::Certificate)
-                .collect(),
+            _ => certs(&mut io::BufReader::new(&*cert))
+                .collect::<Result<Vec<_>, _>>()?,
         };
 
         let key = match Path::new(&certificate_key)
             .extension()
             .map(|ext| ext.to_str())
         {
-            Some(Some(ext)) if ext == "der" => rustls::PrivateKey(key),
+            Some(Some(ext)) if ext == "der" => PrivateKeyDer::Pkcs8(key.into()),
             _ => {
-                let pkcs8 = pkcs8_private_keys(&mut &*key)?;
+                let pkcs8 = pkcs8_private_keys(&mut io::BufReader::new(&*key))
+                    .collect::<Result<Vec<_>, _>>()?;
                 match pkcs8.into_iter().next() {
-                    Some(x) => rustls::PrivateKey(x),
+                    Some(x) => PrivateKeyDer::Pkcs8(x),
                     None => {
-                        let rsa = rsa_private_keys(&mut &*key)?;
+                        let rsa = rsa_private_keys(&mut io::BufReader::new(&*key))
+                            .collect::<Result<Vec<_>, _>>()?;
                         match rsa.into_iter().next() {
-                            Some(x) => rustls::PrivateKey(x),
+                            Some(x) => PrivateKeyDer::Pkcs1(x),
                             None => {
-                                let rsa = ec_private_keys(&mut &*key)?;
-                                match rsa.into_iter().next() {
-                                    Some(x) => rustls::PrivateKey(x),
-                                    None => {
-                                        return Err(anyhow!("no private keys found",));
-                                    }
-                                }
+                                return Err(anyhow!("no private keys found",));
                             }
                         }
                     }
@@ -96,19 +91,25 @@ impl Handler {
             }
         };
 
-        let mut crypto = rustls::ServerConfig::builder()
-            .with_safe_defaults()
-            .with_no_client_auth()
-            .with_single_cert(cert, key)?;
-
+        let mut crypto = rustls::ServerConfig::builder_with_provider(
+            rustls::crypto::ring::default_provider().into(),
+        )
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_no_client_auth()
+        .with_single_cert(cert, key)?;
         for alpn in alpns {
             crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
         }
 
+        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(quinn::crypto::rustls::QuicServerConfig::try_from(crypto).unwrap()));
         let mut transport_config = quinn::TransportConfig::default();
+        transport_config.max_concurrent_bidi_streams(quinn::VarInt::from_u32(64));
+        transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
+            300_000,
+        ))));
         transport_config
             .congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
-        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(crypto));
         server_config.transport_config(Arc::new(transport_config));
 
         Ok(Self { server_config })
@@ -146,12 +147,20 @@ impl InboundDatagramHandler for Handler {
         )
         .map_err(quic_err)?;
         tokio::spawn(async move {
-            while let Some(connecting) = endpoint.accept().await {
+            while let Some(incoming) = endpoint.accept().await {
                 let stream_tx_c = stream_tx.clone();
                 tokio::spawn(async move {
-                    let remote_addr = connecting.remote_address();
-                    if let Err(e) = handle_conn(stream_tx_c, &remote_addr, connecting).await {
-                        debug!("handle QUIC connection from {} failed: {}", &remote_addr, e);
+                    let remote_addr = incoming.remote_address();
+                    match incoming.accept() {
+                        Ok(connecting) => {
+                            if let Err(e) = handle_conn(stream_tx_c, &remote_addr, connecting).await
+                            {
+                                debug!("handle QUIC connection from {} failed: {}", &remote_addr, e);
+                            }
+                        }
+                        Err(e) => {
+                            debug!("accept QUIC connection from {} failed: {}", &remote_addr, e);
+                        }
                     }
                 });
             }

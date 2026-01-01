@@ -12,7 +12,7 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
 use tracing::{debug, trace};
-use trust_dns_proto::{
+use hickory_proto::{
     op::{
         header::MessageType, op_code::OpCode, query::Query, response_code::ResponseCode, Message,
     },

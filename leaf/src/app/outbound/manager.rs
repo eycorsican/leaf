@@ -702,12 +702,13 @@ impl OutboundManager {
     ) -> Result<()> {
         // Save outound select states.
         #[cfg(feature = "outbound-select")]
-        {
-            let mut selected_outbounds = HashMap::new();
+        let selected_outbounds: HashMap<String, String> = {
+            let mut m = HashMap::new();
             for (k, v) in self.selectors.iter() {
-                selected_outbounds.insert(k.to_owned(), v.read().await.get_selected_tag());
+                m.insert(k.to_owned(), v.read().await.get_selected_tag());
             }
-        }
+            m
+        };
 
         // Load new outbounds.
         let mut handlers: HashMap<String, AnyOutboundHandler> = HashMap::new();

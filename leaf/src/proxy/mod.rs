@@ -50,7 +50,7 @@ pub mod failover;
 pub mod hc;
 #[cfg(feature = "inbound-http")]
 pub mod http;
-#[cfg(feature = "inbound-nf")]
+#[cfg(all(feature = "inbound-nf", windows))]
 pub mod nf;
 #[cfg(feature = "outbound-obfs")]
 pub mod obfs;

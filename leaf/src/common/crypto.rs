@@ -204,11 +204,14 @@ pub mod aead {
     }
 }
 
-#[cfg(any(feature = "aws-lc-aead", feature = "ring-aead"))]
+#[cfg(all(
+    any(feature = "aws-lc-aead", feature = "ring-aead"),
+    not(feature = "openssl-aead")
+))]
 pub mod aead {
     #[cfg(feature = "aws-lc-aead")]
     use aws_lc_rs::aead::{self, Aad, Algorithm, LessSafeKey, Nonce, UnboundKey};
-    #[cfg(feature = "ring-aead")]
+    #[cfg(all(feature = "ring-aead", not(feature = "aws-lc-aead")))]
     use ring::aead::{self, Aad, Algorithm, LessSafeKey, Nonce, UnboundKey};
 
     use super::*;

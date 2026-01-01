@@ -9,7 +9,7 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-leaf = { path = "../../leaf", features = ["outbound-shadowsocks", "inbound-shadowsocks"] }
+leaf = { path = "../../leaf", features = ["outbound-shadowsocks", "inbound-shadowsocks", "plugin"] }
 async-trait = "0.1"
 tokio = { version = "1", features = ["net"] }
 async-ffi = "0.2"
