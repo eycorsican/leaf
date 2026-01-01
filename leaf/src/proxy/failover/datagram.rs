@@ -153,7 +153,7 @@ impl OutboundDatagramHandler for Handler {
 
         for i in schedule {
             if i >= self.actors.len() {
-                return Err(io::Error::new(io::ErrorKind::Other, "invalid actor index"));
+                return Err(io::Error::other("invalid actor index"));
             }
 
             let a = &self.actors[i];
@@ -219,8 +219,7 @@ impl OutboundDatagramHandler for Handler {
                 .await;
         }
 
-        Err(io::Error::new(
-            io::ErrorKind::Other,
+        Err(io::Error::other(
             "all outbound attempts failed",
         ))
     }

@@ -26,7 +26,7 @@ impl OutboundStreamHandler for Handler {
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         let mut stream =
-            stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
+            stream.ok_or_else(|| io::Error::other("invalid input"))?;
         let auth = match (&self.username, &self.password) {
             (auth_username, _) if auth_username.is_empty() => None,
             (auth_username, auth_password) => Some(Auth {
@@ -37,13 +37,13 @@ impl OutboundStreamHandler for Handler {
         match &sess.destination {
             SocksAddr::Ip(a) => {
                 let _ = async_socks5::connect(&mut stream, a.to_owned(), auth)
-                    .map_err(|x| io::Error::new(io::ErrorKind::Other, x))
+                    .map_err(io::Error::other)
                     .await?;
             }
             SocksAddr::Domain(domain, port) => {
                 let _ =
                     async_socks5::connect(&mut stream, (domain.to_owned(), port.to_owned()), auth)
-                        .map_err(|x| io::Error::new(io::ErrorKind::Other, x))
+                        .map_err(io::Error::other)
                         .await?;
             }
         }

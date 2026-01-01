@@ -32,13 +32,13 @@ impl OutboundHandler for Handler {
     fn stream(&self) -> io::Result<&AnyOutboundStreamHandler> {
         self.stream_handler
             .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no tcp handler"))
+            .ok_or_else(|| io::Error::other("no tcp handler"))
     }
 
     fn datagram(&self) -> io::Result<&AnyOutboundDatagramHandler> {
         self.datagram_handler
             .as_ref()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no udp handler"))
+            .ok_or_else(|| io::Error::other("no udp handler"))
     }
 }
 

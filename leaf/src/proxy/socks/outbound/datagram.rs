@@ -1,5 +1,5 @@
 use std::{
-    io::{Error, ErrorKind, Result},
+    io::{Error, Result},
     sync::Arc,
 };
 
@@ -38,7 +38,7 @@ impl OutboundDatagramHandler for Handler {
         let stream = self
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)
             .await?;
-        let mut indicator = sess.source.clone();
+        let mut indicator = sess.source;
         if let Ok(ip) = self.address.parse::<IpAddr>() {
             if ip.is_loopback() {
                 indicator = SocketAddr::new(ip, 0);
@@ -49,13 +49,12 @@ impl OutboundDatagramHandler for Handler {
             stream,
             socket,
             None::<Auth>,
-            SocksAddr::try_from((self.address.clone(), self.port))
+            (*SocksAddr::try_from((self.address.clone(), self.port))
                 .unwrap()
-                .must_ip()
-                .clone()
+                .must_ip())
                 .into(),
         )
-        .map_err(|x| Error::new(ErrorKind::Other, x))
+        .map_err(Error::other)
         .await?;
         Ok(Box::new(Datagram { socket }))
     }
@@ -95,7 +94,7 @@ where
         let (n, addr) = self
             .0
             .recv_from(buf)
-            .map_err(|x| Error::new(ErrorKind::Other, x))
+            .map_err(Error::other)
             .await?;
         match addr {
             AddrKind::Ip(addr) => Ok((n, SocksAddr::Ip(addr))),
@@ -117,14 +116,14 @@ where
                 self.0
                     .send_to(buf, a.to_owned())
                     .map_ok(|_| buf.len())
-                    .map_err(|x| Error::new(ErrorKind::Other, x))
+                    .map_err(Error::other)
                     .await
             }
             SocksAddr::Domain(domain, port) => {
                 self.0
                     .send_to(buf, (domain.to_owned(), *port))
                     .map_ok(|_| buf.len())
-                    .map_err(|x| Error::new(ErrorKind::Other, x))
+                    .map_err(Error::other)
                     .await
             }
         }

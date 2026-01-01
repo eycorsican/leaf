@@ -194,7 +194,7 @@ impl OutboundStreamHandler for Handler {
 
         for (sche_idx, actor_idx) in schedule.into_iter().enumerate() {
             if actor_idx >= self.actors.len() {
-                return Err(io::Error::new(io::ErrorKind::Other, "invalid actor index"));
+                return Err(io::Error::other("invalid actor index"));
             }
 
             let a = &self.actors[actor_idx];
@@ -270,8 +270,7 @@ impl OutboundStreamHandler for Handler {
                 .await;
         }
 
-        Err(io::Error::new(
-            io::ErrorKind::Other,
+        Err(io::Error::other(
             "all outbound attempts failed",
         ))
     }

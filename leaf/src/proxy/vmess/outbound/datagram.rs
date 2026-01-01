@@ -35,7 +35,7 @@ impl OutboundDatagramHandler for Handler {
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
         let uuid = Uuid::parse_str(&self.uuid).map_err(|e| {
-            io::Error::new(io::ErrorKind::Other, format!("parse uuid failed: {}", e))
+            io::Error::other(format!("parse uuid failed: {}", e))
         })?;
         let mut request_header = RequestHeader {
             version: 0x1,
@@ -56,8 +56,7 @@ impl OutboundDatagramHandler for Handler {
                 request_header.security = SECURITY_TYPE_AES128_GCM;
             }
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
+                return Err(io::Error::other(
                     format!("unsupported cipher: {}", &self.security),
                 ))
             }
@@ -68,8 +67,7 @@ impl OutboundDatagramHandler for Handler {
         request_header
             .encode(&mut header_buf, &client_sess)
             .map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
+                io::Error::other(
                     format!("encode request header failed: {}", e),
                 )
             })?;
@@ -81,7 +79,7 @@ impl OutboundDatagramHandler for Handler {
             &client_sess.request_body_iv,
         )
         .map_err(|e| {
-            io::Error::new(io::ErrorKind::Other, format!("new encryptor failed: {}", e))
+            io::Error::other(format!("new encryptor failed: {}", e))
         })?;
 
         let dec_size_parser = ShakeSizeParser::new(&client_sess.response_body_iv);
@@ -91,13 +89,13 @@ impl OutboundDatagramHandler for Handler {
             &client_sess.response_body_iv,
         )
         .map_err(|e| {
-            io::Error::new(io::ErrorKind::Other, format!("new decryptor failed: {}", e))
+            io::Error::other(format!("new decryptor failed: {}", e))
         })?;
 
         let mut stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream
         } else {
-            return Err(io::Error::new(io::ErrorKind::Other, "invalid input"));
+            return Err(io::Error::other("invalid input"));
         };
 
         stream.write_all(&header_buf).await?; // write request

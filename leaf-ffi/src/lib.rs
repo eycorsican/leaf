@@ -1,3 +1,4 @@
+#![allow(clippy::missing_safety_doc)]
 use std::{ffi::CStr, os::raw::c_char};
 
 /// No error.
@@ -55,7 +56,7 @@ fn to_errno(e: leaf::Error) -> i32 {
 /// @return ERR_OK on finish running, any other errors means a startup failure.
 #[no_mangle]
 #[allow(unused_variables)]
-pub extern "C" fn leaf_run_with_options(
+pub unsafe extern "C" fn leaf_run_with_options(
     rt_id: u16,
     config_path: *const c_char,
     auto_reload: bool, // requires this parameter anyway
@@ -92,7 +93,7 @@ pub extern "C" fn leaf_run_with_options(
 ///                    or .json, according to the enabled features.
 /// @return ERR_OK on finish running, any other errors means a startup failure.
 #[no_mangle]
-pub extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32 {
+pub unsafe extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32 {
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
         let opts = leaf::StartOptions {
             config: leaf::Config::File(config_path.to_string()),
@@ -110,7 +111,7 @@ pub extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32 {
 }
 
 #[no_mangle]
-pub extern "C" fn leaf_run_with_config_string(rt_id: u16, config: *const c_char) -> i32 {
+pub unsafe extern "C" fn leaf_run_with_config_string(rt_id: u16, config: *const c_char) -> i32 {
     if let Ok(config) = unsafe { CStr::from_ptr(config).to_str() } {
         let opts = leaf::StartOptions {
             config: leaf::Config::Str(config.to_string()),
@@ -156,7 +157,7 @@ pub extern "C" fn leaf_shutdown(rt_id: u16) -> bool {
 ///                    or .json, according to the enabled features.
 /// @return Returns ERR_OK on success, i.e no syntax error.
 #[no_mangle]
-pub extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
+pub unsafe extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
         if let Err(e) = leaf::test_config(config_path) {
             return to_errno(e);
@@ -178,7 +179,7 @@ pub extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
 /// @param timeout_ms Timeout in milliseconds (0 for default 4 seconds).
 /// @return Returns ERR_OK if either TCP or UDP health check succeeds, error code otherwise.
 #[no_mangle]
-pub extern "C" fn leaf_health_check(
+pub unsafe extern "C" fn leaf_health_check(
     rt_id: u16,
     outbound_tag: *const c_char,
     timeout_ms: u64,
@@ -225,7 +226,7 @@ pub extern "C" fn leaf_health_check(
 /// @param timestamp_s Pointer to store the timestamp in seconds since epoch.
 /// @return Returns ERR_OK on success, ERR_NO_DATA if no active time found, error code otherwise.
 #[no_mangle]
-pub extern "C" fn leaf_get_last_active(
+pub unsafe extern "C" fn leaf_get_last_active(
     rt_id: u16,
     outbound_tag: *const c_char,
     timestamp_s: *mut u32,
@@ -264,7 +265,7 @@ pub extern "C" fn leaf_get_last_active(
 /// @param since_s Pointer to store the seconds since last active.
 /// @return Returns ERR_OK on success, ERR_NO_DATA if no active time found, error code otherwise.
 #[no_mangle]
-pub extern "C" fn leaf_get_since_last_active(
+pub unsafe extern "C" fn leaf_get_since_last_active(
     rt_id: u16,
     outbound_tag: *const c_char,
     since_s: *mut u32,

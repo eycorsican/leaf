@@ -111,7 +111,7 @@ fn early_eof() -> io::Error {
 }
 
 fn crypto_err() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "crypto error")
+    io::Error::other("crypto error")
 }
 
 impl<T: AsyncRead + Unpin> AsyncRead for VMessAuthStream<T> {

@@ -61,8 +61,7 @@ impl OutboundDatagramSendHalf for StdOutboundDatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
         match target {
             SocksAddr::Ip(a) => self.0.send_to(buf, a).await,
-            SocksAddr::Domain(domain, port) => Err(io::Error::new(
-                io::ErrorKind::Other,
+            SocksAddr::Domain(domain, port) => Err(io::Error::other(
                 format!("unexpected domain address {}:{}", domain, port),
             )),
         }
@@ -125,15 +124,14 @@ impl OutboundDatagramSendHalf for DomainResolveOutboundDatagramSendHalf {
                     .await
                     .direct_lookup(domain)
                     .map_err(|e| {
-                        io::Error::new(
-                            io::ErrorKind::Other,
+                        io::Error::other(
                             format!("lookup {} failed: {}", domain, e),
                         )
                     })
                     .await?;
                 let ip = ips
                     .first()
-                    .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no results"))?;
+                    .ok_or_else(|| io::Error::other("no results"))?;
                 self.0.send_to(buf, SocketAddr::new(*ip, *port)).await
             }
             SocksAddr::Ip(addr) => self.0.send_to(buf, addr).await,
@@ -226,8 +224,7 @@ impl OutboundDatagramSendHalf for DomainAssociatedOutboundDatagramSendHalf {
                         .await
                         .direct_lookup(domain)
                         .map_err(|e| {
-                            io::Error::new(
-                                io::ErrorKind::Other,
+                            io::Error::other(
                                 format!("lookup {} failed: {}", domain, e),
                             )
                         })

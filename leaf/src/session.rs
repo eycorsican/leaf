@@ -150,15 +150,15 @@ pub enum SocksAddr {
 }
 
 fn insuff_bytes() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "insufficient bytes")
+    io::Error::other("insufficient bytes")
 }
 
 fn invalid_domain() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "invalid domain")
+    io::Error::other("invalid domain")
 }
 
 fn invalid_addr_type() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "invalid address type")
+    io::Error::other("invalid address type")
 }
 
 impl SocksAddr {
@@ -417,7 +417,7 @@ impl TryFrom<(String, u16)> for SocksAddr {
             return Ok(Self::from((ip, port)));
         }
         if addr.len() > 0xff {
-            return Err(io::Error::new(io::ErrorKind::Other, "domain too long"));
+            return Err(io::Error::other("domain too long"));
         }
         Ok(Self::Domain(addr, port))
     }
@@ -468,14 +468,14 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     }
                     let domain =
                         String::from_utf8(buf[2..domain_len + 2].to_vec()).map_err(|e| {
-                            io::Error::new(io::ErrorKind::Other, format!("invalid domain: {}", e))
+                            io::Error::other(format!("invalid domain: {}", e))
                         })?;
                     let mut port_bytes = [0u8; 2];
                     port_bytes.copy_from_slice(&buf[domain_len + 2..domain_len + 4]);
                     let port = u16::from_be_bytes(port_bytes);
                     Ok(Self::Domain(domain, port))
                 }
-                _ => Err(io::Error::new(io::ErrorKind::Other, "invalid address type")),
+                _ => Err(io::Error::other("invalid address type")),
             },
             SocksAddrWireType::PortFirst => match buf[0] {
                 SocksAddrPortFirstType::V4 => {
@@ -515,11 +515,11 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                         return Err(insuff_bytes());
                     }
                     let domain = String::from_utf8(buf[..domain_len].to_vec()).map_err(|e| {
-                        io::Error::new(io::ErrorKind::Other, format!("invalid domain: {}", e))
+                        io::Error::other(format!("invalid domain: {}", e))
                     })?;
                     Ok(Self::Domain(domain, port))
                 }
-                _ => Err(io::Error::new(io::ErrorKind::Other, "invalid address type")),
+                _ => Err(io::Error::other("invalid address type")),
             },
         }
     }

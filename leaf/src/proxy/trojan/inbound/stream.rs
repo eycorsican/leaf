@@ -41,7 +41,7 @@ impl InboundDatagram for Datagram {
     }
 
     fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket> {
-        Err(io::Error::new(io::ErrorKind::Other, "stream transport"))
+        Err(io::Error::other("stream transport"))
     }
 }
 
@@ -140,7 +140,7 @@ impl InboundStreamHandler for Handler {
         // read key
         stream.read_exact(&mut buf[..56]).await?;
         if !self.keys.contains(&buf[..]) {
-            return Err(io::Error::new(io::ErrorKind::Other, "invalid key"));
+            return Err(io::Error::other("invalid key"));
         }
         // read crlf and cmd
         stream.read_exact(&mut buf[..3]).await?;
@@ -165,7 +165,7 @@ impl InboundStreamHandler for Handler {
                     Some(sess),
                 ))
             }
-            _ => Err(io::Error::new(io::ErrorKind::Other, "invalid command")),
+            _ => Err(io::Error::other("invalid command")),
         }
     }
 }

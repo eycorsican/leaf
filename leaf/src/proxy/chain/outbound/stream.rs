@@ -71,6 +71,6 @@ impl OutboundStreamHandler for Handler {
         }
         Ok(stream
             .map(Box::new)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "chain tcp invalid input"))?)
+            .ok_or_else(|| io::Error::other("chain tcp invalid input"))?)
     }
 }

@@ -33,7 +33,7 @@ impl OutboundDatagramHandler for Handler {
         let stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream
         } else {
-            return Err(io::Error::new(io::ErrorKind::Other, "invalid input"));
+            return Err(io::Error::other("invalid input"));
         };
         let mut buf = BytesMut::new();
         let password = Sha224::digest(self.password.as_bytes());

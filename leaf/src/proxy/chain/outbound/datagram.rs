@@ -101,7 +101,7 @@ impl Handler {
                 stream.replace(a.stream()?.handle(&new_sess, None, s).await?);
             }
         }
-        dgram.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no datagram"))
+        dgram.ok_or_else(|| io::Error::other("no datagram"))
     }
 }
 

@@ -68,7 +68,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        let stream = stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
+        let stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
 
         Ok(Box::new(Stream::new(self.req_line.clone(), stream)))
     }
@@ -100,16 +100,14 @@ impl AsyncRead for Stream {
                 ReadState::AwaitingResponse { res_buf } => {
                     if res_buf.len() >= RESPONSE_BUFFER_SIZE {
                         // The response may be too large. This should not happen in obfs.
-                        return Poll::Ready(Err(io::Error::new(
-                            io::ErrorKind::Other,
+                        return Poll::Ready(Err(io::Error::other(
                             "obfs response too large",
                         )));
                     }
                     let read_len =
                         ready!(tokio_util::io::poll_read_buf(Pin::new(stream), cx, res_buf))?;
                     if read_len == 0 {
-                        return Poll::Ready(Err(io::Error::new(
-                            io::ErrorKind::Other,
+                        return Poll::Ready(Err(io::Error::other(
                             "obfs response too short",
                         )));
                     }

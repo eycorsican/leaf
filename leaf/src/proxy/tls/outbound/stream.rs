@@ -231,7 +231,7 @@ impl OutboundStreamHandler for Handler {
                 Ok(Box::new(stream))
             }
         } else {
-            Err(io::Error::new(io::ErrorKind::Other, "invalid tls input"))
+            Err(io::Error::other("invalid tls input"))
         }
     }
 }

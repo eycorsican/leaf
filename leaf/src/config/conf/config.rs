@@ -455,35 +455,19 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 }
                 "amux" => proxy.amux = if v == "true" { Some(true) } else { Some(false) },
                 "amux-max" => {
-                    let i = if let Ok(i) = v.parse::<i32>() {
-                        Some(i)
-                    } else {
-                        None
-                    };
+                    let i = v.parse::<i32>().ok();
                     proxy.amux_max = i;
                 }
                 "amux-con" => {
-                    let i = if let Ok(i) = v.parse::<i32>() {
-                        Some(i)
-                    } else {
-                        None
-                    };
+                    let i = v.parse::<i32>().ok();
                     proxy.amux_con = i;
                 }
                 "amux-max-recv" => {
-                    let i = if let Ok(i) = v.parse::<u64>() {
-                        Some(i)
-                    } else {
-                        None
-                    };
+                    let i = v.parse::<u64>().ok();
                     proxy.amux_max_recv = i;
                 }
                 "amux-max-lifetime" => {
-                    let i = if let Ok(i) = v.parse::<u64>() {
-                        Some(i)
-                    } else {
-                        None
-                    };
+                    let i = v.parse::<u64>().ok();
                     proxy.amux_max_lifetime = i;
                 }
                 "quic" => proxy.quic = if v == "true" { Some(true) } else { Some(false) },
@@ -594,11 +578,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         group.health_check = if v == "true" { Some(true) } else { Some(false) };
                     }
                     "check-interval" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.check_interval = i;
                     }
                     "fail-timeout" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.fail_timeout = i;
                     }
                     "failover" => {
@@ -608,11 +592,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         group.fallback_cache = if v == "true" { Some(true) } else { Some(false) };
                     }
                     "cache-size" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.cache_size = i;
                     }
                     "cache-timeout" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.cache_timeout = i;
                     }
                     "last-resort" => {
@@ -623,15 +607,15 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         };
                     }
                     "health-check-timeout" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.health_check_timeout = i;
                     }
                     "health-check-delay" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.health_check_delay = i;
                     }
                     "health-check-active" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.health_check_active = i;
                     }
                     "health-check-prefers" => {
@@ -652,15 +636,15 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                             if v == "true" { Some(true) } else { Some(false) };
                     }
                     "health-check-attempts" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.health_check_attempts = i;
                     }
                     "health-check-success-percentage" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.health_check_success_percentage = i;
                     }
                     "delay-base" => {
-                        let i = if let Ok(i) = v.parse() { Some(i) } else { None };
+                        let i = v.parse().ok();
                         group.delay_base = i;
                     }
                     "method" => {

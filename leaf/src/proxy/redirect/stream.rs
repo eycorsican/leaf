@@ -22,6 +22,6 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))
+        stream.ok_or_else(|| io::Error::other("invalid input"))
     }
 }

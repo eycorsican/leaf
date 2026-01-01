@@ -1,4 +1,4 @@
-use std::io::{self, ErrorKind};
+use std::io::{self};
 
 use async_trait::async_trait;
 use futures::TryFutureExt;
@@ -65,7 +65,7 @@ impl InboundStreamHandler for Handler {
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
         let s = accept_hdr_async(stream, SimpleCallback::new(&mut sess, &self.path))
-            .map_err(|e| io::Error::new(ErrorKind::Other, format!("accept ws failed: {}", e)))
+            .map_err(|e| io::Error::other(format!("accept ws failed: {}", e)))
             .await?;
         debug!("accepted WS stream");
         Ok(InboundTransport::Stream(

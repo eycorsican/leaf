@@ -32,8 +32,7 @@ impl CopyBuffer {
     pub fn new_with_capacity(size: usize) -> Result<Self, std::io::Error> {
         let mut buf = Vec::new();
         buf.try_reserve(size).map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
+            std::io::Error::other(
                 format!("new buffer failed: {}", e),
             )
         })?;

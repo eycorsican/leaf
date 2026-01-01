@@ -53,7 +53,7 @@ impl OutboundStreamHandler for Handler {
         mut lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        let stream = stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
+        let stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
         let mut stream = ShadowedStream::new(
             stream,
             &self.cipher,

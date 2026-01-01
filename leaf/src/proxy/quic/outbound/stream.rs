@@ -135,8 +135,7 @@ impl Manager {
                 .await
                 .direct_lookup(&self.address)
                 .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
+                    io::Error::other(
                         format!("lookup {} failed: {}", &self.address, e),
                     )
                 })
@@ -182,8 +181,7 @@ impl Handler {
         &self,
     ) -> io::Result<QuicProxyStream<quinn::RecvStream, quinn::SendStream>> {
         self.manager.new_stream().await.map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
+            io::Error::other(
                 format!("new QUIC stream failed: {}", e),
             )
         })

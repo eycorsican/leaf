@@ -10,7 +10,7 @@ use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
-use tracing::{error, info, trace, warn};
+use tracing::{info, trace, warn};
 
 #[cfg(feature = "auto-reload")]
 use notify::{
@@ -327,7 +327,7 @@ impl RuntimeManager {
                             }
                         }
                         Err(e) => {
-                            error!("config file watch error: {:?}", e);
+                            tracing::error!("config file watch error: {:?}", e);
                         }
                     }
                 })

@@ -24,7 +24,7 @@ impl OutboundDatagramHandler for Handler {
         if let Some(OutboundTransport::Datagram(dgram)) = transport {
             Ok(dgram)
         } else {
-            Err(io::Error::new(io::ErrorKind::Other, "invalid input"))
+            Err(io::Error::other("invalid input"))
         }
     }
 }

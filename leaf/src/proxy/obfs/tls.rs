@@ -67,7 +67,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        let stream = stream.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "invalid input"))?;
+        let stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
 
         Ok(Box::new(Stream::new(self.host.clone(), stream)))
     }

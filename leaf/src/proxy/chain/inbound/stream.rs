@@ -41,7 +41,7 @@ impl InboundStreamHandler for Handler {
                     ))));
                 }
                 _ => {
-                    return Err(io::Error::new(io::ErrorKind::Other, "invalid transport"));
+                    return Err(io::Error::other("invalid transport"));
                 }
             }
         }

@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::io::{self, ErrorKind};
+use std::io::{self};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -45,7 +45,7 @@ impl OutboundDatagramRecvHalf for HealthcheckUdpRecvHalf {
         }
         let pong = b"PONG";
         if buf.len() < pong.len() {
-            return Err(io::Error::new(io::ErrorKind::Other, "buffer too small"));
+            return Err(io::Error::other("buffer too small"));
         }
         buf[..pong.len()].copy_from_slice(pong);
         self.responded = true;
@@ -386,7 +386,7 @@ impl Dispatcher {
                         tag
                     } else {
                         warn!("no handler found");
-                        return Err(io::Error::new(ErrorKind::Other, "no available handler"));
+                        return Err(io::Error::other("no available handler"));
                     }
                 }
             }
@@ -398,7 +398,7 @@ impl Dispatcher {
             h
         } else {
             warn!("handler not found");
-            return Err(io::Error::new(ErrorKind::Other, "handler not found"));
+            return Err(io::Error::other("handler not found"));
         };
 
         let handshake_start = tokio::time::Instant::now();

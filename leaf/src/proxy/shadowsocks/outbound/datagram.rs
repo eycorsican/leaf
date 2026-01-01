@@ -36,7 +36,7 @@ impl OutboundDatagramHandler for Handler {
         } else {
             // Don't accept stream transport because we can't determine datagram
             // boundary.
-            return Err(io::Error::new(io::ErrorKind::Other, "invalid ss input"));
+            return Err(io::Error::other("invalid ss input"));
         };
 
         let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;

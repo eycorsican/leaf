@@ -20,7 +20,7 @@ const EOL: [u8; 2] = [13, 10];
 const EOH: [u8; 4] = [13, 10, 13, 10];
 
 fn bad_request() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "bad request")
+    io::Error::other("bad request")
 }
 
 fn split_slice_once(s: &[u8], sep: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {

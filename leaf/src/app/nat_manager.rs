@@ -113,7 +113,7 @@ impl NatManager {
         }
     }
 
-    pub async fn send<'a>(
+    pub async fn send(
         &self,
         sess: Option<&Session>,
         dgram_src: &DatagramSource,

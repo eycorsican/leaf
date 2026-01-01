@@ -18,6 +18,6 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        Err(io::Error::new(io::ErrorKind::Other, "dropped"))
+        Err(io::Error::other("dropped"))
     }
 }

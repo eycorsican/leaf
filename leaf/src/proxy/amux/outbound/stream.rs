@@ -129,7 +129,7 @@ impl MuxManager {
         };
         let s = match connector.new_stream().await {
             Some(s) => s,
-            None => return Err(io::Error::new(io::ErrorKind::Other, "new stream failed")),
+            None => return Err(io::Error::other("new stream failed")),
         };
         let mut conns = self.connectors.lock().await;
         conns.push(connector);

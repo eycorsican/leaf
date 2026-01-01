@@ -13,11 +13,11 @@ const BUFFER_SIZE: usize = 8192;
 const EOH: [u8; 4] = [13, 10, 13, 10]; // \r\n\r\n
 
 fn bad_request() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "bad request")
+    io::Error::other("bad request")
 }
 
 fn not_found() -> io::Error {
-    io::Error::new(io::ErrorKind::Other, "not found")
+    io::Error::other("not found")
 }
 
 fn split_slice_once(s: &[u8], sep: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
