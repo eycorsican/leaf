@@ -10,7 +10,7 @@ use futures::stream::Stream;
 use futures::TryFutureExt;
 use socket2::{Domain, SockRef, Socket, Type};
 use thiserror::Error;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio::net::{TcpSocket, TcpStream, UdpSocket};
 use tokio::time::timeout;
 use tracing::debug;
@@ -535,8 +535,10 @@ impl<S> ProxyStream for S where S: AsyncRead + AsyncWrite + Send + Sync + Unpin 
 
 pub type AnyStream = Box<dyn ProxyStream>;
 
+pub trait BaseHandler: Tag + Color + Send + Sync + Unpin {}
+
 /// An outbound handler for both UDP and TCP outgoing connections.
-pub trait OutboundHandler: Tag + Color + Sync + Send + Unpin {
+pub trait OutboundHandler: BaseHandler {
     fn stream(&self) -> io::Result<&AnyOutboundStreamHandler>;
     fn datagram(&self) -> io::Result<&AnyOutboundDatagramHandler>;
 }
@@ -553,7 +555,7 @@ pub enum OutboundConnect {
 
 /// An outbound handler for outgoing TCP conections.
 #[async_trait]
-pub trait OutboundStreamHandler<S = AnyStream>: Send + Sync + Unpin {
+pub trait OutboundStreamHandler: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> OutboundConnect;
@@ -563,12 +565,12 @@ pub trait OutboundStreamHandler<S = AnyStream>: Send + Sync + Unpin {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        lhs: Option<&mut S>,
-        stream: Option<S>,
-    ) -> io::Result<S>;
+        lhs: Option<&mut AnyStream>,
+        stream: Option<AnyStream>,
+    ) -> io::Result<AnyStream>;
 }
 
-type AnyOutboundStreamHandler = Box<dyn OutboundStreamHandler>;
+pub type AnyOutboundStreamHandler = Arc<dyn OutboundStreamHandler>;
 
 /// An unreliable transport for outbound handlers.
 pub trait OutboundDatagram: Send + Unpin {
@@ -604,9 +606,7 @@ pub trait OutboundDatagramSendHalf: Sync + Send + Unpin {
 
 /// An outbound handler for outgoing UDP connections.
 #[async_trait]
-pub trait OutboundDatagramHandler<S = AnyStream, D = AnyOutboundDatagram>:
-    Send + Sync + Unpin
-{
+pub trait OutboundDatagramHandler: Send + Sync + Unpin {
     /// Returns the address which the underlying transport should
     /// communicate with.
     fn connect_addr(&self) -> OutboundConnect;
@@ -619,11 +619,11 @@ pub trait OutboundDatagramHandler<S = AnyStream, D = AnyOutboundDatagram>:
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        transport: Option<OutboundTransport<S, D>>,
-    ) -> io::Result<D>;
+        transport: Option<AnyOutboundTransport>,
+    ) -> io::Result<AnyOutboundDatagram>;
 }
 
-type AnyOutboundDatagramHandler = Box<dyn OutboundDatagramHandler>;
+pub type AnyOutboundDatagramHandler = Arc<dyn OutboundDatagramHandler>;
 
 /// An outbound transport represents either a reliable or unreliable transport.
 pub enum OutboundTransport<S, D> {
@@ -635,7 +635,7 @@ pub enum OutboundTransport<S, D> {
 
 pub type AnyOutboundTransport = OutboundTransport<AnyStream, AnyOutboundDatagram>;
 
-pub trait InboundHandler: Tag + Send + Sync + Unpin {
+pub trait InboundHandler: BaseHandler {
     fn stream(&self) -> io::Result<&AnyInboundStreamHandler>;
     fn datagram(&self) -> io::Result<&AnyInboundDatagramHandler>;
 }
@@ -644,22 +644,20 @@ pub type AnyInboundHandler = Arc<dyn InboundHandler>;
 
 /// An inbound handler for incoming TCP connections.
 #[async_trait]
-pub trait InboundStreamHandler<S = AnyStream, D = AnyInboundDatagram>: Send + Sync + Unpin {
+pub trait InboundStreamHandler: Send + Sync + Unpin {
     async fn handle<'a>(
         &'a self,
         sess: Session,
-        stream: S,
-    ) -> std::io::Result<InboundTransport<S, D>>;
+        stream: AnyStream,
+    ) -> std::io::Result<AnyInboundTransport>;
 }
 
 pub type AnyInboundStreamHandler = Arc<dyn InboundStreamHandler>;
 
 /// An inbound handler for incoming UDP connections.
 #[async_trait]
-pub trait InboundDatagramHandler<S = AnyStream, D = AnyInboundDatagram>:
-    Send + Sync + Unpin
-{
-    async fn handle<'a>(&'a self, socket: D) -> io::Result<InboundTransport<S, D>>;
+pub trait InboundDatagramHandler: Send + Sync + Unpin {
+    async fn handle<'a>(&'a self, socket: AnyInboundDatagram) -> io::Result<AnyInboundTransport>;
 }
 
 pub type AnyInboundDatagramHandler = Arc<dyn InboundDatagramHandler>;
@@ -738,3 +736,15 @@ pub enum InboundTransport<S, D> {
 }
 
 pub type AnyInboundTransport = InboundTransport<AnyStream, AnyInboundDatagram>;
+
+/// Peeks data from the local side of a stream.
+pub async fn peek_tcp_one_off(lhs: Option<&mut AnyStream>) -> Vec<u8> {
+    if let Some(lhs) = lhs {
+        let mut read_buf = Vec::with_capacity(2 * 1024);
+        match timeout(Duration::from_millis(10), lhs.read_buf(&mut read_buf)).await {
+            Ok(Ok(_)) => return read_buf,
+            _ => return Vec::new(),
+        }
+    }
+    Vec::new()
+}

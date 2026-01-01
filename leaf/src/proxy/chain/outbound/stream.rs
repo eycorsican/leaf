@@ -70,7 +70,6 @@ impl OutboundStreamHandler for Handler {
             stream.replace(a.stream()?.handle(&new_sess, lhs_stream, s).await?);
         }
         Ok(stream
-            .map(Box::new)
             .ok_or_else(|| io::Error::other("chain tcp invalid input"))?)
     }
 }

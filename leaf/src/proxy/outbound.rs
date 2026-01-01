@@ -28,6 +28,8 @@ impl Handler {
     }
 }
 
+impl BaseHandler for Handler {}
+
 impl OutboundHandler for Handler {
     fn stream(&self) -> io::Result<&AnyOutboundStreamHandler> {
         self.stream_handler
