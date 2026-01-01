@@ -66,7 +66,7 @@ impl std::fmt::Display for DatagramSource {
 
 pub struct Session {
     /// Unique identifier for the session.
-    pub id: u64,
+    pub trace_id: String,
     /// The network type, representing either TCP or UDP.
     pub network: Network,
     /// The socket address of the remote peer of an inbound connection.
@@ -93,7 +93,7 @@ pub struct Session {
 impl Clone for Session {
     fn clone(&self) -> Self {
         Session {
-            id: self.id,
+            trace_id: self.trace_id.clone(),
             network: self.network,
             source: self.source,
             local_addr: self.local_addr,
@@ -110,10 +110,17 @@ impl Clone for Session {
 
 impl Default for Session {
     fn default() -> Self {
-        use std::sync::atomic::{AtomicU64, Ordering};
-        static SESSION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let trace_id: String = (0..8)
+            .map(|_| {
+                const CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+                let idx = rng.gen_range(0..CHARS.len());
+                CHARS[idx] as char
+            })
+            .collect();
         Session {
-            id: SESSION_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
+            trace_id,
             network: Network::Tcp,
             source: *crate::option::UNSPECIFIED_BIND_ADDR,
             local_addr: *crate::option::UNSPECIFIED_BIND_ADDR,
@@ -130,7 +137,7 @@ impl Default for Session {
 
 impl Session {
     pub fn create_span(&self) -> tracing::Span {
-        tracing::info_span!("session", id = self.id)
+        tracing::info_span!("session", trace_id = self.trace_id)
     }
 }
 
