@@ -100,16 +100,12 @@ impl AsyncRead for Stream {
                 ReadState::AwaitingResponse { res_buf } => {
                     if res_buf.len() >= RESPONSE_BUFFER_SIZE {
                         // The response may be too large. This should not happen in obfs.
-                        return Poll::Ready(Err(io::Error::other(
-                            "obfs response too large",
-                        )));
+                        return Poll::Ready(Err(io::Error::other("obfs response too large")));
                     }
                     let read_len =
                         ready!(tokio_util::io::poll_read_buf(Pin::new(stream), cx, res_buf))?;
                     if read_len == 0 {
-                        return Poll::Ready(Err(io::Error::other(
-                            "obfs response too short",
-                        )));
+                        return Poll::Ready(Err(io::Error::other("obfs response too short")));
                     }
                     let req_body_pos = match memmem::find(res_buf, b"\r\n\r\n") {
                         Some(p) => p + 4,

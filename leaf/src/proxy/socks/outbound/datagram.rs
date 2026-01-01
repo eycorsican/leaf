@@ -52,7 +52,7 @@ impl OutboundDatagramHandler for Handler {
             (*SocksAddr::try_from((self.address.clone(), self.port))
                 .unwrap()
                 .must_ip())
-                .into(),
+            .into(),
         )
         .map_err(Error::other)
         .await?;
@@ -91,11 +91,7 @@ where
     S: 'static + AsyncRead + AsyncWrite + Send + Unpin + Sync,
 {
     async fn recv_from(&mut self, buf: &mut [u8]) -> Result<(usize, SocksAddr)> {
-        let (n, addr) = self
-            .0
-            .recv_from(buf)
-            .map_err(Error::other)
-            .await?;
+        let (n, addr) = self.0.recv_from(buf).map_err(Error::other).await?;
         match addr {
             AddrKind::Ip(addr) => Ok((n, SocksAddr::Ip(addr))),
             AddrKind::Domain(domain, port) => Ok((n, SocksAddr::Domain(domain, port))),

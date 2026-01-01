@@ -482,7 +482,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     target_os = "macos",
                     target_os = "linux"
                 ))]
-                InboundSettings::Tun { settings: ext_settings } => {
+                InboundSettings::Tun {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "tun".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TunInboundSettings::new();
@@ -536,11 +538,14 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Cat { settings: ext_settings } => {
+                InboundSettings::Cat {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "cat".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::CatInboundSettings::new();
-                        settings.network = ext_settings.network.clone().unwrap_or("tcp".to_string());
+                        settings.network =
+                            ext_settings.network.clone().unwrap_or("tcp".to_string());
                         settings.address = ext_settings.address.clone();
                         settings.port = ext_settings.port as u32;
                         let settings = settings.write_to_bytes().unwrap();
@@ -548,7 +553,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Nf { settings: ext_settings } => {
+                InboundSettings::Nf {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "nf".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::NfInboundSettings::new();
@@ -582,7 +589,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Hc { settings: ext_settings } => {
+                InboundSettings::Hc {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "hc".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::HcInboundSettings::new();
@@ -602,7 +611,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     inbound.protocol = "http".to_string();
                     inbounds.push(inbound);
                 }
-                InboundSettings::Shadowsocks { settings: ext_settings } => {
+                InboundSettings::Shadowsocks {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "shadowsocks".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::ShadowsocksInboundSettings::new();
@@ -617,7 +628,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Trojan { settings: ext_settings } => {
+                InboundSettings::Trojan {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "trojan".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TrojanInboundSettings::new();
@@ -631,7 +644,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::WebSocket { settings: ext_settings } => {
+                InboundSettings::WebSocket {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "ws".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::WebSocketInboundSettings::new();
@@ -648,7 +663,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::AMux { settings: ext_settings } => {
+                InboundSettings::AMux {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "amux".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::AMuxInboundSettings::new();
@@ -662,7 +679,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Quic { settings: ext_settings } => {
+                InboundSettings::Quic {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "quic".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::QuicInboundSettings::new();
@@ -696,7 +715,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Tls { settings: ext_settings } => {
+                InboundSettings::Tls {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "tls".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TlsInboundSettings::new();
@@ -725,7 +746,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Chain { settings: ext_settings } => {
+                InboundSettings::Chain {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "chain".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::ChainInboundSettings::new();
@@ -759,7 +782,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     outbound.protocol = "drop".to_string();
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Redirect { settings: ext_settings } => {
+                OutboundSettings::Redirect {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "redirect".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::RedirectOutboundSettings::new();
@@ -774,7 +799,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Socks { settings: ext_settings } => {
+                OutboundSettings::Socks {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "socks".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::SocksOutboundSettings::new();
@@ -795,7 +822,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Shadowsocks { settings: ext_settings } => {
+                OutboundSettings::Shadowsocks {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "shadowsocks".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::ShadowsocksOutboundSettings::new();
@@ -821,7 +850,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Obfs { settings: ext_settings } => {
+                OutboundSettings::Obfs {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "obfs".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::ObfsOutboundSettings::new();
@@ -839,7 +870,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Trojan { settings: ext_settings } => {
+                OutboundSettings::Trojan {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "trojan".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TrojanOutboundSettings::new();
@@ -857,7 +890,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::VMess { settings: ext_settings } => {
+                OutboundSettings::VMess {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "vmess".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::VMessOutboundSettings::new();
@@ -878,7 +913,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Tls { settings: ext_settings } => {
+                OutboundSettings::Tls {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "tls".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TlsOutboundSettings::new();
@@ -906,7 +943,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::WebSocket { settings: ext_settings } => {
+                OutboundSettings::WebSocket {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "ws".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::WebSocketOutboundSettings::new();
@@ -921,7 +960,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::TryAll { settings: ext_settings } => {
+                OutboundSettings::TryAll {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "tryall".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TryAllOutboundSettings::new();
@@ -940,7 +981,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Static { settings: ext_settings } => {
+                OutboundSettings::Static {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "static".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::StaticOutboundSettings::new();
@@ -959,7 +1002,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::FailOver { settings: ext_settings } => {
+                OutboundSettings::FailOver {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "failover".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::FailOverOutboundSettings::new();
@@ -968,8 +1013,10 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         }
                         settings.fail_timeout = ext_settings.fail_timeout.unwrap_or(4); // 4 secs
                         settings.health_check = ext_settings.health_check.unwrap_or(true);
-                        settings.health_check_timeout = ext_settings.health_check_timeout.unwrap_or(6); // 6 secs
-                        settings.health_check_delay = ext_settings.health_check_delay.unwrap_or(200); // 200ms
+                        settings.health_check_timeout =
+                            ext_settings.health_check_timeout.unwrap_or(6); // 6 secs
+                        settings.health_check_delay =
+                            ext_settings.health_check_delay.unwrap_or(200); // 200ms
                         settings.health_check_active =
                             ext_settings.health_check_active.unwrap_or(15 * 60); // 15 mins
                         if let Some(ext_health_check_prefers) = &ext_settings.health_check_prefers {
@@ -979,7 +1026,8 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         }
                         settings.health_check_on_start =
                             ext_settings.health_check_on_start.unwrap_or(false);
-                        settings.health_check_wait = ext_settings.health_check_wait.unwrap_or(false);
+                        settings.health_check_wait =
+                            ext_settings.health_check_wait.unwrap_or(false);
                         settings.health_check_attempts =
                             ext_settings.health_check_attempts.unwrap_or(1);
                         settings.health_check_success_percentage =
@@ -994,7 +1042,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::AMux { settings: ext_settings } => {
+                OutboundSettings::AMux {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "amux".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::AMuxOutboundSettings::new();
@@ -1018,7 +1068,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Quic { settings: ext_settings } => {
+                OutboundSettings::Quic {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "quic".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::QuicOutboundSettings::new();
@@ -1049,7 +1101,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Chain { settings: ext_settings } => {
+                OutboundSettings::Chain {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "chain".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::ChainOutboundSettings::new();
@@ -1063,7 +1117,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Select { settings: ext_settings } => {
+                OutboundSettings::Select {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "select".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::SelectOutboundSettings::new();
@@ -1077,7 +1133,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
-                OutboundSettings::Plugin { settings: ext_settings } => {
+                OutboundSettings::Plugin {
+                    settings: ext_settings,
+                } => {
                     outbound.protocol = "plugin".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::PluginOutboundSettings::new();

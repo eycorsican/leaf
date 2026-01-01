@@ -57,9 +57,10 @@ impl OutboundStreamHandler for Handler {
                 );
                 Ok(v.0.stream)
             }
-            Err(e) => Err(io::Error::other(
-                format!("all outbound attempts failed, last error: {}", e),
-            )),
+            Err(e) => Err(io::Error::other(format!(
+                "all outbound attempts failed, last error: {}",
+                e
+            ))),
         }
     }
 }

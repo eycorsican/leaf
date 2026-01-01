@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr};
 
 use anyhow::{anyhow, Result};
-use tokio::sync::RwLock;
-use tracing::debug;
 use hickory_proto::op::{
     header::MessageType, op_code::OpCode, response_code::ResponseCode, Message,
 };
 use hickory_proto::rr::{
     dns_class::DNSClass, rdata, record_data::RData, record_type::RecordType, resource::Record,
 };
+use tokio::sync::RwLock;
+use tracing::debug;
 
 pub enum FakeDnsMode {
     Include,

@@ -69,7 +69,9 @@ impl Manager {
             client_crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
         }
 
-        let mut client_config = quinn::ClientConfig::new(Arc::new(quinn::crypto::rustls::QuicClientConfig::try_from(client_crypto).unwrap()));
+        let mut client_config = quinn::ClientConfig::new(Arc::new(
+            quinn::crypto::rustls::QuicClientConfig::try_from(client_crypto).unwrap(),
+        ));
         let mut transport_config = quinn::TransportConfig::default();
         transport_config.max_concurrent_bidi_streams(quinn::VarInt::from_u32(64));
         transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
@@ -127,11 +129,7 @@ impl Manager {
                 .read()
                 .await
                 .direct_lookup(&self.address)
-                .map_err(|e| {
-                    io::Error::other(
-                        format!("lookup {} failed: {}", &self.address, e),
-                    )
-                })
+                .map_err(|e| io::Error::other(format!("lookup {} failed: {}", &self.address, e)))
                 .await?
         };
         if ips.is_empty() {
@@ -173,11 +171,10 @@ impl Handler {
     pub async fn new_stream(
         &self,
     ) -> io::Result<QuicProxyStream<quinn::RecvStream, quinn::SendStream>> {
-        self.manager.new_stream().await.map_err(|e| {
-            io::Error::other(
-                format!("new QUIC stream failed: {}", e),
-            )
-        })
+        self.manager
+            .new_stream()
+            .await
+            .map_err(|e| io::Error::other(format!("new QUIC stream failed: {}", e)))
     }
 }
 

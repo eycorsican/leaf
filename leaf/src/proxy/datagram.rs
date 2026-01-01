@@ -61,9 +61,10 @@ impl OutboundDatagramSendHalf for StdOutboundDatagramSendHalf {
     async fn send_to(&mut self, buf: &[u8], target: &SocksAddr) -> io::Result<usize> {
         match target {
             SocksAddr::Ip(a) => self.0.send_to(buf, a).await,
-            SocksAddr::Domain(domain, port) => Err(io::Error::other(
-                format!("unexpected domain address {}:{}", domain, port),
-            )),
+            SocksAddr::Domain(domain, port) => Err(io::Error::other(format!(
+                "unexpected domain address {}:{}",
+                domain, port
+            ))),
         }
     }
 
@@ -123,15 +124,9 @@ impl OutboundDatagramSendHalf for DomainResolveOutboundDatagramSendHalf {
                     .read()
                     .await
                     .direct_lookup(domain)
-                    .map_err(|e| {
-                        io::Error::other(
-                            format!("lookup {} failed: {}", domain, e),
-                        )
-                    })
+                    .map_err(|e| io::Error::other(format!("lookup {} failed: {}", domain, e)))
                     .await?;
-                let ip = ips
-                    .first()
-                    .ok_or_else(|| io::Error::other("no results"))?;
+                let ip = ips.first().ok_or_else(|| io::Error::other("no results"))?;
                 self.0.send_to(buf, SocketAddr::new(*ip, *port)).await
             }
             SocksAddr::Ip(addr) => self.0.send_to(buf, addr).await,
@@ -223,11 +218,7 @@ impl OutboundDatagramSendHalf for DomainAssociatedOutboundDatagramSendHalf {
                         .read()
                         .await
                         .direct_lookup(domain)
-                        .map_err(|e| {
-                            io::Error::other(
-                                format!("lookup {} failed: {}", domain, e),
-                            )
-                        })
+                        .map_err(|e| io::Error::other(format!("lookup {} failed: {}", domain, e)))
                         .await?
                 };
                 // FIXME Since FakeDns returns IPv4 address only, it's always bound

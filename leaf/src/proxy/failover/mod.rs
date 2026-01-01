@@ -3,15 +3,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::{sync::Arc, time::Duration};
 
 use bytes::BytesMut;
+use hickory_proto::{
+    op::{header::MessageType, op_code::OpCode, query::Query, Message},
+    rr::{record_type::RecordType, Name},
+};
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
 use tokio::time::{timeout, Instant};
 use tracing::{debug, trace, warn};
-use hickory_proto::{
-    op::{header::MessageType, op_code::OpCode, query::Query, Message},
-    rr::{record_type::RecordType, Name},
-};
 
 use crate::{app::SyncDnsClient, proxy::*, session::*};
 

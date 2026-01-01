@@ -180,9 +180,8 @@ impl InboundManager {
                 }
                 #[cfg(feature = "inbound-quic")]
                 "quic" => {
-                    let settings =
-                        config::QuicInboundSettings::parse_from_bytes(&inbound.settings)
-                            .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
+                    let settings = config::QuicInboundSettings::parse_from_bytes(&inbound.settings)
+                        .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
                     let datagram = Arc::new(quic::inbound::DatagramHandler::new(
                         settings.certificate.clone(),
                         settings.certificate_key.clone(),

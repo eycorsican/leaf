@@ -26,9 +26,10 @@ impl InboundStreamHandler for Handler {
         // ver, nmethods
         stream.read_exact(&mut buf[..]).await?;
         if buf[0] != 0x05 {
-            return Err(io::Error::other(
-                format!("unknown socks version {}", buf[0]),
-            ));
+            return Err(io::Error::other(format!(
+                "unknown socks version {}",
+                buf[0]
+            )));
         }
         if buf[1] == 0 {
             return Err(io::Error::other(
@@ -64,23 +65,20 @@ impl InboundStreamHandler for Handler {
         stream.read_exact(&mut buf[..]).await?;
         if buf[0] != 0x05 {
             // TODO reply?
-            return Err(io::Error::other(
-                format!("unknown socks version {}", buf[0]),
-            ));
+            return Err(io::Error::other(format!(
+                "unknown socks version {}",
+                buf[0]
+            )));
         }
         if buf[2] != 0x0 {
             // TODO reply?
-            return Err(io::Error::other(
-                "non-zero socks5 reserved field",
-            ));
+            return Err(io::Error::other("non-zero socks5 reserved field"));
         }
         let cmd = buf[1];
         // connect, udp associate
         if cmd != 0x01 && cmd != 0x03 {
             // TODO reply?
-            return Err(io::Error::other(
-                format!("unsupported socks5 cmd {}", cmd),
-            ));
+            return Err(io::Error::other(format!("unsupported socks5 cmd {}", cmd)));
         }
 
         let destination = SocksAddr::read_from(&mut stream, SocksAddrWireType::PortLast).await?;

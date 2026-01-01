@@ -10,7 +10,7 @@ use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 use tokio::time::timeout;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, trace, warn, Instrument};
 
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::{NatManager, UdpPacket};
@@ -37,6 +37,19 @@ pub fn get_network_listen_addr(tag: &str, kind: Network) -> Option<SocketAddr> {
 // Handle an inbound datagram, which is similar to a UDP socket, managed by NAT
 // manager.
 async fn handle_inbound_datagram(
+    inbound_tag: String,
+    socket: Box<dyn InboundDatagram>,
+    sess: Option<Session>,
+    nat_manager: Arc<NatManager>,
+) {
+    let sess = sess.unwrap_or_default();
+    let span = sess.create_span();
+    handle_inbound_datagram_inner(inbound_tag, socket, Some(sess), nat_manager)
+        .instrument(span)
+        .await
+}
+
+async fn handle_inbound_datagram_inner(
     inbound_tag: String,
     socket: Box<dyn InboundDatagram>,
     sess: Option<Session>,
@@ -165,14 +178,19 @@ async fn handle_inbound_tcp_stream(
         inbound_tag: handler.tag().clone(),
         ..Default::default()
     };
-    // Transforms the TCP stream into an inbound transport.
-    let transport = timeout(
-        Duration::from_secs(*crate::option::INBOUND_ACCEPT_TIMEOUT),
-        handler.stream()?.handle(sess, Box::new(stream)),
-    )
-    .await??;
-    handle_inbound_transport(transport, handler, dispatcher, nat_manager).await;
-    Ok(())
+    let span = sess.create_span();
+    async move {
+        // Transforms the TCP stream into an inbound transport.
+        let transport = timeout(
+            Duration::from_secs(*crate::option::INBOUND_ACCEPT_TIMEOUT),
+            handler.stream()?.handle(sess, Box::new(stream)),
+        )
+        .await??;
+        handle_inbound_transport(transport, handler, dispatcher, nat_manager).await;
+        Ok(())
+    }
+    .instrument(span)
+    .await
 }
 
 // Handle inbounds which listen on TCP.

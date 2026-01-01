@@ -9,8 +9,7 @@ use bytes::BufMut;
 use bytes::BytesMut;
 use leaf::{
     app::outbound::plugin::{
-        ExternalOutboundDatagramHandler, ExternalOutboundStreamHandler, PluginRegistrar,
-        PluginSpec,
+        ExternalOutboundDatagramHandler, ExternalOutboundStreamHandler, PluginRegistrar, PluginSpec,
     },
     proxy::shadowsocks::shadow::{self, ShadowedDatagram, ShadowedStream},
     proxy::*,

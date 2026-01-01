@@ -6,7 +6,7 @@ use std::time::Duration;
 use async_recursion::async_recursion;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, warn, Instrument};
 
 use crate::{
     app::SyncDnsClient,
@@ -164,7 +164,15 @@ impl Dispatcher {
         }
     }
 
-    pub async fn dispatch_stream<T>(&self, mut sess: Session, mut lhs: T)
+    pub async fn dispatch_stream<T>(&self, sess: Session, lhs: T)
+    where
+        T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
+    {
+        let span = sess.create_span();
+        self.dispatch_stream_inner(sess, lhs).instrument(span).await
+    }
+
+    async fn dispatch_stream_inner<T>(&self, mut sess: Session, mut lhs: T)
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
@@ -345,7 +353,13 @@ impl Dispatcher {
     }
 
     #[async_recursion]
-    pub async fn dispatch_datagram(
+    pub async fn dispatch_datagram(&self, sess: Session) -> io::Result<Box<dyn OutboundDatagram>> {
+        let span = sess.create_span();
+        self.dispatch_datagram_inner(sess).instrument(span).await
+    }
+
+    #[async_recursion]
+    async fn dispatch_datagram_inner(
         &self,
         mut sess: Session,
     ) -> io::Result<Box<dyn OutboundDatagram>> {

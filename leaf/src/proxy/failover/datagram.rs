@@ -219,8 +219,6 @@ impl OutboundDatagramHandler for Handler {
                 .await;
         }
 
-        Err(io::Error::other(
-            "all outbound attempts failed",
-        ))
+        Err(io::Error::other("all outbound attempts failed"))
     }
 }

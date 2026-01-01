@@ -94,11 +94,11 @@ async fn test_udp_outbound(
     dns_client: SyncDnsClient,
     handler: AnyOutboundHandler,
 ) -> Result<Duration> {
-    use rand::{rngs::StdRng, Rng, SeedableRng};
     use hickory_proto::{
         op::{header::MessageType, op_code::OpCode, query::Query, Message},
         rr::{record_type::RecordType, Name},
     };
+    use rand::{rngs::StdRng, Rng, SeedableRng};
     let addr = SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
     let sess = Session {
         destination: addr.clone(),

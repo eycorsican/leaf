@@ -65,6 +65,8 @@ impl std::fmt::Display for DatagramSource {
 }
 
 pub struct Session {
+    /// Unique identifier for the session.
+    pub id: u64,
     /// The network type, representing either TCP or UDP.
     pub network: Network,
     /// The socket address of the remote peer of an inbound connection.
@@ -91,6 +93,7 @@ pub struct Session {
 impl Clone for Session {
     fn clone(&self) -> Self {
         Session {
+            id: self.id,
             network: self.network,
             source: self.source,
             local_addr: self.local_addr,
@@ -107,7 +110,10 @@ impl Clone for Session {
 
 impl Default for Session {
     fn default() -> Self {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static SESSION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
         Session {
+            id: SESSION_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             network: Network::Tcp,
             source: *crate::option::UNSPECIFIED_BIND_ADDR,
             local_addr: *crate::option::UNSPECIFIED_BIND_ADDR,
@@ -119,6 +125,12 @@ impl Default for Session {
             process_name: None,
             new_conn_once: false,
         }
+    }
+}
+
+impl Session {
+    pub fn create_span(&self) -> tracing::Span {
+        tracing::info_span!("session", id = self.id)
     }
 }
 
@@ -466,10 +478,8 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     if buf.len() < 1 + domain_len + 2 {
                         return Err(insuff_bytes());
                     }
-                    let domain =
-                        String::from_utf8(buf[2..domain_len + 2].to_vec()).map_err(|e| {
-                            io::Error::other(format!("invalid domain: {}", e))
-                        })?;
+                    let domain = String::from_utf8(buf[2..domain_len + 2].to_vec())
+                        .map_err(|e| io::Error::other(format!("invalid domain: {}", e)))?;
                     let mut port_bytes = [0u8; 2];
                     port_bytes.copy_from_slice(&buf[domain_len + 2..domain_len + 4]);
                     let port = u16::from_be_bytes(port_bytes);
@@ -514,9 +524,8 @@ impl TryFrom<(&[u8], SocksAddrWireType)> for SocksAddr {
                     if buf.len() < domain_len {
                         return Err(insuff_bytes());
                     }
-                    let domain = String::from_utf8(buf[..domain_len].to_vec()).map_err(|e| {
-                        io::Error::other(format!("invalid domain: {}", e))
-                    })?;
+                    let domain = String::from_utf8(buf[..domain_len].to_vec())
+                        .map_err(|e| io::Error::other(format!("invalid domain: {}", e)))?;
                     Ok(Self::Domain(domain, port))
                 }
                 _ => Err(io::Error::other("invalid address type")),

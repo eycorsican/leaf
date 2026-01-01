@@ -63,8 +63,7 @@ impl Handler {
             Some(Some(ext)) if ext == "der" => {
                 vec![CertificateDer::from(cert)]
             }
-            _ => certs(&mut io::BufReader::new(&*cert))
-                .collect::<Result<Vec<_>, _>>()?,
+            _ => certs(&mut io::BufReader::new(&*cert)).collect::<Result<Vec<_>, _>>()?,
         };
 
         let key = match Path::new(&certificate_key)
@@ -102,7 +101,9 @@ impl Handler {
             crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
         }
 
-        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(quinn::crypto::rustls::QuicServerConfig::try_from(crypto).unwrap()));
+        let mut server_config = quinn::ServerConfig::with_crypto(Arc::new(
+            quinn::crypto::rustls::QuicServerConfig::try_from(crypto).unwrap(),
+        ));
         let mut transport_config = quinn::TransportConfig::default();
         transport_config.max_concurrent_bidi_streams(quinn::VarInt::from_u32(64));
         transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
@@ -155,7 +156,10 @@ impl InboundDatagramHandler for Handler {
                         Ok(connecting) => {
                             if let Err(e) = handle_conn(stream_tx_c, &remote_addr, connecting).await
                             {
-                                debug!("handle QUIC connection from {} failed: {}", &remote_addr, e);
+                                debug!(
+                                    "handle QUIC connection from {} failed: {}",
+                                    &remote_addr, e
+                                );
                             }
                         }
                         Err(e) => {

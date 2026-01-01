@@ -34,9 +34,8 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        let uuid = Uuid::parse_str(&self.uuid).map_err(|e| {
-            io::Error::other(format!("parse uuid failed: {}", e))
-        })?;
+        let uuid = Uuid::parse_str(&self.uuid)
+            .map_err(|e| io::Error::other(format!("parse uuid failed: {}", e)))?;
         let mut request_header = RequestHeader {
             version: 0x1,
             command: REQUEST_COMMAND_UDP,
@@ -56,9 +55,10 @@ impl OutboundDatagramHandler for Handler {
                 request_header.security = SECURITY_TYPE_AES128_GCM;
             }
             _ => {
-                return Err(io::Error::other(
-                    format!("unsupported cipher: {}", &self.security),
-                ))
+                return Err(io::Error::other(format!(
+                    "unsupported cipher: {}",
+                    &self.security
+                )))
             }
         }
 
@@ -66,11 +66,7 @@ impl OutboundDatagramHandler for Handler {
         let client_sess = ClientSession::new();
         request_header
             .encode(&mut header_buf, &client_sess)
-            .map_err(|e| {
-                io::Error::other(
-                    format!("encode request header failed: {}", e),
-                )
-            })?;
+            .map_err(|e| io::Error::other(format!("encode request header failed: {}", e)))?;
 
         let enc_size_parser = ShakeSizeParser::new(&client_sess.request_body_iv);
         let enc = new_encryptor(
@@ -78,9 +74,7 @@ impl OutboundDatagramHandler for Handler {
             &client_sess.request_body_key,
             &client_sess.request_body_iv,
         )
-        .map_err(|e| {
-            io::Error::other(format!("new encryptor failed: {}", e))
-        })?;
+        .map_err(|e| io::Error::other(format!("new encryptor failed: {}", e)))?;
 
         let dec_size_parser = ShakeSizeParser::new(&client_sess.response_body_iv);
         let dec = new_decryptor(
@@ -88,9 +82,7 @@ impl OutboundDatagramHandler for Handler {
             &client_sess.response_body_key,
             &client_sess.response_body_iv,
         )
-        .map_err(|e| {
-            io::Error::other(format!("new decryptor failed: {}", e))
-        })?;
+        .map_err(|e| io::Error::other(format!("new decryptor failed: {}", e)))?;
 
         let mut stream = if let Some(OutboundTransport::Stream(stream)) = transport {
             stream

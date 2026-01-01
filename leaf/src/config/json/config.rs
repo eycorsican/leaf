@@ -9,10 +9,10 @@ pub use crate::config::common::{
     ChainOutboundSettings, Config, Dns, FailOverOutboundSettings, HcInboundSettings, Inbound,
     InboundSettings, Log, NfInboundSettings, ObfsOutboundSettings, Outbound, OutboundSettings,
     PluginOutboundSettings, QuicInboundSettings, QuicOutboundSettings, RedirectOutboundSettings,
-    Rule, SelectOutboundSettings, ShadowsocksInboundSettings,
-    ShadowsocksOutboundSettings, SocksOutboundSettings, StaticOutboundSettings, TlsInboundSettings,
-    TlsOutboundSettings, TrojanInboundSettings, TrojanOutboundSettings, TryAllOutboundSettings,
-    TunInboundSettings, VMessOutboundSettings, WebSocketInboundSettings, WebSocketOutboundSettings,
+    Rule, SelectOutboundSettings, ShadowsocksInboundSettings, ShadowsocksOutboundSettings,
+    SocksOutboundSettings, StaticOutboundSettings, TlsInboundSettings, TlsOutboundSettings,
+    TrojanInboundSettings, TrojanOutboundSettings, TryAllOutboundSettings, TunInboundSettings,
+    VMessOutboundSettings, WebSocketInboundSettings, WebSocketOutboundSettings,
 };
 
 pub fn to_internal(config: Config) -> Result<internal::Config> {

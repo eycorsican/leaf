@@ -87,6 +87,9 @@ impl InboundStreamHandler for Handler {
         #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
         unimplemented!();
         #[cfg(all(not(feature = "rustls-tls"), not(feature = "openssl-tls")))]
-        Err(io::Error::new(io::ErrorKind::Other, "no tls feature enabled"))
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "no tls feature enabled",
+        ))
     }
 }

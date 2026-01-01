@@ -1199,10 +1199,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
     }
     common_config.router = Some(common::Router {
         rules: Some(rules),
-        domain_resolve: conf
-            .general
-            .as_ref()
-            .and_then(|g| g.routing_domain_resolve),
+        domain_resolve: conf.general.as_ref().and_then(|g| g.routing_domain_resolve),
     });
 
     let mut dns = common::Dns {

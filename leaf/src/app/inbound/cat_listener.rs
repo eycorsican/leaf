@@ -72,9 +72,7 @@ impl InboundDatagram for Datagram {
     }
 
     fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket> {
-        Err(io::Error::other(
-            "cannot convert stdin to UDP socket",
-        ))
+        Err(io::Error::other("cannot convert stdin to UDP socket"))
     }
 }
 

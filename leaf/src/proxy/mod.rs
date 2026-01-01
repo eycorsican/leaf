@@ -454,11 +454,7 @@ pub async fn new_tcp_stream(
     port: &u16,
 ) -> io::Result<AnyStream> {
     let mut resolver = Resolver::new(dns_client.clone(), address, port)
-        .map_err(|e| {
-            io::Error::other(
-                format!("resolve address failed: {}", e),
-            )
-        })
+        .map_err(|e| io::Error::other(format!("resolve address failed: {}", e)))
         .await?;
 
     let mut last_err = None;
@@ -489,9 +485,10 @@ pub async fn new_tcp_stream(
                     return Ok(v.0.stream);
                 }
                 Err(e) => {
-                    last_err = Some(io::Error::other(
-                        format!("all attempts failed, last error: {}", e),
-                    ));
+                    last_err = Some(io::Error::other(format!(
+                        "all attempts failed, last error: {}",
+                        e
+                    )));
                 }
             }
         }
