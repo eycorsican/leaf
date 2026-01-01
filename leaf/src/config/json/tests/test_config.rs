@@ -90,3 +90,53 @@ fn test_config() {
 
     assert!(crate::config::json::json_from_string(json_str).is_ok());
 }
+
+#[test]
+fn test_invalid_config() {
+    // Missing protocol
+    let json_str = r#"
+    {
+        "inbounds": [
+            {
+                "tag": "socks_in",
+                "address": "127.0.0.1",
+                "port": 1086
+            }
+        ]
+    }
+    "#;
+    assert!(crate::config::json::json_from_string(json_str).is_err());
+
+    // Invalid port
+    let json_str = r#"
+    {
+        "inbounds": [
+            {
+                "tag": "socks_in",
+                "address": "127.0.0.1",
+                "port": 70000,
+                "protocol": "socks"
+            }
+        ]
+    }
+    "#;
+    assert!(crate::config::json::json_from_string(json_str).is_err());
+}
+
+#[test]
+fn test_dns_config() {
+    let json_str = r#"
+    {
+        "dns": {
+            "servers": ["1.1.1.1"],
+            "hosts": {
+                "google.com": ["127.0.0.1"]
+            }
+        }
+    }
+    "#;
+    let config = crate::config::json::json_from_string(json_str).unwrap();
+    let dns = config.dns.as_ref().unwrap();
+    assert_eq!(dns.servers.as_ref().unwrap().len(), 1);
+    assert_eq!(dns.servers.as_ref().unwrap()[0], "1.1.1.1");
+}

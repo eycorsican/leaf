@@ -636,4 +636,56 @@ mod tests {
         let m = PortRangeMatcher::new("22-23-24");
         assert!(m.is_err());
     }
+
+    #[test]
+    fn test_domain_matchers() {
+        let sess = Session {
+            destination: SocksAddr::Domain("www.google.com".to_string(), 80),
+            ..Default::default()
+        };
+
+        // Keyword matcher
+        let m = DomainKeywordMatcher::new("google".to_string());
+        assert!(m.apply(&sess));
+        let m = DomainKeywordMatcher::new("baidu".to_string());
+        assert!(!m.apply(&sess));
+
+        // Suffix matcher
+        let m = DomainSuffixMatcher::new("google.com".to_string());
+        assert!(m.apply(&sess));
+        let m = DomainSuffixMatcher::new("com".to_string());
+        assert!(m.apply(&sess));
+        let m = DomainSuffixMatcher::new("www.google.com".to_string());
+        assert!(m.apply(&sess));
+        let m = DomainSuffixMatcher::new("gle.com".to_string());
+        assert!(!m.apply(&sess));
+
+        // Full matcher
+        let m = DomainFullMatcher::new("www.google.com".to_string());
+        assert!(m.apply(&sess));
+        let m = DomainFullMatcher::new("google.com".to_string());
+        assert!(!m.apply(&sess));
+    }
+
+    #[test]
+    fn test_ip_cidr_matcher() {
+        use std::net::IpAddr;
+
+        let mut sess = Session::default();
+
+        let mut ips = vec!["192.168.1.0/24".to_string(), "10.0.0.1/32".to_string()];
+        let m = IpCidrMatcher::new(&mut ips);
+
+        sess.destination = SocksAddr::from(("192.168.1.100".parse::<IpAddr>().unwrap(), 80));
+        assert!(m.apply(&sess));
+
+        sess.destination = SocksAddr::from(("192.168.2.1".parse::<IpAddr>().unwrap(), 80));
+        assert!(!m.apply(&sess));
+
+        sess.destination = SocksAddr::from(("10.0.0.1".parse::<IpAddr>().unwrap(), 80));
+        assert!(m.apply(&sess));
+
+        sess.destination = SocksAddr::from(("10.0.0.2".parse::<IpAddr>().unwrap(), 80));
+        assert!(!m.apply(&sess));
+    }
 }
