@@ -508,8 +508,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                             settings.fake_dns_include = fake_dns_include;
                         }
 
-                        if let Some(ext_fd) = ext_settings.fd {
-                            settings.fd = ext_fd;
+                        let fd = ext_settings.fd.unwrap_or(-1);
+                        if fd >= 0 {
+                            settings.fd = fd;
                         } else {
                             settings.fd = -1; // disable fd option
                             if let Some(ext_name) = &ext_settings.name {
