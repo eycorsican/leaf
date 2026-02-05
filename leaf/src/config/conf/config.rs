@@ -193,6 +193,7 @@ pub struct Config {
     pub proxy_group: Option<Vec<ProxyGroup>>,
     pub rule: Option<Vec<Rule>>,
     pub host: Option<HashMap<String, Vec<String>>>,
+    pub certificates: Option<HashMap<String, String>>,
 }
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -213,6 +214,56 @@ fn get_section(text: &str) -> Option<&str> {
     let caps = re.captures(text);
     caps.as_ref()?;
     Some(caps.unwrap().get(1).unwrap().as_str())
+}
+
+fn get_certificate_sections<'a, I>(lines: I) -> HashMap<String, String>
+where
+    I: Iterator<Item = &'a io::Result<String>>,
+{
+    let mut certificates = HashMap::new();
+    let mut current_name: Option<String> = None;
+    let mut current_lines: Vec<String> = Vec::new();
+
+    for line in lines {
+        let line = match line {
+            Ok(line) => line,
+            Err(_) => continue,
+        };
+        let trimmed = line.trim();
+        if let Some(section) = get_section(trimmed) {
+            if let Some(name) = current_name.take() {
+                if !current_lines.is_empty() {
+                    let mut content = current_lines.join("\n");
+                    content.push('\n');
+                    certificates.insert(name, content);
+                }
+                current_lines.clear();
+            }
+            if let Some(name) = section.strip_prefix("Certificate.") {
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            }
+            continue;
+        }
+        if current_name.is_some() {
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            current_lines.push(trimmed.to_string());
+        }
+    }
+
+    if let Some(name) = current_name.take() {
+        if !current_lines.is_empty() {
+            let mut content = current_lines.join("\n");
+            content.push('\n');
+            certificates.insert(name, content);
+        }
+    }
+
+    certificates
 }
 
 fn get_lines_by_section<'a, I>(section: &str, lines: I) -> Vec<String>
@@ -271,6 +322,7 @@ where
 }
 
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
+    let certificates = get_certificate_sections(lines.iter());
     let env_lines = get_lines_by_section("Env", lines.iter());
     for line in env_lines {
         let parts: Vec<&str> = line
@@ -738,6 +790,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         proxy_group: Some(proxy_groups),
         rule: Some(rules),
         host: Some(hosts),
+        certificates: if certificates.is_empty() {
+            None
+        } else {
+            Some(certificates)
+        },
     })
 }
 
@@ -839,6 +896,16 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
     }
 
     let mut outbounds = Vec::new();
+    let certificates = conf.certificates.as_ref();
+    let resolve_cert = |value: &Option<String>| -> Option<String> {
+        let value = value.as_ref()?;
+        if let Some(certificates) = certificates {
+            if let Some(content) = certificates.get(value) {
+                return Some(content.clone());
+            }
+        }
+        Some(value.clone())
+    };
     if let Some(ext_proxies) = &conf.proxy {
         for ext_proxy in ext_proxies {
             let protocol = match ext_proxy.protocol.as_str() {
@@ -948,7 +1015,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                                 } else {
                                     Some(vec!["http/1.1".to_string()])
                                 },
-                                certificate: ext_proxy.tls_cert.clone(),
+                                certificate: resolve_cert(&ext_proxy.tls_cert),
                                 insecure: ext_proxy.tls_insecure,
                             }),
                         },
@@ -1005,7 +1072,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                                     address: ext_proxy.address.clone(),
                                     port: ext_proxy.port,
                                     server_name: ext_proxy.sni.clone(),
-                                    certificate: ext_proxy.tls_cert.clone(),
+                                    certificate: resolve_cert(&ext_proxy.tls_cert),
                                     alpn: Some(vec!["http/1.1".to_string()]),
                                 }),
                             },

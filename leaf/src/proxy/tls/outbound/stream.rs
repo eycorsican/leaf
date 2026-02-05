@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io;
 use std::io::BufReader;
+use std::io::Cursor;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -114,9 +115,16 @@ impl Handler {
         {
             let mut roots = RootCertStore::empty();
             if let Some(cert) = certificate {
-                let mut pem = BufReader::new(File::open(cert)?);
-                for cert in rustls_pemfile::certs(&mut pem) {
-                    roots.add(cert?)?;
+                if cert.contains("-----BEGIN") {
+                    let mut pem = BufReader::new(Cursor::new(cert.as_bytes()));
+                    for cert in rustls_pemfile::certs(&mut pem) {
+                        roots.add(cert?)?;
+                    }
+                } else {
+                    let mut pem = BufReader::new(File::open(cert)?);
+                    for cert in rustls_pemfile::certs(&mut pem) {
+                        roots.add(cert?)?;
+                    }
                 }
             } else {
                 roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());

@@ -195,6 +195,7 @@ fn test_quic_trojan() {
     std::fs::write(&path.join("cert.der"), &cert.der().to_vec()).unwrap();
     std::fs::write(&path.join("key.pem"), &key_pair.serialize_pem()).unwrap();
     std::fs::write(&path.join("cert.pem"), &cert.pem()).unwrap();
+    let cert_pem = cert.pem();
 
     let configs = vec![config1.to_string(), config2.to_string()];
     common::test_configs(configs.clone(), "127.0.0.1", 1086);
@@ -203,4 +204,64 @@ fn test_quic_trojan() {
 
     let configs = vec![config3.to_string(), config4.to_string()];
     common::test_configs(configs.clone(), "127.0.0.1", 1087);
+
+    let config5 = format!(
+        r#"
+[Certificate.mycert]
+{cert_pem}
+[General]
+socks-interface = 127.0.0.1
+socks-port = 1089
+[Proxy]
+Proxy = trojan, 127.0.0.1, 3004, password=password, sni=localhost, quic=true, tls-cert=mycert
+[Rule]
+FINAL,Proxy
+"#,
+        cert_pem = cert_pem
+    );
+    let config6 = r#"
+    {
+        "inbounds": [
+            {
+                "tag": "quic-in",
+                "protocol": "chain",
+                "address": "127.0.0.1",
+                "port": 3004,
+                "settings": {
+                    "actors": [
+                        "quic",
+                        "trojan"
+                    ]
+                }
+            },
+            {
+                "protocol": "quic",
+                "tag": "quic",
+                "settings": {
+                    "certificate": "cert.pem",
+                    "certificateKey": "key.pem",
+                    "alpn": [
+                        "http/1.1"
+                    ]
+                }
+            },
+            {
+                "protocol": "trojan",
+                "tag": "trojan",
+                "settings": {
+                    "passwords": [
+                        "password"
+                    ]
+                }
+            }
+        ],
+        "outbounds": [
+            {
+                "protocol": "direct"
+            }
+        ]
+    }
+    "#;
+    let configs = vec![config5, config6.to_string()];
+    common::test_configs(configs, "127.0.0.1", 1089);
 }

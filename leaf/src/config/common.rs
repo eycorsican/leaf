@@ -431,6 +431,10 @@ pub struct Config {
     pub dns: Option<Dns>,
 }
 
+fn is_inline_certificate(certificate: &str) -> bool {
+    certificate.contains("-----BEGIN")
+}
+
 pub fn to_internal(mut config: Config) -> Result<internal::Config> {
     let mut log = internal::Log::new();
     if let Some(ext_log) = &config.log {
@@ -687,13 +691,17 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::QuicInboundSettings::new();
                         if let Some(ext_certificate) = &ext_settings.certificate {
-                            let cert = Path::new(&ext_certificate);
-                            if cert.is_absolute() {
-                                settings.certificate = cert.to_string_lossy().to_string();
+                            if is_inline_certificate(ext_certificate) {
+                                settings.certificate = ext_certificate.clone();
                             } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                settings.certificate = path;
+                                let cert = Path::new(&ext_certificate);
+                                if cert.is_absolute() {
+                                    settings.certificate = cert.to_string_lossy().to_string();
+                                } else {
+                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
+                                    settings.certificate = path;
+                                }
                             }
                         }
                         if let Some(ext_certificate_key) = &ext_settings.certificate_key {
@@ -723,13 +731,17 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TlsInboundSettings::new();
                         if let Some(ext_certificate) = &ext_settings.certificate {
-                            let cert = Path::new(&ext_certificate);
-                            if cert.is_absolute() {
-                                settings.certificate = cert.to_string_lossy().to_string();
+                            if is_inline_certificate(ext_certificate) {
+                                settings.certificate = ext_certificate.clone();
                             } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                settings.certificate = path;
+                                let cert = Path::new(&ext_certificate);
+                                if cert.is_absolute() {
+                                    settings.certificate = cert.to_string_lossy().to_string();
+                                } else {
+                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
+                                    settings.certificate = path;
+                                }
                             }
                         }
                         if let Some(ext_certificate_key) = &ext_settings.certificate_key {
@@ -927,13 +939,17 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                             settings.alpn = ext_alpn.clone();
                         }
                         if let Some(ext_certificate) = &ext_settings.certificate {
-                            let cert = Path::new(&ext_certificate);
-                            if cert.is_absolute() {
-                                settings.certificate = cert.to_string_lossy().to_string();
+                            if is_inline_certificate(ext_certificate) {
+                                settings.certificate = ext_certificate.clone();
                             } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                settings.certificate = path;
+                                let cert = Path::new(&ext_certificate);
+                                if cert.is_absolute() {
+                                    settings.certificate = cert.to_string_lossy().to_string();
+                                } else {
+                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
+                                    settings.certificate = path;
+                                }
                             }
                         }
                         if let Some(ext_insecure) = ext_settings.insecure {
@@ -1085,13 +1101,17 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                             settings.server_name = ext_server_name.clone();
                         }
                         if let Some(ext_certificate) = &ext_settings.certificate {
-                            let cert = Path::new(&ext_certificate);
-                            if cert.is_absolute() {
-                                settings.certificate = cert.to_string_lossy().to_string();
+                            if is_inline_certificate(ext_certificate) {
+                                settings.certificate = ext_certificate.clone();
                             } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                settings.certificate = path;
+                                let cert = Path::new(&ext_certificate);
+                                if cert.is_absolute() {
+                                    settings.certificate = cert.to_string_lossy().to_string();
+                                } else {
+                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
+                                    settings.certificate = path;
+                                }
                             }
                         }
                         if let Some(ext_alpns) = &ext_settings.alpn {

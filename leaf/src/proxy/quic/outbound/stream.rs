@@ -36,22 +36,29 @@ impl Manager {
     ) -> Self {
         let mut roots = rustls::RootCertStore::empty();
         if let Some(cert_path) = certificate.as_ref() {
-            match fs::read(cert_path) {
-                Ok(cert) => {
-                    match Path::new(&cert_path).extension().map(|ext| ext.to_str()) {
-                        Some(Some("der")) => {
-                            roots.add(CertificateDer::from(cert)).unwrap(); // FIXME
-                        }
-                        _ => {
-                            let mut reader = io::BufReader::new(&*cert);
-                            for cert in certs(&mut reader) {
-                                roots.add(cert.unwrap()).unwrap();
+            if cert_path.contains("-----BEGIN") {
+                let mut reader = io::BufReader::new(cert_path.as_bytes());
+                for cert in certs(&mut reader) {
+                    roots.add(cert.unwrap()).unwrap();
+                }
+            } else {
+                match fs::read(cert_path) {
+                    Ok(cert) => {
+                        match Path::new(&cert_path).extension().map(|ext| ext.to_str()) {
+                            Some(Some("der")) => {
+                                roots.add(CertificateDer::from(cert)).unwrap(); // FIXME
+                            }
+                            _ => {
+                                let mut reader = io::BufReader::new(&*cert);
+                                for cert in certs(&mut reader) {
+                                    roots.add(cert.unwrap()).unwrap();
+                                }
                             }
                         }
                     }
-                }
-                Err(e) => {
-                    panic!("read certificate {} failed: {}", cert_path, e);
+                    Err(e) => {
+                        panic!("read certificate {} failed: {}", cert_path, e);
+                    }
                 }
             }
         } else {
