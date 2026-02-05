@@ -543,6 +543,17 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
+                #[cfg(not(any(
+                    target_os = "ios",
+                    target_os = "android",
+                    target_os = "macos",
+                    target_os = "linux"
+                )))]
+                InboundSettings::Tun { .. } => {
+                    return Err(anyhow::anyhow!(
+                        "tun inbound is not supported on this platform"
+                    ));
+                }
                 InboundSettings::Cat {
                     settings: ext_settings,
                 } => {

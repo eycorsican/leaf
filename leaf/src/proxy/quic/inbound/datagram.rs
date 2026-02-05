@@ -47,7 +47,7 @@ fn quic_err<E>(error: E) -> io::Error
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    io::Error::new(io::ErrorKind::Other, error)
+    io::Error::other(error)
 }
 
 pub struct Handler {
@@ -60,9 +60,7 @@ impl Handler {
             fs::read(&certificate).and_then(|x| Ok((x, fs::read(&certificate_key)?)))?;
 
         let cert = match Path::new(&certificate).extension().map(|ext| ext.to_str()) {
-            Some(Some(ext)) if ext == "der" => {
-                vec![CertificateDer::from(cert)]
-            }
+            Some(Some("der")) => vec![CertificateDer::from(cert)],
             _ => certs(&mut io::BufReader::new(&*cert)).collect::<Result<Vec<_>, _>>()?,
         };
 
@@ -70,7 +68,7 @@ impl Handler {
             .extension()
             .map(|ext| ext.to_str())
         {
-            Some(Some(ext)) if ext == "der" => PrivateKeyDer::Pkcs8(key.into()),
+            Some(Some("der")) => PrivateKeyDer::Pkcs8(key.into()),
             _ => {
                 let pkcs8 = pkcs8_private_keys(&mut io::BufReader::new(&*key))
                     .collect::<Result<Vec<_>, _>>()?;
@@ -90,13 +88,16 @@ impl Handler {
             }
         };
 
-        let mut crypto = rustls::ServerConfig::builder_with_provider(
-            rustls::crypto::ring::default_provider().into(),
-        )
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .with_no_client_auth()
-        .with_single_cert(cert, key)?;
+        #[cfg(feature = "rustls-tls-aws-lc")]
+        let provider = rustls::crypto::aws_lc_rs::default_provider().into();
+        #[cfg(not(feature = "rustls-tls-aws-lc"))]
+        let provider = rustls::crypto::ring::default_provider().into();
+
+        let mut crypto = rustls::ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(cert, key)?;
         for alpn in alpns {
             crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
         }
@@ -132,7 +133,7 @@ async fn handle_conn(
         if stream_tx.capacity() == 0 {
             warn!("QUIC accept channel full");
         }
-        let _ = stream_tx.send((remote_addr.clone(), s)).await;
+        let _ = stream_tx.send((*remote_addr, s)).await;
     }
 }
 

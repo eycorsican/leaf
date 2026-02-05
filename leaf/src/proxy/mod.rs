@@ -20,10 +20,7 @@ use std::os::unix::io::{AsFd, AsRawFd};
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, AsSocket};
 #[cfg(target_os = "android")]
-use {
-    std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
-    tokio::net::UnixStream, tracing::trace,
-};
+use {std::os::unix::io::RawFd, tokio::io::AsyncWriteExt, tokio::net::UnixStream, tracing::trace};
 
 use crate::{
     app::SyncDnsClient,

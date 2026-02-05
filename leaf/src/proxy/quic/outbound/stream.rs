@@ -65,13 +65,16 @@ impl Manager {
             roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         }
 
-        let mut client_crypto = rustls::ClientConfig::builder_with_provider(
-            rustls::crypto::ring::default_provider().into(),
-        )
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+        #[cfg(feature = "rustls-tls-aws-lc")]
+        let provider = rustls::crypto::aws_lc_rs::default_provider().into();
+        #[cfg(not(feature = "rustls-tls-aws-lc"))]
+        let provider = rustls::crypto::ring::default_provider().into();
+
+        let mut client_crypto = rustls::ClientConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
         for alpn in alpns {
             client_crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
         }

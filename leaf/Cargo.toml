@@ -20,6 +20,7 @@ default-ring = [
     "ring-aead",
     "rustls-tls",
     "rustls-tls-ring",
+    "quinn-ring",
     "api",
 ]
 
@@ -29,6 +30,7 @@ default-aws-lc = [
     "aws-lc-aead",
     "rustls-tls",
     "rustls-tls-aws-lc",
+    "quinn-aws-lc",
     "api",
 ]
 
@@ -37,10 +39,14 @@ default-openssl = [
     "all-endpoints",
     "openssl-aead",
     "openssl-tls",
+    "quinn-ring",
 ]
 
-rustls-tls-aws-lc = ["tokio-rustls/aws_lc_rs"]
-rustls-tls-ring = ["tokio-rustls/ring"]
+rustls-tls-aws-lc = ["tokio-rustls/aws_lc_rs", "rustls/aws_lc_rs"]
+rustls-tls-ring = ["tokio-rustls/ring", "rustls/ring"]
+
+quinn-ring = ["quinn/rustls-ring", "quinn/runtime-tokio"]
+quinn-aws-lc = ["quinn/rustls-aws-lc-rs", "quinn/runtime-tokio"]
 
 # Grouping all features
 all-configs = [
@@ -112,7 +118,7 @@ outbound-static= []
 outbound-tryall = []
 outbound-chain = []
 outbound-amux= ["tokio-util"]
-outbound-quic = ["quinn", "rustls", "webpki-roots-old", "rustls-pemfile-old"]
+outbound-quic = ["rustls", "webpki-roots-old", "rustls-pemfile-old"]
 outbound-select = ["directories", "axum/query"]
 outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "aes", "sha3", "digest", "uuid", "md-5", "tokio-util", "byteorder"]
 
@@ -125,7 +131,7 @@ inbound-hc = []
 inbound-tun = ["tun", "netstack-lwip", "pnet_datalink"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
-inbound-quic = ["quinn", "rustls", "rustls-pemfile-old"]
+inbound-quic = ["rustls", "rustls-pemfile-old"]
 inbound-tls = []
 inbound-chain = []
 inbound-cat = ["tokio/io-std"]
@@ -241,8 +247,8 @@ lru_time_cache = { version = "0.11", optional = true }
 tokio-util = { version = "0.7", default-features = false, features = ["io"], optional = true }
 
 # QUIC
-quinn = { version = "0.11", default-features = false, features = ["rustls", "runtime-tokio"], optional = true }
-rustls = { version = "0.23", optional = true }
+quinn = { version = "0.11", default-features = false, optional = true }
+rustls = { version = "0.23", default-features = false, features = ["std"], optional = true }
 
 # API
 axum = { version = "0.7", default-features = false, features = ["http1", "tokio", "json"], optional = true }

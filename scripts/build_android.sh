@@ -28,12 +28,40 @@ HOST_OS=`uname -s | tr "[:upper:]" "[:lower:]"`
 # HOST_ARCH=`uname -m | tr "[:upper:]" "[:lower:]"`
 HOST_ARCH=x86_64
 
+if [ -z "${NDK_HOME}" ]; then
+	echo "NDK_HOME is not set" >&2
+	exit 1
+fi
+
+if [ ! -d "${NDK_HOME}" ]; then
+	echo "NDK_HOME does not exist: ${NDK_HOME}" >&2
+	exit 1
+fi
+
+if [ ! -d "${NDK_HOME}/toolchains/llvm/prebuilt/${HOST_OS}-${HOST_ARCH}/bin" ]; then
+	HOST_ARCH=`uname -m | tr "[:upper:]" "[:lower:]"`
+	if [ ! -d "${NDK_HOME}/toolchains/llvm/prebuilt/${HOST_OS}-${HOST_ARCH}/bin" ]; then
+		echo "NDK toolchain not found under: ${NDK_HOME}/toolchains/llvm/prebuilt/${HOST_OS}-${HOST_ARCH}/bin" >&2
+		exit 1
+	fi
+fi
+
 export PATH="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_OS-$HOST_ARCH/bin/":$PATH
 
 android_tools="$NDK_HOME/toolchains/llvm/prebuilt/$HOST_OS-$HOST_ARCH/bin"
 api=21
 
+export ANDROID_NDK_ROOT="$NDK_HOME"
+export ANDROID_NDK="$NDK_HOME"
+export ANDROID_NDK_HOME="$NDK_HOME"
+export CMAKE_GENERATOR=Ninja
+
 # See also: https://github.com/briansmith/ring/blob/main/mk/cargo.sh
+
+profile=release
+if [ -z "$mode" ]; then
+	profile=debug
+fi
 
 for target in $targets; do
 	case $target in
@@ -68,7 +96,7 @@ android_libs=$BASE/../target/leaf-android-libs
 
 mkdir -p $android_libs
 for target in $targets; do
-	mv $BASE/../target/$target/release/libleaf.so $android_libs/libleaf-$target.so
+	mv $BASE/../target/$target/$profile/libleaf.so $android_libs/libleaf-$target.so
 done
 cbindgen \
 	--config $BASE/../$package/cbindgen.toml \

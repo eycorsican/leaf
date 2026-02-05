@@ -51,16 +51,19 @@ impl Handler {
         {
             let certs = load_certs(Path::new(&certificate))?;
             let mut keys = load_keys(Path::new(&certificate_key))?;
-            let config = ServerConfig::builder_with_provider(
-                rustls::crypto::ring::default_provider().into(),
-            )
-            .with_safe_default_protocol_versions()
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
-            .with_no_client_auth()
-            .with_single_cert(certs, keys.remove(0))
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+            #[cfg(feature = "rustls-tls-aws-lc")]
+            let provider = rustls::crypto::aws_lc_rs::default_provider().into();
+            #[cfg(not(feature = "rustls-tls-aws-lc"))]
+            let provider = rustls::crypto::ring::default_provider().into();
+
+            let config = ServerConfig::builder_with_provider(provider)
+                .with_safe_default_protocol_versions()
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
+                .with_no_client_auth()
+                .with_single_cert(certs, keys.remove(0))
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
             let acceptor = TlsAcceptor::from(Arc::new(config));
-            return Ok(Self { acceptor });
+            Ok(Self { acceptor })
         }
         #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
         unimplemented!();
@@ -78,10 +81,10 @@ impl InboundStreamHandler for Handler {
     ) -> std::io::Result<AnyInboundTransport> {
         #[cfg(feature = "rustls-tls")]
         {
-            return Ok(InboundTransport::Stream(
+            Ok(InboundTransport::Stream(
                 Box::new(self.acceptor.accept(stream).await?),
                 sess,
-            ));
+            ))
         }
 
         #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]

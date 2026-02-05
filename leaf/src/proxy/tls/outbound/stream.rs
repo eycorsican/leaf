@@ -129,11 +129,14 @@ impl Handler {
             } else {
                 roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
             }
-            let builder = ClientConfig::builder_with_provider(
-                rustls::crypto::ring::default_provider().into(),
-            )
-            .with_safe_default_protocol_versions()
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+            #[cfg(feature = "rustls-tls-aws-lc")]
+            let provider = rustls::crypto::aws_lc_rs::default_provider().into();
+            #[cfg(not(feature = "rustls-tls-aws-lc"))]
+            let provider = rustls::crypto::ring::default_provider().into();
+
+            let builder = ClientConfig::builder_with_provider(provider)
+                .with_safe_default_protocol_versions()
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
 
             let mut config = if insecure {
                 builder
