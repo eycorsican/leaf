@@ -10,6 +10,7 @@ use futures::TryFutureExt;
 use rustls::pki_types::CertificateDer;
 use rustls_pemfile::certs;
 use tokio::sync::RwLock;
+use tokio::time::{timeout, Duration};
 use tracing::{debug, trace};
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
@@ -87,6 +88,7 @@ impl Manager {
         transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
             300_000,
         ))));
+        transport_config.keep_alive_interval(Some(Duration::from_secs(10)));
         transport_config
             .congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
         client_config.transport_config(Arc::new(transport_config));
@@ -106,19 +108,30 @@ impl Manager {
     pub async fn new_stream(
         &self,
     ) -> Result<QuicProxyStream<quinn::RecvStream, quinn::SendStream>> {
+        let dial_timeout = Duration::from_secs(*crate::option::OUTBOUND_DIAL_TIMEOUT);
         let start = std::time::Instant::now();
-        for conn in self.connections.read().await.iter() {
-            match conn.open_bi().await {
-                Ok((send, recv)) => {
-                    trace!(
-                        "opened QUIC stream on existing connection (rtt {} ms) in {} ms",
-                        conn.rtt().as_millis(),
-                        start.elapsed().as_millis(),
-                    );
-                    return Ok(QuicProxyStream { recv, send });
-                }
-                Err(e) => {
-                    debug!("open QUIC stream failed: {}", e);
+        {
+            let mut conns = self.connections.write().await;
+            let idx = 0usize;
+            while idx < conns.len() {
+                let conn = &conns[idx];
+                match timeout(dial_timeout, conn.open_bi()).await {
+                    Ok(Ok((send, recv))) => {
+                        trace!(
+                            "opened QUIC stream on existing connection (rtt {} ms) in {} ms",
+                            conn.rtt().as_millis(),
+                            start.elapsed().as_millis(),
+                        );
+                        return Ok(QuicProxyStream { recv, send });
+                    }
+                    Ok(Err(e)) => {
+                        debug!("open QUIC stream failed: {}", e);
+                        conns.swap_remove(idx);
+                    }
+                    Err(_) => {
+                        debug!("open QUIC stream timed out");
+                        conns.swap_remove(idx);
+                    }
                 }
             }
         }
@@ -145,16 +158,50 @@ impl Manager {
         if ips.is_empty() {
             return Err(anyhow!("could not resolve to any address",));
         }
-        let connect_addr = SocketAddr::new(ips[0], self.port);
         let server_name = self.server_name.as_ref().unwrap_or(&self.address);
-        let conn = endpoint.connect(connect_addr, server_name)?.await?;
-        let (send, recv) = conn.open_bi().await?;
+        let mut last_err: Option<anyhow::Error> = None;
+        for ip in ips {
+            let connect_addr = SocketAddr::new(ip, self.port);
+            let connecting = match endpoint.connect(connect_addr, server_name) {
+                Ok(c) => c,
+                Err(e) => {
+                    last_err = Some(e.into());
+                    continue;
+                }
+            };
+            let conn = match timeout(dial_timeout, connecting).await {
+                Ok(Ok(c)) => c,
+                Ok(Err(e)) => {
+                    last_err = Some(e.into());
+                    continue;
+                }
+                Err(_) => {
+                    last_err = Some(anyhow!("connect QUIC timed out"));
+                    continue;
+                }
+            };
+            let (send, recv) = match timeout(dial_timeout, conn.open_bi()).await {
+                Ok(Ok(x)) => x,
+                Ok(Err(e)) => {
+                    last_err = Some(e.into());
+                    continue;
+                }
+                Err(_) => {
+                    last_err = Some(anyhow!("open QUIC stream timed out"));
+                    continue;
+                }
+            };
 
-        self.connections.write().await.push(conn);
+            let mut conns = self.connections.write().await;
+            conns.push(conn);
+            conns.truncate(4);
 
-        trace!("opened QUIC stream on new connection",);
+            trace!("opened QUIC stream on new connection",);
 
-        Ok(QuicProxyStream { recv, send })
+            return Ok(QuicProxyStream { recv, send });
+        }
+
+        Err(last_err.unwrap_or_else(|| anyhow!("connect QUIC failed")))
     }
 }
 
