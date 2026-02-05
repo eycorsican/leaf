@@ -51,7 +51,7 @@ all-endpoints = [
     # inbounds
     "inbound-chain",
     "inbound-amux",
-    # "inbound-quic",
+    "inbound-quic",
     "inbound-ws",
     "inbound-tls",
     "inbound-trojan",
@@ -73,7 +73,7 @@ all-endpoints = [
     "outbound-ws",
     "outbound-amux",
     "outbound-vmess",
-    # "outbound-quic",
+    "outbound-quic",
     "outbound-failover",
     "outbound-static",
     "outbound-tryall",

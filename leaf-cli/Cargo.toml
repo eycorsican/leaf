@@ -17,8 +17,6 @@ path = "../leaf"
 default-features = false
 features = [
   "default-ring",
-  "outbound-quic",
-  "outbound-quic",
   "ctrlc",
   "auto-reload"
 ]
@@ -28,8 +26,6 @@ path = "../leaf"
 default-features = false
 features = [
   "default-ring",
-  "outbound-quic",
-  "outbound-quic",
   "ctrlc",
   "auto-reload",
   "inbound-nf",
