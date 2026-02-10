@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use futures::future::TryFutureExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::{app::SyncDnsClient, proxy::*, session::*};
+use crate::{app::SyncDnsClient, common::resolver::Resolver, proxy::*, session::*};
 
 pub struct Handler {
     pub address: String,
@@ -45,17 +45,19 @@ impl OutboundDatagramHandler for Handler {
             }
         }
         let socket = self.new_udp_socket(&indicator).await?;
-        let socket = SocksDatagram::associate(
-            stream,
-            socket,
-            None::<Auth>,
-            (*SocksAddr::try_from((self.address.clone(), self.port))
-                .unwrap()
-                .must_ip())
-            .into(),
-        )
-        .map_err(Error::other)
-        .await?;
+
+        // Resolve the SOCKS server address to IP (handles both IP and domain names)
+        let mut resolver =
+            Resolver::new(self.dns_client.clone(), &self.address, &self.port)
+                .await
+                .map_err(|e| Error::other(format!("resolve SOCKS server address failed: {}", e)))?;
+        let server_addr = resolver
+            .next()
+            .ok_or_else(|| Error::other("no resolved address for SOCKS server"))?;
+
+        let socket = SocksDatagram::associate(stream, socket, None::<Auth>, server_addr.into())
+            .map_err(Error::other)
+            .await?;
         Ok(Box::new(Datagram { socket }))
     }
 }
