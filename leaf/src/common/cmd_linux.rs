@@ -113,7 +113,7 @@ pub fn get_default_interface() -> Result<String> {
 pub fn add_interface_ipv4_address(
     name: &str,
     addr: Ipv4Addr,
-    gw: Ipv4Addr,
+    _gw: Ipv4Addr,
     mask: Ipv4Addr,
 ) -> Result<()> {
     Command::new("ip")
