@@ -32,6 +32,7 @@ pub struct General {
     pub tun_auto: Option<bool>,
     pub loglevel: Option<String>,
     pub logoutput: Option<String>,
+    pub logformat: Option<String>,
     pub dns_server: Option<Vec<String>>,
     pub dns_interface: Option<String>,
     pub always_real_ip: Option<Vec<String>>,
@@ -386,6 +387,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "logoutput" => {
                 general.logoutput = Some(parts[1].to_string());
+            }
+            "logformat" => {
+                general.logformat = Some(parts[1].to_string());
             }
             "dns-server" => {
                 general.dns_server = get_char_sep_slice(parts[1], ',');
@@ -805,6 +809,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
         let log = common::Log {
             level: ext_general.loglevel.clone(),
             output: ext_general.logoutput.clone(),
+            format: ext_general.logformat.clone(),
         };
         common_config.log = Some(log);
 

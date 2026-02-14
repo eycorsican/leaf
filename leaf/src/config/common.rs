@@ -17,6 +17,7 @@ pub struct Dns {
 pub struct Log {
     pub level: Option<String>,
     pub output: Option<String>,
+    pub format: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -459,6 +460,15 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     log.output = protobuf::EnumOrUnknown::new(internal::log::Output::FILE);
                     log.output_file = ext_output.clone();
                 }
+            }
+        }
+
+        if let Some(ext_format) = &ext_log.format {
+            match ext_format.to_lowercase().as_str() {
+                "compact" => {
+                    log.format = protobuf::EnumOrUnknown::new(internal::log::Format::COMPACT)
+                }
+                _ => log.format = protobuf::EnumOrUnknown::new(internal::log::Format::FULL),
             }
         }
     }

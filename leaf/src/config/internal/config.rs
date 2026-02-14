@@ -250,6 +250,8 @@ pub struct Log {
     pub output: ::protobuf::EnumOrUnknown<log::Output>,
     // @@protoc_insertion_point(field:Log.output_file)
     pub output_file: ::std::string::String,
+    // @@protoc_insertion_point(field:Log.format)
+    pub format: ::protobuf::EnumOrUnknown<log::Format>,
     // special fields
     // @@protoc_insertion_point(special_field:Log.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -286,6 +288,9 @@ impl ::protobuf::Message for Log {
                 26 => {
                     self.output_file = is.read_string()?;
                 },
+                32 => {
+                    self.format = is.read_enum_or_unknown()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -307,6 +312,9 @@ impl ::protobuf::Message for Log {
         if !self.output_file.is_empty() {
             my_size += ::protobuf::rt::string_size(3, &self.output_file);
         }
+        if self.format != ::protobuf::EnumOrUnknown::new(log::Format::FULL) {
+            my_size += ::protobuf::rt::int32_size(4, self.format.value());
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -321,6 +329,9 @@ impl ::protobuf::Message for Log {
         }
         if !self.output_file.is_empty() {
             os.write_string(3, &self.output_file)?;
+        }
+        if self.format != ::protobuf::EnumOrUnknown::new(log::Format::FULL) {
+            os.write_enum(4, ::protobuf::EnumOrUnknown::value(&self.format))?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -342,6 +353,7 @@ impl ::protobuf::Message for Log {
         self.level = ::protobuf::EnumOrUnknown::new(log::Level::INFO);
         self.output = ::protobuf::EnumOrUnknown::new(log::Output::CONSOLE);
         self.output_file.clear();
+        self.format = ::protobuf::EnumOrUnknown::new(log::Format::FULL);
         self.special_fields.clear();
     }
 
@@ -350,6 +362,7 @@ impl ::protobuf::Message for Log {
             level: ::protobuf::EnumOrUnknown::from_i32(0),
             output: ::protobuf::EnumOrUnknown::from_i32(0),
             output_file: ::std::string::String::new(),
+            format: ::protobuf::EnumOrUnknown::from_i32(0),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -464,6 +477,51 @@ pub mod log {
     impl ::std::default::Default for Output {
         fn default() -> Self {
             Output::CONSOLE
+        }
+    }
+
+
+    #[derive(Clone,Copy,PartialEq,Eq,Debug,Hash)]
+    // @@protoc_insertion_point(enum:Log.Format)
+    pub enum Format {
+        // @@protoc_insertion_point(enum_value:Log.Format.FULL)
+        FULL = 0,
+        // @@protoc_insertion_point(enum_value:Log.Format.COMPACT)
+        COMPACT = 1,
+    }
+
+    impl ::protobuf::Enum for Format {
+        const NAME: &'static str = "Format";
+
+        fn value(&self) -> i32 {
+            *self as i32
+        }
+
+        fn from_i32(value: i32) -> ::std::option::Option<Format> {
+            match value {
+                0 => ::std::option::Option::Some(Format::FULL),
+                1 => ::std::option::Option::Some(Format::COMPACT),
+                _ => ::std::option::Option::None
+            }
+        }
+
+        fn from_str(str: &str) -> ::std::option::Option<Format> {
+            match str {
+                "FULL" => ::std::option::Option::Some(Format::FULL),
+                "COMPACT" => ::std::option::Option::Some(Format::COMPACT),
+                _ => ::std::option::Option::None
+            }
+        }
+
+        const VALUES: &'static [Format] = &[
+            Format::FULL,
+            Format::COMPACT,
+        ];
+    }
+
+    impl ::std::default::Default for Format {
+        fn default() -> Self {
+            Format::FULL
         }
     }
 

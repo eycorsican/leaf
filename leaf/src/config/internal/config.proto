@@ -26,9 +26,15 @@ message Log {
 		FILE = 1;
 	}
 
+	enum Format {
+		FULL = 0;
+		COMPACT = 1;
+	}
+
 	Level level = 1;
 	Output output = 2;
 	string output_file = 3;
+	Format format = 4;
 }
 
 message TunInboundSettings {
