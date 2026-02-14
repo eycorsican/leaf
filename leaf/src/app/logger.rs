@@ -112,9 +112,7 @@ pub fn setup_logger(config: &config::Log) -> Result<()> {
     } else {
         let (filter, filter_handle) = reload::Layer::new(filter);
         let (writer, writer_handle) = reload::Layer::new(writer);
-        let leaf_filter = filter_fn(|metadata| {
-            metadata.target().starts_with("leaf")
-        });
+        let leaf_filter = filter_fn(|metadata| metadata.target().starts_with("leaf"));
         tracing_subscriber::registry()
             .with(filter)
             .with(writer.with_filter(leaf_filter))

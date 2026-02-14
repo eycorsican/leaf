@@ -283,3 +283,4 @@ tokio = { version = "1", features = ["fs", "sync", "io-util", "net", "time", "rt
 cc = "1.0"
 bindgen = "0.69"
 protobuf-codegen = "=3.6.0"
+protoc-bin-vendored = "3.2"

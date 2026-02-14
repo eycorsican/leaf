@@ -47,10 +47,9 @@ impl OutboundDatagramHandler for Handler {
         let socket = self.new_udp_socket(&indicator).await?;
 
         // Resolve the SOCKS server address to IP (handles both IP and domain names)
-        let mut resolver =
-            Resolver::new(self.dns_client.clone(), &self.address, &self.port)
-                .await
-                .map_err(|e| Error::other(format!("resolve SOCKS server address failed: {}", e)))?;
+        let mut resolver = Resolver::new(self.dns_client.clone(), &self.address, &self.port)
+            .await
+            .map_err(|e| Error::other(format!("resolve SOCKS server address failed: {}", e)))?;
         let server_addr = resolver
             .next()
             .ok_or_else(|| Error::other("no resolved address for SOCKS server"))?;
