@@ -2,6 +2,7 @@ use std::mem::MaybeUninit;
 use std::{cmp::min, io, pin::Pin};
 
 use aes::cipher::{AsyncStreamCipher, KeyIvInit};
+use aes_gcm::{AeadInPlace, Aes128Gcm, KeyInit};
 use bytes::{BufMut, BytesMut};
 use futures::{
     ready,
@@ -16,6 +17,7 @@ use crate::common::crypto::{
 };
 
 use super::crypto::{PaddingLengthGenerator, ShakeSizeParser, VMessAEADSequence};
+use super::kdf::{self, *};
 use super::protocol::ClientSession;
 
 enum ReadState {
@@ -124,12 +126,60 @@ impl<T: AsyncRead + Unpin> AsyncRead for VMessAuthStream<T> {
             match self.read_state {
                 ReadState::WaitingResponseHeader => {
                     let me = &mut *self;
-                    ready!(me.poll_read_exact(cx, 4))?;
-                    cfb_mode::Decryptor::<aes::Aes128>::new(
-                        me.sess.response_body_key.as_slice().into(),
-                        me.sess.response_body_iv.as_slice().into(),
-                    )
-                    .decrypt(&mut me.read_buf[..4]);
+                    if !me.sess.aead {
+                        ready!(me.poll_read_exact(cx, 4))?;
+                        cfb_mode::Decryptor::<aes::Aes128>::new(
+                            me.sess.response_body_key.as_slice().into(),
+                            me.sess.response_body_iv.as_slice().into(),
+                        )
+                        .decrypt(&mut me.read_buf[..4]);
+                    } else {
+                        let aead_response_header_length_encryption_key = &kdf::vmess_kdf_1_one_shot(
+                            me.sess.response_body_key.as_slice(),
+                            KDF_SALT_CONST_AEAD_RESP_HEADER_LEN_KEY,
+                        )[..16];
+                        let aead_response_header_length_encryption_iv = &kdf::vmess_kdf_1_one_shot(
+                            me.sess.response_body_iv.as_slice(),
+                            KDF_SALT_CONST_AEAD_RESP_HEADER_LEN_IV,
+                        )[..12];
+                        let cipher =
+                            Aes128Gcm::new_from_slice(aead_response_header_length_encryption_key)
+                                .map_err(|_| crypto_err())?;
+                        ready!(me.poll_read_exact(cx, 18))?;
+                        let mut buf = me.read_buf[..18].to_vec();
+                        cipher
+                            .decrypt_in_place(
+                                aead_response_header_length_encryption_iv.into(),
+                                b"",
+                                &mut buf,
+                            )
+                            .map_err(|_| crypto_err())?;
+
+                        let len = u16::from_be_bytes([buf[0], buf[1]]) as usize;
+                        let aead_response_header_payload_encryption_key =
+                            &kdf::vmess_kdf_1_one_shot(
+                                me.sess.response_body_key.as_slice(),
+                                KDF_SALT_CONST_AEAD_RESP_HEADER_PAYLOAD_KEY,
+                            )[..16];
+                        let aead_response_header_payload_encryption_iv = &kdf::vmess_kdf_1_one_shot(
+                            me.sess.response_body_iv.as_slice(),
+                            KDF_SALT_CONST_AEAD_RESP_HEADER_PAYLOAD_IV,
+                        )[..12];
+                        let cipher =
+                            Aes128Gcm::new_from_slice(aead_response_header_payload_encryption_key)
+                                .map_err(|_| crypto_err())?;
+                        ready!(me.poll_read_exact(cx, len + 16))?;
+                        let mut buf = me.read_buf[..len + 16].to_vec();
+                        cipher
+                            .decrypt_in_place(
+                                aead_response_header_payload_encryption_iv.into(),
+                                b"",
+                                &mut buf,
+                            )
+                            .map_err(|_| crypto_err())?;
+                        me.read_buf.resize(buf.len(), 0);
+                        me.read_buf[..buf.len()].copy_from_slice(&buf);
+                    }
 
                     if me.read_buf[0] != me.sess.response_header {
                         return Poll::Ready(Err(crypto_err()));

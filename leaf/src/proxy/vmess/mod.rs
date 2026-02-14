@@ -1,4 +1,5 @@
 mod crypto;
+mod kdf;
 mod protocol;
 mod stream;
 

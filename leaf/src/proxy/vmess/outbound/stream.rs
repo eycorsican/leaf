@@ -59,7 +59,7 @@ impl OutboundStreamHandler for Handler {
         }
 
         let mut header_buf = BytesMut::new();
-        let client_sess = ClientSession::new();
+        let client_sess = ClientSession::new(true);
         request_header
             .encode(&mut header_buf, &client_sess)
             .map_err(|e| io::Error::other(format!("encode request header failed: {}", e)))?;
