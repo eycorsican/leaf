@@ -5,7 +5,12 @@ use std::sync::RwLock;
 use anyhow::Result;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    filter::LevelFilter, fmt, layer::Layered, prelude::*, registry::Registry, reload,
+    filter::{filter_fn, LevelFilter},
+    fmt,
+    layer::{Layer, Layered},
+    prelude::*,
+    registry::Registry,
+    reload,
     reload::Handle,
 };
 
@@ -107,9 +112,12 @@ pub fn setup_logger(config: &config::Log) -> Result<()> {
     } else {
         let (filter, filter_handle) = reload::Layer::new(filter);
         let (writer, writer_handle) = reload::Layer::new(writer);
+        let leaf_filter = filter_fn(|metadata| {
+            metadata.target().starts_with("leaf")
+        });
         tracing_subscriber::registry()
             .with(filter)
-            .with(writer)
+            .with(writer.with_filter(leaf_filter))
             .init();
         *h = Some(HandleController::new(
             filter_handle,
