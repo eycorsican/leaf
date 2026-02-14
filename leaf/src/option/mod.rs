@@ -285,6 +285,10 @@ lazy_static! {
         get_env_var_or("DNS_TIMEOUT", 4)
     };
 
+    pub static ref DNS_DUALSTACK_DELAY_MS: u64 = {
+        get_env_var_or("DNS_DUALSTACK_DELAY_MS", 250)
+    };
+
     pub static ref DEFAULT_TUN_NAME: String = {
         get_env_var_or("DEFAULT_TUN_NAME", "utun233".to_string())
     };

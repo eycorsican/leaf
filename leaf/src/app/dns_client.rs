@@ -324,6 +324,83 @@ impl DnsClient {
         .await
     }
 
+    async fn query_record_type(
+        &self,
+        is_direct: bool,
+        name: &Name,
+        host: &str,
+        ty: RecordType,
+    ) -> Result<CacheEntry> {
+        let msg = Self::new_query(name.clone(), ty);
+        let msg_buf = match msg.to_vec() {
+            Ok(b) => b,
+            Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
+        };
+        let mut tasks = Vec::new();
+        for server in &self.servers {
+            let t = self.query_task(is_direct, msg_buf.clone(), host, server);
+            tasks.push(Box::pin(t));
+        }
+        let (entry, _) = select_ok(tasks.into_iter()).await?;
+        Ok(entry)
+    }
+
+    async fn dualstack_query<P, F>(
+        &self,
+        preferred: &mut P,
+        fallback: &mut F,
+        delay: Duration,
+    ) -> Result<(CacheEntry, Option<CacheEntry>)>
+    where
+        P: std::future::Future<Output = Result<CacheEntry>> + Unpin,
+        F: std::future::Future<Output = Result<CacheEntry>> + Unpin,
+    {
+        let delay_fut = tokio::time::sleep(delay);
+        tokio::pin!(delay_fut);
+
+        let first = tokio::select! {
+            biased;
+            r = &mut *preferred => Some((true, r)),
+            _ = &mut delay_fut => None,
+        };
+
+        let (first_is_preferred, first_res) = match first {
+            Some(v) => v,
+            None => tokio::select! {
+                r = &mut *preferred => (true, r),
+                r = &mut *fallback => (false, r),
+            },
+        };
+
+        match first_res {
+            Ok(entry) => {
+                let other = if first_is_preferred {
+                    match timeout(Duration::from_millis(0), &mut *fallback).await {
+                        Ok(Ok(e)) => Some(e),
+                        _ => None,
+                    }
+                } else {
+                    match timeout(Duration::from_millis(0), &mut *preferred).await {
+                        Ok(Ok(e)) => Some(e),
+                        _ => None,
+                    }
+                };
+                Ok((entry, other))
+            }
+            Err(err1) => {
+                let second_res = if first_is_preferred {
+                    (&mut *fallback).await
+                } else {
+                    (&mut *preferred).await
+                };
+                match second_res {
+                    Ok(entry) => Ok((entry, None)),
+                    Err(err2) => Err(anyhow!("all dns queries failed: {}; {}", err1, err2)),
+                }
+            }
+        }
+    }
+
     fn new_query(name: Name, ty: RecordType) -> Message {
         let mut msg = Message::new();
         msg.add_query(Query::query(name, ty));
@@ -431,98 +508,41 @@ impl DnsClient {
             Err(e) => return Err(anyhow!("invalid domain name [{}]: {}", host, e)),
         };
 
-        let mut query_tasks = Vec::new();
+        if *crate::option::ENABLE_IPV6 {
+            let delay = Duration::from_millis(*crate::option::DNS_DUALSTACK_DELAY_MS);
+            let mut a_fut = Box::pin(self.query_record_type(is_direct, &name, host, RecordType::A));
+            let mut aaaa_fut =
+                Box::pin(self.query_record_type(is_direct, &name, host, RecordType::AAAA));
 
-        // TODO reduce boilerplates
-        match (*crate::option::ENABLE_IPV6, *crate::option::PREFER_IPV6) {
-            (true, true) => {
-                let msg = Self::new_query(name.clone(), RecordType::AAAA);
-                let msg_buf = match msg.to_vec() {
-                    Ok(b) => b,
-                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
-                };
-                let mut tasks = Vec::new();
-                for server in &self.servers {
-                    let t = self.query_task(is_direct, msg_buf.clone(), host, server);
-                    tasks.push(Box::pin(t));
-                }
-                let query_task = select_ok(tasks.into_iter());
-                query_tasks.push(query_task);
+            let (first, second) = if *crate::option::PREFER_IPV6 {
+                self.dualstack_query(&mut aaaa_fut, &mut a_fut, delay)
+                    .await?
+            } else {
+                self.dualstack_query(&mut a_fut, &mut aaaa_fut, delay)
+                    .await?
+            };
 
-                let msg = Self::new_query(name.clone(), RecordType::A);
-                let msg_buf = match msg.to_vec() {
-                    Ok(b) => b,
-                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
-                };
-                let mut tasks = Vec::new();
-                for server in &self.servers {
-                    let t = self.query_task(is_direct, msg_buf.clone(), host, server);
-                    tasks.push(Box::pin(t));
-                }
-                let query_task = select_ok(tasks.into_iter());
-                query_tasks.push(query_task);
+            let mut ips = first.ips.clone();
+            self.cache_insert(host, first).await;
+            if let Some(second) = second {
+                ips.extend_from_slice(&second.ips);
+                self.cache_insert(host, second).await;
             }
-            (true, false) => {
-                let msg = Self::new_query(name.clone(), RecordType::A);
-                let msg_buf = match msg.to_vec() {
-                    Ok(b) => b,
-                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
-                };
-                let mut tasks = Vec::new();
-                for server in &self.servers {
-                    let t = self.query_task(is_direct, msg_buf.clone(), host, server);
-                    tasks.push(Box::pin(t));
-                }
-                let query_task = select_ok(tasks.into_iter());
-                query_tasks.push(query_task);
-
-                let msg = Self::new_query(name.clone(), RecordType::AAAA);
-                let msg_buf = match msg.to_vec() {
-                    Ok(b) => b,
-                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
-                };
-                let mut tasks = Vec::new();
-                for server in &self.servers {
-                    let t = self.query_task(is_direct, msg_buf.clone(), host, server);
-                    tasks.push(Box::pin(t));
-                }
-                let query_task = select_ok(tasks.into_iter());
-                query_tasks.push(query_task);
+            if !ips.is_empty() {
+                return Ok(ips);
             }
-            _ => {
-                let msg = Self::new_query(name.clone(), RecordType::A);
-                let msg_buf = match msg.to_vec() {
-                    Ok(b) => b,
-                    Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
-                };
-                let mut tasks = Vec::new();
-                for server in &self.servers {
-                    let t = self.query_task(is_direct, msg_buf.clone(), host, server);
-                    tasks.push(Box::pin(t));
-                }
-                let query_task = select_ok(tasks.into_iter());
-                query_tasks.push(query_task);
-            }
+            return Err(anyhow!("could not resolve to any address"));
         }
 
-        let mut ips = Vec::new();
-        let mut last_err = None;
-
-        for v in futures::future::join_all(query_tasks).await {
-            match v {
-                Ok(mut v) => {
-                    self.cache_insert(host, v.0.clone()).await;
-                    ips.append(&mut v.0.ips);
-                }
-                Err(e) => last_err = Some(anyhow!("all dns servers failed, last error: {}", e)),
-            }
-        }
-
+        let entry = self
+            .query_record_type(is_direct, &name, host, RecordType::A)
+            .await?;
+        let ips = entry.ips.clone();
+        self.cache_insert(host, entry).await;
         if !ips.is_empty() {
             return Ok(ips);
         }
-
-        Err(last_err.unwrap_or_else(|| anyhow!("could not resolve to any address")))
+        Err(anyhow!("could not resolve to any address"))
     }
 }
 

@@ -290,7 +290,7 @@ async fn file_hash<P: AsRef<Path>>(p: P) -> Box<[u8]> {
         if n == 0 {
             break;
         } else {
-            hasher.write(&buf[..n]).unwrap();
+            hasher.write_all(&buf[..n]).unwrap();
         }
     }
     hasher.finalize().as_slice().to_owned().into_boxed_slice()
@@ -496,7 +496,7 @@ pub fn test_data_transfering_reliability_on_configs(
             recvd_bytes += n;
         }
         for data in recvd_data.into_iter() {
-            dst_file.write(&data).await.unwrap();
+            dst_file.write_all(&data).await.unwrap();
         }
         dst_file.sync_all().await.unwrap();
         assert_eq!(
@@ -603,7 +603,7 @@ pub fn test_data_transfering_reliability_on_configs(
             recvd_bytes += n;
         }
         for data in recvd_data.into_iter() {
-            dst_file.write(&data).await.unwrap();
+            dst_file.write_all(&data).await.unwrap();
         }
         dst_file.sync_all().await.unwrap();
         assert_eq!(
