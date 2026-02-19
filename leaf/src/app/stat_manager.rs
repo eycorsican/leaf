@@ -153,6 +153,7 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
 
 pub struct Counter {
     pub sess: Session,
+    pub start_time: u32,
     pub bytes_recvd: Arc<AtomicU64>,
     pub bytes_sent: Arc<AtomicU64>,
     pub recv_completed: Arc<AtomicBool>,
@@ -179,6 +180,10 @@ impl Counter {
 
     pub fn last_peer_active(&self) -> u32 {
         self.last_peer_active.load(Ordering::Relaxed)
+    }
+
+    pub fn start_time(&self) -> u32 {
+        self.start_time
     }
 }
 
@@ -238,9 +243,11 @@ impl StatManager {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let recv_completed = Arc::new(AtomicBool::new(false));
         let send_completed = Arc::new(AtomicBool::new(false));
-        let last_peer_active = Arc::new(AtomicU32::new(get_unix_timestamp()));
+        let ts = get_unix_timestamp();
+        let last_peer_active = Arc::new(AtomicU32::new(ts));
         self.counters.push(Counter {
             sess,
+            start_time: ts,
             bytes_recvd: bytes_recvd.clone(),
             bytes_sent: bytes_sent.clone(),
             recv_completed: recv_completed.clone(),
@@ -266,9 +273,11 @@ impl StatManager {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let recv_completed = Arc::new(AtomicBool::new(false));
         let send_completed = Arc::new(AtomicBool::new(false));
-        let last_peer_active = Arc::new(AtomicU32::new(get_unix_timestamp()));
+        let ts = get_unix_timestamp();
+        let last_peer_active = Arc::new(AtomicU32::new(ts));
         self.counters.push(Counter {
             sess,
+            start_time: ts,
             bytes_recvd: bytes_recvd.clone(),
             bytes_sent: bytes_sent.clone(),
             recv_completed: recv_completed.clone(),

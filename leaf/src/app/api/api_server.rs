@@ -4,6 +4,8 @@ use std::iter::FromIterator;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
+use chrono::{Local, TimeZone};
+
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -46,6 +48,7 @@ mod models {
         pub bytes_recvd: u64,
         pub send_completed: bool,
         pub recv_completed: bool,
+        pub start_time: u32,
     }
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -162,6 +165,7 @@ mod handlers {
                 bytes_recvd: c.bytes_recvd(),
                 send_completed: c.send_completed(),
                 recv_completed: c.recv_completed(),
+                start_time: c.start_time(),
             });
         }
         Ok(Json(stats))
@@ -213,10 +217,10 @@ table, th, td {
             "Total {}<br>Active {}<br>Active Source {}<br>Active Forwarded Source {}<br><br>",
             total_counters, active_counters, active_sources, active_forwarded_source,
         ));
-        body.push_str("<tr><td>Network</td><td>Inbound</td><td>Forwarded</td><td>Source</td><td>Destination</td><td>Outbound</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td></tr>");
+        body.push_str("<tr><td>Network</td><td>Inbound</td><td>Forwarded</td><td>Source</td><td>Destination</td><td>Outbound</td><td>SentBytes</td><td>RecvdBytes</td><td>SendFin</td><td>RecvFin</td><td>StartTime</td></tr>");
         for c in sm.counters.iter() {
             body.push_str(&format!(
-                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 &c.sess.network,
                 &c.sess.inbound_tag,
                 &c.sess.forwarded_source.map(|x|x.to_string()).unwrap_or("None".to_string()),
@@ -227,6 +231,11 @@ table, th, td {
                 c.bytes_recvd(),
                 c.send_completed(),
                 c.recv_completed(),
+                Local
+                    .timestamp_opt(c.start_time() as i64, 0)
+                    .unwrap()
+                    .format("%H:%M:%S")
+                    .to_string(),
             ));
         }
         body.push_str("</table></html>");
