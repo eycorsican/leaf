@@ -49,6 +49,7 @@ mod models {
         pub send_completed: bool,
         pub recv_completed: bool,
         pub start_time: u32,
+        pub sniffed_domain: Option<String>,
     }
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -166,6 +167,7 @@ mod handlers {
                 send_completed: c.send_completed(),
                 recv_completed: c.recv_completed(),
                 start_time: c.start_time(),
+                sniffed_domain: c.sess.sniffed_domain.clone(),
             });
         }
         Ok(Json(stats))

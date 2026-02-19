@@ -1,4 +1,5 @@
 pub mod crypto;
+pub mod dns_sniff;
 pub mod io;
 pub mod net;
 pub mod resolver;

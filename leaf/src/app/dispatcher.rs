@@ -10,7 +10,11 @@ use tracing::{debug, info, warn, Instrument};
 
 use crate::{
     app::SyncDnsClient,
-    common::{self, sniff},
+    common::{
+        self,
+        dns_sniff::{DnsSniffer, SniffingDatagram},
+        sniff,
+    },
     option,
     proxy::*,
     session::*,
@@ -147,6 +151,7 @@ pub struct Dispatcher {
     router: Arc<RwLock<Router>>,
     dns_client: SyncDnsClient,
     stat_manager: SyncStatManager,
+    dns_sniffer: DnsSniffer,
 }
 
 impl Dispatcher {
@@ -161,6 +166,7 @@ impl Dispatcher {
             router,
             dns_client,
             stat_manager,
+            dns_sniffer: DnsSniffer::new(),
         }
     }
 
@@ -176,6 +182,13 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
+        if let Some(ip) = sess.destination.ip() {
+            if let Some(domain) = self.dns_sniffer.get(&ip).await {
+                debug!("found sniffed domain {} for {}", &domain, &ip);
+                sess.sniffed_domain = Some(domain);
+            }
+        }
+
         debug!("dispatching {}:{}", &sess.network, &sess.destination);
 
         if let Some(domain) = sess.destination.domain() {
@@ -373,6 +386,13 @@ impl Dispatcher {
         &self,
         mut sess: Session,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
+        if let Some(ip) = sess.destination.ip() {
+            if let Some(domain) = self.dns_sniffer.get(&ip).await {
+                debug!("found sniffed domain {} for {}", &domain, &ip);
+                sess.sniffed_domain = Some(domain);
+            }
+        }
+
         debug!("dispatching {}:{}", &sess.network, &sess.destination);
 
         if let Some(domain) = sess.destination.domain() {
@@ -446,6 +466,10 @@ impl Dispatcher {
                     .write()
                     .await
                     .stat_outbound_datagram(d, sess.clone());
+
+                if sess.destination.port() == 53 {
+                    d = Box::new(SniffingDatagram::new(d, self.dns_sniffer.clone()));
+                }
 
                 Ok(d)
             }

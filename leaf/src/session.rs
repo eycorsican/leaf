@@ -88,6 +88,8 @@ pub struct Session {
     /// Instructs a multiplexed transport should creates a new underlying
     /// connection for this session, and it will be used only once.
     pub new_conn_once: bool,
+    /// The sniffed domain name if the destination is an IP address.
+    pub sniffed_domain: Option<String>,
 }
 
 impl Clone for Session {
@@ -104,6 +106,7 @@ impl Clone for Session {
             forwarded_source: self.forwarded_source,
             process_name: self.process_name.clone(),
             new_conn_once: self.new_conn_once,
+            sniffed_domain: self.sniffed_domain.clone(),
         }
     }
 }
@@ -131,6 +134,7 @@ impl Default for Session {
             forwarded_source: None,
             process_name: None,
             new_conn_once: false,
+            sniffed_domain: None,
         }
     }
 }
