@@ -37,7 +37,7 @@ impl OutboundStreamHandler for Handler {
             command: REQUEST_COMMAND_TCP,
             option: REQUEST_OPTION_CHUNK_STREAM,
             security: SECURITY_TYPE_CHACHA20_POLY1305,
-            address: sess.destination.clone(),
+            address: sess.effective_destination()?.into_owned(),
             uuid,
         };
         request_header.set_option(REQUEST_OPTION_CHUNK_MASKING);

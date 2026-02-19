@@ -32,7 +32,7 @@ impl OutboundStreamHandler for Handler {
         buf.put_slice(password.as_bytes());
         buf.put_slice(b"\r\n");
         buf.put_u8(0x01); // tcp
-        sess.destination
+        sess.effective_destination()?
             .write_buf(&mut buf, SocksAddrWireType::PortLast);
         buf.put_slice(b"\r\n");
 

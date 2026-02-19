@@ -41,10 +41,8 @@ impl OutboundDatagramHandler for Handler {
 
         let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;
 
-        let destination = match &sess.destination {
-            SocksAddr::Domain(domain, port) => {
-                Some(SocksAddr::Domain(domain.to_owned(), port.to_owned()))
-            }
+        let destination = match sess.effective_destination()?.as_ref() {
+            SocksAddr::Domain(domain, port) => Some(SocksAddr::Domain(domain.to_owned(), *port)),
             _ => None,
         };
 

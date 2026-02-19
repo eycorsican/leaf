@@ -33,17 +33,16 @@ impl OutboundStreamHandler for Handler {
                 password: auth_password.to_owned(),
             }),
         };
-        match &sess.destination {
+        match sess.effective_destination()?.as_ref() {
             SocksAddr::Ip(a) => {
                 let _ = async_socks5::connect(&mut stream, a.to_owned(), auth)
                     .map_err(io::Error::other)
                     .await?;
             }
             SocksAddr::Domain(domain, port) => {
-                let _ =
-                    async_socks5::connect(&mut stream, (domain.to_owned(), port.to_owned()), auth)
-                        .map_err(io::Error::other)
-                        .await?;
+                let _ = async_socks5::connect(&mut stream, (domain.to_owned(), *port), auth)
+                    .map_err(io::Error::other)
+                    .await?;
             }
         }
         Ok(stream)

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     convert::TryFrom,
     fmt, io,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
@@ -88,8 +89,12 @@ pub struct Session {
     /// Instructs a multiplexed transport should creates a new underlying
     /// connection for this session, and it will be used only once.
     pub new_conn_once: bool,
+    /// The sniffed domain name from TLS SNI.
+    pub tls_sniffed_domain: Option<String>,
+    /// The sniffed domain name from HTTP Host.
+    pub http_sniffed_domain: Option<String>,
     /// The sniffed domain name if the destination is an IP address.
-    pub sniffed_domain: Option<String>,
+    pub dns_sniffed_domain: Option<String>,
 }
 
 impl Clone for Session {
@@ -106,7 +111,9 @@ impl Clone for Session {
             forwarded_source: self.forwarded_source,
             process_name: self.process_name.clone(),
             new_conn_once: self.new_conn_once,
-            sniffed_domain: self.sniffed_domain.clone(),
+            tls_sniffed_domain: self.tls_sniffed_domain.clone(),
+            http_sniffed_domain: self.http_sniffed_domain.clone(),
+            dns_sniffed_domain: self.dns_sniffed_domain.clone(),
         }
     }
 }
@@ -134,7 +141,9 @@ impl Default for Session {
             forwarded_source: None,
             process_name: None,
             new_conn_once: false,
-            sniffed_domain: None,
+            tls_sniffed_domain: None,
+            http_sniffed_domain: None,
+            dns_sniffed_domain: None,
         }
     }
 }
@@ -142,6 +151,38 @@ impl Default for Session {
 impl Session {
     pub fn create_span(&self) -> tracing::Span {
         tracing::info_span!("session", trace_id = self.trace_id)
+    }
+
+    pub fn effective_destination(&self) -> io::Result<Cow<'_, SocksAddr>> {
+        let mut target_domain = None;
+        if crate::option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
+            if let Some(domain) = &self.dns_sniffed_domain {
+                target_domain = Some(domain);
+            }
+        }
+        if target_domain.is_none()
+            && crate::option::TLS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            if let Some(domain) = &self.tls_sniffed_domain {
+                target_domain = Some(domain);
+            }
+        }
+        if target_domain.is_none()
+            && crate::option::HTTP_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            if let Some(domain) = &self.http_sniffed_domain {
+                target_domain = Some(domain);
+            }
+        }
+
+        if let Some(domain) = target_domain {
+            Ok(Cow::Owned(SocksAddr::try_from((
+                domain.as_str(),
+                self.destination.port(),
+            ))?))
+        } else {
+            Ok(Cow::Borrowed(&self.destination))
+        }
     }
 }
 

@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::io::{self};
 use std::sync::Arc;
 use std::time::Duration;
@@ -185,7 +184,7 @@ impl Dispatcher {
         if let Some(ip) = sess.destination.ip() {
             if let Some(domain) = self.dns_sniffer.get(&ip).await {
                 debug!("found sniffed domain {} for {}", &domain, &ip);
-                sess.sniffed_domain = Some(domain);
+                sess.dns_sniffed_domain = Some(domain);
             }
         }
 
@@ -204,26 +203,15 @@ impl Dispatcher {
             let mut lhs = sniff::SniffingStream::new(lhs);
             match lhs.sniff(&sess).await {
                 Ok(res) => {
-                    if let Some(domain) = res {
+                    if let Some((kind, domain)) = res {
                         debug!(
                             "sniffed domain {} for tcp link {} <-> {}",
                             &domain, &sess.source, &sess.destination,
                         );
-                        // TODO Add an option to use the sniffed domain for routing only
-                        //
-                        // TODO Add DNS sniff, sniff domain name from DNS response, keep
-                        // an IP -> domain mapping, use this info for routing only.
-                        sess.destination =
-                            match SocksAddr::try_from((&domain, sess.destination.port())) {
-                                Ok(a) => a,
-                                Err(e) => {
-                                    warn!(
-                                        "convert sniffed domain {} to destination failed: {}",
-                                        &domain, e,
-                                    );
-                                    return;
-                                }
-                            };
+                        match kind {
+                            sniff::SniffKind::Tls => sess.tls_sniffed_domain = Some(domain),
+                            sniff::SniffKind::Http => sess.http_sniffed_domain = Some(domain),
+                        }
                     }
                 }
                 Err(e) => {
@@ -389,7 +377,7 @@ impl Dispatcher {
         if let Some(ip) = sess.destination.ip() {
             if let Some(domain) = self.dns_sniffer.get(&ip).await {
                 debug!("found sniffed domain {} for {}", &domain, &ip);
-                sess.sniffed_domain = Some(domain);
+                sess.dns_sniffed_domain = Some(domain);
             }
         }
 
@@ -466,6 +454,13 @@ impl Dispatcher {
                     .write()
                     .await
                     .stat_outbound_datagram(d, sess.clone());
+
+                if crate::option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
+                    d = Box::new(common::dns_sniff::DomainReplacingDatagram::new(
+                        d,
+                        self.dns_sniffer.clone(),
+                    ));
+                }
 
                 if sess.destination.port() == 53 {
                     d = Box::new(SniffingDatagram::new(d, self.dns_sniffer.clone()));

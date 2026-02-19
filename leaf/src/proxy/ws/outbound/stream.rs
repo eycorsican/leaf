@@ -58,7 +58,7 @@ impl OutboundStreamHandler for Handler {
             let host = if let Some(host) = self.headers.get("Host") {
                 host.to_owned()
             } else {
-                sess.destination.host()
+                sess.effective_destination()?.host()
             };
             let mut url = Url::parse(&format!("ws://{}", host)).unwrap();
             url = url.join(self.path.as_str()).unwrap();

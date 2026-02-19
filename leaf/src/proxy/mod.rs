@@ -383,14 +383,12 @@ pub async fn connect_stream_outbound(
         OutboundConnect::Proxy(Network::Tcp, addr, port) => {
             Ok(Some(new_tcp_stream(dns_client, &addr, &port).await?))
         }
-        OutboundConnect::Direct => Ok(Some(
-            new_tcp_stream(
-                dns_client,
-                &sess.destination.host(),
-                &sess.destination.port(),
-            )
-            .await?,
-        )),
+        OutboundConnect::Direct => {
+            let dest = sess.effective_destination()?;
+            Ok(Some(
+                new_tcp_stream(dns_client, &dest.host(), &dest.port()).await?,
+            ))
+        }
         _ => Ok(None),
     }
 }
@@ -416,14 +414,14 @@ pub async fn connect_datagram_outbound(
                 Ok(Some(OutboundTransport::Stream(stream)))
             }
         },
-        OutboundConnect::Direct => match &sess.destination {
+        OutboundConnect::Direct => match sess.effective_destination()?.as_ref() {
             SocksAddr::Domain(domain, port) => {
                 let socket = new_udp_socket(&crate::option::UNSPECIFIED_BIND_ADDR).await?;
                 Ok(Some(OutboundTransport::Datagram(Box::new(
                     DomainAssociatedOutboundDatagram::new(
                         socket,
                         sess.source,
-                        SocksAddr::Domain(domain.to_owned(), port.to_owned()),
+                        SocksAddr::Domain(domain.to_owned(), *port),
                         dns_client.clone(),
                     ),
                 ))))

@@ -49,7 +49,9 @@ mod models {
         pub send_completed: bool,
         pub recv_completed: bool,
         pub start_time: u32,
-        pub sniffed_domain: Option<String>,
+        pub dns_sniffed_domain: Option<String>,
+        pub tls_sniffed_domain: Option<String>,
+        pub http_sniffed_domain: Option<String>,
     }
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -167,7 +169,9 @@ mod handlers {
                 send_completed: c.send_completed(),
                 recv_completed: c.recv_completed(),
                 start_time: c.start_time(),
-                sniffed_domain: c.sess.sniffed_domain.clone(),
+                dns_sniffed_domain: c.sess.dns_sniffed_domain.clone(),
+                tls_sniffed_domain: c.sess.tls_sniffed_domain.clone(),
+                http_sniffed_domain: c.sess.http_sniffed_domain.clone(),
             });
         }
         Ok(Json(stats))

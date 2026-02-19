@@ -147,7 +147,7 @@ impl OutboundStreamHandler for Handler {
 
         if let Some(cache) = &self.cache {
             // Try the cached actor first if exists.
-            let cache_key = sess.destination.to_string();
+            let cache_key = sess.effective_destination()?.to_string();
             if let Some(idx) = cache.lock().await.get(&cache_key) {
                 let a = &self.actors[*idx];
                 debug!(

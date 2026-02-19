@@ -46,6 +46,9 @@ impl Handler {
         if let OutboundConnect::Proxy(_, address, port) = self.next_connect_addr(start) {
             if let Ok(addr) = SocksAddr::try_from((address, port)) {
                 sess.destination = addr;
+                sess.dns_sniffed_domain = None;
+                sess.http_sniffed_domain = None;
+                sess.tls_sniffed_domain = None;
             }
         }
         sess

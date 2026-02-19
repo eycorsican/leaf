@@ -1,6 +1,7 @@
 use std::env;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::atomic::AtomicBool;
 
 use lazy_static::lazy_static;
 
@@ -96,31 +97,42 @@ lazy_static! {
     /// destination address, by default the sniffing would perform only on
     /// connections with destination port 443, set also TLS_DOMAIN_SNIFFING_ALL
     /// to make the sniffing work on all connections.
-    pub static ref TLS_DOMAIN_SNIFFING: bool = {
-        get_env_var_or_else(
+    pub static ref TLS_DOMAIN_SNIFFING: AtomicBool = {
+        let v: bool = get_env_var_or_else(
             "TLS_DOMAIN_SNIFFING",
             || get_env_var_or("DOMAIN_SNIFFING", false), // deprecated env var
-        )
+        );
+        AtomicBool::new(v)
     };
 
     /// Turn on TLS SNI sniffing for all TCP connections, this may slow down the
     /// connections a little bit, depending on whether the sniff can make an early
     /// return.
-    pub static ref TLS_DOMAIN_SNIFFING_ALL: bool = {
-        get_env_var_or("TLS_DOMAIN_SNIFFING_ALL", false)
+    pub static ref TLS_DOMAIN_SNIFFING_ALL: AtomicBool = {
+        let v: bool = get_env_var_or("TLS_DOMAIN_SNIFFING_ALL", false);
+        AtomicBool::new(v)
     };
 
     /// Turn on HTTP host sniffing, by default only perform on connections with
     /// destination port 80.
-    pub static ref HTTP_DOMAIN_SNIFFING: bool = {
-        get_env_var_or("HTTP_DOMAIN_SNIFFING", false)
+    pub static ref HTTP_DOMAIN_SNIFFING: AtomicBool = {
+        let v: bool = get_env_var_or("HTTP_DOMAIN_SNIFFING", false);
+        AtomicBool::new(v)
     };
 
     /// Turn on HTTP host sniffing for all TCP connections, this may slow down the
     /// connections a little bit, depending on whether the sniff can make an early
     /// return.
-    pub static ref HTTP_DOMAIN_SNIFFING_ALL: bool = {
-        get_env_var_or("HTTP_DOMAIN_SNIFFING_ALL", false)
+    pub static ref HTTP_DOMAIN_SNIFFING_ALL: AtomicBool = {
+        let v: bool = get_env_var_or("HTTP_DOMAIN_SNIFFING_ALL", false);
+        AtomicBool::new(v)
+    };
+
+    /// Turn on DNS sniffing, if the destination is an IP, we try to find the
+    /// domain from the DNS cache.
+    pub static ref DNS_DOMAIN_SNIFFING: AtomicBool = {
+        let v: bool = get_env_var_or("DNS_DOMAIN_SNIFFING", false);
+        AtomicBool::new(v)
     };
 
     /// Uplink timeout after downlink EOF.

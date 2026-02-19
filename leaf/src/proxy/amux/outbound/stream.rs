@@ -109,6 +109,9 @@ impl MuxManager {
         // Pass the TCP stream through all sub-transports, e.g. TLS, WebSocket.
         let mut sess = sess.clone();
         sess.destination = SocksAddr::try_from((&self.address, self.port))?;
+        sess.dns_sniffed_domain = None;
+        sess.http_sniffed_domain = None;
+        sess.tls_sniffed_domain = None;
         for a in self.actors.iter() {
             conn = a.stream()?.handle(&sess, None, Some(conn)).await?;
         }
