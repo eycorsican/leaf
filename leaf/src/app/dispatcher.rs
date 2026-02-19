@@ -284,6 +284,14 @@ impl Dispatcher {
                     return;
                 }
             };
+
+        let (stream, stats_wrapped) = if let Some(s) = stream {
+            let s = self.stat_manager.write().await.stat_stream(s, sess.clone());
+            (Some(s), true)
+        } else {
+            (None, false)
+        };
+
         let th = match h.stream() {
             Ok(th) => th,
             Err(e) => {
@@ -303,11 +311,13 @@ impl Dispatcher {
 
                 log_request(&sess, h.tag(), h.color(), Some(elapsed.as_millis()));
 
-                rhs = self
-                    .stat_manager
-                    .write()
-                    .await
-                    .stat_stream(rhs, sess.clone());
+                if !stats_wrapped {
+                    rhs = self
+                        .stat_manager
+                        .write()
+                        .await
+                        .stat_stream(rhs, sess.clone());
+                }
 
                 match common::io::copy_buf_bidirectional_with_timeout(
                     &mut lhs,

@@ -35,14 +35,17 @@ impl AsyncRead for Stream {
         cx: &mut Context,
         buf: &mut ReadBuf,
     ) -> Poll<io::Result<()>> {
+        let len = buf.filled().len();
+        let remaining = buf.remaining();
         ready!(Pin::new(&mut self.inner).poll_read(cx, buf))?;
-        if buf.filled().is_empty() {
-            self.recv_completed.store(true, Ordering::Relaxed);
-        } else {
+        let new_len = buf.filled().len();
+        if new_len > len {
             self.bytes_recvd
-                .fetch_add(buf.filled().len() as u64, Ordering::Relaxed);
+                .fetch_add((new_len - len) as u64, Ordering::Relaxed);
             self.last_peer_active
                 .store(get_unix_timestamp(), Ordering::Relaxed);
+        } else if remaining > 0 {
+            self.recv_completed.store(true, Ordering::Relaxed);
         }
         Poll::Ready(Ok(()))
     }
@@ -293,5 +296,89 @@ impl StatManager {
     pub fn since_last_peer_active(&self, outbound_tag: &str) -> Option<u32> {
         self.get_last_peer_active(outbound_tag)
             .map(|ts| get_unix_timestamp().saturating_sub(ts))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::ReadBuf;
+
+    struct MockStream {
+        data: Vec<u8>,
+        read_pos: usize,
+    }
+
+    impl AsyncRead for MockStream {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _cx: &mut Context,
+            buf: &mut ReadBuf,
+        ) -> Poll<io::Result<()>> {
+            let rem = self.data.len() - self.read_pos;
+            if rem == 0 {
+                return Poll::Ready(Ok(()));
+            }
+            let to_read = std::cmp::min(rem, buf.remaining());
+            buf.put_slice(&self.data[self.read_pos..self.read_pos + to_read]);
+            self.read_pos += to_read;
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    impl AsyncWrite for MockStream {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _cx: &mut Context,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            Poll::Ready(Ok(buf.len()))
+        }
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stat_stream_non_empty_buf() {
+        let mock = MockStream {
+            data: vec![1, 2, 3, 4, 5],
+            read_pos: 0,
+        };
+        let stream = Box::new(mock);
+
+        let bytes_recvd = Arc::new(AtomicU64::new(0));
+        let bytes_sent = Arc::new(AtomicU64::new(0));
+        let recv_completed = Arc::new(AtomicBool::new(false));
+        let send_completed = Arc::new(AtomicBool::new(false));
+        let last_peer_active = Arc::new(AtomicU32::new(0));
+
+        let mut stat_stream = Stream {
+            inner: stream,
+            bytes_recvd: bytes_recvd.clone(),
+            bytes_sent: bytes_sent.clone(),
+            recv_completed: recv_completed.clone(),
+            send_completed: send_completed.clone(),
+            last_peer_active: last_peer_active.clone(),
+        };
+
+        let mut data = vec![0u8; 20];
+        // Simulate existing data in buffer
+        let mut buf = ReadBuf::new(&mut data);
+        buf.put_slice(&[0xAA; 5]);
+
+        use futures::future::poll_fn;
+        poll_fn(|cx| Pin::new(&mut stat_stream).poll_read(cx, &mut buf))
+            .await
+            .unwrap();
+
+        assert_eq!(buf.filled().len(), 10);
+
+        let received = bytes_recvd.load(Ordering::Relaxed);
+        // This assertion should fail with current implementation (will be 10 instead of 5)
+        assert_eq!(received, 5, "Expected 5 bytes received, got {}", received);
     }
 }
