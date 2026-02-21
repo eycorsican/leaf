@@ -122,59 +122,6 @@ impl OutboundDatagramSendHalf for SniffingDatagramSendHalf {
     }
 }
 
-pub struct DomainReplacingDatagram {
-    recv: Box<dyn OutboundDatagramRecvHalf>,
-    send: DomainReplacingDatagramSendHalf,
-}
-
-impl DomainReplacingDatagram {
-    pub fn new(outbound: Box<dyn OutboundDatagram>, sniffer: DnsSniffer) -> Self {
-        let (recv, send) = outbound.split();
-        DomainReplacingDatagram {
-            recv,
-            send: DomainReplacingDatagramSendHalf {
-                inner: send,
-                sniffer,
-            },
-        }
-    }
-}
-
-impl OutboundDatagram for DomainReplacingDatagram {
-    fn split(
-        self: Box<Self>,
-    ) -> (
-        Box<dyn OutboundDatagramRecvHalf>,
-        Box<dyn OutboundDatagramSendHalf>,
-    ) {
-        (self.recv, Box::new(self.send))
-    }
-}
-
-pub struct DomainReplacingDatagramSendHalf {
-    inner: Box<dyn OutboundDatagramSendHalf>,
-    sniffer: DnsSniffer,
-}
-
-#[async_trait::async_trait]
-impl OutboundDatagramSendHalf for DomainReplacingDatagramSendHalf {
-    async fn send_to(&mut self, buf: &[u8], dst_addr: &SocksAddr) -> io::Result<usize> {
-        if crate::option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
-            if let SocksAddr::Ip(ip) = dst_addr {
-                if let Some(domain) = self.sniffer.get(&ip.ip()).await {
-                    let new_target = SocksAddr::Domain(domain, ip.port());
-                    return self.inner.send_to(buf, &new_target).await;
-                }
-            }
-        }
-        self.inner.send_to(buf, dst_addr).await
-    }
-
-    async fn close(&mut self) -> io::Result<()> {
-        self.inner.close().await
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

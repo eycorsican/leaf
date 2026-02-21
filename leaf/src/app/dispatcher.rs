@@ -455,13 +455,6 @@ impl Dispatcher {
                     .await
                     .stat_outbound_datagram(d, sess.clone());
 
-                if crate::option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
-                    d = Box::new(common::dns_sniff::DomainReplacingDatagram::new(
-                        d,
-                        self.dns_sniffer.clone(),
-                    ));
-                }
-
                 if sess.destination.port() == 53 {
                     d = Box::new(SniffingDatagram::new(d, self.dns_sniffer.clone()));
                 }
