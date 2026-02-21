@@ -261,7 +261,7 @@ notify = { version = "6", optional = true }
 # TUN
 tun = { version = "0.7", features = ["async"], optional = true  }
 netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip", rev = "4cc3162", optional = true }
-netstack-smoltcp = { git = "https://github.com/eycorsican/netstack-smoltcp", branch = "refactor/tcp-read-buffer", optional = true }
+netstack-smoltcp = { git = "https://github.com/eycorsican/netstack-smoltcp", branch = "pr-16-initialize-unfilled", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 ipconfig = "0.3"
