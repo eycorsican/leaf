@@ -53,7 +53,7 @@ impl MmdbMatcher {
 impl Condition for MmdbMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
-            .effective_destination()
+            .destination_for_routing()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
         if !destination.is_domain() {
             if let Some(ip) = destination.ip() {
@@ -97,7 +97,7 @@ impl IpCidrMatcher {
 impl Condition for IpCidrMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
-            .effective_destination()
+            .destination_for_routing()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
         if !destination.is_domain() {
             for cidr in &self.values {
@@ -225,7 +225,7 @@ impl PortRangeMatcher {
 impl Condition for PortRangeMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let port = sess
-            .effective_destination()
+            .destination_for_routing()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination))
             .port();
         if port >= self.start && port <= self.end {
@@ -253,7 +253,7 @@ impl DomainKeywordMatcher {
 impl Condition for DomainKeywordMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
-            .effective_destination()
+            .destination_for_routing()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
         if destination.is_domain() {
             if let Some(domain) = destination.domain() {
@@ -300,7 +300,7 @@ fn is_sub_domain(d1: &str, d2: &str) -> bool {
 impl Condition for DomainSuffixMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
-            .effective_destination()
+            .destination_for_routing()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
         if destination.is_domain() {
             if let Some(domain) = destination.domain() {
@@ -327,7 +327,7 @@ impl DomainFullMatcher {
 impl Condition for DomainFullMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
-            .effective_destination()
+            .destination_for_routing()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
         if destination.is_domain() {
             if let Some(domain) = destination.domain() {
@@ -565,7 +565,7 @@ impl Router {
 
     pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<&'a String> {
         let effective_dest = sess
-            .effective_destination()
+            .destination_for_routing()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
         debug!("picking route for {}:{}", &sess.network, &effective_dest);
         for rule in &self.rules {
