@@ -33,7 +33,7 @@ async fn handle_inbound_stream_lwip(
     remote_addr: SocketAddr,
     inbound_tag: String,
     dispatcher: Arc<Dispatcher>,
-    fakedns: Arc<FakeDns>,
+    fakedns: Option<Arc<FakeDns>>,
 ) {
     let mut sess = Session {
         network: Network::Tcp,
@@ -44,21 +44,23 @@ async fn handle_inbound_stream_lwip(
         ..Default::default()
     };
     // Whether to override the destination according to Fake DNS.
-    if fakedns.is_fake_ip(&remote_addr.ip()).await {
-        if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
-            sess.destination = SocksAddr::Domain(domain, remote_addr.port());
-        } else {
-            // Although requests targeting fake IPs are assumed
-            // never happen in real network traffic, which are
-            // likely caused by poisoned DNS cache records, we
-            // still have a chance to sniff the request domain
-            // for TLS traffic in dispatcher.
-            if remote_addr.port() != 443 && remote_addr.port() != 80 {
-                debug!(
-                    "No paired domain found for this fake IP: {}, connection is rejected.",
-                    &remote_addr.ip()
-                );
-                return;
+    if let Some(fakedns) = fakedns {
+        if fakedns.is_fake_ip(&remote_addr.ip()).await {
+            if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
+                sess.destination = SocksAddr::Domain(domain, remote_addr.port());
+            } else {
+                // Although requests targeting fake IPs are assumed
+                // never happen in real network traffic, which are
+                // likely caused by poisoned DNS cache records, we
+                // still have a chance to sniff the request domain
+                // for TLS traffic in dispatcher.
+                if remote_addr.port() != 443 && remote_addr.port() != 80 {
+                    debug!(
+                        "No paired domain found for this fake IP: {}, connection is rejected.",
+                        &remote_addr.ip()
+                    );
+                    return;
+                }
             }
         }
     }
@@ -72,7 +74,7 @@ async fn handle_inbound_stream_smoltcp(
     remote_addr: SocketAddr,
     inbound_tag: String,
     dispatcher: Arc<Dispatcher>,
-    fakedns: Arc<FakeDns>,
+    fakedns: Option<Arc<FakeDns>>,
 ) {
     let mut sess = Session {
         network: Network::Tcp,
@@ -83,21 +85,23 @@ async fn handle_inbound_stream_smoltcp(
         ..Default::default()
     };
     // Whether to override the destination according to Fake DNS.
-    if fakedns.is_fake_ip(&remote_addr.ip()).await {
-        if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
-            sess.destination = SocksAddr::Domain(domain, remote_addr.port());
-        } else {
-            // Although requests targeting fake IPs are assumed
-            // never happen in real network traffic, which are
-            // likely caused by poisoned DNS cache records, we
-            // still have a chance to sniff the request domain
-            // for TLS traffic in dispatcher.
-            if remote_addr.port() != 443 && remote_addr.port() != 80 {
-                debug!(
-                    "No paired domain found for this fake IP: {}, connection is rejected.",
-                    &remote_addr.ip()
-                );
-                return;
+    if let Some(fakedns) = fakedns {
+        if fakedns.is_fake_ip(&remote_addr.ip()).await {
+            if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
+                sess.destination = SocksAddr::Domain(domain, remote_addr.port());
+            } else {
+                // Although requests targeting fake IPs are assumed
+                // never happen in real network traffic, which are
+                // likely caused by poisoned DNS cache records, we
+                // still have a chance to sniff the request domain
+                // for TLS traffic in dispatcher.
+                if remote_addr.port() != 443 && remote_addr.port() != 80 {
+                    debug!(
+                        "No paired domain found for this fake IP: {}, connection is rejected.",
+                        &remote_addr.ip()
+                    );
+                    return;
+                }
             }
         }
     }
@@ -109,7 +113,7 @@ async fn handle_inbound_datagram_lwip(
     socket: Pin<Box<lwip::UdpSocket>>,
     inbound_tag: String,
     nat_manager: Arc<NatManager>,
-    fakedns: Arc<FakeDns>,
+    fakedns: Option<Arc<FakeDns>>,
 ) {
     // The socket to receive/send packets from/to the netstack.
     let (ls, mut lr) = socket.split();
@@ -127,13 +131,21 @@ async fn handle_inbound_datagram_lwip(
             let src_addr = match pkt.src_addr {
                 SocksAddr::Ip(a) => a,
                 SocksAddr::Domain(domain, port) => {
-                    if let Some(ip) = fakedns_cloned.query_fake_ip(&domain).await {
-                        SocketAddr::new(ip, port)
-                    } else {
-                        warn!(
+                    if let Some(fakedns) = &fakedns_cloned {
+                        if let Some(ip) = fakedns.query_fake_ip(&domain).await {
+                            SocketAddr::new(ip, port)
+                        } else {
+                            warn!(
                                 "Received datagram with source address {}:{} without paired fake IP found.",
                                 &domain, &port
                             );
+                            continue;
+                        }
+                    } else {
+                        warn!(
+                            "Received datagram with source address {}:{} but fake DNS is disabled.",
+                            &domain, &port
+                        );
                         continue;
                     }
                 }
@@ -153,15 +165,17 @@ async fn handle_inbound_datagram_lwip(
             Ok((data, src_addr, dst_addr)) => {
                 // Fake DNS logic.
                 if dst_addr.port() == 53 {
-                    match fakedns.generate_fake_response(&data).await {
-                        Ok(resp) => {
-                            if let Err(e) = ls.send_to(resp.as_ref(), &dst_addr, &src_addr) {
-                                warn!("A packet failed to send to the netstack: {}", e);
+                    if let Some(fakedns) = &fakedns {
+                        match fakedns.generate_fake_response(&data).await {
+                            Ok(resp) => {
+                                if let Err(e) = ls.send_to(resp.as_ref(), &dst_addr, &src_addr) {
+                                    warn!("A packet failed to send to the netstack: {}", e);
+                                }
+                                continue;
                             }
-                            continue;
-                        }
-                        Err(err) => {
-                            debug!("generate fake ip failed: {}", err);
+                            Err(err) => {
+                                debug!("generate fake ip failed: {}", err);
+                            }
                         }
                     }
                 }
@@ -178,15 +192,19 @@ async fn handle_inbound_datagram_lwip(
                 // require a proxy server with the ability to handle datagrams
                 // with domain name destination, leaf itself of course supports
                 // this feature very well.
-                let dst_addr = if fakedns.is_fake_ip(&dst_addr.ip()).await {
-                    if let Some(domain) = fakedns.query_domain(&dst_addr.ip()).await {
-                        SocksAddr::Domain(domain, dst_addr.port())
+                let dst_addr = if let Some(fakedns) = &fakedns {
+                    if fakedns.is_fake_ip(&dst_addr.ip()).await {
+                        if let Some(domain) = fakedns.query_domain(&dst_addr.ip()).await {
+                            SocksAddr::Domain(domain, dst_addr.port())
+                        } else {
+                            debug!(
+                                "No paired domain found for this fake IP: {}, datagram is rejected.",
+                                &dst_addr.ip()
+                            );
+                            continue;
+                        }
                     } else {
-                        debug!(
-                            "No paired domain found for this fake IP: {}, datagram is rejected.",
-                            &dst_addr.ip()
-                        );
-                        continue;
+                        SocksAddr::Ip(dst_addr)
                     }
                 } else {
                     SocksAddr::Ip(dst_addr)
@@ -207,7 +225,7 @@ async fn handle_inbound_datagram_smoltcp(
     socket: smoltcp::UdpSocket,
     inbound_tag: String,
     nat_manager: Arc<NatManager>,
-    fakedns: Arc<FakeDns>,
+    fakedns: Option<Arc<FakeDns>>,
 ) {
     // The socket to receive/send packets from/to the netstack.
     let (mut lr, ls) = socket.split();
@@ -225,13 +243,21 @@ async fn handle_inbound_datagram_smoltcp(
             let src_addr = match pkt.src_addr {
                 SocksAddr::Ip(a) => a,
                 SocksAddr::Domain(domain, port) => {
-                    if let Some(ip) = fakedns_cloned.query_fake_ip(&domain).await {
-                        SocketAddr::new(ip, port)
-                    } else {
-                        warn!(
+                    if let Some(fakedns) = &fakedns_cloned {
+                        if let Some(ip) = fakedns.query_fake_ip(&domain).await {
+                            SocketAddr::new(ip, port)
+                        } else {
+                            warn!(
                                 "Received datagram with source address {}:{} without paired fake IP found.",
                                 &domain, &port
                             );
+                            continue;
+                        }
+                    } else {
+                        warn!(
+                            "Received datagram with source address {}:{} but fake DNS is disabled.",
+                            &domain, &port
+                        );
                         continue;
                     }
                 }
@@ -252,15 +278,17 @@ async fn handle_inbound_datagram_smoltcp(
         let (data, src_addr, dst_addr) = item;
         // Fake DNS logic.
         if dst_addr.port() == 53 {
-            match fakedns.generate_fake_response(&data).await {
-                Ok(resp) => {
-                    if let Err(e) = ls.lock().await.send((resp, dst_addr, src_addr)).await {
-                        warn!("A packet failed to send to the netstack: {}", e);
+            if let Some(fakedns) = &fakedns {
+                match fakedns.generate_fake_response(&data).await {
+                    Ok(resp) => {
+                        if let Err(e) = ls.lock().await.send((resp, dst_addr, src_addr)).await {
+                            warn!("A packet failed to send to the netstack: {}", e);
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                Err(err) => {
-                    debug!("generate fake ip failed: {}", err);
+                    Err(err) => {
+                        debug!("generate fake ip failed: {}", err);
+                    }
                 }
             }
         }
@@ -277,15 +305,19 @@ async fn handle_inbound_datagram_smoltcp(
         // require a proxy server with the ability to handle datagrams
         // with domain name destination, leaf itself of course supports
         // this feature very well.
-        let dst_addr = if fakedns.is_fake_ip(&dst_addr.ip()).await {
-            if let Some(domain) = fakedns.query_domain(&dst_addr.ip()).await {
-                SocksAddr::Domain(domain, dst_addr.port())
+        let dst_addr = if let Some(fakedns) = &fakedns {
+            if fakedns.is_fake_ip(&dst_addr.ip()).await {
+                if let Some(domain) = fakedns.query_domain(&dst_addr.ip()).await {
+                    SocksAddr::Domain(domain, dst_addr.port())
+                } else {
+                    debug!(
+                        "No paired domain found for this fake IP: {}, datagram is rejected.",
+                        &dst_addr.ip()
+                    );
+                    continue;
+                }
             } else {
-                debug!(
-                    "No paired domain found for this fake IP: {}, datagram is rejected.",
-                    &dst_addr.ip()
-                );
-                continue;
+                SocksAddr::Ip(dst_addr)
             }
         } else {
             SocksAddr::Ip(dst_addr)
@@ -304,7 +336,7 @@ fn new_lwip(
     inbound: Inbound,
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
-    fakedns: Arc<FakeDns>,
+    fakedns: Option<Arc<FakeDns>>,
     tun: tun::AsyncDevice,
 ) -> Result<Runner> {
     let (stack, mut tcp_listener, udp_socket) = lwip::NetStack::with_buffer_size(
@@ -390,7 +422,7 @@ fn new_smoltcp(
     inbound: Inbound,
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
-    fakedns: Arc<FakeDns>,
+    fakedns: Option<Arc<FakeDns>>,
     tun: tun::AsyncDevice,
 ) -> Result<Runner> {
     let (stack, runner, udp_socket, tcp_listener) = smoltcp::StackBuilder::default()
@@ -526,12 +558,19 @@ pub fn new(
             "fake DNS run in either include mode or exclude mode"
         ));
     }
-    let (fake_dns_mode, fake_dns_filters) = if !fake_dns_include.is_empty() {
-        (FakeDnsMode::Include, fake_dns_include)
+    let fakedns = if !fake_dns_include.is_empty() {
+        Some(Arc::new(FakeDns::new(
+            FakeDnsMode::Include,
+            fake_dns_include,
+        )))
+    } else if !fake_dns_exclude.is_empty() {
+        Some(Arc::new(FakeDns::new(
+            FakeDnsMode::Exclude,
+            fake_dns_exclude,
+        )))
     } else {
-        (FakeDnsMode::Exclude, fake_dns_exclude)
+        None
     };
-    let fakedns = Arc::new(FakeDns::new(fake_dns_mode, fake_dns_filters));
 
     let tun = tun::create_as_async(&cfg).map_err(|e| anyhow!("create tun failed: {}", e))?;
 
