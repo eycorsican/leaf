@@ -188,6 +188,18 @@ message VMessOutboundSettings {
     string security = 4;
 }
 
+message VlessOutboundSettings {
+    string address = 1;
+    uint32 port = 2;
+    string uuid = 3;
+}
+
+message RealityOutboundSettings {
+    string server_name = 1;
+    string public_key = 2;
+    string short_id = 3;
+}
+
 message ChainOutboundSettings {
 	repeated string actors = 1;
 }

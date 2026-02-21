@@ -3419,6 +3419,238 @@ impl ::protobuf::Message for VMessOutboundSettings {
     }
 }
 
+// @@protoc_insertion_point(message:VlessOutboundSettings)
+#[derive(PartialEq,Clone,Default,Debug)]
+pub struct VlessOutboundSettings {
+    // message fields
+    // @@protoc_insertion_point(field:VlessOutboundSettings.address)
+    pub address: ::std::string::String,
+    // @@protoc_insertion_point(field:VlessOutboundSettings.port)
+    pub port: u32,
+    // @@protoc_insertion_point(field:VlessOutboundSettings.uuid)
+    pub uuid: ::std::string::String,
+    // special fields
+    // @@protoc_insertion_point(special_field:VlessOutboundSettings.special_fields)
+    pub special_fields: ::protobuf::SpecialFields,
+}
+
+impl<'a> ::std::default::Default for &'a VlessOutboundSettings {
+    fn default() -> &'a VlessOutboundSettings {
+        <VlessOutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl VlessOutboundSettings {
+    pub fn new() -> VlessOutboundSettings {
+        ::std::default::Default::default()
+    }
+}
+
+impl ::protobuf::Message for VlessOutboundSettings {
+    const NAME: &'static str = "VlessOutboundSettings";
+
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+        while let Some(tag) = is.read_raw_tag_or_eof()? {
+            match tag {
+                10 => {
+                    self.address = is.read_string()?;
+                },
+                16 => {
+                    self.port = is.read_uint32()?;
+                },
+                26 => {
+                    self.uuid = is.read_string()?;
+                },
+                tag => {
+                    ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u64 {
+        let mut my_size = 0;
+        if !self.address.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.address);
+        }
+        if self.port != 0 {
+            my_size += ::protobuf::rt::uint32_size(2, self.port);
+        }
+        if !self.uuid.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.uuid);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+        self.special_fields.cached_size().set(my_size as u32);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+        if !self.address.is_empty() {
+            os.write_string(1, &self.address)?;
+        }
+        if self.port != 0 {
+            os.write_uint32(2, self.port)?;
+        }
+        if !self.uuid.is_empty() {
+            os.write_string(3, &self.uuid)?;
+        }
+        os.write_unknown_fields(self.special_fields.unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn special_fields(&self) -> &::protobuf::SpecialFields {
+        &self.special_fields
+    }
+
+    fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+        &mut self.special_fields
+    }
+
+    fn new() -> VlessOutboundSettings {
+        VlessOutboundSettings::new()
+    }
+
+    fn clear(&mut self) {
+        self.address.clear();
+        self.port = 0;
+        self.uuid.clear();
+        self.special_fields.clear();
+    }
+
+    fn default_instance() -> &'static VlessOutboundSettings {
+        static instance: VlessOutboundSettings = VlessOutboundSettings {
+            address: ::std::string::String::new(),
+            port: 0,
+            uuid: ::std::string::String::new(),
+            special_fields: ::protobuf::SpecialFields::new(),
+        };
+        &instance
+    }
+}
+
+// @@protoc_insertion_point(message:RealityOutboundSettings)
+#[derive(PartialEq,Clone,Default,Debug)]
+pub struct RealityOutboundSettings {
+    // message fields
+    // @@protoc_insertion_point(field:RealityOutboundSettings.server_name)
+    pub server_name: ::std::string::String,
+    // @@protoc_insertion_point(field:RealityOutboundSettings.public_key)
+    pub public_key: ::std::string::String,
+    // @@protoc_insertion_point(field:RealityOutboundSettings.short_id)
+    pub short_id: ::std::string::String,
+    // special fields
+    // @@protoc_insertion_point(special_field:RealityOutboundSettings.special_fields)
+    pub special_fields: ::protobuf::SpecialFields,
+}
+
+impl<'a> ::std::default::Default for &'a RealityOutboundSettings {
+    fn default() -> &'a RealityOutboundSettings {
+        <RealityOutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl RealityOutboundSettings {
+    pub fn new() -> RealityOutboundSettings {
+        ::std::default::Default::default()
+    }
+}
+
+impl ::protobuf::Message for RealityOutboundSettings {
+    const NAME: &'static str = "RealityOutboundSettings";
+
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+        while let Some(tag) = is.read_raw_tag_or_eof()? {
+            match tag {
+                10 => {
+                    self.server_name = is.read_string()?;
+                },
+                18 => {
+                    self.public_key = is.read_string()?;
+                },
+                26 => {
+                    self.short_id = is.read_string()?;
+                },
+                tag => {
+                    ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u64 {
+        let mut my_size = 0;
+        if !self.server_name.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.server_name);
+        }
+        if !self.public_key.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.public_key);
+        }
+        if !self.short_id.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.short_id);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+        self.special_fields.cached_size().set(my_size as u32);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+        if !self.server_name.is_empty() {
+            os.write_string(1, &self.server_name)?;
+        }
+        if !self.public_key.is_empty() {
+            os.write_string(2, &self.public_key)?;
+        }
+        if !self.short_id.is_empty() {
+            os.write_string(3, &self.short_id)?;
+        }
+        os.write_unknown_fields(self.special_fields.unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn special_fields(&self) -> &::protobuf::SpecialFields {
+        &self.special_fields
+    }
+
+    fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+        &mut self.special_fields
+    }
+
+    fn new() -> RealityOutboundSettings {
+        RealityOutboundSettings::new()
+    }
+
+    fn clear(&mut self) {
+        self.server_name.clear();
+        self.public_key.clear();
+        self.short_id.clear();
+        self.special_fields.clear();
+    }
+
+    fn default_instance() -> &'static RealityOutboundSettings {
+        static instance: RealityOutboundSettings = RealityOutboundSettings {
+            server_name: ::std::string::String::new(),
+            public_key: ::std::string::String::new(),
+            short_id: ::std::string::String::new(),
+            special_fields: ::protobuf::SpecialFields::new(),
+        };
+        &instance
+    }
+}
+
 // @@protoc_insertion_point(message:ChainOutboundSettings)
 #[derive(PartialEq,Clone,Default,Debug)]
 pub struct ChainOutboundSettings {

@@ -33,6 +33,8 @@ use crate::proxy::drop;
 use crate::proxy::obfs;
 #[cfg(feature = "outbound-quic")]
 use crate::proxy::quic;
+#[cfg(feature = "outbound-reality")]
+use crate::proxy::reality;
 #[cfg(feature = "outbound-redirect")]
 use crate::proxy::redirect;
 #[cfg(feature = "outbound-shadowsocks")]
@@ -43,6 +45,8 @@ use crate::proxy::socks;
 use crate::proxy::tls;
 #[cfg(feature = "outbound-trojan")]
 use crate::proxy::trojan;
+#[cfg(feature = "outbound-vless")]
+use crate::proxy::vless;
 #[cfg(feature = "outbound-vmess")]
 use crate::proxy::vmess;
 #[cfg(feature = "outbound-ws")]
@@ -256,6 +260,42 @@ impl OutboundManager {
                         .tag(tag.clone())
                         .stream_handler(stream)
                         .datagram_handler(datagram)
+                        .build()
+                }
+                #[cfg(feature = "outbound-vless")]
+                "vless" => {
+                    let settings =
+                        config::VlessOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
+                    let stream = Arc::new(vless::outbound::StreamHandler {
+                        address: settings.address.clone(),
+                        port: settings.port as u16,
+                        uuid: settings.uuid.clone(),
+                    });
+                    let datagram = Arc::new(vless::outbound::DatagramHandler {
+                        address: settings.address.clone(),
+                        port: settings.port as u16,
+                        uuid: settings.uuid.clone(),
+                    });
+                    HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .stream_handler(stream)
+                        .datagram_handler(datagram)
+                        .build()
+                }
+                #[cfg(feature = "outbound-reality")]
+                "reality" => {
+                    let settings =
+                        config::RealityOutboundSettings::parse_from_bytes(&outbound.settings)
+                            .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
+                    let stream = Arc::new(reality::outbound::StreamHandler {
+                        server_name: settings.server_name.clone(),
+                        public_key: settings.public_key.clone(),
+                        short_id: settings.short_id.clone(),
+                    });
+                    HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .stream_handler(stream)
                         .build()
                 }
                 #[cfg(feature = "outbound-tls")]

@@ -95,6 +95,8 @@ pub struct Session {
     pub http_sniffed_domain: Option<String>,
     /// The sniffed domain name if the destination is an IP address.
     pub dns_sniffed_domain: Option<String>,
+    /// Shared state to coordinate XTLS vision read raw mode.
+    pub vision_read_raw: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Clone for Session {
@@ -114,6 +116,7 @@ impl Clone for Session {
             tls_sniffed_domain: self.tls_sniffed_domain.clone(),
             http_sniffed_domain: self.http_sniffed_domain.clone(),
             dns_sniffed_domain: self.dns_sniffed_domain.clone(),
+            vision_read_raw: self.vision_read_raw.clone(),
         }
     }
 }
@@ -144,6 +147,7 @@ impl Default for Session {
             tls_sniffed_domain: None,
             http_sniffed_domain: None,
             dns_sniffed_domain: None,
+            vision_read_raw: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
 }

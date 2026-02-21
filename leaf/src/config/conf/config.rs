@@ -89,6 +89,11 @@ pub struct Proxy {
     pub amux_max_lifetime: Option<u64>,
 
     pub quic: Option<bool>,
+
+    // reality
+    pub reality: Option<bool>,
+    pub reality_public_key: Option<String>,
+    pub reality_short_id: Option<String>,
 }
 
 impl Default for Proxy {
@@ -119,6 +124,9 @@ impl Default for Proxy {
             amux_max_recv: Some(0),
             amux_max_lifetime: Some(0),
             quic: Some(false),
+            reality: Some(false),
+            reality_public_key: None,
+            reality_short_id: None,
         }
     }
 }
@@ -530,6 +538,13 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                     proxy.amux_max_lifetime = i;
                 }
                 "quic" => proxy.quic = if v == "true" { Some(true) } else { Some(false) },
+                "reality" => proxy.reality = if v == "true" { Some(true) } else { Some(false) },
+                "reality-public-key" => {
+                    proxy.reality_public_key = Some(v.to_string());
+                }
+                "reality-short-id" => {
+                    proxy.reality_short_id = Some(v.to_string());
+                }
                 "interface" => {
                     proxy.interface = v.to_string();
                 }
@@ -1023,6 +1038,50 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                             },
                         });
                     }
+                }
+                "vless" => {
+                    let settings = common::VlessOutboundSettings {
+                        address: ext_proxy.address.clone(),
+                        port: ext_proxy.port,
+                        uuid: ext_proxy.password.clone(), // vless uses uuid from password
+                    };
+
+                    let mut next_tag = ext_proxy.tag.clone();
+
+                    if ext_proxy.reality.unwrap_or(false) {
+                        let reality_tag = format!("{}_reality_xxx", ext_proxy.tag);
+                        outbounds.push(common::Outbound {
+                            tag: Some(ext_proxy.tag.clone()),
+                            settings: common::OutboundSettings::Chain {
+                                settings: Some(common::ChainOutboundSettings {
+                                    actors: Some(vec![
+                                        reality_tag.clone(),
+                                        format!("{}_vless_xxx", ext_proxy.tag),
+                                    ]),
+                                }),
+                            },
+                        });
+
+                        outbounds.push(common::Outbound {
+                            tag: Some(reality_tag),
+                            settings: common::OutboundSettings::Reality {
+                                settings: Some(common::RealityOutboundSettings {
+                                    server_name: ext_proxy.sni.clone(),
+                                    public_key: ext_proxy.reality_public_key.clone(),
+                                    short_id: ext_proxy.reality_short_id.clone(),
+                                }),
+                            },
+                        });
+
+                        next_tag = format!("{}_vless_xxx", ext_proxy.tag);
+                    }
+
+                    outbounds.push(common::Outbound {
+                        tag: Some(next_tag),
+                        settings: common::OutboundSettings::Vless {
+                            settings: Some(settings),
+                        },
+                    });
                 }
                 "trojan" | "vmess" => {
                     let mut actors = Vec::new();

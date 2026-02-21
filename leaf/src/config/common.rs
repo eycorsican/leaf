@@ -156,6 +156,23 @@ pub struct VMessOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VlessOutboundSettings {
+    pub address: Option<String>,
+    pub port: Option<u16>,
+    pub uuid: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RealityOutboundSettings {
+    #[serde(rename = "serverName")]
+    pub server_name: Option<String>,
+    #[serde(rename = "publicKey")]
+    pub public_key: Option<String>,
+    #[serde(rename = "shortId")]
+    pub short_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TryAllOutboundSettings {
     pub actors: Option<Vec<String>>,
     #[serde(rename = "delayBase")]
@@ -350,6 +367,14 @@ pub enum OutboundSettings {
     VMess {
         #[serde(default)]
         settings: Option<VMessOutboundSettings>,
+    },
+    Vless {
+        #[serde(default)]
+        settings: Option<VlessOutboundSettings>,
+    },
+    Reality {
+        #[serde(default)]
+        settings: Option<RealityOutboundSettings>,
     },
     TryAll {
         #[serde(default)]
@@ -946,6 +971,46 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         }
                         if let Some(ext_security) = &ext_settings.security {
                             settings.security = ext_security.clone();
+                        }
+                        let settings = settings.write_to_bytes().unwrap();
+                        outbound.settings = settings;
+                    }
+                    outbounds.push(outbound);
+                }
+                OutboundSettings::Vless {
+                    settings: ext_settings,
+                } => {
+                    outbound.protocol = "vless".to_string();
+                    if let Some(ext_settings) = ext_settings {
+                        let mut settings = internal::VlessOutboundSettings::new();
+                        if let Some(ext_address) = &ext_settings.address {
+                            settings.address = ext_address.clone();
+                        }
+                        if let Some(ext_port) = ext_settings.port {
+                            settings.port = ext_port as u32;
+                        }
+                        if let Some(ext_uuid) = &ext_settings.uuid {
+                            settings.uuid = ext_uuid.clone();
+                        }
+                        let settings = settings.write_to_bytes().unwrap();
+                        outbound.settings = settings;
+                    }
+                    outbounds.push(outbound);
+                }
+                OutboundSettings::Reality {
+                    settings: ext_settings,
+                } => {
+                    outbound.protocol = "reality".to_string();
+                    if let Some(ext_settings) = ext_settings {
+                        let mut settings = internal::RealityOutboundSettings::new();
+                        if let Some(ext_server_name) = &ext_settings.server_name {
+                            settings.server_name = ext_server_name.clone();
+                        }
+                        if let Some(ext_public_key) = &ext_settings.public_key {
+                            settings.public_key = ext_public_key.clone();
+                        }
+                        if let Some(ext_short_id) = &ext_settings.short_id {
+                            settings.short_id = ext_short_id.clone();
                         }
                         let settings = settings.write_to_bytes().unwrap();
                         outbound.settings = settings;

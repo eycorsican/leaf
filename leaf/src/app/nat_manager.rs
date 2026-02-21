@@ -140,6 +140,10 @@ impl NatManager {
             sess.inbound_tag = inbound_tag.to_string();
         }
 
+        // Always update destination to the packet's destination, because the session passed
+        // from inbound listener might have a default (empty) destination.
+        sess.destination = pkt.dst_addr.clone();
+
         self.add_session(sess, dgram_src.clone(), client_ch_tx.clone(), &mut guard)
             .await;
 

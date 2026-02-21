@@ -42,7 +42,8 @@ async fn handle_inbound_datagram(
     sess: Option<Session>,
     nat_manager: Arc<NatManager>,
 ) {
-    let sess = sess.unwrap_or_default();
+    let mut sess = sess.unwrap_or_default();
+    sess.network = Network::Udp;
     let span = sess.create_span();
     handle_inbound_datagram_inner(inbound_tag, socket, Some(sess), nat_manager)
         .instrument(span)

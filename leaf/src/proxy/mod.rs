@@ -56,6 +56,8 @@ pub mod nf;
 pub mod obfs;
 #[cfg(any(feature = "inbound-quic", feature = "outbound-quic"))]
 pub mod quic;
+#[cfg(feature = "outbound-reality")]
+pub mod reality;
 #[cfg(feature = "outbound-redirect")]
 pub mod redirect;
 #[cfg(feature = "outbound-select")]
@@ -74,6 +76,8 @@ pub mod trojan;
 pub mod tryall;
 #[cfg(feature = "inbound-tun")]
 pub mod tun;
+#[cfg(feature = "outbound-vless")]
+pub mod vless;
 #[cfg(feature = "outbound-vmess")]
 pub mod vmess;
 #[cfg(any(feature = "inbound-ws", feature = "outbound-ws"))]
