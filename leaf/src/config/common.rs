@@ -549,9 +549,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                             } else {
                                 settings.mtu = 1500;
                             }
-                            if let Some(ext_tun2socks) = &ext_settings.tun2socks {
-                                settings.tun2socks = ext_tun2socks.clone();
-                            }
+                        }
+                        if let Some(ext_tun2socks) = &ext_settings.tun2socks {
+                            settings.tun2socks = ext_tun2socks.clone();
                         }
                         let settings = settings.write_to_bytes().unwrap();
                         inbound.settings = settings;
