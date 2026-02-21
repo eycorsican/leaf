@@ -8,33 +8,14 @@ use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 use tokio::time::timeout;
 
-use crate::option;
 use crate::session::Session;
 
 fn should_sniff_tls(sess: &Session) -> bool {
-    if option::TLS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
-        if !option::TLS_DOMAIN_SNIFFING_ALL.load(std::sync::atomic::Ordering::Relaxed)
-            && sess.destination.port() != 443
-        {
-            return false;
-        }
-        true
-    } else {
-        false
-    }
+    sess.destination.port() == 443
 }
 
 fn should_sniff_http(sess: &Session) -> bool {
-    if option::HTTP_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
-        if !option::HTTP_DOMAIN_SNIFFING_ALL.load(std::sync::atomic::Ordering::Relaxed)
-            && sess.destination.port() != 80
-        {
-            return false;
-        }
-        true
-    } else {
-        false
-    }
+    sess.destination.port() == 80
 }
 
 pub fn should_sniff(sess: &Session) -> bool {
