@@ -16,7 +16,6 @@ pub struct Tun {
     pub netmask: Option<String>,
     pub gateway: Option<String>,
     pub mtu: Option<i32>,
-    pub tun2socks: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -28,9 +27,10 @@ pub struct Nf {
 #[derive(Debug, Default)]
 pub struct General {
     pub tun: Option<Tun>,
-    pub nf: Option<Nf>,
     pub tun_fd: Option<i32>,
     pub tun_auto: Option<bool>,
+    pub tun2socks_backend: Option<String>,
+    pub nf: Option<Nf>,
     pub loglevel: Option<String>,
     pub logoutput: Option<String>,
     pub logformat: Option<String>,
@@ -353,13 +353,6 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 if let Some(items) = get_char_sep_slice(parts[1], ',') {
                     if items.len() >= 1 && items[0] == "auto" {
                         general.tun_auto = Some(true);
-                        if items.len() > 1 {
-                            let tun = Tun {
-                                tun2socks: Some(items[1].clone()),
-                                ..Default::default()
-                            };
-                            general.tun = Some(tun);
-                        }
                         continue;
                     }
                     if items.len() < 5 {
@@ -371,14 +364,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         netmask: Some(items[2].clone()),
                         gateway: Some(items[3].clone()),
                         mtu: get_value::<i32>(&items[4]),
-                        tun2socks: if items.len() > 5 {
-                            Some(items[5].clone())
-                        } else {
-                            None
-                        },
                     };
                     general.tun = Some(tun);
                 }
+            }
+            "tun2socks-backend" => {
+                general.tun2socks_backend = Some(parts[1].to_string());
             }
             "nf" => {
                 // nf = driver_name, path/to/nfapi.dll
@@ -883,7 +874,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 mtu: None,
                 fake_dns_exclude: ext_general.always_real_ip.clone(),
                 fake_dns_include: ext_general.always_fake_ip.clone(),
-                tun2socks: None,
+                tun2socks: ext_general.tun2socks_backend.clone(),
             };
 
             if let Some(fd) = ext_general.tun_fd {
@@ -892,9 +883,6 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 if auto {
                     settings.auto = Some(true);
                     settings.fd = Some(-1);
-                    if let Some(ext_tun) = &ext_general.tun {
-                        settings.tun2socks = ext_tun.tun2socks.clone();
-                    }
                 }
             } else if let Some(ext_tun) = &ext_general.tun {
                 settings.fd = Some(-1);
@@ -903,7 +891,6 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 settings.gateway = ext_tun.gateway.clone();
                 settings.netmask = ext_tun.netmask.clone();
                 settings.mtu = ext_tun.mtu;
-                settings.tun2socks = ext_tun.tun2socks.clone();
             }
 
             inbounds.push(common::Inbound {
