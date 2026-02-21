@@ -32,7 +32,7 @@ cargo build -p $package $release_flag --no-default-features --features "default-
 cargo build -p $package $release_flag --no-default-features --features "default-aws-lc" --target x86_64-apple-ios
 cargo build -p $package $release_flag --no-default-features --features "default-ring" --target aarch64-apple-ios-sim
 
-cargo install --force cbindgen
+cargo install cbindgen
 
 # Directories to put the libraries.
 rm -rf target/apple/$mode

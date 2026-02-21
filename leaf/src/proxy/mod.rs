@@ -1,3 +1,4 @@
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::ffi::CString;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -16,7 +17,9 @@ use tokio::time::timeout;
 use tracing::debug;
 
 #[cfg(unix)]
-use std::os::unix::io::{AsFd, AsRawFd};
+use std::os::unix::io::AsFd;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::os::unix::io::AsRawFd;
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, AsSocket};
 #[cfg(target_os = "android")]
@@ -265,6 +268,7 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                 }
                 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
                 {
+                    let _ = iface;
                     return Err(io::Error::new(
                         io::ErrorKind::Other,
                         "binding to interface is not supported on this platform",
