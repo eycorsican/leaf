@@ -128,7 +128,7 @@ inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["http"]
 inbound-hc = []
-inbound-tun = ["tun", "netstack-lwip", "pnet_datalink"]
+inbound-tun = ["tun", "netstack-lwip", "netstack-smoltcp", "pnet_datalink"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
 inbound-quic = ["rustls", "rustls-pemfile-old"]
@@ -246,7 +246,7 @@ crc32fast = { version = "1", optional = true }
 lru_time_cache = { version = "0.11", optional = true }
 
 # amux
-tokio-util = { version = "0.7", default-features = false, features = ["io"], optional = true }
+tokio-util = { version = "0.7", default-features = false, features = ["io", "codec", "compat"], optional = true }
 
 # QUIC
 quinn = { version = "0.11", default-features = false, optional = true }
@@ -261,6 +261,7 @@ notify = { version = "6", optional = true }
 # TUN
 tun = { version = "0.7", features = ["async"], optional = true  }
 netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip", rev = "4cc3162", optional = true }
+netstack-smoltcp = { git = "https://github.com/eycorsican/netstack-smoltcp", branch = "refactor/tcp-read-buffer", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 ipconfig = "0.3"

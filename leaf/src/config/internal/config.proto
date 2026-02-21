@@ -47,6 +47,7 @@ message TunInboundSettings {
 	int32 mtu = 6;
 	repeated string fake_dns_exclude = 7;
 	repeated string fake_dns_include = 8;
+	string tun2socks = 10;
 }
 
 message CatInboundSettings {

@@ -36,6 +36,7 @@ pub struct NfInboundSettings {
     pub fake_dns_exclude: Option<Vec<String>>,
     #[serde(rename = "fakeDnsInclude")]
     pub fake_dns_include: Option<Vec<String>>,
+    pub tun2socks: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -105,6 +106,7 @@ pub struct TunInboundSettings {
     pub fake_dns_exclude: Option<Vec<String>>,
     #[serde(rename = "fakeDnsInclude")]
     pub fake_dns_include: Option<Vec<String>>,
+    pub tun2socks: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -546,6 +548,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                                 settings.mtu = ext_mtu;
                             } else {
                                 settings.mtu = 1500;
+                            }
+                            if let Some(ext_tun2socks) = &ext_settings.tun2socks {
+                                settings.tun2socks = ext_tun2socks.clone();
                             }
                         }
                         let settings = settings.write_to_bytes().unwrap();

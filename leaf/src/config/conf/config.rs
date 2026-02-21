@@ -16,6 +16,7 @@ pub struct Tun {
     pub netmask: Option<String>,
     pub gateway: Option<String>,
     pub mtu: Option<i32>,
+    pub tun2socks: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -350,11 +351,18 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "tun" => {
                 if let Some(items) = get_char_sep_slice(parts[1], ',') {
-                    if items.len() == 1 {
-                        general.tun_auto = Some(items[0] == "auto");
+                    if items.len() >= 1 && items[0] == "auto" {
+                        general.tun_auto = Some(true);
+                        if items.len() > 1 {
+                            let tun = Tun {
+                                tun2socks: Some(items[1].clone()),
+                                ..Default::default()
+                            };
+                            general.tun = Some(tun);
+                        }
                         continue;
                     }
-                    if items.len() != 5 {
+                    if items.len() < 5 {
                         continue;
                     }
                     let tun = Tun {
@@ -363,6 +371,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                         netmask: Some(items[2].clone()),
                         gateway: Some(items[3].clone()),
                         mtu: get_value::<i32>(&items[4]),
+                        tun2socks: if items.len() > 5 {
+                            Some(items[5].clone())
+                        } else {
+                            None
+                        },
                     };
                     general.tun = Some(tun);
                 }
@@ -850,6 +863,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                         nfapi: nf.nfapi.clone(),
                         fake_dns_exclude: ext_general.always_real_ip.clone(),
                         fake_dns_include: ext_general.always_fake_ip.clone(),
+                        tun2socks: None,
                     }),
                 },
             });
@@ -869,6 +883,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 mtu: None,
                 fake_dns_exclude: ext_general.always_real_ip.clone(),
                 fake_dns_include: ext_general.always_fake_ip.clone(),
+                tun2socks: None,
             };
 
             if let Some(fd) = ext_general.tun_fd {
@@ -877,6 +892,9 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 if auto {
                     settings.auto = Some(true);
                     settings.fd = Some(-1);
+                    if let Some(ext_tun) = &ext_general.tun {
+                        settings.tun2socks = ext_tun.tun2socks.clone();
+                    }
                 }
             } else if let Some(ext_tun) = &ext_general.tun {
                 settings.fd = Some(-1);
@@ -885,6 +903,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 settings.gateway = ext_tun.gateway.clone();
                 settings.netmask = ext_tun.netmask.clone();
                 settings.mtu = ext_tun.mtu;
+                settings.tun2socks = ext_tun.tun2socks.clone();
             }
 
             inbounds.push(common::Inbound {
@@ -896,6 +915,19 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 },
             });
         }
+
+        // if let (Some(interface), Some(port)) = (
+        //     ext_general.api_interface.as_ref(),
+        //     ext_general.api_port.as_ref(),
+        // ) {
+        // The API inbound is actually an HTTP inbound with specific handling in the core
+        // but in common config it might be represented differently or just not supported in this way
+        // Looking at the original code, there was no API inbound handling in `to_common`
+        // I added it because I saw `api_interface` in `General` struct.
+        // But if `common::InboundSettings` doesn't support it, I should probably remove it or map to something else.
+        // However, leaf usually handles API via a separate server, not necessarily a standard inbound.
+        // Let's remove this block for now to fix the compilation error, as the user asked for `tun` config support, not API.
+        // }
 
         common_config.inbounds = Some(inbounds);
     }

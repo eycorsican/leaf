@@ -1,3 +1,7 @@
 pub mod inbound;
 
-pub use netstack_lwip as netstack;
+#[cfg(feature = "netstack-lwip")]
+pub use netstack_lwip;
+
+#[cfg(feature = "netstack-smoltcp")]
+pub use netstack_smoltcp;

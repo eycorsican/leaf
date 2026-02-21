@@ -549,6 +549,8 @@ pub struct TunInboundSettings {
     pub fake_dns_exclude: ::std::vec::Vec<::std::string::String>,
     // @@protoc_insertion_point(field:TunInboundSettings.fake_dns_include)
     pub fake_dns_include: ::std::vec::Vec<::std::string::String>,
+    // @@protoc_insertion_point(field:TunInboundSettings.tun2socks)
+    pub tun2socks: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:TunInboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -603,6 +605,9 @@ impl ::protobuf::Message for TunInboundSettings {
                 66 => {
                     self.fake_dns_include.push(is.read_string()?);
                 },
+                82 => {
+                    self.tun2socks = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -642,6 +647,9 @@ impl ::protobuf::Message for TunInboundSettings {
         for value in &self.fake_dns_include {
             my_size += ::protobuf::rt::string_size(8, &value);
         };
+        if !self.tun2socks.is_empty() {
+            my_size += ::protobuf::rt::string_size(10, &self.tun2socks);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -675,6 +683,9 @@ impl ::protobuf::Message for TunInboundSettings {
         for v in &self.fake_dns_include {
             os.write_string(8, &v)?;
         };
+        if !self.tun2socks.is_empty() {
+            os.write_string(10, &self.tun2socks)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -701,6 +712,7 @@ impl ::protobuf::Message for TunInboundSettings {
         self.mtu = 0;
         self.fake_dns_exclude.clear();
         self.fake_dns_include.clear();
+        self.tun2socks.clear();
         self.special_fields.clear();
     }
 
@@ -715,6 +727,7 @@ impl ::protobuf::Message for TunInboundSettings {
             mtu: 0,
             fake_dns_exclude: ::std::vec::Vec::new(),
             fake_dns_include: ::std::vec::Vec::new(),
+            tun2socks: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
