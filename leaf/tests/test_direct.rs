@@ -7,7 +7,7 @@ mod common;
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_direct() {
+fn test_direct() -> anyhow::Result<()> {
     let config1 = r#"
     {
         "inbounds": [
@@ -26,5 +26,5 @@ fn test_direct() {
     "#;
 
     let configs = vec![config1.to_string()];
-    common::test_configs(configs, "127.0.0.1", 1086);
+    common::test_configs(configs, "127.0.0.1", 1086)
 }

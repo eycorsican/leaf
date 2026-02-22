@@ -65,7 +65,26 @@ impl InboundManager {
             match inbound.protocol.as_str() {
                 #[cfg(feature = "inbound-socks")]
                 "socks" => {
-                    let stream = Arc::new(socks::inbound::StreamHandler);
+                    let mut username = None;
+                    let mut password = None;
+                    if !inbound.settings.is_empty() {
+                        let settings =
+                            config::SocksInboundSettings::parse_from_bytes(&inbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] inbound settings: {}", &tag, e)
+                                })?;
+                        username = if settings.username.is_empty() {
+                            None
+                        } else {
+                            Some(settings.username)
+                        };
+                        password = if settings.password.is_empty() {
+                            None
+                        } else {
+                            Some(settings.password)
+                        };
+                    }
+                    let stream = Arc::new(socks::inbound::StreamHandler { username, password });
                     let datagram = Arc::new(socks::inbound::DatagramHandler);
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         tag.clone(),

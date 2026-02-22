@@ -854,7 +854,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 tag: Some("socks".to_string()),
                 address: Some(interface.clone()),
                 port: Some(*port),
-                settings: common::InboundSettings::Socks,
+                settings: common::InboundSettings::Socks { settings: None },
             });
         }
 

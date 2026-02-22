@@ -10,7 +10,7 @@ mod common;
     feature = "outbound-static",
 ))]
 #[test]
-fn test_static() {
+fn test_static() -> anyhow::Result<()> {
     let config1 = r#"
     {
         "inbounds": [
@@ -99,7 +99,7 @@ fn test_static() {
     "#;
 
     let configs = vec![config1.to_string(), config3.to_string()];
-    common::test_configs(configs, "127.0.0.1", 1086);
+    common::test_configs(configs, "127.0.0.1", 1086)?;
     let configs = vec![config2.to_string(), config3.to_string()];
-    common::test_configs(configs, "127.0.0.1", 1086);
+    common::test_configs(configs, "127.0.0.1", 1086)
 }

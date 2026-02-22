@@ -9,7 +9,7 @@ mod common;
     feature = "outbound-direct",
 ))]
 #[test]
-fn test_trojan() {
+fn test_trojan() -> anyhow::Result<()> {
     let config1 = r#"
     {
         "inbounds": [
@@ -56,5 +56,5 @@ fn test_trojan() {
     "#;
 
     let configs = vec![config1.to_string(), config2.to_string()];
-    common::test_configs(configs, "127.0.0.1", 1086);
+    common::test_configs(configs, "127.0.0.1", 1086)
 }

@@ -13,7 +13,7 @@ mod common;
     feature = "outbound-chain",
 ))]
 #[test]
-fn test_out_chain_1() {
+fn test_out_chain_1() -> anyhow::Result<()> {
     let config1 = r#"
     {
         "inbounds": [
@@ -175,5 +175,5 @@ fn test_out_chain_1() {
         config2.to_string(),
         config3.to_string(),
     ];
-    common::test_configs(configs, "127.0.0.1", 1086);
+    common::test_configs(configs, "127.0.0.1", 1086)
 }

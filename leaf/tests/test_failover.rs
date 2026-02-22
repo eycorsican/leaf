@@ -10,7 +10,7 @@ mod common;
     feature = "outbound-failover",
 ))]
 #[test]
-fn test_failover() {
+fn test_failover() -> anyhow::Result<()> {
     let config1 = r#"
     {
         "inbounds": [
@@ -65,5 +65,5 @@ fn test_failover() {
     "#;
 
     let configs = vec![config1.to_string(), config2.to_string()];
-    common::test_configs(configs, "127.0.0.1", 1086);
+    common::test_configs(configs, "127.0.0.1", 1086)
 }

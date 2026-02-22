@@ -13,6 +13,8 @@ use crate::{app::SyncDnsClient, common::resolver::Resolver, proxy::*, session::*
 pub struct Handler {
     pub address: String,
     pub port: u16,
+    pub username: String,
+    pub password: String,
     pub dns_client: SyncDnsClient,
 }
 
@@ -54,7 +56,15 @@ impl OutboundDatagramHandler for Handler {
             .next()
             .ok_or_else(|| Error::other("no resolved address for SOCKS server"))?;
 
-        let socket = SocksDatagram::associate(stream, socket, None::<Auth>, server_addr.into())
+        let auth = match (&self.username, &self.password) {
+            (auth_username, _) if auth_username.is_empty() => None,
+            (auth_username, auth_password) => Some(Auth {
+                username: auth_username.to_owned(),
+                password: auth_password.to_owned(),
+            }),
+        };
+
+        let socket = SocksDatagram::associate(stream, socket, auth, server_addr.into())
             .map_err(Error::other)
             .await?;
         Ok(Box::new(Datagram { socket }))

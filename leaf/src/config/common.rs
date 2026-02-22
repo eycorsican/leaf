@@ -41,6 +41,13 @@ pub struct NfInboundSettings {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(deny_unknown_fields)]
+pub struct SocksInboundSettings {
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct ShadowsocksInboundSettings {
     pub method: Option<String>,
     pub password: Option<String>,
@@ -330,7 +337,10 @@ pub enum InboundSettings {
         #[serde(default)]
         settings: Option<TunInboundSettings>,
     },
-    Socks,
+    Socks {
+        #[serde(default)]
+        settings: Option<SocksInboundSettings>,
+    },
     Http,
 }
 
@@ -659,8 +669,21 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
-                InboundSettings::Socks => {
+                InboundSettings::Socks {
+                    settings: ext_settings,
+                } => {
                     inbound.protocol = "socks".to_string();
+                    if let Some(ext_settings) = ext_settings {
+                        let mut settings = internal::SocksInboundSettings::new();
+                        if let Some(ext_username) = &ext_settings.username {
+                            settings.username = ext_username.clone();
+                        }
+                        if let Some(ext_password) = &ext_settings.password {
+                            settings.password = ext_password.clone();
+                        }
+                        let settings = settings.write_to_bytes().unwrap();
+                        inbound.settings = settings;
+                    }
                     inbounds.push(inbound);
                 }
                 InboundSettings::Http => {
