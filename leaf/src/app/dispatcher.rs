@@ -286,11 +286,20 @@ impl Dispatcher {
                 }
             };
 
+        debug!("connect stream outbound: {}", stream.is_some());
+
         let (stream, stats_wrapped) = if let Some(s) = stream {
             let s = self.stat_manager.write().await.stat_stream(s, sess.clone());
+            debug!("wrapped stat stream");
             (Some(s), true)
         } else {
-            (None, false)
+            lhs = self
+                .stat_manager
+                .write()
+                .await
+                .stat_inbound_stream(lhs, sess.clone());
+            debug!("wrapped stat inbound stream");
+            (None, true)
         };
 
         let th = match h.stream() {
