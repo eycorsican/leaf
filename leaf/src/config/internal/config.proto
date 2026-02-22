@@ -48,6 +48,8 @@ message TunInboundSettings {
 	repeated string fake_dns_exclude = 7;
 	repeated string fake_dns_include = 8;
 	string tun2socks = 10;
+	optional string wintun = 11;
+	repeated string dns_servers = 12;
 }
 
 message CatInboundSettings {

@@ -45,6 +45,8 @@ pub struct General {
     pub api_interface: Option<String>,
     pub api_port: Option<u16>,
     pub routing_domain_resolve: Option<bool>,
+    pub wintun: Option<String>,
+    pub tun_dns_server: Option<Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -439,6 +441,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "api-port" => {
                 general.api_port = get_value::<u16>(parts[1]);
+            }
+            "wintun" => {
+                general.wintun = get_string(parts[1]);
+            }
+            "tun-dns-server" => {
+                general.tun_dns_server = get_char_sep_slice(parts[1], ',');
             }
             _ => {}
         }
@@ -890,6 +898,8 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 fake_dns_exclude: ext_general.always_real_ip.clone(),
                 fake_dns_include: ext_general.always_fake_ip.clone(),
                 tun2socks: ext_general.tun2socks_backend.clone(),
+                wintun: ext_general.wintun.clone(),
+                dns_servers: ext_general.tun_dns_server.clone(),
             };
 
             if let Some(fd) = ext_general.tun_fd {
@@ -1374,6 +1384,43 @@ pub fn from_string(s: &str) -> Result<internal::Config> {
     let lines = s.lines().map(|s| Ok(s.to_string())).collect();
     let config = from_lines(lines)?;
     to_internal(&config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wintun_conf() {
+        let conf = r#"
+[General]
+tun = auto
+wintun = /path/to/wintun.dll
+tun-dns-server = 8.8.8.8, 8.8.4.4
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let common = to_common(&config).unwrap();
+
+        if let Some(inbounds) = common.inbounds {
+            let tun = inbounds
+                .iter()
+                .find(|i| i.tag == Some("tun".to_string()))
+                .unwrap();
+            if let common::InboundSettings::Tun { settings } = &tun.settings {
+                let settings = settings.as_ref().unwrap();
+                assert_eq!(settings.wintun, Some("/path/to/wintun.dll".to_string()));
+                assert_eq!(
+                    settings.dns_servers,
+                    Some(vec!["8.8.8.8".to_string(), "8.8.4.4".to_string()])
+                );
+            } else {
+                panic!("Not tun inbound");
+            }
+        } else {
+            panic!("No inbounds");
+        }
+    }
 }
 
 pub fn from_file<P>(path: P) -> Result<internal::Config>

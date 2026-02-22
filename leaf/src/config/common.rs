@@ -114,6 +114,9 @@ pub struct TunInboundSettings {
     #[serde(rename = "fakeDnsInclude")]
     pub fake_dns_include: Option<Vec<String>>,
     pub tun2socks: Option<String>,
+    pub wintun: Option<String>,
+    #[serde(rename = "dnsServers")]
+    pub dns_servers: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -531,7 +534,8 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     target_os = "ios",
                     target_os = "android",
                     target_os = "macos",
-                    target_os = "linux"
+                    target_os = "linux",
+                    target_os = "windows"
                 ))]
                 InboundSettings::Tun {
                     settings: ext_settings,
@@ -588,6 +592,14 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         if let Some(ext_tun2socks) = &ext_settings.tun2socks {
                             settings.tun2socks = ext_tun2socks.clone();
                         }
+                        if let Some(ext_wintun) = &ext_settings.wintun {
+                            settings.wintun = Some(ext_wintun.clone());
+                        }
+                        if let Some(ext_dns_servers) = &ext_settings.dns_servers {
+                            for ext_dns_server in ext_dns_servers {
+                                settings.dns_servers.push(ext_dns_server.clone());
+                            }
+                        }
                         let settings = settings.write_to_bytes().unwrap();
                         inbound.settings = settings;
                     }
@@ -597,7 +609,8 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     target_os = "ios",
                     target_os = "android",
                     target_os = "macos",
-                    target_os = "linux"
+                    target_os = "linux",
+                    target_os = "windows"
                 )))]
                 InboundSettings::Tun { .. } => {
                     return Err(anyhow::anyhow!(

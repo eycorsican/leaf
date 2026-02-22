@@ -519,6 +519,20 @@ pub fn new(
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
 ) -> Result<Runner> {
+    tracing::debug!("Create TUN inbound");
+
+    #[cfg(target_os = "windows")]
+    {
+        // Before the creation of WinTun adapter, determine the bind address
+        // for traffic from leaf to escape the WinTun adapter.
+        use std::net::UdpSocket;
+        let s = UdpSocket::bind("0.0.0.0:0")?;
+        s.connect("1.1.1.1:53")?;
+        let bind_addr = s.local_addr()?.ip().to_string();
+        std::env::set_var("OUTBOUND_INTERFACE", &bind_addr);
+        tracing::info!("set OUTBOUND_INTERFACE={}", bind_addr);
+    }
+
     let settings = TunInboundSettings::parse_from_bytes(&inbound.settings)?;
 
     let mut cfg = tun::Configuration::default();
@@ -571,6 +585,28 @@ pub fn new(
     } else {
         None
     };
+
+    #[cfg(target_os = "windows")]
+    {
+        use rand::Rng;
+        use std::net::IpAddr;
+        let mut rng = rand::thread_rng();
+        let dns_servers: Vec<IpAddr> = settings
+            .dns_servers
+            .iter()
+            .filter_map(|x| x.parse().ok())
+            .collect();
+        cfg.metric(0);
+        cfg.platform_config(|x| {
+            x.device_guid(rng.gen());
+            if !dns_servers.is_empty() {
+                x.dns_servers(&dns_servers);
+            }
+            if let Some(f) = &settings.wintun {
+                x.wintun_file(f.clone());
+            }
+        });
+    }
 
     let tun = tun::create_as_async(&cfg).map_err(|e| anyhow!("create tun failed: {}", e))?;
 

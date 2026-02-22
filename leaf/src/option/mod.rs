@@ -306,11 +306,25 @@ lazy_static! {
     };
 
     pub static ref DEFAULT_TUN_IPV4_ADDR: String = {
-        get_env_var_or("DEFAULT_TUN_IPV4_ADDR", "192.168.233.2".to_string())
+        #[cfg(windows)]
+        {
+            get_env_var_or("DEFAULT_TUN_IPV4_ADDR", "10.7.7.2".to_string())
+        }
+        #[cfg(not(windows))]
+        {
+            get_env_var_or("DEFAULT_TUN_IPV4_ADDR", "192.168.233.2".to_string())
+        }
     };
 
     pub static ref DEFAULT_TUN_IPV4_GW: String = {
-        get_env_var_or("DEFAULT_TUN_IPV4_GW", "192.168.233.1".to_string())
+        #[cfg(windows)]
+        {
+            get_env_var_or("DEFAULT_TUN_IPV4_GW", "10.7.7.1".to_string())
+        }
+        #[cfg(not(windows))]
+        {
+            get_env_var_or("DEFAULT_TUN_IPV4_GW", "192.168.233.1".to_string())
+        }
     };
 
     pub static ref DEFAULT_TUN_IPV4_MASK: String = {
