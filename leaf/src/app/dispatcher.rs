@@ -329,13 +329,11 @@ impl Dispatcher {
                 )
                 .await
                 {
-                    Ok((up_count, down_count)) => {
+                    Ok(_) => {
                         debug!(
-                            "tcp link {} <-> {} done, ({}, {}) bytes transferred [{}]",
+                            "tcp link {} <-> {} done [{}]",
                             &sess.source,
                             &sess.destination,
-                            up_count,
-                            down_count,
                             &h.tag(),
                         );
                     }
