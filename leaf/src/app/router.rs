@@ -565,7 +565,7 @@ impl Router {
 
     pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<&'a String> {
         let effective_dest = sess
-            .destination_for_routing()
+            .effective_destination()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
         debug!("picking route for {}:{}", &sess.network, &effective_dest);
         for rule in &self.rules {
