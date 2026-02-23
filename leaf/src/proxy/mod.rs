@@ -222,6 +222,9 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
         }
         _ => {}
     }
+    if option::OUTBOUND_BINDS.is_empty() {
+        return Ok(());
+    }
     let mut last_err = None;
     for bind in option::OUTBOUND_BINDS.iter() {
         match bind {
