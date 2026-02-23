@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -171,6 +172,87 @@ pub async fn test_outbound(
         },
     };
     Ok((tcp_res, udp_res))
+}
+
+pub async fn test_outbounds(
+    config: &Config,
+    to: Option<Duration>,
+    concurrency: usize,
+) -> Result<HashMap<String, (Result<Duration>, Result<Duration>)>> {
+    let to = to.unwrap_or(Duration::from_secs(4));
+    let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns)?));
+    let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
+
+    let mut tasks = Vec::new();
+    for handler in outbound_manager.handlers() {
+        let tag = handler.tag().clone();
+        let handler = handler.clone();
+        let dns_client = dns_client.clone();
+        tasks.push(async move {
+            let (tcp_res, udp_res) = futures::future::join(
+                timeout(to, test_tcp_outbound(dns_client.clone(), handler.clone())),
+                timeout(to, test_udp_outbound(dns_client, handler)),
+            )
+            .await;
+            let tcp_res = match tcp_res {
+                Ok(res) => res,
+                Err(_) => Err(anyhow!("timeout")),
+            };
+            let udp_res = match udp_res {
+                Ok(res) => res,
+                Err(_) => Err(anyhow!("timeout")),
+            };
+            (tag, (tcp_res, udp_res))
+        });
+    }
+
+    use futures::StreamExt;
+    let results = futures::stream::iter(tasks)
+        .buffer_unordered(concurrency)
+        .collect::<Vec<_>>()
+        .await;
+
+    let mut map = HashMap::new();
+    for (tag, res) in results {
+        map.insert(tag, res);
+    }
+    Ok(map)
+}
+
+pub async fn stream_outbounds_tests(
+    config: &Config,
+    to: Option<Duration>,
+    concurrency: usize,
+) -> Result<impl futures::Stream<Item = (String, (Result<Duration>, Result<Duration>))>> {
+    let to = to.unwrap_or(Duration::from_secs(4));
+    let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns)?));
+    let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
+
+    let mut tasks = Vec::new();
+    for handler in outbound_manager.handlers() {
+        let tag = handler.tag().clone();
+        let handler = handler.clone();
+        let dns_client = dns_client.clone();
+        tasks.push(async move {
+            let (tcp_res, udp_res) = futures::future::join(
+                timeout(to, test_tcp_outbound(dns_client.clone(), handler.clone())),
+                timeout(to, test_udp_outbound(dns_client, handler)),
+            )
+            .await;
+            let tcp_res = match tcp_res {
+                Ok(res) => res,
+                Err(_) => Err(anyhow!("timeout")),
+            };
+            let udp_res = match udp_res {
+                Ok(res) => res,
+                Err(_) => Err(anyhow!("timeout")),
+            };
+            (tag, (tcp_res, udp_res))
+        });
+    }
+
+    use futures::StreamExt;
+    Ok(futures::stream::iter(tasks).buffer_unordered(concurrency))
 }
 
 pub async fn health_check_outbound(

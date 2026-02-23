@@ -32,3 +32,5 @@ auto-reload = ["leaf/auto-reload"]
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 tokio = { version = "1", features = ["rt"] }
+anyhow = "1.0"
+futures = "0.3"
