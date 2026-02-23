@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
@@ -28,19 +29,45 @@ struct CacheEntry {
     pub deadline: Instant,
 }
 
+#[derive(Debug)]
+enum Resolver {
+    Server(SocketAddr),
+    System,
+}
+
+impl fmt::Display for Resolver {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Server(addr) => addr.to_string(),
+                Self::System => "system".to_string(),
+            }
+        )
+    }
+}
+
 pub struct DnsClient {
     dispatcher: Option<Weak<Dispatcher>>,
-    servers: Vec<SocketAddr>,
+    servers: Vec<Resolver>,
     hosts: HashMap<String, Vec<IpAddr>>,
     ipv4_cache: Arc<TokioMutex<LruCache<String, CacheEntry>>>,
     ipv6_cache: Arc<TokioMutex<LruCache<String, CacheEntry>>>,
 }
 
 impl DnsClient {
-    fn load_servers(dns: &crate::config::Dns) -> Result<Vec<SocketAddr>> {
+    fn load_servers(dns: &crate::config::Dns) -> Result<Vec<Resolver>> {
         let mut servers = Vec::new();
         for server in dns.servers.iter() {
-            servers.push(SocketAddr::new(server.parse::<IpAddr>()?, 53));
+            if server.to_lowercase() == "system" {
+                servers.push(Resolver::System);
+            } else {
+                servers.push(Resolver::Server(SocketAddr::new(
+                    server.parse::<IpAddr>()?,
+                    53,
+                )));
+            }
         }
         if servers.is_empty() {
             return Err(anyhow!("no dns servers"));
@@ -169,7 +196,7 @@ impl DnsClient {
         }
     }
 
-    async fn query_task(
+    async fn resolve_with_server(
         &self,
         is_direct: bool,
         request: Vec<u8>,
@@ -324,6 +351,59 @@ impl DnsClient {
         .await
     }
 
+    async fn resolve_with_system_resolver(&self, host: &str, ty: RecordType) -> Result<CacheEntry> {
+        debug!("resolving {} using system resolver", host);
+        use std::net::ToSocketAddrs;
+        let addr = format!("{}:0", host);
+        let start = std::time::Instant::now();
+        let ips = tokio::task::spawn_blocking(move || addr.to_socket_addrs())
+            .await
+            .map_err(|e| anyhow!("spawn blocking failed: {}", e))?
+            .map_err(|e| anyhow!("system resolver failed: {}", e))?
+            .map(|x| x.ip())
+            .filter(|ip| match ty {
+                RecordType::A => ip.is_ipv4(),
+                RecordType::AAAA => ip.is_ipv6(),
+                _ => true,
+            })
+            .collect::<Vec<_>>();
+
+        debug!(
+            "resolved ips={:?} for domain={} from system resolver in {} ms",
+            &ips,
+            host,
+            start.elapsed().as_millis(),
+        );
+        trace!("ips for {}:\n{:?}", host, &ips);
+
+        if ips.is_empty() {
+            return Err(anyhow!("no records"));
+        }
+
+        // System resolver result should be considered valid for some time,
+        // but we don't have TTL. Using 60s as a fallback.
+        let deadline = std::time::Instant::now() + Duration::from_secs(60);
+
+        Ok(CacheEntry { ips, deadline })
+    }
+
+    async fn query_task(
+        &self,
+        is_direct: bool,
+        request: Vec<u8>,
+        host: &str,
+        server: &Resolver,
+        ty: RecordType,
+    ) -> Result<CacheEntry> {
+        match server {
+            Resolver::System => self.resolve_with_system_resolver(host, ty).await,
+            Resolver::Server(addr) => {
+                self.resolve_with_server(is_direct, request, host, addr)
+                    .await
+            }
+        }
+    }
+
     async fn query_record_type(
         &self,
         is_direct: bool,
@@ -338,7 +418,7 @@ impl DnsClient {
         };
         let mut tasks = Vec::new();
         for server in &self.servers {
-            let t = self.query_task(is_direct, msg_buf.clone(), host, server);
+            let t = self.query_task(is_direct, msg_buf.clone(), host, server, ty);
             tasks.push(Box::pin(t));
         }
         let (entry, _) = select_ok(tasks.into_iter()).await?;
