@@ -320,6 +320,10 @@ pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
 
     bind_socket(&socket, indicator).await?;
 
+    if option::OUTBOUND_BINDS.is_empty() && indicator.ip().is_unspecified() {
+        BindSocket::bind(&socket, indicator)?;
+    }
+
     #[cfg(target_os = "android")]
     protect_socket(socket.as_raw_fd()).await?;
 
