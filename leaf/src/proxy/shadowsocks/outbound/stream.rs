@@ -52,6 +52,7 @@ impl OutboundStreamHandler for Handler {
         lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         let stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
         let mut stream = ShadowedStream::new(
             stream,

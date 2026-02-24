@@ -30,6 +30,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         let uuid = Uuid::parse_str(&self.uuid)
             .map_err(|e| io::Error::other(format!("parse uuid failed: {}", e)))?;
         let mut request_header = RequestHeader {

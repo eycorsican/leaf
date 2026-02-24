@@ -192,6 +192,7 @@ impl OutboundStreamHandler for ExternalOutboundStreamHandlerProxy {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         self.0.handle(sess, stream).await
     }
 }
@@ -213,6 +214,7 @@ impl OutboundDatagramHandler for ExternalOutboundDatagramHandlerProxy {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
+        tracing::trace!("handling outbound datagram session: {:?}", sess);
         self.0.handle(sess, transport).await
     }
 }

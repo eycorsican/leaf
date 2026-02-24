@@ -187,27 +187,28 @@ impl Counter {
     }
 }
 
+impl Drop for Counter {
+    fn drop(&mut self) {
+        info!(
+            "[{}] [{}] [{}] [{}] [{}] [{}] [{}] [END]",
+            self.sess
+                .forwarded_source
+                .unwrap_or_else(|| self.sess.source.ip()),
+            self.sess.network,
+            self.sess.inbound_tag,
+            self.sess.outbound_tag,
+            self.sess.destination,
+            self.bytes_sent(),
+            self.bytes_recvd(),
+        );
+    }
+}
+
 fn get_unix_timestamp() -> u32 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|x| x.as_secs() as u32)
         .unwrap_or(0)
-}
-
-#[inline]
-fn log_session_end(c: &Counter) {
-    info!(
-        "[{}] [{}] [{}] [{}] [{}] [{}] [{}] [END]",
-        c.sess
-            .forwarded_source
-            .unwrap_or_else(|| c.sess.source.ip()),
-        c.sess.network,
-        c.sess.inbound_tag,
-        c.sess.outbound_tag,
-        c.sess.destination,
-        c.bytes_sent(),
-        c.bytes_recvd(),
-    );
 }
 
 #[derive(Default)]
@@ -228,8 +229,7 @@ impl StatManager {
                 let mut i = 0;
                 while i < sm.counters.len() {
                     if sm.counters[i].recv_completed() && sm.counters[i].send_completed() {
-                        let c = sm.counters.swap_remove(i);
-                        log_session_end(&c);
+                        sm.counters.swap_remove(i);
                     } else {
                         i += 1;
                     }

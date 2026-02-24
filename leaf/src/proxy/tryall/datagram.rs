@@ -32,6 +32,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         _transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
+        tracing::trace!("handling outbound datagram session: {:?}", sess);
         let mut tasks = Vec::new();
         for (i, a) in self.actors.iter().enumerate() {
             let t = async move {

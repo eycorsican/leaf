@@ -249,6 +249,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", _sess);
         Ok(Box::new(self.new_stream().await?))
     }
 }

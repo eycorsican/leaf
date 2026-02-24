@@ -89,10 +89,6 @@ lazy_static! {
         get_env_var_or("LOG_CONSOLE_OUT", false)
     };
 
-    pub static ref LOG_NO_COLOR: bool = {
-        get_env_var_or("LOG_NO_COLOR", false)
-    };
-
     /// Turn on TLS SNI sniffing, the sniffed SNI would override the original
     /// destination address, by default the sniffing would perform only on
     /// connections with destination port 443, set also TLS_DOMAIN_SNIFFING_ALL

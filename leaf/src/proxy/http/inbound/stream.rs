@@ -248,6 +248,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
+        tracing::trace!("handling inbound stream session: {:?}", sess);
         let mut http_stream = HttpStream {
             cache: Vec::new(),
             destination: None,

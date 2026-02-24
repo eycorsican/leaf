@@ -174,6 +174,7 @@ impl InboundStreamHandler for Handler {
         _sess: Session,
         mut stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
+        tracing::trace!("handling inbound stream session: {:?}", _sess);
         // Handle the HTTP request and send response
         if let Err(_e) = self.handle_request(&mut stream).await {
             self.delay_and_close().await;

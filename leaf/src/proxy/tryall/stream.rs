@@ -29,6 +29,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         let mut tasks = Vec::new();
         for (i, a) in self.actors.iter().enumerate() {
             let t = async move {

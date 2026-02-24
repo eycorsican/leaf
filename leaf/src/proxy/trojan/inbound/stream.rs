@@ -136,6 +136,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         mut stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
+        tracing::trace!("handling inbound stream session: {:?}", sess);
         let mut buf = [0; 56];
         // read key
         stream.read_exact(&mut buf[..56]).await?;

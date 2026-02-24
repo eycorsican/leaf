@@ -102,6 +102,9 @@ message ChainInboundSettings {
 	repeated string actors = 1;
 }
 
+message MptpInboundSettings {
+}
+
 message HcInboundSettings {
 	string path = 1;
 	string request = 2;
@@ -209,6 +212,12 @@ message RealityOutboundSettings {
 
 message ChainOutboundSettings {
 	repeated string actors = 1;
+}
+
+message MptpOutboundSettings {
+	repeated string actors = 1;
+	string address = 2;
+	uint32 port = 3;
 }
 
 message FailOverOutboundSettings {

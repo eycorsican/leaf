@@ -1790,6 +1790,82 @@ impl ::protobuf::Message for ChainInboundSettings {
     }
 }
 
+// @@protoc_insertion_point(message:MptpInboundSettings)
+#[derive(PartialEq,Clone,Default,Debug)]
+pub struct MptpInboundSettings {
+    // special fields
+    // @@protoc_insertion_point(special_field:MptpInboundSettings.special_fields)
+    pub special_fields: ::protobuf::SpecialFields,
+}
+
+impl<'a> ::std::default::Default for &'a MptpInboundSettings {
+    fn default() -> &'a MptpInboundSettings {
+        <MptpInboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl MptpInboundSettings {
+    pub fn new() -> MptpInboundSettings {
+        ::std::default::Default::default()
+    }
+}
+
+impl ::protobuf::Message for MptpInboundSettings {
+    const NAME: &'static str = "MptpInboundSettings";
+
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+        while let Some(tag) = is.read_raw_tag_or_eof()? {
+            match tag {
+                tag => {
+                    ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u64 {
+        let mut my_size = 0;
+        my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+        self.special_fields.cached_size().set(my_size as u32);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+        os.write_unknown_fields(self.special_fields.unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn special_fields(&self) -> &::protobuf::SpecialFields {
+        &self.special_fields
+    }
+
+    fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+        &mut self.special_fields
+    }
+
+    fn new() -> MptpInboundSettings {
+        MptpInboundSettings::new()
+    }
+
+    fn clear(&mut self) {
+        self.special_fields.clear();
+    }
+
+    fn default_instance() -> &'static MptpInboundSettings {
+        static instance: MptpInboundSettings = MptpInboundSettings {
+            special_fields: ::protobuf::SpecialFields::new(),
+        };
+        &instance
+    }
+}
+
 // @@protoc_insertion_point(message:HcInboundSettings)
 #[derive(PartialEq,Clone,Default,Debug)]
 pub struct HcInboundSettings {
@@ -3864,6 +3940,122 @@ impl ::protobuf::Message for ChainOutboundSettings {
     fn default_instance() -> &'static ChainOutboundSettings {
         static instance: ChainOutboundSettings = ChainOutboundSettings {
             actors: ::std::vec::Vec::new(),
+            special_fields: ::protobuf::SpecialFields::new(),
+        };
+        &instance
+    }
+}
+
+// @@protoc_insertion_point(message:MptpOutboundSettings)
+#[derive(PartialEq,Clone,Default,Debug)]
+pub struct MptpOutboundSettings {
+    // message fields
+    // @@protoc_insertion_point(field:MptpOutboundSettings.actors)
+    pub actors: ::std::vec::Vec<::std::string::String>,
+    // @@protoc_insertion_point(field:MptpOutboundSettings.address)
+    pub address: ::std::string::String,
+    // @@protoc_insertion_point(field:MptpOutboundSettings.port)
+    pub port: u32,
+    // special fields
+    // @@protoc_insertion_point(special_field:MptpOutboundSettings.special_fields)
+    pub special_fields: ::protobuf::SpecialFields,
+}
+
+impl<'a> ::std::default::Default for &'a MptpOutboundSettings {
+    fn default() -> &'a MptpOutboundSettings {
+        <MptpOutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl MptpOutboundSettings {
+    pub fn new() -> MptpOutboundSettings {
+        ::std::default::Default::default()
+    }
+}
+
+impl ::protobuf::Message for MptpOutboundSettings {
+    const NAME: &'static str = "MptpOutboundSettings";
+
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+        while let Some(tag) = is.read_raw_tag_or_eof()? {
+            match tag {
+                10 => {
+                    self.actors.push(is.read_string()?);
+                },
+                18 => {
+                    self.address = is.read_string()?;
+                },
+                24 => {
+                    self.port = is.read_uint32()?;
+                },
+                tag => {
+                    ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u64 {
+        let mut my_size = 0;
+        for value in &self.actors {
+            my_size += ::protobuf::rt::string_size(1, &value);
+        };
+        if !self.address.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.address);
+        }
+        if self.port != 0 {
+            my_size += ::protobuf::rt::uint32_size(3, self.port);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+        self.special_fields.cached_size().set(my_size as u32);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+        for v in &self.actors {
+            os.write_string(1, &v)?;
+        };
+        if !self.address.is_empty() {
+            os.write_string(2, &self.address)?;
+        }
+        if self.port != 0 {
+            os.write_uint32(3, self.port)?;
+        }
+        os.write_unknown_fields(self.special_fields.unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn special_fields(&self) -> &::protobuf::SpecialFields {
+        &self.special_fields
+    }
+
+    fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+        &mut self.special_fields
+    }
+
+    fn new() -> MptpOutboundSettings {
+        MptpOutboundSettings::new()
+    }
+
+    fn clear(&mut self) {
+        self.actors.clear();
+        self.address.clear();
+        self.port = 0;
+        self.special_fields.clear();
+    }
+
+    fn default_instance() -> &'static MptpOutboundSettings {
+        static instance: MptpOutboundSettings = MptpOutboundSettings {
+            actors: ::std::vec::Vec::new(),
+            address: ::std::string::String::new(),
+            port: 0,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

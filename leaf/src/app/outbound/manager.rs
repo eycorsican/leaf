@@ -16,6 +16,8 @@ use tracing::{debug, trace};
 use crate::proxy::chain;
 #[cfg(feature = "outbound-failover")]
 use crate::proxy::failover;
+#[cfg(feature = "outbound-mptp")]
+use crate::proxy::mptp;
 #[cfg(feature = "outbound-static")]
 use crate::proxy::r#static;
 #[cfg(feature = "outbound-select")]
@@ -116,14 +118,12 @@ impl OutboundManager {
                 #[cfg(feature = "outbound-direct")]
                 "direct" => HandlerBuilder::default()
                     .tag(tag.clone())
-                    .color(colored::Color::Green)
                     .stream_handler(Arc::new(direct::StreamHandler))
                     .datagram_handler(Arc::new(direct::DatagramHandler))
                     .build(),
                 #[cfg(feature = "outbound-drop")]
                 "drop" => HandlerBuilder::default()
                     .tag(tag.clone())
-                    .color(colored::Color::Red)
                     .stream_handler(Arc::new(drop::StreamHandler))
                     .datagram_handler(Arc::new(drop::DatagramHandler))
                     .build(),
@@ -601,6 +601,42 @@ impl OutboundManager {
                             .tag(tag.clone())
                             .stream_handler(stream)
                             .datagram_handler(datagram)
+                            .build();
+                        handlers.insert(tag.clone(), handler);
+                        trace!(
+                            "added handler [{}] with actors: {}",
+                            &tag,
+                            settings.actors.join(",")
+                        );
+                    }
+                    #[cfg(feature = "outbound-mptp")]
+                    "mptp" => {
+                        let settings =
+                            config::MptpOutboundSettings::parse_from_bytes(&outbound.settings)
+                                .map_err(|e| {
+                                    anyhow!("invalid [{}] outbound settings: {}", &tag, e)
+                                })?;
+                        let mut actors = Vec::new();
+                        for actor in settings.actors.iter() {
+                            if let Some(a) = handlers.get(actor) {
+                                actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
+                            }
+                        }
+                        if actors.is_empty() {
+                            continue;
+                        }
+                        let stream = Arc::new(mptp::outbound::stream::Handler {
+                            actors: actors.clone(),
+                            address: settings.address.clone(),
+                            port: settings.port as u16,
+                            dns_client: dns_client.clone(),
+                        });
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .stream_handler(stream.clone())
+                            .datagram_handler(stream)
                             .build();
                         handlers.insert(tag.clone(), handler);
                         trace!(

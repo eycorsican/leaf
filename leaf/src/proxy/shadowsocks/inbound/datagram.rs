@@ -22,6 +22,7 @@ pub struct Handler {
 #[async_trait]
 impl InboundDatagramHandler for Handler {
     async fn handle<'a>(&'a self, socket: AnyInboundDatagram) -> io::Result<AnyInboundTransport> {
+        tracing::trace!("handling inbound datagram");
         let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;
         Ok(InboundTransport::Datagram(
             Box::new(Datagram { dgram, socket }),

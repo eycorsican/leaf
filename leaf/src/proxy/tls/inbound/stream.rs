@@ -49,8 +49,11 @@ impl Handler {
     pub fn new(certificate: String, certificate_key: String) -> Result<Self> {
         #[cfg(feature = "rustls-tls")]
         {
-            let certs = load_certs(Path::new(&certificate))?;
-            let mut keys = load_keys(Path::new(&certificate_key))?;
+            let certs = load_certs(Path::new(&certificate)).map_err(|e| {
+                anyhow::anyhow!("load certificates from {} failed: {}", certificate, e)
+            })?;
+            let mut keys = load_keys(Path::new(&certificate_key))
+                .map_err(|e| anyhow::anyhow!("load keys from {} failed: {}", certificate_key, e))?;
             #[cfg(feature = "rustls-tls-aws-lc")]
             let provider = rustls::crypto::aws_lc_rs::default_provider().into();
             #[cfg(not(feature = "rustls-tls-aws-lc"))]
@@ -79,6 +82,7 @@ impl InboundStreamHandler for Handler {
         sess: Session,
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
+        tracing::trace!("handling inbound stream session: {:?}", sess);
         #[cfg(feature = "rustls-tls")]
         {
             Ok(InboundTransport::Stream(

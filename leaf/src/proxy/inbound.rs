@@ -30,12 +30,6 @@ impl Tag for Handler {
     }
 }
 
-impl Color for Handler {
-    fn color(&self) -> &colored::Color {
-        &colored::Color::White
-    }
-}
-
 impl BaseHandler for Handler {}
 
 impl InboundHandler for Handler {

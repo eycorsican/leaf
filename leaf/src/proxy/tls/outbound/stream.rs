@@ -121,7 +121,9 @@ impl Handler {
                         roots.add(cert?)?;
                     }
                 } else {
-                    let mut pem = BufReader::new(File::open(cert)?);
+                    let mut pem = BufReader::new(File::open(&cert).map_err(|e| {
+                        anyhow::anyhow!("load certificates from {} failed: {}", cert, e)
+                    })?);
                     for cert in rustls_pemfile::certs(&mut pem) {
                         roots.add(cert?)?;
                     }
@@ -189,6 +191,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         // TODO optimize, dont need copy
         let name = if !&self.server_name.is_empty() {
             self.server_name.clone()

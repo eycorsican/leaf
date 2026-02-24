@@ -130,6 +130,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
+        tracing::trace!("handling outbound datagram session: {:?}", sess);
         match transport {
             Some(transport) => match transport {
                 OutboundTransport::Datagram(dgram) => self.handle(sess, None, Some(dgram)).await,

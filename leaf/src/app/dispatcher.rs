@@ -86,26 +86,9 @@ impl OutboundDatagram for HealthcheckUdpDatagram {
 }
 
 #[inline]
-fn log_request(
-    sess: &Session,
-    outbound_tag: &str,
-    outbound_tag_color: &colored::Color,
-    handshake_time: Option<u128>,
-) {
+fn log_request(sess: &Session, outbound_tag: &str, handshake_time: Option<u128>) {
     let hs = handshake_time.map_or("failed".to_string(), |hs| format!("{}ms", hs));
-    let (network, outbound_tag) = if !*crate::option::LOG_NO_COLOR {
-        use colored::Colorize;
-        let network_color = match sess.network {
-            Network::Tcp => colored::Color::Blue,
-            Network::Udp => colored::Color::Yellow,
-        };
-        (
-            sess.network.to_string().color(network_color).to_string(),
-            outbound_tag.color(*outbound_tag_color).to_string(),
-        )
-    } else {
-        (sess.network.to_string(), outbound_tag.to_string())
-    };
+    let network = sess.network.to_string();
 
     #[cfg(feature = "rule-process-name")]
     {
@@ -281,7 +264,7 @@ impl Dispatcher {
                         &h.tag(),
                         e
                     );
-                    log_request(&sess, h.tag(), h.color(), None);
+                    log_request(&sess, h.tag(), None);
                     return;
                 }
             };
@@ -319,7 +302,7 @@ impl Dispatcher {
             Ok(mut rhs) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
-                log_request(&sess, h.tag(), h.color(), Some(elapsed.as_millis()));
+                log_request(&sess, h.tag(), Some(elapsed.as_millis()));
 
                 if !stats_wrapped {
                     rhs = self
@@ -365,7 +348,7 @@ impl Dispatcher {
                     &h.tag(),
                     e
                 );
-                log_request(&sess, h.tag(), h.color(), None);
+                log_request(&sess, h.tag(), None);
             }
         }
     }
@@ -454,7 +437,7 @@ impl Dispatcher {
             Ok(mut d) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
-                log_request(&sess, h.tag(), h.color(), Some(elapsed.as_millis()));
+                log_request(&sess, h.tag(), Some(elapsed.as_millis()));
 
                 d = self
                     .stat_manager
@@ -476,7 +459,7 @@ impl Dispatcher {
                     &h.tag(),
                     e
                 );
-                log_request(&sess, h.tag(), h.color(), None);
+                log_request(&sess, h.tag(), None);
                 Err(e)
             }
         }

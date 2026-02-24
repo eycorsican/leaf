@@ -29,6 +29,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
+        tracing::trace!("handling outbound datagram session: {:?}", sess);
         let server_addr = SocksAddr::try_from((&self.address, self.port))?;
 
         let socket = if let Some(OutboundTransport::Datagram(socket)) = transport {

@@ -62,6 +62,7 @@ impl OutboundStreamHandler for Handler {
         mut lhs: Option<&mut AnyStream>,
         mut stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         for (i, a) in self.actors.iter().enumerate() {
             let new_sess = self.next_session(sess.clone(), i + 1);
             let s = stream.take();

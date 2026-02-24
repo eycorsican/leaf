@@ -65,6 +65,7 @@ impl std::fmt::Display for DatagramSource {
     }
 }
 
+#[derive(Debug)]
 pub struct Session {
     /// Unique identifier for the session.
     pub trace_id: String,

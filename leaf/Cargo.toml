@@ -61,6 +61,7 @@ all-endpoints = [
     "inbound-ws",
     "inbound-tls",
     "inbound-trojan",
+    "inbound-mptp",
     "inbound-http",
     "inbound-hc",
     "inbound-shadowsocks",
@@ -86,6 +87,7 @@ all-endpoints = [
     "outbound-chain",
     "outbound-vless",
     "outbound-reality",
+    "outbound-mptp",
     # "outbound-select",
 ]
 
@@ -123,11 +125,13 @@ outbound-vless = ["uuid", "hex"]
 outbound-reality = ["reality", "reality-rustls", "webpki-roots", "rustls-pemfile", "hex", "base64"]
 outbound-amux= ["tokio-util"]
 outbound-quic = ["rustls", "webpki-roots-old", "rustls-pemfile-old"]
+outbound-mptp = []
 outbound-select = ["directories", "axum/query"]
 outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "sha2", "aes", "aes-gcm", "sha3", "digest", "uuid", "md-5", "tokio-util", "byteorder", "crc32fast"]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
+inbound-mptp = []
 inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["http"]
@@ -170,7 +174,6 @@ tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = "0.3"
 chrono = "0.4"
-colored = "2.2"
 
 # Router
 maxminddb = { version = "0.24", features = ["mmap"] }
@@ -242,7 +245,7 @@ aes = { version = "0.8", optional = true }
 aes-gcm = { version = "0.10", optional = true }
 sha3 = { version = "0.10", optional = true }
 digest = { version = "0.10", optional = true }
-uuid = { version = "1", optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
 byteorder = { version = "1", optional = true }
 crc32fast = { version = "1", optional = true }
 

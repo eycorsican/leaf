@@ -21,6 +21,7 @@ A versatile and efficient proxy framework.
 | Trojan | ✅ | ✅ |
 | VMess | ❌ | ✅ |
 | Vless | ❌ | ✅ |
+| MPTP | ✅ | ✅ |
 
 ### Transports & Security
 
@@ -29,7 +30,7 @@ A versatile and efficient proxy framework.
 | WebSocket | ✅ | ✅ | |
 | TLS | ✅ | ✅ | |
 | QUIC | ✅ | ✅ | |
-| AMux | ✅ | ✅ | Leaf specific |
+| AMux | ✅ | ✅ | Leaf specific multiplexing |
 | Obfs | ❌ | ✅ | Simple obfuscation |
 | Reality | ❌ | ✅ | Xray Reality |
 
@@ -39,6 +40,7 @@ A versatile and efficient proxy framework.
 |---|---|---|---|
 | Chain | ✅ | ✅ | Proxy chaining |
 | Failover | ❌ | ✅ | Failover with health check |
+| MPTP | ✅ | ✅ | Multi-path Transport Protocol (Aggregation) |
 
 ### Transparent Proxying
 

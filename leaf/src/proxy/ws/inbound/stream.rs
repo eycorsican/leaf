@@ -64,6 +64,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
+        tracing::trace!("handling inbound stream session: {:?}", sess);
         let s = accept_hdr_async(stream, SimpleCallback::new(&mut sess, &self.path))
             .map_err(|e| io::Error::other(format!("accept ws failed: {}", e)))
             .await?;

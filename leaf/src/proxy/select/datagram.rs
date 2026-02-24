@@ -37,6 +37,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
+        tracing::trace!("handling outbound datagram session: {:?}", sess);
         let a = &self.actors[self.selected.load(Ordering::Relaxed)];
         tracing::debug!("select handles to [{}]", a.tag());
         a.datagram()?.handle(sess, transport).await

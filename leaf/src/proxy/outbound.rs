@@ -7,7 +7,6 @@ use super::*;
 /// handler.
 pub struct Handler {
     tag: String,
-    color: colored::Color,
     stream_handler: Option<AnyOutboundStreamHandler>,
     datagram_handler: Option<AnyOutboundDatagramHandler>,
 }
@@ -15,13 +14,11 @@ pub struct Handler {
 impl Handler {
     pub(self) fn new(
         tag: String,
-        color: colored::Color,
         stream_handler: Option<AnyOutboundStreamHandler>,
         datagram_handler: Option<AnyOutboundDatagramHandler>,
     ) -> Arc<Self> {
         Arc::new(Handler {
             tag,
-            color,
             stream_handler,
             datagram_handler,
         })
@@ -50,15 +47,8 @@ impl Tag for Handler {
     }
 }
 
-impl Color for Handler {
-    fn color(&self) -> &colored::Color {
-        &self.color
-    }
-}
-
 pub struct HandlerBuilder {
     tag: String,
-    color: colored::Color,
     stream_handler: Option<AnyOutboundStreamHandler>,
     datagram_handler: Option<AnyOutboundDatagramHandler>,
 }
@@ -67,7 +57,6 @@ impl HandlerBuilder {
     pub fn new() -> Self {
         Self {
             tag: "".to_string(),
-            color: colored::Color::Magenta,
             stream_handler: None,
             datagram_handler: None,
         }
@@ -75,11 +64,6 @@ impl HandlerBuilder {
 
     pub fn tag(mut self, v: String) -> Self {
         self.tag = v;
-        self
-    }
-
-    pub fn color(mut self, v: colored::Color) -> Self {
-        self.color = v;
         self
     }
 
@@ -94,12 +78,7 @@ impl HandlerBuilder {
     }
 
     pub fn build(self) -> AnyOutboundHandler {
-        Handler::new(
-            self.tag,
-            self.color,
-            self.stream_handler,
-            self.datagram_handler,
-        )
+        Handler::new(self.tag, self.stream_handler, self.datagram_handler)
     }
 }
 

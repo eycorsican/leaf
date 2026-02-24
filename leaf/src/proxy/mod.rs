@@ -55,6 +55,8 @@ pub mod failover;
 pub mod hc;
 #[cfg(feature = "inbound-http")]
 pub mod http;
+#[cfg(feature = "outbound-mptp")]
+pub mod mptp;
 #[cfg(all(feature = "inbound-nf", windows))]
 pub mod nf;
 #[cfg(feature = "outbound-obfs")]
@@ -109,10 +111,6 @@ pub enum DatagramTransportType {
 
 pub trait Tag {
     fn tag(&self) -> &String;
-}
-
-pub trait Color {
-    fn color(&self) -> &colored::Color;
 }
 
 #[derive(Debug)]
@@ -547,7 +545,7 @@ impl<S> ProxyStream for S where S: AsyncRead + AsyncWrite + Send + Sync + Unpin 
 
 pub type AnyStream = Box<dyn ProxyStream>;
 
-pub trait BaseHandler: Tag + Color + Send + Sync + Unpin {}
+pub trait BaseHandler: Tag + Send + Sync + Unpin {}
 
 /// An outbound handler for both UDP and TCP outgoing connections.
 pub trait OutboundHandler: BaseHandler {

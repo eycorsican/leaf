@@ -29,12 +29,12 @@ pub struct CatInboundSettings {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NfInboundSettings {
-    #[serde(rename = "driverName")]
+    #[serde(rename = "driverName", alias = "driver_name")]
     pub driver_name: String,
     pub nfapi: Option<String>,
-    #[serde(rename = "fakeDnsExclude")]
+    #[serde(rename = "fakeDnsExclude", alias = "fake_dns_exclude")]
     pub fake_dns_exclude: Option<Vec<String>>,
-    #[serde(rename = "fakeDnsInclude")]
+    #[serde(rename = "fakeDnsInclude", alias = "fake_dns_include")]
     pub fake_dns_include: Option<Vec<String>>,
     pub tun2socks: Option<String>,
 }
@@ -82,7 +82,7 @@ pub struct AMuxInboundSettings {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QuicInboundSettings {
     pub certificate: Option<String>,
-    #[serde(rename = "certificateKey")]
+    #[serde(rename = "certificateKey", alias = "certificate_key")]
     pub certificate_key: Option<String>,
     pub alpn: Option<Vec<String>>,
 }
@@ -90,7 +90,7 @@ pub struct QuicInboundSettings {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TlsInboundSettings {
     pub certificate: Option<String>,
-    #[serde(rename = "certificateKey")]
+    #[serde(rename = "certificateKey", alias = "certificate_key")]
     pub certificate_key: Option<String>,
 }
 
@@ -101,6 +101,10 @@ pub struct ChainInboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct MptpInboundSettings {}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TunInboundSettings {
     pub auto: Option<bool>,
     pub fd: Option<i32>,
@@ -109,13 +113,13 @@ pub struct TunInboundSettings {
     pub gateway: Option<String>,
     pub netmask: Option<String>,
     pub mtu: Option<i32>,
-    #[serde(rename = "fakeDnsExclude")]
+    #[serde(rename = "fakeDnsExclude", alias = "fake_dns_exclude")]
     pub fake_dns_exclude: Option<Vec<String>>,
-    #[serde(rename = "fakeDnsInclude")]
+    #[serde(rename = "fakeDnsInclude", alias = "fake_dns_include")]
     pub fake_dns_include: Option<Vec<String>>,
     pub tun2socks: Option<String>,
     pub wintun: Option<String>,
-    #[serde(rename = "dnsServers")]
+    #[serde(rename = "dnsServers", alias = "dns_servers")]
     pub dns_servers: Option<Vec<String>>,
 }
 
@@ -174,18 +178,18 @@ pub struct VlessOutboundSettings {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RealityOutboundSettings {
-    #[serde(rename = "serverName")]
+    #[serde(rename = "serverName", alias = "server_name")]
     pub server_name: Option<String>,
-    #[serde(rename = "publicKey")]
+    #[serde(rename = "publicKey", alias = "public_key")]
     pub public_key: Option<String>,
-    #[serde(rename = "shortId")]
+    #[serde(rename = "shortId", alias = "short_id")]
     pub short_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TryAllOutboundSettings {
     pub actors: Option<Vec<String>>,
-    #[serde(rename = "delayBase")]
+    #[serde(rename = "delayBase", alias = "delay_base")]
     pub delay_base: Option<u32>,
 }
 
@@ -197,7 +201,7 @@ pub struct StaticOutboundSettings {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TlsOutboundSettings {
-    #[serde(rename = "serverName")]
+    #[serde(rename = "serverName", alias = "server_name")]
     pub server_name: Option<String>,
     pub alpn: Option<Vec<String>>,
     pub certificate: Option<String>,
@@ -215,7 +219,7 @@ pub struct AMuxOutboundSettings {
     pub address: Option<String>,
     pub port: Option<u16>,
     pub actors: Option<Vec<String>>,
-    #[serde(rename = "maxAccepts")]
+    #[serde(rename = "maxAccepts", alias = "max_accepts")]
     pub max_accepts: Option<u32>,
     pub concurrency: Option<u32>,
     pub max_recv_bytes: Option<u64>,
@@ -226,7 +230,7 @@ pub struct AMuxOutboundSettings {
 pub struct QuicOutboundSettings {
     pub address: Option<String>,
     pub port: Option<u16>,
-    #[serde(rename = "serverName")]
+    #[serde(rename = "serverName", alias = "server_name")]
     pub server_name: Option<String>,
     pub certificate: Option<String>,
     pub alpn: Option<Vec<String>>,
@@ -239,36 +243,46 @@ pub struct ChainOutboundSettings {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MptpOutboundSettings {
+    pub actors: Option<Vec<String>>,
+    pub address: Option<String>,
+    pub port: Option<u16>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FailOverOutboundSettings {
     pub actors: Option<Vec<String>>,
-    #[serde(rename = "failTimeout")]
+    #[serde(rename = "failTimeout", alias = "fail_timeout")]
     pub fail_timeout: Option<u32>,
-    #[serde(rename = "healthCheck")]
+    #[serde(rename = "healthCheck", alias = "health_check")]
     pub health_check: Option<bool>,
-    #[serde(rename = "healthCheckTimeout")]
+    #[serde(rename = "healthCheckTimeout", alias = "health_check_timeout")]
     pub health_check_timeout: Option<u32>,
-    #[serde(rename = "healthCheckDelay")]
+    #[serde(rename = "healthCheckDelay", alias = "health_check_delay")]
     pub health_check_delay: Option<u32>,
-    #[serde(rename = "healthCheckActive")]
+    #[serde(rename = "healthCheckActive", alias = "health_check_active")]
     pub health_check_active: Option<u32>,
-    #[serde(rename = "healthCheckPrefers")]
+    #[serde(rename = "healthCheckPrefers", alias = "health_check_prefers")]
     pub health_check_prefers: Option<Vec<String>>,
-    #[serde(rename = "checkInterval")]
+    #[serde(rename = "checkInterval", alias = "check_interval")]
     pub check_interval: Option<u32>,
-    #[serde(rename = "healthCheckOnStart")]
+    #[serde(rename = "healthCheckOnStart", alias = "health_check_on_start")]
     pub health_check_on_start: Option<bool>,
-    #[serde(rename = "healthCheckWait")]
+    #[serde(rename = "healthCheckWait", alias = "health_check_wait")]
     pub health_check_wait: Option<bool>,
-    #[serde(rename = "healthCheckAttempts")]
+    #[serde(rename = "healthCheckAttempts", alias = "health_check_attempts")]
     pub health_check_attempts: Option<u32>,
-    #[serde(rename = "healthCheckSuccessPercentage")]
+    #[serde(
+        rename = "healthCheckSuccessPercentage",
+        alias = "health_check_success_percentage"
+    )]
     pub health_check_success_percentage: Option<u32>,
     pub failover: Option<bool>,
-    #[serde(rename = "fallbackCache")]
+    #[serde(rename = "fallbackCache", alias = "fallback_cache")]
     pub fallback_cache: Option<bool>,
-    #[serde(rename = "cacheSize")]
+    #[serde(rename = "cacheSize", alias = "cache_size")]
     pub cache_size: Option<u32>,
-    #[serde(rename = "cacheTimeout")]
+    #[serde(rename = "cacheTimeout", alias = "cache_timeout")]
     pub cache_timeout: Option<u32>,
 }
 
@@ -335,6 +349,10 @@ pub enum InboundSettings {
     Chain {
         #[serde(default)]
         settings: Option<ChainInboundSettings>,
+    },
+    Mptp {
+        #[serde(default)]
+        settings: Option<MptpInboundSettings>,
     },
     Tun {
         #[serde(default)]
@@ -418,6 +436,10 @@ pub enum OutboundSettings {
         #[serde(default)]
         settings: Option<ChainOutboundSettings>,
     },
+    Mptp {
+        #[serde(default)]
+        settings: Option<MptpOutboundSettings>,
+    },
     FailOver {
         #[serde(default)]
         settings: Option<FailOverOutboundSettings>,
@@ -440,18 +462,18 @@ pub struct Rule {
     pub type_field: Option<String>,
     pub ip: Option<Vec<String>>,
     pub domain: Option<Vec<String>>,
-    #[serde(rename = "domainKeyword")]
+    #[serde(rename = "domainKeyword", alias = "domain_keyword")]
     pub domain_keyword: Option<Vec<String>>,
-    #[serde(rename = "domainSuffix")]
+    #[serde(rename = "domainSuffix", alias = "domain_suffix")]
     pub domain_suffix: Option<Vec<String>>,
     pub geoip: Option<Vec<String>>,
     pub external: Option<Vec<String>>,
-    #[serde(rename = "portRange")]
+    #[serde(rename = "portRange", alias = "port_range")]
     pub port_range: Option<Vec<String>>,
     pub network: Option<Vec<String>>,
-    #[serde(rename = "inboundTag")]
+    #[serde(rename = "inboundTag", alias = "inbound_tag")]
     pub inbound_tag: Option<Vec<String>>,
-    #[serde(rename = "processName")]
+    #[serde(rename = "processName", alias = "process_name")]
     pub process_name: Option<Vec<String>>,
     pub target: String,
 }
@@ -459,7 +481,7 @@ pub struct Rule {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Router {
     pub rules: Option<Vec<Rule>>,
-    #[serde(rename = "domainResolve")]
+    #[serde(rename = "domainResolve", alias = "domain_resolve")]
     pub domain_resolve: Option<bool>,
 }
 
@@ -862,6 +884,17 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     inbounds.push(inbound);
                 }
+                InboundSettings::Mptp {
+                    settings: ext_settings,
+                } => {
+                    inbound.protocol = "mptp".to_string();
+                    if let Some(_ext_settings) = ext_settings {
+                        let settings = internal::MptpInboundSettings::new();
+                        let settings = settings.write_to_bytes().unwrap();
+                        inbound.settings = settings;
+                    }
+                    inbounds.push(inbound);
+                }
             }
         }
     }
@@ -1259,6 +1292,28 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                             for ext_actor in ext_actors {
                                 settings.actors.push(ext_actor.clone());
                             }
+                        }
+                        let settings = settings.write_to_bytes().unwrap();
+                        outbound.settings = settings;
+                    }
+                    outbounds.push(outbound);
+                }
+                OutboundSettings::Mptp {
+                    settings: ext_settings,
+                } => {
+                    outbound.protocol = "mptp".to_string();
+                    if let Some(ext_settings) = ext_settings {
+                        let mut settings = internal::MptpOutboundSettings::new();
+                        if let Some(ext_actors) = &ext_settings.actors {
+                            for ext_actor in ext_actors {
+                                settings.actors.push(ext_actor.clone());
+                            }
+                        }
+                        if let Some(ext_address) = &ext_settings.address {
+                            settings.address = ext_address.clone();
+                        }
+                        if let Some(ext_port) = ext_settings.port {
+                            settings.port = ext_port as u32;
                         }
                         let settings = settings.write_to_bytes().unwrap();
                         outbound.settings = settings;

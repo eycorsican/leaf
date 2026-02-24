@@ -1,4 +1,4 @@
-mod network_listener;
+pub mod network_listener;
 
 #[cfg(feature = "inbound-tun")]
 mod tun_listener;

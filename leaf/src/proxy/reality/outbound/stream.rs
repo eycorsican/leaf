@@ -28,6 +28,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         let stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
 
         let server_name = ServerName::try_from(self.server_name.as_str())

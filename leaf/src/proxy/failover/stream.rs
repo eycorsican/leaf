@@ -131,6 +131,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        tracing::trace!("handling outbound stream session: {:?}", sess);
         *self.last_active.lock().await = Instant::now();
 
         if let Some(task) = self.health_check_task.lock().await.take() {

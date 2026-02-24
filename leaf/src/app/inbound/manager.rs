@@ -17,6 +17,8 @@ use crate::proxy::amux;
 use crate::proxy::hc;
 #[cfg(feature = "inbound-http")]
 use crate::proxy::http;
+#[cfg(feature = "inbound-mptp")]
+use crate::proxy::mptp;
 #[cfg(all(feature = "inbound-nf", windows))]
 use crate::proxy::nf;
 #[cfg(feature = "inbound-quic")]
@@ -96,6 +98,16 @@ impl InboundManager {
                 #[cfg(feature = "inbound-http")]
                 "http" => {
                     let stream = Arc::new(http::inbound::StreamHandler);
+                    let handler = Arc::new(proxy::inbound::Handler::new(
+                        tag.clone(),
+                        Some(stream),
+                        None,
+                    ));
+                    handlers.insert(tag.clone(), handler);
+                }
+                #[cfg(feature = "inbound-mptp")]
+                "mptp" => {
+                    let stream = Arc::new(mptp::inbound::stream::Handler::new());
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         tag.clone(),
                         Some(stream),
