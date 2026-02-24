@@ -475,7 +475,7 @@ mod tests {
     async fn test_single_stream_write_read() {
         use super::super::protocol::MTYP_DATA;
         let (client, mut server) = tokio::io::duplex(1024);
-        let mut mptp = MptpStream::new(vec![client]);
+        let mut mptp = MptpStream::new(vec![client], uuid::Uuid::new_v4());
 
         // Write to mptp
         mptp.write_all(b"hello").await.unwrap();
@@ -498,7 +498,7 @@ mod tests {
     async fn test_deduplication() {
         let (c1, mut s1) = tokio::io::duplex(1024);
         let (c2, mut s2) = tokio::io::duplex(1024);
-        let mut mptp = MptpStream::new(vec![c1, c2]);
+        let mut mptp = MptpStream::new(vec![c1, c2], uuid::Uuid::new_v4());
 
         // Construct a frame
         let frame = Frame::Data {

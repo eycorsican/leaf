@@ -1095,10 +1095,11 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 }
                 "trojan" | "vmess" => {
                     let mut actors = Vec::new();
+                    let mut component_outbounds = Vec::new();
 
                     // tls
                     let tls_tag = format!("{}_tls_xxx", ext_proxy.tag);
-                    outbounds.push(common::Outbound {
+                    component_outbounds.push(common::Outbound {
                         tag: Some(tls_tag.clone()),
                         settings: common::OutboundSettings::Tls {
                             settings: Some(common::TlsOutboundSettings {
@@ -1120,7 +1121,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                     if let Some(host) = &ext_proxy.ws_host {
                         ws_headers.insert("Host".to_string(), host.clone());
                     }
-                    outbounds.push(common::Outbound {
+                    component_outbounds.push(common::Outbound {
                         tag: Some(ws_tag.clone()),
                         settings: common::OutboundSettings::WebSocket {
                             settings: Some(common::WebSocketOutboundSettings {
@@ -1141,7 +1142,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                         if ext_proxy.ws.unwrap_or(false) {
                             amux_actors.push(ws_tag.clone());
                         }
-                        outbounds.push(common::Outbound {
+                        component_outbounds.push(common::Outbound {
                             tag: Some(amux_tag.clone()),
                             settings: common::OutboundSettings::AMux {
                                 settings: Some(common::AMuxOutboundSettings {
@@ -1158,7 +1159,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                         actors.push(amux_tag);
                     } else if ext_proxy.quic.unwrap_or(false) {
                         let quic_tag = format!("{}_quic_xxx", ext_proxy.tag);
-                        outbounds.push(common::Outbound {
+                        component_outbounds.push(common::Outbound {
                             tag: Some(quic_tag.clone()),
                             settings: common::OutboundSettings::Quic {
                                 settings: Some(common::QuicOutboundSettings {
@@ -1181,7 +1182,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                     // core protocol
                     let core_tag = format!("{}_{}_xxx", ext_proxy.tag, protocol);
                     if protocol == "trojan" {
-                        outbounds.push(common::Outbound {
+                        component_outbounds.push(common::Outbound {
                             tag: Some(core_tag.clone()),
                             settings: common::OutboundSettings::Trojan {
                                 settings: Some(common::TrojanOutboundSettings {
@@ -1200,7 +1201,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                             },
                         });
                     } else {
-                        outbounds.push(common::Outbound {
+                        component_outbounds.push(common::Outbound {
                             tag: Some(core_tag.clone()),
                             settings: common::OutboundSettings::VMess {
                                 settings: Some(common::VMessOutboundSettings {
@@ -1237,6 +1238,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                             }),
                         },
                     });
+                    outbounds.append(&mut component_outbounds);
                 }
                 _ => {}
             }
@@ -1389,6 +1391,54 @@ pub fn from_string(s: &str) -> Result<internal::Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_trojan_tls_outbound_order() {
+        let conf = r#"
+[Proxy]
+Direct = direct
+Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let common = to_common(&config).unwrap();
+
+        let outbounds = common.outbounds.unwrap();
+        // The first outbound should be "Direct"
+        assert_eq!(outbounds[0].tag, Some("Direct".to_string()));
+        // The second outbound should be the main "Trojan" outbound (which is a Chain)
+        assert_eq!(outbounds[1].tag, Some("Trojan".to_string()));
+        if let common::OutboundSettings::Chain { .. } = &outbounds[1].settings {
+            // Correct
+        } else {
+            panic!(
+                "Second outbound is not a Chain: {:?}",
+                outbounds[1].settings
+            );
+        }
+        // The third outbound should be the TLS component
+        assert_eq!(outbounds[2].tag, Some("Trojan_tls_xxx".to_string()));
+    }
+
+    #[test]
+    fn test_vmess_amux_outbound_order() {
+        let conf = r#"
+[Proxy]
+Vmess = vmess, 1.2.3.4, 443, username, amux=true, sni=www.google.com
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let common = to_common(&config).unwrap();
+
+        let outbounds = common.outbounds.unwrap();
+        // The first outbound should be the main "Vmess" outbound (Chain)
+        assert_eq!(outbounds[0].tag, Some("Vmess".to_string()));
+        // The following should be components
+        let tags: Vec<_> = outbounds.iter().map(|o| o.tag.as_ref().unwrap()).collect();
+        assert!(tags.contains(&&"Vmess_tls_xxx".to_string()));
+        assert!(tags.contains(&&"Vmess_amux_xxx".to_string()));
+        assert!(tags.contains(&&"Vmess_vmess_xxx".to_string()));
+    }
 
     #[test]
     fn test_wintun_conf() {
