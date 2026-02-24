@@ -123,6 +123,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> MptpStream<S> {
                 }
             }
         }
+
+        // Periodically cleanup closed subs if the list gets too long
+        if self.subs.len() > 16 {
+            self.subs.retain(|s| !s.closed);
+        }
     }
 }
 
@@ -281,7 +286,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                             // Future packet, buffer it
                             // log::trace!("Buffering future PN: {} (expected {})", pn, this.expected_read_pn);
                             if !this.reorder_buffer.contains_key(&pn) {
-                                this.reorder_buffer.insert(pn, payload);
+                                // Limit reorder buffer size to 1024 packets or ~4MB
+                                if this.reorder_buffer.len() < 1024 {
+                                    this.reorder_buffer.insert(pn, payload);
+                                } else {
+                                    warn!("Reorder buffer full, dropping PN {}", pn);
+                                }
                             }
                         }
                     }
@@ -345,17 +355,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
             return Poll::Pending;
         }
 
-        // Check backpressure (if any buffer is too full)
-        let mut needs_flush = false;
+        // Check backpressure (if ALL active buffers are too full)
+        let mut all_full = true;
         let mut active_subs = 0;
 
         for sub in &this.subs {
             if !sub.closed {
                 active_subs += 1;
-                if sub.write_buf.len() > 64 * 1024 {
-                    needs_flush = true;
-                    // Don't break, check all? Or break is fine.
-                    break;
+                if sub.write_buf.len() <= 64 * 1024 {
+                    all_full = false;
                 }
             }
         }
@@ -368,17 +376,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
             )));
         }
 
-        if needs_flush {
-            // Try to flush
+        if all_full {
+            // Try to flush - maybe it helps?
             let _ = Pin::new(&mut *this).poll_flush(cx);
-        }
-
-        // If still full, return pending
-        // But only check active ones
-        for sub in &this.subs {
-            if !sub.closed && sub.write_buf.len() > 64 * 1024 {
-                return Poll::Pending;
-            }
+            return Poll::Pending;
         }
 
         let pn = this.next_pn;
@@ -393,11 +394,28 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
         frame.encode(&mut encoded);
         let encoded_bytes = encoded.freeze();
 
-        // Broadcast to all subs
-        for sub in &mut this.subs {
+        // Broadcast to all non-full subs
+        let mut sent_count = 0;
+        for (i, sub) in this.subs.iter_mut().enumerate() {
             if !sub.closed {
-                sub.write_buf.extend_from_slice(&encoded_bytes);
+                if sub.write_buf.len() <= 64 * 1024 {
+                    sub.write_buf.extend_from_slice(&encoded_bytes);
+                    sent_count += 1;
+                } else {
+                    warn!(
+                        "Sub {} (CID={}) is full ({} bytes), skipping PN {}",
+                        i,
+                        sub.cid,
+                        sub.write_buf.len(),
+                        pn
+                    );
+                }
             }
+        }
+
+        if sent_count == 0 {
+            // Should not happen due to all_full check above, but for safety:
+            return Poll::Pending;
         }
 
         // Try flush immediately
@@ -413,11 +431,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
         this.poll_new_subs(cx);
 
         let mut all_flushed = true;
+        let mut any_flushed = false;
+        let mut active_subs = 0;
 
         for (i, sub) in this.subs.iter_mut().enumerate() {
             if sub.closed {
                 continue;
             }
+            active_subs += 1;
             while !sub.write_buf.is_empty() {
                 match Pin::new(&mut sub.stream).poll_write(cx, &sub.write_buf) {
                     Poll::Ready(Ok(n)) => {
@@ -438,9 +459,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
                     }
                 }
             }
+            if !sub.closed && sub.write_buf.is_empty() {
+                any_flushed = true;
+            }
         }
 
-        if all_flushed {
+        if all_flushed || (any_flushed && active_subs > 0) {
+            // If at least one path is flushed, we consider the overall stream "flushed" enough
+            // to continue, but we'll keep trying to flush others in future calls.
+            Poll::Ready(Ok(()))
+        } else if active_subs == 0 {
             Poll::Ready(Ok(()))
         } else {
             Poll::Pending
@@ -464,7 +492,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
             // We just append to write buf. poll_flush will send it.
             // But shutdown expects to close *now*.
             // However, standard AsyncWrite::poll_shutdown implies "flush pending writes and close".
-            sub.write_buf.extend_from_slice(&encoded_bytes);
+            if !sub.closed {
+                sub.write_buf.extend_from_slice(&encoded_bytes);
+            }
         }
 
         // Flush all buffers
@@ -472,13 +502,33 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
 
         // Now shutdown underlying streams
         let mut all_done = true;
+        let mut any_done = false;
+        let mut active_subs = 0;
+
         for sub in &mut this.subs {
-            if Pin::new(&mut sub.stream).poll_shutdown(cx).is_pending() {
-                all_done = false;
+            if sub.closed {
+                continue;
+            }
+            active_subs += 1;
+            match Pin::new(&mut sub.stream).poll_shutdown(cx) {
+                Poll::Ready(Ok(())) => {
+                    any_done = true;
+                }
+                Poll::Ready(Err(_)) => {
+                    // Just ignore error and mark closed?
+                    sub.closed = true;
+                    any_done = true;
+                }
+                Poll::Pending => {
+                    all_done = false;
+                }
             }
         }
 
-        if all_done {
+        if all_done || (any_done && active_subs > 0) {
+            // If at least one path is shut down, we consider the overall stream "shut down" enough
+            Poll::Ready(Ok(()))
+        } else if active_subs == 0 {
             Poll::Ready(Ok(()))
         } else {
             Poll::Pending
@@ -567,5 +617,29 @@ mod tests {
         let mut buf = [0u8; 1024];
         let n = s1.read(&mut buf).await.unwrap();
         assert!(n > 0);
+    }
+
+    #[tokio::test]
+    async fn test_resilience_to_stuck_sub() {
+        let (c1, mut s1) = tokio::io::duplex(1024);
+        let (c2, _s2) = tokio::io::duplex(1024); // s2 is never read, so c2 will become full
+        let mut mptp = MptpStream::new(vec![c1, c2], uuid::Uuid::new_v4());
+
+        // Read from s1 in a background task to keep c1 empty
+        tokio::spawn(async move {
+            let mut buf = [0u8; 1024];
+            while let Ok(n) = s1.read(&mut buf).await {
+                if n == 0 { break; }
+            }
+        });
+
+        // Write enough that c2 is definitely full but mptp shouldn't hang
+        for i in 0..100 {
+            let msg = format!("hello {}", i);
+            mptp.write_all(msg.as_bytes()).await.unwrap();
+        }
+
+        // Flush should succeed because c1 is flushed
+        mptp.flush().await.unwrap();
     }
 }
