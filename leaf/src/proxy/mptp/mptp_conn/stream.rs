@@ -83,6 +83,26 @@ impl<S: AsyncRead + AsyncWrite + Unpin> MptpStream<S> {
         }
     }
 
+    pub fn new_with_receiver_and_initial(
+        streams: Vec<S>,
+        cid: uuid::Uuid,
+        rx: mpsc::UnboundedReceiver<(S, Option<uuid::Uuid>)>,
+    ) -> Self {
+        let subs = streams
+            .into_iter()
+            .map(|s| SubConnection::new_with_cid(s, cid))
+            .collect();
+        Self {
+            subs,
+            new_subs_rx: Some(rx),
+            read_buffer: BytesMut::new(),
+            next_pn: 1,
+            expected_read_pn: 1,
+            reorder_buffer: BTreeMap::new(),
+            closed: false,
+        }
+    }
+
     fn poll_new_subs(&mut self, cx: &mut Context<'_>) {
         if let Some(rx) = &mut self.new_subs_rx {
             loop {
