@@ -138,6 +138,10 @@ pub struct ProxyGroup {
     pub protocol: String,
     pub actors: Option<Vec<String>>,
 
+    // common
+    pub address: Option<String>,
+    pub port: Option<u16>,
+
     // failover
     pub health_check: Option<bool>,
     pub check_interval: Option<u32>,
@@ -169,6 +173,8 @@ impl Default for ProxyGroup {
             tag: "".to_string(),
             protocol: "".to_string(),
             actors: None,
+            address: None,
+            port: None,
             health_check: None,
             check_interval: None,
             fail_timeout: None,
@@ -656,6 +662,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                     continue;
                 }
                 match k {
+                    "address" => {
+                        group.address = Some(v.to_string());
+                    }
+                    "port" => {
+                        group.port = v.parse().ok();
+                    }
                     "health-check" => {
                         group.health_check = if v == "true" { Some(true) } else { Some(false) };
                     }
@@ -1317,6 +1329,18 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                         },
                     });
                 }
+                "mptp" => {
+                    outbounds.push(common::Outbound {
+                        tag: Some(ext_proxy_group.tag.clone()),
+                        settings: common::OutboundSettings::Mptp {
+                            settings: Some(common::MptpOutboundSettings {
+                                actors: ext_proxy_group.actors.clone(),
+                                address: ext_proxy_group.address.clone(),
+                                port: ext_proxy_group.port,
+                            }),
+                        },
+                    });
+                }
                 _ => {}
             }
         }
@@ -1469,6 +1493,37 @@ tun-dns-server = 8.8.8.8, 8.8.4.4
             }
         } else {
             panic!("No inbounds");
+        }
+    }
+
+    #[test]
+    fn test_mptp_proxy_group() {
+        let conf = r#"
+[Proxy Group]
+MptpOutTag = mptp, actor1, actor2, actor3, address=1.2.3.4, port=10000
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let common = to_common(&config).unwrap();
+
+        let outbounds = common.outbounds.unwrap();
+        assert_eq!(outbounds.len(), 1);
+        let mptp = &outbounds[0];
+        assert_eq!(mptp.tag, Some("MptpOutTag".to_string()));
+        if let common::OutboundSettings::Mptp { settings } = &mptp.settings {
+            let settings = settings.as_ref().unwrap();
+            assert_eq!(
+                settings.actors,
+                Some(vec![
+                    "actor1".to_string(),
+                    "actor2".to_string(),
+                    "actor3".to_string()
+                ])
+            );
+            assert_eq!(settings.address, Some("1.2.3.4".to_string()));
+            assert_eq!(settings.port, Some(10000));
+        } else {
+            panic!("Not mptp outbound: {:?}", mptp.settings);
         }
     }
 }
