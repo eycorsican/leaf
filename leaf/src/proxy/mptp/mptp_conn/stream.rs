@@ -210,12 +210,17 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
 
         // Check if ALL are closed
         let all_closed = this.subs.iter().all(|s| s.closed);
-        if all_closed && !this.subs.is_empty() {
-            warn!("All sub-connections closed/failed without MTYP_FIN");
-            return Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::ConnectionAborted,
-                "All sub-connections failed",
-            )));
+        if all_closed && !this.subs.is_empty() && this.new_subs_rx.is_none() {
+            if !this.closed {
+                warn!("All sub-connections closed/failed without MTYP_FIN");
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "All sub-connections failed",
+                )));
+            } else {
+                // We received FIN and all subs are closed, that's fine
+                return Poll::Ready(Ok(()));
+            }
         }
 
         // Second pass: Process frames from buffer
@@ -629,7 +634,9 @@ mod tests {
         tokio::spawn(async move {
             let mut buf = [0u8; 1024];
             while let Ok(n) = s1.read(&mut buf).await {
-                if n == 0 { break; }
+                if n == 0 {
+                    break;
+                }
             }
         });
 
