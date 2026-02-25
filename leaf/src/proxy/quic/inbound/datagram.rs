@@ -56,32 +56,45 @@ pub struct Handler {
 
 impl Handler {
     pub fn new(certificate: String, certificate_key: String, alpns: Vec<String>) -> Result<Self> {
-        let (cert, key) =
-            fs::read(&certificate).and_then(|x| Ok((x, fs::read(&certificate_key)?)))?;
-
-        let cert = match Path::new(&certificate).extension().map(|ext| ext.to_str()) {
-            Some(Some("der")) => vec![CertificateDer::from(cert)],
-            _ => certs(&mut io::BufReader::new(&*cert)).collect::<Result<Vec<_>, _>>()?,
+        let cert = if certificate.contains("-----BEGIN") {
+            certificate.as_bytes().to_vec()
+        } else {
+            fs::read(&certificate)?
         };
 
-        let key = match Path::new(&certificate_key)
-            .extension()
-            .map(|ext| ext.to_str())
+        let key = if certificate_key.contains("-----BEGIN") {
+            certificate_key.as_bytes().to_vec()
+        } else {
+            fs::read(&certificate_key)?
+        };
+
+        let cert = if !certificate.contains("-----BEGIN")
+            && Path::new(&certificate).extension().map(|ext| ext.to_str()) == Some(Some("der"))
         {
-            Some(Some("der")) => PrivateKeyDer::Pkcs8(key.into()),
-            _ => {
-                let pkcs8 = pkcs8_private_keys(&mut io::BufReader::new(&*key))
-                    .collect::<Result<Vec<_>, _>>()?;
-                match pkcs8.into_iter().next() {
-                    Some(x) => PrivateKeyDer::Pkcs8(x),
-                    None => {
-                        let rsa = rsa_private_keys(&mut io::BufReader::new(&*key))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        match rsa.into_iter().next() {
-                            Some(x) => PrivateKeyDer::Pkcs1(x),
-                            None => {
-                                return Err(anyhow!("no private keys found",));
-                            }
+            vec![CertificateDer::from(cert)]
+        } else {
+            certs(&mut io::BufReader::new(&*cert)).collect::<Result<Vec<_>, _>>()?
+        };
+
+        let key = if !certificate_key.contains("-----BEGIN")
+            && Path::new(&certificate_key)
+                .extension()
+                .map(|ext| ext.to_str())
+                == Some(Some("der"))
+        {
+            PrivateKeyDer::Pkcs8(key.into())
+        } else {
+            let pkcs8 = pkcs8_private_keys(&mut io::BufReader::new(&*key))
+                .collect::<Result<Vec<_>, _>>()?;
+            match pkcs8.into_iter().next() {
+                Some(x) => PrivateKeyDer::Pkcs8(x),
+                None => {
+                    let rsa = rsa_private_keys(&mut io::BufReader::new(&*key))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    match rsa.into_iter().next() {
+                        Some(x) => PrivateKeyDer::Pkcs1(x),
+                        None => {
+                            return Err(anyhow!("no private keys found",));
                         }
                     }
                 }

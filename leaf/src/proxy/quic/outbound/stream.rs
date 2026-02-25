@@ -33,6 +33,7 @@ impl Manager {
         server_name: Option<String>,
         alpns: Vec<String>,
         certificate: Option<String>,
+        certificate_key: Option<String>,
         dns_client: SyncDnsClient,
     ) -> Self {
         let mut roots = rustls::RootCertStore::empty();
@@ -71,11 +72,21 @@ impl Manager {
         #[cfg(not(feature = "rustls-tls-aws-lc"))]
         let provider = rustls::crypto::ring::default_provider().into();
 
-        let mut client_crypto = rustls::ClientConfig::builder_with_provider(provider)
+        let builder = rustls::ClientConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
             .unwrap()
-            .with_root_certificates(roots)
-            .with_no_client_auth();
+            .with_root_certificates(roots);
+
+        let mut client_crypto = if let Some(_certificate) = certificate {
+            if let Some(_certificate_key) = certificate_key {
+                // FIXME support client auth
+                builder.with_no_client_auth()
+            } else {
+                builder.with_no_client_auth()
+            }
+        } else {
+            builder.with_no_client_auth()
+        };
         for alpn in alpns {
             client_crypto.alpn_protocols.push(alpn.as_bytes().to_vec());
         }
@@ -218,10 +229,19 @@ impl Handler {
         server_name: Option<String>,
         alpns: Vec<String>,
         certificate: Option<String>,
+        certificate_key: Option<String>,
         dns_client: SyncDnsClient,
     ) -> Self {
         Self {
-            manager: Manager::new(address, port, server_name, alpns, certificate, dns_client),
+            manager: Manager::new(
+                address,
+                port,
+                server_name,
+                alpns,
+                certificate,
+                certificate_key,
+                dns_client,
+            ),
         }
     }
 

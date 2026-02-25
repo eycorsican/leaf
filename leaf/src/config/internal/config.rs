@@ -2742,6 +2742,8 @@ pub struct TlsOutboundSettings {
     pub certificate: ::std::string::String,
     // @@protoc_insertion_point(field:TlsOutboundSettings.insecure)
     pub insecure: bool,
+    // @@protoc_insertion_point(field:TlsOutboundSettings.certificate_key)
+    pub certificate_key: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:TlsOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -2781,6 +2783,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 32 => {
                     self.insecure = is.read_bool()?;
                 },
+                42 => {
+                    self.certificate_key = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -2805,6 +2810,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         if self.insecure != false {
             my_size += 1 + 1;
         }
+        if !self.certificate_key.is_empty() {
+            my_size += ::protobuf::rt::string_size(5, &self.certificate_key);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -2822,6 +2830,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         }
         if self.insecure != false {
             os.write_bool(4, self.insecure)?;
+        }
+        if !self.certificate_key.is_empty() {
+            os.write_string(5, &self.certificate_key)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -2844,6 +2855,7 @@ impl ::protobuf::Message for TlsOutboundSettings {
         self.alpn.clear();
         self.certificate.clear();
         self.insecure = false;
+        self.certificate_key.clear();
         self.special_fields.clear();
     }
 
@@ -2853,6 +2865,7 @@ impl ::protobuf::Message for TlsOutboundSettings {
             alpn: ::std::vec::Vec::new(),
             certificate: ::std::string::String::new(),
             insecure: false,
+            certificate_key: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -3367,6 +3380,8 @@ pub struct QuicOutboundSettings {
     pub certificate: ::std::string::String,
     // @@protoc_insertion_point(field:QuicOutboundSettings.alpn)
     pub alpn: ::std::vec::Vec<::std::string::String>,
+    // @@protoc_insertion_point(field:QuicOutboundSettings.certificate_key)
+    pub certificate_key: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:QuicOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -3409,6 +3424,9 @@ impl ::protobuf::Message for QuicOutboundSettings {
                 42 => {
                     self.alpn.push(is.read_string()?);
                 },
+                50 => {
+                    self.certificate_key = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -3436,6 +3454,9 @@ impl ::protobuf::Message for QuicOutboundSettings {
         for value in &self.alpn {
             my_size += ::protobuf::rt::string_size(5, &value);
         };
+        if !self.certificate_key.is_empty() {
+            my_size += ::protobuf::rt::string_size(6, &self.certificate_key);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -3457,6 +3478,9 @@ impl ::protobuf::Message for QuicOutboundSettings {
         for v in &self.alpn {
             os.write_string(5, &v)?;
         };
+        if !self.certificate_key.is_empty() {
+            os.write_string(6, &self.certificate_key)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -3479,6 +3503,7 @@ impl ::protobuf::Message for QuicOutboundSettings {
         self.server_name.clear();
         self.certificate.clear();
         self.alpn.clear();
+        self.certificate_key.clear();
         self.special_fields.clear();
     }
 
@@ -3489,6 +3514,7 @@ impl ::protobuf::Message for QuicOutboundSettings {
             server_name: ::std::string::String::new(),
             certificate: ::std::string::String::new(),
             alpn: ::std::vec::Vec::new(),
+            certificate_key: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

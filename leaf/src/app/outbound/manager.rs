@@ -310,10 +310,16 @@ impl OutboundManager {
                     } else {
                         Some(settings.certificate.clone())
                     };
+                    let certificate_key = if settings.certificate_key.is_empty() {
+                        None
+                    } else {
+                        Some(settings.certificate_key.clone())
+                    };
                     let stream = Arc::new(tls::outbound::StreamHandler::new(
                         settings.server_name.clone(),
                         settings.alpn.clone(),
                         certificate,
+                        certificate_key,
                         settings.insecure,
                     )?);
                     HandlerBuilder::default()
@@ -350,12 +356,18 @@ impl OutboundManager {
                     } else {
                         Some(settings.certificate.clone())
                     };
+                    let certificate_key = if settings.certificate_key.is_empty() {
+                        None
+                    } else {
+                        Some(settings.certificate_key.clone())
+                    };
                     let stream = Arc::new(quic::outbound::StreamHandler::new(
                         settings.address.clone(),
                         settings.port as u16,
                         server_name,
                         settings.alpn.clone(),
                         certificate,
+                        certificate_key,
                         dns_client.clone(),
                     ));
                     HandlerBuilder::default()

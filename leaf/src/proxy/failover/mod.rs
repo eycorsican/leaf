@@ -79,6 +79,7 @@ async fn single_health_check(
                         String::from(""),
                         vec![],
                         None,
+                        None,
                         false,
                     ) else {
                         return Measure::new(idx, u128::MAX, tag);

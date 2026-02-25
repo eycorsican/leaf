@@ -101,6 +101,7 @@ impl Handler {
         server_name: String,
         alpns: Vec<String>,
         certificate: Option<String>,
+        certificate_key: Option<String>,
         insecure: bool,
     ) -> Result<Self> {
         let mut handler = Handler {
@@ -114,14 +115,14 @@ impl Handler {
         #[cfg(feature = "rustls-tls")]
         {
             let mut roots = RootCertStore::empty();
-            if let Some(cert) = certificate {
+            if let Some(cert) = certificate.as_ref() {
                 if cert.contains("-----BEGIN") {
                     let mut pem = BufReader::new(Cursor::new(cert.as_bytes()));
                     for cert in rustls_pemfile::certs(&mut pem) {
                         roots.add(cert?)?;
                     }
                 } else {
-                    let mut pem = BufReader::new(File::open(&cert).map_err(|e| {
+                    let mut pem = BufReader::new(File::open(cert).map_err(|e| {
                         anyhow::anyhow!("load certificates from {} failed: {}", cert, e)
                     })?);
                     for cert in rustls_pemfile::certs(&mut pem) {
@@ -141,10 +142,19 @@ impl Handler {
                 .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
 
             let mut config = if insecure {
-                builder
+                let builder = builder
                     .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(dangerous::NotVerified))
-                    .with_no_client_auth()
+                    .with_custom_certificate_verifier(Arc::new(dangerous::NotVerified));
+                if let Some(_certificate) = certificate {
+                    if let Some(_certificate_key) = certificate_key {
+                        // FIXME support client auth with insecure
+                        builder.with_no_client_auth()
+                    } else {
+                        builder.with_no_client_auth()
+                    }
+                } else {
+                    builder.with_no_client_auth()
+                }
             } else {
                 builder.with_root_certificates(roots).with_no_client_auth()
             };

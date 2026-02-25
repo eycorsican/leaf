@@ -156,6 +156,7 @@ message TlsOutboundSettings {
 	repeated string alpn = 2;
 	string certificate = 3;
 	bool insecure = 4;
+	string certificate_key = 5;
 }
 
 message WebSocketOutboundSettings {
@@ -189,6 +190,7 @@ message QuicOutboundSettings {
 	string server_name = 3;
 	string certificate = 4;
 	repeated string alpn = 5;
+	string certificate_key = 6;
 }
 
 message VMessOutboundSettings {

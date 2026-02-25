@@ -22,25 +22,46 @@ pub struct Handler {
 }
 
 #[cfg(feature = "rustls-tls")]
-fn load_certs(path: &Path) -> io::Result<Vec<CertificateDer<'static>>> {
-    let mut reader = BufReader::new(File::open(path)?);
-    certs(&mut reader).collect()
+fn load_certs(certificate: &str) -> io::Result<Vec<CertificateDer<'static>>> {
+    if certificate.contains("-----BEGIN") {
+        let mut reader = BufReader::new(io::Cursor::new(certificate.as_bytes()));
+        certs(&mut reader).collect()
+    } else {
+        let mut reader = BufReader::new(File::open(Path::new(certificate))?);
+        certs(&mut reader).collect()
+    }
 }
 
 #[cfg(feature = "rustls-tls")]
-fn load_keys(path: &Path) -> io::Result<Vec<PrivateKeyDer<'static>>> {
-    let mut reader = BufReader::new(File::open(path)?);
+fn load_keys(certificate_key: &str) -> io::Result<Vec<PrivateKeyDer<'static>>> {
     let mut keys = Vec::new();
-    for key in pkcs8_private_keys(&mut reader) {
-        keys.push(PrivateKeyDer::Pkcs8(key?));
-    }
-    let mut reader = BufReader::new(File::open(path)?);
-    for key in rsa_private_keys(&mut reader) {
-        keys.push(PrivateKeyDer::Pkcs1(key?));
-    }
-    let mut reader = BufReader::new(File::open(path)?);
-    for key in ec_private_keys(&mut reader) {
-        keys.push(PrivateKeyDer::Sec1(key?));
+    if certificate_key.contains("-----BEGIN") {
+        let mut reader = BufReader::new(io::Cursor::new(certificate_key.as_bytes()));
+        for key in pkcs8_private_keys(&mut reader) {
+            keys.push(PrivateKeyDer::Pkcs8(key?));
+        }
+        let mut reader = BufReader::new(io::Cursor::new(certificate_key.as_bytes()));
+        for key in rsa_private_keys(&mut reader) {
+            keys.push(PrivateKeyDer::Pkcs1(key?));
+        }
+        let mut reader = BufReader::new(io::Cursor::new(certificate_key.as_bytes()));
+        for key in ec_private_keys(&mut reader) {
+            keys.push(PrivateKeyDer::Sec1(key?));
+        }
+    } else {
+        let path = Path::new(certificate_key);
+        let mut reader = BufReader::new(File::open(path)?);
+        for key in pkcs8_private_keys(&mut reader) {
+            keys.push(PrivateKeyDer::Pkcs8(key?));
+        }
+        let mut reader = BufReader::new(File::open(path)?);
+        for key in rsa_private_keys(&mut reader) {
+            keys.push(PrivateKeyDer::Pkcs1(key?));
+        }
+        let mut reader = BufReader::new(File::open(path)?);
+        for key in ec_private_keys(&mut reader) {
+            keys.push(PrivateKeyDer::Sec1(key?));
+        }
     }
     Ok(keys)
 }
@@ -49,10 +70,10 @@ impl Handler {
     pub fn new(certificate: String, certificate_key: String) -> Result<Self> {
         #[cfg(feature = "rustls-tls")]
         {
-            let certs = load_certs(Path::new(&certificate)).map_err(|e| {
+            let certs = load_certs(&certificate).map_err(|e| {
                 anyhow::anyhow!("load certificates from {} failed: {}", certificate, e)
             })?;
-            let mut keys = load_keys(Path::new(&certificate_key))
+            let mut keys = load_keys(&certificate_key)
                 .map_err(|e| anyhow::anyhow!("load keys from {} failed: {}", certificate_key, e))?;
             #[cfg(feature = "rustls-tls-aws-lc")]
             let provider = rustls::crypto::aws_lc_rs::default_provider().into();

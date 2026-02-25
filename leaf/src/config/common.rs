@@ -84,6 +84,10 @@ pub struct QuicInboundSettings {
     pub certificate: Option<String>,
     #[serde(rename = "certificateKey", alias = "certificate_key")]
     pub certificate_key: Option<String>,
+    #[serde(rename = "rawCertificate", alias = "raw_certificate")]
+    pub raw_certificate: Option<Vec<String>>,
+    #[serde(rename = "rawCertificateKey", alias = "raw_certificate_key")]
+    pub raw_certificate_key: Option<Vec<String>>,
     pub alpn: Option<Vec<String>>,
 }
 
@@ -92,6 +96,10 @@ pub struct TlsInboundSettings {
     pub certificate: Option<String>,
     #[serde(rename = "certificateKey", alias = "certificate_key")]
     pub certificate_key: Option<String>,
+    #[serde(rename = "rawCertificate", alias = "raw_certificate")]
+    pub raw_certificate: Option<Vec<String>>,
+    #[serde(rename = "rawCertificateKey", alias = "raw_certificate_key")]
+    pub raw_certificate_key: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -205,6 +213,12 @@ pub struct TlsOutboundSettings {
     pub server_name: Option<String>,
     pub alpn: Option<Vec<String>>,
     pub certificate: Option<String>,
+    #[serde(rename = "certificateKey", alias = "certificate_key")]
+    pub certificate_key: Option<String>,
+    #[serde(rename = "rawCertificate", alias = "raw_certificate")]
+    pub raw_certificate: Option<Vec<String>>,
+    #[serde(rename = "rawCertificateKey", alias = "raw_certificate_key")]
+    pub raw_certificate_key: Option<Vec<String>>,
     pub insecure: Option<bool>,
 }
 
@@ -233,6 +247,12 @@ pub struct QuicOutboundSettings {
     #[serde(rename = "serverName", alias = "server_name")]
     pub server_name: Option<String>,
     pub certificate: Option<String>,
+    #[serde(rename = "certificateKey", alias = "certificate_key")]
+    pub certificate_key: Option<String>,
+    #[serde(rename = "rawCertificate", alias = "raw_certificate")]
+    pub raw_certificate: Option<Vec<String>>,
+    #[serde(rename = "rawCertificateKey", alias = "raw_certificate_key")]
+    pub raw_certificate_key: Option<Vec<String>>,
     pub alpn: Option<Vec<String>>,
 }
 
@@ -799,7 +819,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     inbound.protocol = "quic".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::QuicInboundSettings::new();
-                        if let Some(ext_certificate) = &ext_settings.certificate {
+                        if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
+                            settings.certificate = ext_raw_certificate.join("\n");
+                        } else if let Some(ext_certificate) = &ext_settings.certificate {
                             if is_inline_certificate(ext_certificate) {
                                 settings.certificate = ext_certificate.clone();
                             } else {
@@ -813,7 +835,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                                 }
                             }
                         }
-                        if let Some(ext_certificate_key) = &ext_settings.certificate_key {
+                        if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
+                            settings.certificate_key = ext_raw_certificate_key.join("\n");
+                        } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
                             let key = Path::new(&ext_certificate_key);
                             if key.is_absolute() {
                                 settings.certificate_key = key.to_string_lossy().to_string();
@@ -839,7 +863,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     inbound.protocol = "tls".to_string();
                     if let Some(ext_settings) = ext_settings {
                         let mut settings = internal::TlsInboundSettings::new();
-                        if let Some(ext_certificate) = &ext_settings.certificate {
+                        if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
+                            settings.certificate = ext_raw_certificate.join("\n");
+                        } else if let Some(ext_certificate) = &ext_settings.certificate {
                             if is_inline_certificate(ext_certificate) {
                                 settings.certificate = ext_certificate.clone();
                             } else {
@@ -853,7 +879,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                                 }
                             }
                         }
-                        if let Some(ext_certificate_key) = &ext_settings.certificate_key {
+                        if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
+                            settings.certificate_key = ext_raw_certificate_key.join("\n");
+                        } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
                             let key = Path::new(&ext_certificate_key);
                             if key.is_absolute() {
                                 settings.certificate_key = key.to_string_lossy().to_string();
@@ -1098,7 +1126,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         if let Some(ext_alpn) = &ext_settings.alpn {
                             settings.alpn = ext_alpn.clone();
                         }
-                        if let Some(ext_certificate) = &ext_settings.certificate {
+                        if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
+                            settings.certificate = ext_raw_certificate.join("\n");
+                        } else if let Some(ext_certificate) = &ext_settings.certificate {
                             if is_inline_certificate(ext_certificate) {
                                 settings.certificate = ext_certificate.clone();
                             } else {
@@ -1110,6 +1140,18 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                                     let path = asset_loc.join(cert).to_string_lossy().to_string();
                                     settings.certificate = path;
                                 }
+                            }
+                        }
+                        if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
+                            settings.certificate_key = ext_raw_certificate_key.join("\n");
+                        } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
+                            let key = Path::new(&ext_certificate_key);
+                            if key.is_absolute() {
+                                settings.certificate_key = key.to_string_lossy().to_string();
+                            } else {
+                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                let path = asset_loc.join(key).to_string_lossy().to_string();
+                                settings.certificate_key = path;
                             }
                         }
                         if let Some(ext_insecure) = ext_settings.insecure {
@@ -1260,7 +1302,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         if let Some(ext_server_name) = &ext_settings.server_name {
                             settings.server_name = ext_server_name.clone();
                         }
-                        if let Some(ext_certificate) = &ext_settings.certificate {
+                        if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
+                            settings.certificate = ext_raw_certificate.join("\n");
+                        } else if let Some(ext_certificate) = &ext_settings.certificate {
                             if is_inline_certificate(ext_certificate) {
                                 settings.certificate = ext_certificate.clone();
                             } else {
@@ -1272,6 +1316,18 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                                     let path = asset_loc.join(cert).to_string_lossy().to_string();
                                     settings.certificate = path;
                                 }
+                            }
+                        }
+                        if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
+                            settings.certificate_key = ext_raw_certificate_key.join("\n");
+                        } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
+                            let key = Path::new(&ext_certificate_key);
+                            if key.is_absolute() {
+                                settings.certificate_key = key.to_string_lossy().to_string();
+                            } else {
+                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
+                                let path = asset_loc.join(key).to_string_lossy().to_string();
+                                settings.certificate_key = path;
                             }
                         }
                         if let Some(ext_alpns) = &ext_settings.alpn {
