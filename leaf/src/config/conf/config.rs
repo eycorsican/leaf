@@ -83,6 +83,7 @@ pub struct Proxy {
 
     // vmess
     pub username: Option<String>,
+    pub uuid: Option<String>,
 
     pub amux: Option<bool>,
     pub amux_max: Option<i32>,
@@ -120,6 +121,7 @@ impl Default for Proxy {
             ws_host: None,
             sni: None,
             username: None,
+            uuid: None,
             amux: Some(false),
             amux_max: Some(8),
             amux_con: Some(2),
@@ -534,6 +536,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 "username" => {
                     proxy.username = Some(v.to_string());
                 }
+                "uuid" => {
+                    proxy.uuid = Some(v.to_string());
+                }
                 "amux" => proxy.amux = if v == "true" { Some(true) } else { Some(false) },
                 "amux-max" => {
                     let i = v.parse::<i32>().ok();
@@ -598,6 +603,22 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             continue; // not valid port
         };
         proxy.port = Some(port);
+
+        // parse positional params
+        let pos_params = &params[2..];
+        for (i, param) in pos_params.iter().enumerate() {
+            if param.contains('=') {
+                continue;
+            }
+            match (proxy.protocol.as_str(), i) {
+                ("ss" | "shadowsocks", 0) => proxy.encrypt_method = Some(param.clone()),
+                ("ss" | "shadowsocks", 1) => proxy.password = Some(param.clone()),
+                ("trojan", 0) => proxy.password = Some(param.clone()),
+                ("vmess", 0) => proxy.username = Some(param.clone()),
+                ("vless", 0) => proxy.password = Some(param.clone()),
+                _ => (),
+            }
+        }
 
         // compat
         if let "ss" = proxy.protocol.as_str() {
@@ -1065,7 +1086,10 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                     let settings = common::VlessOutboundSettings {
                         address: ext_proxy.address.clone(),
                         port: ext_proxy.port,
-                        uuid: ext_proxy.password.clone(), // vless uses uuid from password
+                        uuid: ext_proxy
+                            .uuid
+                            .clone()
+                            .or_else(|| ext_proxy.password.clone()), // prioritize uuid, then password
                     };
 
                     let mut next_tag = ext_proxy.tag.clone();
@@ -1227,7 +1251,10 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                                     } else {
                                         ext_proxy.port
                                     },
-                                    uuid: ext_proxy.username.clone(),
+                                    uuid: ext_proxy
+                                        .uuid
+                                        .clone()
+                                        .or_else(|| ext_proxy.username.clone()),
                                     security: Some(
                                         ext_proxy
                                             .encrypt_method
@@ -1462,6 +1489,16 @@ Vmess = vmess, 1.2.3.4, 443, username, amux=true, sni=www.google.com
         assert!(tags.contains(&&"Vmess_tls_xxx".to_string()));
         assert!(tags.contains(&&"Vmess_amux_xxx".to_string()));
         assert!(tags.contains(&&"Vmess_vmess_xxx".to_string()));
+        let vmess = outbounds
+            .iter()
+            .find(|o| o.tag == Some("Vmess_vmess_xxx".to_string()))
+            .unwrap();
+        if let common::OutboundSettings::VMess { settings } = &vmess.settings {
+            assert_eq!(
+                settings.as_ref().unwrap().uuid,
+                Some("username".to_string())
+            );
+        }
     }
 
     #[test]
@@ -1493,6 +1530,72 @@ tun-dns-server = 8.8.8.8, 8.8.4.4
             }
         } else {
             panic!("No inbounds");
+        }
+    }
+
+    #[test]
+    fn test_vmess_vless_uuid() {
+        let conf = r#"
+[Proxy]
+Vmess1 = vmess, 1.2.3.4, 443, username, uuid=uuid1
+Vmess2 = vmess, 1.2.3.4, 443, username
+Vless1 = vless, 1.2.3.4, 443, password, uuid=uuid2
+Vless2 = vless, 1.2.3.4, 443, password
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let common = to_common(&config).unwrap();
+
+        let outbounds = common.outbounds.unwrap();
+
+        // Vmess1: should use uuid1
+        let vmess1 = outbounds
+            .iter()
+            .find(|o| o.tag == Some("Vmess1_vmess_xxx".to_string()))
+            .unwrap();
+        if let common::OutboundSettings::VMess { settings } = &vmess1.settings {
+            assert_eq!(settings.as_ref().unwrap().uuid, Some("uuid1".to_string()));
+        } else {
+            panic!("Not vmess: {:?}", vmess1.settings);
+        }
+
+        // Vmess2: should use username
+        let vmess2 = outbounds
+            .iter()
+            .find(|o| o.tag == Some("Vmess2_vmess_xxx".to_string()))
+            .unwrap();
+        if let common::OutboundSettings::VMess { settings } = &vmess2.settings {
+            assert_eq!(
+                settings.as_ref().unwrap().uuid,
+                Some("username".to_string())
+            );
+        } else {
+            panic!("Not vmess: {:?}", vmess2.settings);
+        }
+
+        // Vless1: should use uuid2
+        let vless1 = outbounds
+            .iter()
+            .find(|o| o.tag == Some("Vless1".to_string()))
+            .unwrap();
+        if let common::OutboundSettings::Vless { settings } = &vless1.settings {
+            assert_eq!(settings.as_ref().unwrap().uuid, Some("uuid2".to_string()));
+        } else {
+            panic!("Not vless: {:?}", vless1.settings);
+        }
+
+        // Vless2: should use password
+        let vless2 = outbounds
+            .iter()
+            .find(|o| o.tag == Some("Vless2".to_string()))
+            .unwrap();
+        if let common::OutboundSettings::Vless { settings } = &vless2.settings {
+            assert_eq!(
+                settings.as_ref().unwrap().uuid,
+                Some("password".to_string())
+            );
+        } else {
+            panic!("Not vless: {:?}", vless2.settings);
         }
     }
 
