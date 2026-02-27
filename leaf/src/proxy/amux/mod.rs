@@ -739,9 +739,10 @@ impl MuxConnector {
             return None;
         }
         if self.streams.lock().await.len() >= self.concurrency {
-            debug!(
+            trace!(
                 "exceeding allowed concurrency ({}): {}",
-                self.session_id, self.concurrency
+                self.session_id,
+                self.concurrency
             );
             return None;
         }
