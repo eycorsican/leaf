@@ -87,6 +87,10 @@ impl Handler {
                             let mut buf = BytesMut::new();
                             req.encode(&mut buf);
 
+                            // Add a small delay to ensure handshake is sent as a distinct packet if possible
+                            // or to allow server to accept connection properly before data
+                            // tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
                             if let Err(e) = stream.write_all(&buf).await {
                                 tracing::warn!("Failed to send handshake for sub {}: {}", i, e);
                                 return;
@@ -110,7 +114,6 @@ impl Handler {
             // 3. Create MptpStream with the first stream and the receiver for subsequent ones
             Ok(MptpStream::new_with_receiver_and_initial(
                 vec![first_stream],
-                cid,
                 rx,
             ))
         } else {

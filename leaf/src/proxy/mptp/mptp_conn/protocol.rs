@@ -281,3 +281,34 @@ impl Frame {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_handshake_encoding() {
+        let req = HandshakeRequest {
+            ver: VER,
+            cid: uuid::Uuid::new_v4(),
+            cmd: CMD_CONNECT,
+            dst_addr: Address::Ipv4("127.0.0.1".parse().unwrap()),
+            dst_port: 8080,
+        };
+
+        let mut buf = BytesMut::new();
+        req.encode(&mut buf);
+
+        let mut decode_buf = buf.clone();
+        let decoded = HandshakeRequest::decode(&mut decode_buf).unwrap().unwrap();
+
+        assert_eq!(req.ver, decoded.ver);
+        assert_eq!(req.cid, decoded.cid);
+        assert_eq!(req.cmd, decoded.cmd);
+        assert_eq!(req.dst_port, decoded.dst_port);
+        match (req.dst_addr, decoded.dst_addr) {
+            (Address::Ipv4(a), Address::Ipv4(b)) => assert_eq!(a, b),
+            _ => panic!("Address mismatch"),
+        }
+    }
+}
