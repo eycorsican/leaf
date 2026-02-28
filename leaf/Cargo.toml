@@ -121,13 +121,13 @@ outbound-failover = ["lru_time_cache"]
 outbound-static= []
 outbound-tryall = []
 outbound-chain = []
-outbound-vless = ["uuid", "hex"]
+outbound-vless = ["hex"]
 outbound-reality = ["reality", "reality-rustls", "webpki-roots", "rustls-pemfile", "hex", "base64"]
 outbound-amux= ["tokio-util"]
 outbound-quic = ["rustls", "webpki-roots-old", "rustls-pemfile-old"]
 outbound-mptp = []
 outbound-select = ["directories", "axum/query"]
-outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "sha2", "aes", "aes-gcm", "sha3", "digest", "uuid", "md-5", "tokio-util", "byteorder", "crc32fast"]
+outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "sha2", "aes", "aes-gcm", "sha3", "digest", "md-5", "tokio-util", "byteorder", "crc32fast"]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
@@ -164,6 +164,7 @@ rand = "0.8"
 socket2 = "0.5"
 async-recursion = "1.1"
 parking_lot = "0.12"
+uuid = { version = "1", features = ["v4"] }
 
 # DNS
 hickory-proto = { version = "0.24", default-features = false }
@@ -245,7 +246,6 @@ aes = { version = "0.8", optional = true }
 aes-gcm = { version = "0.10", optional = true }
 sha3 = { version = "0.10", optional = true }
 digest = { version = "0.10", optional = true }
-uuid = { version = "1", features = ["v4"], optional = true }
 byteorder = { version = "1", optional = true }
 crc32fast = { version = "1", optional = true }
 

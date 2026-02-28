@@ -7,7 +7,7 @@ use futures::{
     task::{Context, Poll},
 };
 
-use crate::{proxy::*, session::Session};
+use crate::{proxy::*, session::Session, session::StreamId};
 
 use super::MuxAcceptor;
 use super::MuxSession;
@@ -33,7 +33,7 @@ impl Stream for Incoming {
         Poll::Ready(
             ready!(Pin::new(&mut self.acceptor).poll_next(cx)).map(|stream| {
                 let mut sess = self.sess.clone();
-                sess.stream_id = Some(stream.id().into());
+                sess.stream_id = Some(StreamId::U64(stream.id().into()));
                 AnyBaseInboundTransport::Stream(Box::new(stream), sess)
             }),
         )

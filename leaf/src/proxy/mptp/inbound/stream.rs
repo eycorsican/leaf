@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     proxy::{AnyInboundTransport, AnyStream, InboundStreamHandler, InboundTransport},
-    session::{DatagramSource, Session, SocksAddr},
+    session::{DatagramSource, Session, SocksAddr, StreamId},
 };
 
 struct PrefixedStream<S> {
@@ -207,9 +207,7 @@ impl InboundStreamHandler for Handler {
                         }
 
                         if req.cmd == CMD_UDP {
-                            let mut stream_id_bytes = [0u8; 8];
-                            stream_id_bytes.copy_from_slice(&req.cid.as_bytes()[..8]);
-                            let stream_id = u64::from_le_bytes(stream_id_bytes);
+                            let stream_id = StreamId::Uuid(req.cid);
                             let dgram_src = DatagramSource::new(sess.source, Some(stream_id));
                             let mptp_datagram =
                                 MptpDatagram::new_with_source(tracked_stream, dgram_src);

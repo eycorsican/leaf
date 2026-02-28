@@ -13,7 +13,7 @@ use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::{debug, trace, warn};
 
-use crate::{proxy::*, session::Session};
+use crate::{proxy::*, session::Session, session::StreamId};
 
 use super::QuicProxyStream;
 
@@ -31,7 +31,7 @@ impl Stream for Incoming {
                     source,
                     ..Default::default()
                 };
-                sess.stream_id = Some(send.id().index());
+                sess.stream_id = Some(StreamId::U64(send.id().index()));
                 Poll::Ready(Some(AnyBaseInboundTransport::Stream(
                     Box::new(QuicProxyStream { recv, send }),
                     sess,

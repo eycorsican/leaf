@@ -713,37 +713,20 @@ impl MuxConnector {
         if self.max_recv_bytes > 0
             && self.recv_bytes_counter.load(Ordering::Relaxed) >= self.max_recv_bytes
         {
-            debug!(
-                "exceeding allowed received bytes ({}): {}",
-                self.session_id, self.max_recv_bytes
-            );
             return None;
         }
         if self.max_lifetime > 0
             && Instant::now().duration_since(self.started_at).as_secs() >= self.max_lifetime
         {
-            debug!(
-                "exceeding allowed lifetime ({}): {}s",
-                self.session_id, self.max_lifetime
-            );
             return None;
         }
         if self.total_accepted >= self.max_accepts {
             if self.streams.lock().await.is_empty() {
                 self.done.store(true, Ordering::Relaxed);
             }
-            debug!(
-                "exceeding allowed accpets ({}): {}",
-                self.session_id, self.max_accepts
-            );
             return None;
         }
         if self.streams.lock().await.len() >= self.concurrency {
-            trace!(
-                "exceeding allowed concurrency ({}): {}",
-                self.session_id,
-                self.concurrency
-            );
             return None;
         }
         let frame_write_tx = self.frame_write_tx.clone();

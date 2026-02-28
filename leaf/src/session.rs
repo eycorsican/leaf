@@ -24,7 +24,20 @@ impl std::fmt::Display for Network {
     }
 }
 
-pub type StreamId = u64;
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub enum StreamId {
+    U64(u64),
+    Uuid(uuid::Uuid),
+}
+
+impl std::fmt::Display for StreamId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::U64(id) => write!(f, "{}", id),
+            Self::Uuid(id) => write!(f, "{}", id),
+        }
+    }
+}
 
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct DatagramSource {

@@ -131,6 +131,7 @@ impl NatManager {
         let mut sess = sess.cloned().unwrap_or_else(|| Session {
             network: Network::Udp,
             source: dgram_src.address,
+            stream_id: dgram_src.stream_id,
             destination: pkt.dst_addr.clone(),
             inbound_tag: inbound_tag.to_string(),
             process_name: dgram_src.process_name.clone(),
