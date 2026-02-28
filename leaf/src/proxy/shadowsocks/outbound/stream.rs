@@ -61,7 +61,7 @@ impl OutboundStreamHandler for Handler {
             self.prefix.as_ref().cloned(),
         )?;
         let mut buf = BytesMut::new();
-        sess.effective_destination()?
+        sess.destination
             .write_buf(&mut buf, SocksAddrWireType::PortLast);
 
         let payload = peek_tcp_one_off(lhs).await;

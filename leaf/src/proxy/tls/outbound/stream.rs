@@ -206,7 +206,7 @@ impl OutboundStreamHandler for Handler {
         let name = if !&self.server_name.is_empty() {
             self.server_name.clone()
         } else {
-            sess.effective_destination()?.host()
+            sess.destination.host()
         };
         if let Some(stream) = stream {
             #[cfg(feature = "rustls-tls")]

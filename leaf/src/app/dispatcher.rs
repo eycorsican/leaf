@@ -209,13 +209,21 @@ impl Dispatcher {
                         match kind {
                             sniff::SniffKind::Tls => {
                                 if do_tls {
-                                    sess.tls_sniffed_domain = Some(domain);
+                                    sess.tls_sniffed_domain = Some(domain.clone());
                                 }
                             }
                             sniff::SniffKind::Http => {
                                 if do_http {
-                                    sess.http_sniffed_domain = Some(domain);
+                                    sess.http_sniffed_domain = Some(domain.clone());
                                 }
+                            }
+                        }
+
+                        if option::DOMAIN_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed) {
+                            if let Ok(dest) = SocksAddr::try_from((domain, sess.destination.port()))
+                            {
+                                debug!("override destination with sniffed domain={}", dest);
+                                sess.destination = dest;
                             }
                         }
                     }

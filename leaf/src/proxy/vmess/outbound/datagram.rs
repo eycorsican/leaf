@@ -42,7 +42,7 @@ impl OutboundDatagramHandler for Handler {
             command: REQUEST_COMMAND_UDP,
             option: REQUEST_OPTION_CHUNK_STREAM,
             security: SECURITY_TYPE_CHACHA20_POLY1305,
-            address: sess.effective_destination()?.into_owned(),
+            address: sess.destination.clone(),
             uuid,
         };
         request_header.set_option(REQUEST_OPTION_CHUNK_MASKING);

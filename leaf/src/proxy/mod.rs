@@ -403,7 +403,7 @@ pub async fn connect_stream_outbound(
             Ok(Some(new_tcp_stream(dns_client, &addr, &port).await?))
         }
         OutboundConnect::Direct => {
-            let dest = sess.effective_destination()?;
+            let dest = &sess.destination;
             trace!("connect stream direct dst={}", &dest);
             Ok(Some(
                 new_tcp_stream(dns_client, &dest.host(), &dest.port()).await?,
@@ -437,7 +437,7 @@ pub async fn connect_datagram_outbound(
                 Ok(Some(OutboundTransport::Stream(stream)))
             }
         },
-        OutboundConnect::Direct => match sess.effective_destination()?.as_ref() {
+        OutboundConnect::Direct => match &sess.destination {
             SocksAddr::Domain(domain, port) => {
                 let socket = new_udp_socket(&crate::option::UNSPECIFIED_BIND_ADDR).await?;
                 Ok(Some(OutboundTransport::Datagram(Box::new(

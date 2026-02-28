@@ -42,11 +42,11 @@ impl OutboundDatagramHandler for Handler {
         buf.put_slice(password.as_bytes());
         buf.put_slice(b"\r\n");
         buf.put_u8(0x03); // udp
-        sess.effective_destination()?
+        sess.destination
             .write_buf(&mut buf, SocksAddrWireType::PortLast);
         buf.put_slice(b"\r\n");
 
-        let destination = match sess.effective_destination()?.as_ref() {
+        let destination = match &sess.destination {
             SocksAddr::Domain(domain, port) => Some(SocksAddr::Domain(domain.to_owned(), *port)),
             _ => None,
         };

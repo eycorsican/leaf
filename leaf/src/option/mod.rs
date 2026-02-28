@@ -124,6 +124,12 @@ lazy_static! {
         AtomicBool::new(v)
     };
 
+    /// Override the original destination with the sniffed domain.
+    pub static ref DOMAIN_OVERRIDE: AtomicBool = {
+        let v: bool = get_env_var_or("DOMAIN_OVERRIDE", false);
+        AtomicBool::new(v)
+    };
+
     /// Turn on DNS sniffing, if the destination is an IP, we try to find the
     /// domain from the DNS cache.
     pub static ref DNS_DOMAIN_SNIFFING: AtomicBool = {

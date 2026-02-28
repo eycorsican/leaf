@@ -564,9 +564,7 @@ impl Router {
     }
 
     pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<Option<&'a String>> {
-        let effective_dest = sess
-            .effective_destination()
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
+        let effective_dest = &sess.destination;
         for rule in &self.rules {
             if rule.apply(sess) {
                 return Ok(Some(&rule.target));
