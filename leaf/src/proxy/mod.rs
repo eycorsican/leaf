@@ -27,7 +27,6 @@ use {
     std::os::unix::io::{AsRawFd, RawFd},
     tokio::io::AsyncWriteExt,
     tokio::net::UnixStream,
-    tracing::trace,
 };
 
 use crate::{
