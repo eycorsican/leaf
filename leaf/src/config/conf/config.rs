@@ -236,6 +236,10 @@ fn get_section(text: &str) -> Option<&str> {
     Some(caps.unwrap().get(1).unwrap().as_str())
 }
 
+fn normalize_section(s: &str) -> String {
+    s.to_lowercase().replace(' ', "").replace('_', "")
+}
+
 fn get_certificate_sections<'a, I>(lines: I) -> HashMap<String, String>
 where
     I: Iterator<Item = &'a io::Result<String>>,
@@ -259,7 +263,32 @@ where
                 }
                 current_lines.clear();
             }
+            let lower = section.to_lowercase();
             if let Some(name) = section.strip_prefix("Certificate.") {
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("certificate.") {
+                let name = &section["certificate.".len()..];
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("certificate_") {
+                let name = &section["certificate_".len()..];
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("certificate ") {
+                let name = &section["certificate ".len()..];
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("certificate") {
+                let name = &section["certificate".len()..];
                 let name = name.trim();
                 if !name.is_empty() {
                     current_name = Some(name.to_string());
@@ -292,13 +321,14 @@ where
 {
     let mut new_lines = Vec::new();
     let mut curr_sect: String = "".to_string();
+    let normalized_target = normalize_section(section);
     for line in lines.flatten().map(|x| x.trim()) {
         let line = remove_comments(line);
         if let Some(s) = get_section(line.as_ref()) {
             curr_sect = s.to_string();
             continue;
         }
-        if curr_sect.as_str() == section && !line.is_empty() {
+        if normalize_section(&curr_sect) == normalized_target && !line.is_empty() {
             new_lines.push(line.to_string());
         }
     }
@@ -1634,6 +1664,69 @@ MptpOutTag = mptp, actor1, actor2, actor3, address=1.2.3.4, port=10000
         } else {
             panic!("Not mptp outbound: {:?}", mptp.settings);
         }
+    }
+
+    #[test]
+    fn test_section_name_compatibility() {
+        let conf = r#"
+[general]
+loglevel = trace
+
+[PROXY_GROUP]
+ProxyGroup1 = select, Direct, Trojan
+
+[proxygroup]
+ProxyGroup2 = select, Direct, Trojan
+
+[proxy_group]
+ProxyGroup3 = select, Direct, Trojan
+
+[rule]
+DOMAIN,google.com,Direct
+
+[host]
+google.com = 1.2.3.4
+
+[certificate_MyCert]
+CERT1
+
+[certificate.AnotherCert]
+CERT2
+
+[certificate MyThirdCert]
+CERT3
+
+[certificateNoSpaceCert]
+CERT4
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+
+        assert!(config.general.is_some());
+        assert_eq!(config.general.unwrap().loglevel, Some("trace".to_string()));
+
+        assert!(config.proxy_group.is_some());
+        assert_eq!(config.proxy_group.as_ref().unwrap().len(), 3);
+        assert_eq!(config.proxy_group.as_ref().unwrap()[0].tag, "ProxyGroup1");
+        assert_eq!(config.proxy_group.as_ref().unwrap()[1].tag, "ProxyGroup2");
+        assert_eq!(config.proxy_group.as_ref().unwrap()[2].tag, "ProxyGroup3");
+
+        assert!(config.rule.is_some());
+        assert_eq!(config.rule.unwrap().len(), 1);
+
+        assert!(config.host.is_some());
+        assert_eq!(config.host.unwrap().len(), 1);
+
+        assert!(config.certificates.is_some());
+        let certs = config.certificates.unwrap();
+        assert!(certs.contains_key("MyCert"));
+        assert!(certs.contains_key("AnotherCert"));
+        assert!(certs.contains_key("MyThirdCert"));
+        assert!(certs.contains_key("NoSpaceCert"));
+        assert_eq!(certs.get("MyCert").unwrap(), "CERT1\n");
+        assert_eq!(certs.get("AnotherCert").unwrap(), "CERT2\n");
+        assert_eq!(certs.get("MyThirdCert").unwrap(), "CERT3\n");
+        assert_eq!(certs.get("NoSpaceCert").unwrap(), "CERT4\n");
     }
 }
 
