@@ -103,7 +103,7 @@ fn log_request(sess: &Session, outbound_tag: &str, handshake_time: Option<u128>)
             })
             .unwrap_or("");
         info!(
-            "[{}] [{}] [{}] [{}] [{}] [{}] [{}]",
+            "handled process={} src={} proto={} in={} out={} connect={} dst={}",
             process_name,
             sess.forwarded_source.unwrap_or_else(|| sess.source.ip()),
             network,
@@ -117,7 +117,7 @@ fn log_request(sess: &Session, outbound_tag: &str, handshake_time: Option<u128>)
     #[cfg(not(feature = "rule-process-name"))]
     {
         info!(
-            "[{}] [{}] [{}] [{}] [{}] [{}]",
+            "handled src={} proto={} in={} out={} connect={} dst={}",
             sess.forwarded_source.unwrap_or_else(|| sess.source.ip()),
             network,
             &sess.inbound_tag,
@@ -156,7 +156,7 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
-        let span = sess.create_span();
+        let span = sess.span();
         self.dispatch_stream_inner(sess, lhs).instrument(span).await
     }
 
@@ -164,14 +164,19 @@ impl Dispatcher {
     where
         T: 'static + AsyncRead + AsyncWrite + Unpin + Send + Sync,
     {
-        if let Some(ip) = sess.destination.ip() {
-            if let Some(domain) = self.dns_sniffer.get(&ip).await {
-                debug!("found sniffed domain {} for {}", &domain, &ip);
-                sess.dns_sniffed_domain = Some(domain);
+        debug!(
+            "dispatch proto={} in={} src={} dst={}",
+            &sess.network, &sess.inbound_tag, &sess.source, &sess.destination
+        );
+
+        if option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
+            if let Some(ip) = sess.destination.ip() {
+                if let Some(domain) = self.dns_sniffer.get(&ip).await {
+                    debug!("dns sniffed domain={}", &domain);
+                    sess.dns_sniffed_domain = Some(domain);
+                }
             }
         }
-
-        debug!("dispatching {}:{}", &sess.network, &sess.destination);
 
         if let Some(domain) = sess.destination.domain() {
             if domain == "healthcheck.leaf" {
@@ -182,26 +187,41 @@ impl Dispatcher {
             }
         }
 
-        let mut lhs: Box<dyn ProxyStream> = if sniff::should_sniff(&sess) {
+        let tls_sniff = option::TLS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed);
+        let tls_sniff_all =
+            option::TLS_DOMAIN_SNIFFING_ALL.load(std::sync::atomic::Ordering::Relaxed);
+        let http_sniff = option::HTTP_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed);
+        let http_sniff_all =
+            option::HTTP_DOMAIN_SNIFFING_ALL.load(std::sync::atomic::Ordering::Relaxed);
+
+        let is_tls_port = sess.destination.port() == 443;
+        let is_http_port = sess.destination.port() == 80;
+
+        let do_tls = (tls_sniff && is_tls_port) || tls_sniff_all;
+        let do_http = (http_sniff && is_http_port) || http_sniff_all;
+
+        let mut lhs: Box<dyn ProxyStream> = if (do_tls || do_http) && sniff::should_sniff(&sess) {
             let mut lhs = sniff::SniffingStream::new(lhs);
             match lhs.sniff(&sess).await {
                 Ok(res) => {
                     if let Some((kind, domain)) = res {
-                        debug!(
-                            "sniffed domain {} for tcp link {} <-> {}",
-                            &domain, &sess.source, &sess.destination,
-                        );
+                        debug!("sniffed domain={}", &domain);
                         match kind {
-                            sniff::SniffKind::Tls => sess.tls_sniffed_domain = Some(domain),
-                            sniff::SniffKind::Http => sess.http_sniffed_domain = Some(domain),
+                            sniff::SniffKind::Tls => {
+                                if do_tls {
+                                    sess.tls_sniffed_domain = Some(domain);
+                                }
+                            }
+                            sniff::SniffKind::Http => {
+                                if do_http {
+                                    sess.http_sniffed_domain = Some(domain);
+                                }
+                            }
                         }
                     }
                 }
                 Err(e) => {
-                    debug!(
-                        "sniff tcp uplink {} -> {} failed: {}",
-                        &sess.source, &sess.destination, e,
-                    );
+                    debug!("sniff err={}", e);
                     return;
                 }
             }
@@ -213,25 +233,25 @@ impl Dispatcher {
         let outbound = {
             let router = self.router.read().await;
             match router.pick_route(&sess).await {
-                Ok(tag) => {
+                Ok(Some(tag)) => {
                     debug!(
-                        "picked route [{}] for {} -> {}",
+                        "picked route out={} src={} dst={}",
                         tag, &sess.source, &sess.destination
                     );
                     tag.to_owned()
                 }
-                Err(err) => {
-                    debug!("pick route failed: {}", err);
+                Ok(None) => {
                     if let Some(tag) = self.outbound_manager.read().await.default_handler() {
-                        debug!(
-                            "picked default route [{}] for {} -> {}",
-                            tag, &sess.source, &sess.destination
-                        );
+                        debug!("picked default out={}", &tag);
                         tag
                     } else {
-                        warn!("can not find any handlers");
+                        warn!("no outbound found");
                         return;
                     }
+                }
+                Err(err) => {
+                    debug!("pick route err={}", err);
+                    return;
                 }
             }
         };
@@ -245,12 +265,6 @@ impl Dispatcher {
             warn!("handler not found");
             return;
         };
-        debug!(
-            "handling {}:{} with {}",
-            &sess.network,
-            &sess.destination,
-            h.tag()
-        );
 
         let handshake_start = tokio::time::Instant::now();
         let stream =
@@ -258,7 +272,7 @@ impl Dispatcher {
                 Ok(s) => s,
                 Err(e) => {
                     debug!(
-                        "dispatch tcp {} -> {} to [{}] failed: {}",
+                        "connect outbound src={} dst={} out={} err={}",
                         &sess.source,
                         &sess.destination,
                         &h.tag(),
@@ -269,11 +283,8 @@ impl Dispatcher {
                 }
             };
 
-        debug!("connect stream outbound: {}", stream.is_some());
-
         let (stream, stats_wrapped) = if let Some(s) = stream {
             let s = self.stat_manager.write().await.stat_stream(s, sess.clone());
-            debug!("wrapped stat stream");
             (Some(s), true)
         } else {
             lhs = self
@@ -281,20 +292,13 @@ impl Dispatcher {
                 .write()
                 .await
                 .stat_inbound_stream(lhs, sess.clone());
-            debug!("wrapped stat inbound stream");
             (None, true)
         };
 
         let th = match h.stream() {
             Ok(th) => th,
             Err(e) => {
-                warn!(
-                    "dispatch tcp {} -> {} to [{}] failed: {}",
-                    &sess.source,
-                    &sess.destination,
-                    &h.tag(),
-                    e
-                );
+                debug!("get stream handler, err={}", e);
                 return;
             }
         };
@@ -322,56 +326,36 @@ impl Dispatcher {
                 .await
                 {
                     Ok(_) => {
-                        debug!(
-                            "tcp link {} <-> {} done [{}]",
-                            &sess.source,
-                            &sess.destination,
-                            &h.tag(),
-                        );
+                        debug!("transfer end");
                     }
                     Err(e) => {
-                        debug!(
-                            "tcp link {} <-> {} error: {} [{}]",
-                            &sess.source,
-                            &sess.destination,
-                            e,
-                            &h.tag()
-                        );
+                        debug!("transfer err={}", e);
                     }
                 }
             }
             Err(e) => {
-                debug!(
-                    "dispatch tcp {} -> {} to [{}] failed: {}",
-                    &sess.source,
-                    &sess.destination,
-                    &h.tag(),
-                    e
-                );
+                debug!("outbound handle err={}", e);
                 log_request(&sess, h.tag(), None);
             }
         }
     }
 
     #[async_recursion]
-    pub async fn dispatch_datagram(&self, sess: Session) -> io::Result<Box<dyn OutboundDatagram>> {
-        let span = sess.create_span();
-        self.dispatch_datagram_inner(sess).instrument(span).await
-    }
-
-    #[async_recursion]
-    async fn dispatch_datagram_inner(
+    pub async fn dispatch_datagram(
         &self,
         mut sess: Session,
     ) -> io::Result<Box<dyn OutboundDatagram>> {
+        debug!(
+            "dispatch proto={} in={} src={} dst={}",
+            &sess.network, &sess.inbound_tag, &sess.source, &sess.destination
+        );
+
         if let Some(ip) = sess.destination.ip() {
             if let Some(domain) = self.dns_sniffer.get(&ip).await {
-                debug!("found sniffed domain {} for {}", &domain, &ip);
+                debug!("dns sniffed domain={}", &domain);
                 sess.dns_sniffed_domain = Some(domain);
             }
         }
-
-        debug!("dispatching {}:{}", &sess.network, &sess.destination);
 
         if let Some(domain) = sess.destination.domain() {
             if domain == "healthcheck.leaf" {
@@ -391,25 +375,25 @@ impl Dispatcher {
         let outbound = {
             let router = self.router.read().await;
             match router.pick_route(&sess).await {
-                Ok(tag) => {
+                Ok(Some(tag)) => {
                     debug!(
-                        "picked route [{}] for {} -> {}",
+                        "picked route out={} src={} dst={}",
                         tag, &sess.source, &sess.destination
                     );
                     tag.to_owned()
                 }
-                Err(err) => {
-                    debug!("pick route failed: {}", err);
+                Ok(None) => {
                     if let Some(tag) = self.outbound_manager.read().await.default_handler() {
-                        debug!(
-                            "picked default route [{}] for {} -> {}",
-                            tag, &sess.source, &sess.destination
-                        );
+                        debug!("picked default out={}", &tag);
                         tag
                     } else {
-                        warn!("no handler found");
-                        return Err(io::Error::other("no available handler"));
+                        warn!("no outbound found");
+                        return Err(io::Error::other("no outbound found"));
                     }
+                }
+                Err(err) => {
+                    debug!("pick route err={}", err);
+                    return Err(io::Error::other("pick route failed"));
                 }
             }
         };
@@ -424,16 +408,12 @@ impl Dispatcher {
         };
 
         let handshake_start = tokio::time::Instant::now();
+
+        debug!("connect datagram outbound={}", h.tag());
         let transport =
             crate::proxy::connect_datagram_outbound(&sess, self.dns_client.clone(), &h).await?;
-        debug!(
-            "handling {}:{} with {}",
-            &sess.network,
-            &sess.destination,
-            h.tag()
-        );
+
         match h.datagram()?.handle(&sess, transport).await {
-            #[allow(unused_mut)]
             Ok(mut d) => {
                 let elapsed = tokio::time::Instant::now().duration_since(handshake_start);
 
@@ -445,20 +425,16 @@ impl Dispatcher {
                     .await
                     .stat_outbound_datagram(d, sess.clone());
 
-                if sess.destination.port() == 53 {
+                if option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed)
+                    && sess.destination.port() == 53
+                {
                     d = Box::new(SniffingDatagram::new(d, self.dns_sniffer.clone()));
                 }
 
                 Ok(d)
             }
             Err(e) => {
-                debug!(
-                    "dispatch udp {} -> {} to [{}] failed: {}",
-                    &sess.source,
-                    &sess.destination,
-                    &h.tag(),
-                    e
-                );
+                debug!("outbound handle err={}", e);
                 log_request(&sess, h.tag(), None);
                 Err(e)
             }

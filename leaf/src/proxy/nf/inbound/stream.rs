@@ -16,7 +16,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
-        tracing::trace!("handling inbound stream session: {:?}", sess);
+        tracing::trace!("handling inbound stream");
         let (remote_addr, process_name) =
             if let Some(info) = super::TCP_INFO.lock().unwrap().remove(&sess.source.port()) {
                 (info.remote_addr, info.process_name)

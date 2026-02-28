@@ -66,7 +66,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        tracing::trace!("handling outbound datagram session: {:?}", sess);
+        tracing::trace!("handling outbound datagram");
         match self.method {
             Method::Random => {
                 let current = self.next.load(Ordering::Relaxed);

@@ -25,7 +25,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
+        tracing::trace!("handling outbound stream");
         let mut stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
         let auth = match (&self.username, &self.password) {
             (auth_username, _) if auth_username.is_empty() => None,

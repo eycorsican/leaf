@@ -30,7 +30,7 @@ impl OutboundStreamHandler for Handler {
         lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
+        tracing::trace!("handling outbound stream");
         let a = &self.actors[self.selected.load(Ordering::Relaxed)];
         tracing::debug!("select handles to [{}]", a.tag());
         a.stream()?.handle(sess, lhs, stream).await

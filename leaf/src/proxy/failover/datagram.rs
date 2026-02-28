@@ -117,7 +117,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         _transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        tracing::trace!("handling outbound datagram session: {:?}", sess);
+        tracing::trace!("handling outbound datagram");
         *self.last_active.lock().await = Instant::now();
 
         if let Some(task) = self.health_check_task.lock().await.take() {

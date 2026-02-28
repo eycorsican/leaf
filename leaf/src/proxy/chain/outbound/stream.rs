@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 use std::io;
 
 use async_trait::async_trait;
+use tracing::Instrument;
 
 use crate::{
     proxy::*,
@@ -62,7 +63,7 @@ impl OutboundStreamHandler for Handler {
         mut lhs: Option<&mut AnyStream>,
         mut stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
+        tracing::trace!("handling outbound stream");
         for (i, a) in self.actors.iter().enumerate() {
             let new_sess = self.next_session(sess.clone(), i + 1);
             let s = stream.take();
@@ -71,7 +72,12 @@ impl OutboundStreamHandler for Handler {
             } else {
                 None
             };
-            stream.replace(a.stream()?.handle(&new_sess, lhs_stream, s).await?);
+            stream.replace(
+                a.stream()?
+                    .handle(&new_sess, lhs_stream, s)
+                    .instrument(sess.span())
+                    .await?,
+            );
         }
         Ok(stream.ok_or_else(|| io::Error::other("chain tcp invalid input"))?)
     }

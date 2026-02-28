@@ -67,8 +67,7 @@ impl std::fmt::Display for DatagramSource {
 
 #[derive(Debug)]
 pub struct Session {
-    /// Unique identifier for the session.
-    pub trace_id: String,
+    pub span: tracing::Span,
     /// The network type, representing either TCP or UDP.
     pub network: Network,
     /// The socket address of the remote peer of an inbound connection.
@@ -103,7 +102,7 @@ pub struct Session {
 impl Clone for Session {
     fn clone(&self) -> Self {
         Session {
-            trace_id: self.trace_id.clone(),
+            span: self.span.clone(),
             network: self.network,
             source: self.source,
             local_addr: self.local_addr,
@@ -124,17 +123,8 @@ impl Clone for Session {
 
 impl Default for Session {
     fn default() -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let trace_id: String = (0..8)
-            .map(|_| {
-                const CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
-                let idx = rng.gen_range(0..CHARS.len());
-                CHARS[idx] as char
-            })
-            .collect();
         Session {
-            trace_id,
+            span: Self::create_span(),
             network: Network::Tcp,
             source: *crate::option::UNSPECIFIED_BIND_ADDR,
             local_addr: *crate::option::UNSPECIFIED_BIND_ADDR,
@@ -154,8 +144,28 @@ impl Default for Session {
 }
 
 impl Session {
-    pub fn create_span(&self) -> tracing::Span {
-        tracing::info_span!("session", trace_id = self.trace_id)
+    pub fn create_span() -> tracing::Span {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let trace_id: String = (0..8)
+            .map(|_| {
+                const CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+                let idx = rng.gen_range(0..CHARS.len());
+                CHARS[idx] as char
+            })
+            .collect();
+        let span = tracing::debug_span!("sess", tid = trace_id);
+        let _g = span.enter();
+        tracing::debug!("created span");
+        span.clone()
+    }
+
+    pub fn new_span(&mut self) {
+        self.span = Self::create_span();
+    }
+
+    pub fn span(&self) -> tracing::Span {
+        self.span.clone()
     }
 
     pub fn destination_for_routing(&self) -> io::Result<Cow<'_, SocksAddr>> {

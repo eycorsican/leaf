@@ -563,17 +563,17 @@ impl Router {
         Ok(())
     }
 
-    pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<&'a String> {
+    pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<Option<&'a String>> {
         let effective_dest = sess
             .effective_destination()
             .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
-        debug!("picking route for {}:{}", &sess.network, &effective_dest);
         for rule in &self.rules {
             if rule.apply(sess) {
-                return Ok(&rule.target);
+                return Ok(Some(&rule.target));
             }
         }
         if effective_dest.is_domain() && self.domain_resolve {
+            debug!("resolve routing domain={:?}", effective_dest.domain());
             let ips = {
                 self.dns_client
                     .read()
@@ -583,7 +583,7 @@ impl Router {
                             .domain()
                             .ok_or_else(|| anyhow!("illegal domain name"))?,
                     )
-                    .map_err(|e| anyhow!("lookup {} failed: {}", effective_dest.host(), e))
+                    .map_err(|e| anyhow!("lookup failed: {}", e))
                     .await?
             };
             if !ips.is_empty() {
@@ -592,19 +592,15 @@ impl Router {
                 new_sess.dns_sniffed_domain = None;
                 new_sess.tls_sniffed_domain = None;
                 new_sess.http_sniffed_domain = None;
-                debug!(
-                    "re-matching with resolved ip [{}] for [{}]",
-                    ips[0],
-                    effective_dest.host()
-                );
+                debug!("re-matching with resolved ip={}", ips[0]);
                 for rule in &self.rules {
                     if rule.apply(&new_sess) {
-                        return Ok(&rule.target);
+                        return Ok(Some(&rule.target));
                     }
                 }
             }
         }
-        Err(anyhow!("no matching rules for {}", effective_dest))
+        Ok(None)
     }
 }
 

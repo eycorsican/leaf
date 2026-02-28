@@ -14,7 +14,7 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tokio::net::{TcpSocket, TcpStream, UdpSocket};
 use tokio::time::timeout;
-use tracing::debug;
+use tracing::{debug, trace};
 
 #[cfg(unix)]
 use std::os::unix::io::AsFd;
@@ -399,15 +399,20 @@ pub async fn connect_stream_outbound(
 ) -> io::Result<Option<AnyStream>> {
     match handler.stream()?.connect_addr() {
         OutboundConnect::Proxy(Network::Tcp, addr, port) => {
+            trace!("connect stream proxy outbound addr={} port={}", &addr, port);
             Ok(Some(new_tcp_stream(dns_client, &addr, &port).await?))
         }
         OutboundConnect::Direct => {
             let dest = sess.effective_destination()?;
+            trace!("connect stream direct dst={}", &dest);
             Ok(Some(
                 new_tcp_stream(dns_client, &dest.host(), &dest.port()).await?,
             ))
         }
-        _ => Ok(None),
+        _ => {
+            trace!("connect stream None");
+            Ok(None)
+        }
     }
 }
 

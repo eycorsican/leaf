@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     proxy::{AnyInboundTransport, AnyStream, InboundStreamHandler, InboundTransport},
-    session::{Session, SocksAddr},
+    session::{DatagramSource, Session, SocksAddr},
 };
 
 struct PrefixedStream<S> {
@@ -127,7 +127,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         mut stream: AnyStream,
     ) -> io::Result<AnyInboundTransport> {
-        tracing::trace!("handling inbound stream session: {:?}", sess);
+        tracing::trace!("handling inbound stream");
         let mut buf = BytesMut::with_capacity(1024);
 
         // Read handshake
@@ -207,7 +207,12 @@ impl InboundStreamHandler for Handler {
                         }
 
                         if req.cmd == CMD_UDP {
-                            let mptp_datagram = MptpDatagram::new(tracked_stream);
+                            let mut stream_id_bytes = [0u8; 8];
+                            stream_id_bytes.copy_from_slice(&req.cid.as_bytes()[..8]);
+                            let stream_id = u64::from_le_bytes(stream_id_bytes);
+                            let dgram_src = DatagramSource::new(sess.source, Some(stream_id));
+                            let mptp_datagram =
+                                MptpDatagram::new_with_source(tracked_stream, dgram_src);
                             return Ok(InboundTransport::Datagram(
                                 Box::new(mptp_datagram),
                                 Some(sess),

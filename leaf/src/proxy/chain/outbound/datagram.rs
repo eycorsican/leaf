@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 use std::io;
 
 use async_trait::async_trait;
+use tracing::{trace, Instrument};
 
 use crate::{proxy::*, session::*};
 
@@ -76,32 +77,62 @@ impl Handler {
         for (i, a) in self.actors.iter().enumerate() {
             let new_sess = self.next_session(sess.clone(), i + 1);
 
+            trace!("handle actor idx={} tag={}", i, a.tag());
+
             if let Ok(uh) = a.datagram() {
+                trace!("has datagram");
                 if let Some(d) = dgram.take() {
                     dgram.replace(
                         uh.handle(&new_sess, Some(OutboundTransport::Datagram(d)))
+                            .instrument(tracing::Span::current())
                             .await?,
                     );
                 } else if let Some(s) = stream.take() {
+                    trace!("has input stream");
                     // Check whether all subsequent handlers can use unreliable
                     // transport, otherwise we must not convert the stream to
                     // a datagram.
                     if self.unreliable_chain(i + 1) {
+                        trace!("unreliable chain");
                         dgram.replace(
                             uh.handle(&new_sess, Some(OutboundTransport::Stream(s)))
+                                .instrument(tracing::Span::current())
                                 .await?,
                         );
                     } else {
-                        stream.replace(a.stream()?.handle(&new_sess, None, Some(s)).await?);
+                        trace!("reliable chain");
+                        stream.replace(
+                            a.stream()?
+                                .handle(&new_sess, None, Some(s))
+                                .instrument(tracing::Span::current())
+                                .await?,
+                        );
                     }
                 } else if self.unreliable_chain(i + 1) {
-                    dgram.replace(uh.handle(&new_sess, None).await?);
+                    trace!("unreliable chain fallback");
+                    dgram.replace(
+                        uh.handle(&new_sess, None)
+                            .instrument(tracing::Span::current())
+                            .await?,
+                    );
                 } else {
-                    stream.replace(a.stream()?.handle(&new_sess, None, None).await?);
+                    trace!("reliable chain");
+                    stream.replace(
+                        a.stream()?
+                            .handle(&new_sess, None, None)
+                            .instrument(tracing::Span::current())
+                            .await?,
+                    );
                 }
             } else {
+                trace!("no datagram, use stream");
                 let s = stream.take();
-                stream.replace(a.stream()?.handle(&new_sess, None, s).await?);
+                stream.replace(
+                    a.stream()?
+                        .handle(&new_sess, None, s)
+                        .instrument(tracing::Span::current())
+                        .await?,
+                );
             }
         }
         dgram.ok_or_else(|| io::Error::other("no datagram"))
@@ -130,13 +161,28 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        tracing::trace!("handling outbound datagram session: {:?}", sess);
+        tracing::trace!("handling outbound datagram");
         match transport {
             Some(transport) => match transport {
-                OutboundTransport::Datagram(dgram) => self.handle(sess, None, Some(dgram)).await,
-                OutboundTransport::Stream(stream) => self.handle(sess, Some(stream), None).await,
+                OutboundTransport::Datagram(dgram) => {
+                    trace!("datagram transport");
+                    self.handle(sess, None, Some(dgram))
+                        .instrument(tracing::Span::current())
+                        .await
+                }
+                OutboundTransport::Stream(stream) => {
+                    trace!("stream transport");
+                    self.handle(sess, Some(stream), None)
+                        .instrument(tracing::Span::current())
+                        .await
+                }
             },
-            None => self.handle(sess, None, None).await,
+            None => {
+                trace!("stream=None, datagram=None");
+                self.handle(sess, None, None)
+                    .instrument(tracing::Span::current())
+                    .await
+            }
         }
     }
 }

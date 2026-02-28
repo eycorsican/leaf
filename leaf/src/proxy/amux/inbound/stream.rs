@@ -51,7 +51,7 @@ impl InboundStreamHandler for Handler {
         mut sess: Session,
         mut stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
-        tracing::trace!("handling inbound stream session: {:?}", sess);
+        tracing::trace!("handling inbound stream");
         for a in self.actors.iter() {
             match a.stream()?.handle(sess, stream).await? {
                 InboundTransport::Stream(new_stream, new_sess) => {

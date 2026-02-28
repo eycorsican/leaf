@@ -54,7 +54,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
+        tracing::trace!("handling outbound stream");
         if let Some(stream) = stream {
             let host = if let Some(host) = self.headers.get("Host") {
                 host.to_owned()

@@ -25,7 +25,7 @@ impl OutboundStreamHandler for Handler {
         lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
+        tracing::trace!("handling outbound stream");
         let mut stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
         let mut buf = BytesMut::new();
         let password = Sha224::digest(self.password.as_bytes());

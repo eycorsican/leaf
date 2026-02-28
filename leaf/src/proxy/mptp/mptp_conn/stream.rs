@@ -1,4 +1,4 @@
-use tracing::{error, info, warn};
+use tracing::{debug, error, warn};
 
 use super::protocol::{
     Frame, DATA_HEADER_LEN, MTYP_DATA, MTYP_FIN, MTYP_PING, MTYP_PONG, MTYP_RST,
@@ -156,16 +156,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                         all_eof = false;
                     } else {
                         // EOF for this sub
-                        warn!("Sub {} EOF, marking closed", i);
+                        warn!("sub {} EOF, marking closed", i);
                         sub.closed = true;
                         // Don't return EOF yet, others might be alive
                     }
                 }
                 Poll::Ready(Err(e)) => {
                     if e.kind() == io::ErrorKind::UnexpectedEof {
-                        warn!("Sub {} UnexpectedEof, marking closed", i);
+                        warn!("sub {} UnexpectedEof, marking closed", i);
                     } else {
-                        error!("Sub {} read error: {}, marking closed", i, e);
+                        error!("sub {} read error: {}, marking closed", i, e);
                     }
                     sub.closed = true;
                     // Don't return error, just close this sub
@@ -186,10 +186,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
         let all_closed = this.subs.iter().all(|s| s.closed);
         if all_closed && !this.subs.is_empty() && this.new_subs_rx.is_none() {
             if !this.closed {
-                warn!("All sub-connections closed/failed without MTYP_FIN");
+                warn!("all sub-connections closed/failed without MTYP_FIN");
                 return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
-                    "All sub-connections failed",
+                    "all sub-connections failed",
                 )));
             } else {
                 // We received FIN and all subs are closed, that's fine
@@ -222,7 +222,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                     }
                     MTYP_FIN | MTYP_RST | MTYP_PING | MTYP_PONG => 1,
                     _ => {
-                        error!("Unknown MTYP: {}", mtyp);
+                        error!("unknown MTYP: {}", mtyp);
                         1 // Consume 1 byte to maybe recover? Or Error?
                     }
                 };
@@ -270,7 +270,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                         }
                     }
                     MTYP_FIN => {
-                        info!("Received FIN from sub {}", i);
+                        debug!("received FIN from sub {}", i);
                         sub.read_buf.advance(1);
                         this.closed = true;
                         // Don't return EOF yet, we might have data in read_buffer
@@ -279,11 +279,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                         break;
                     }
                     MTYP_RST => {
-                        warn!("Received RST from sub {}", i);
+                        warn!("received RST from sub {}", i);
                         sub.read_buf.advance(1);
                         return Poll::Ready(Err(io::Error::new(
                             io::ErrorKind::ConnectionReset,
-                            "Peer sent RST",
+                            "peer sent RST",
                         )));
                     }
                     _ => {
@@ -300,7 +300,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
         }
 
         if all_eof && !this.subs.is_empty() {
-            info!("All sub-connections EOF");
+            debug!("all sub-connections EOF");
             return Poll::Ready(Ok(()));
         }
 
@@ -346,7 +346,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
             // All closed
             return Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::ConnectionAborted,
-                "All sub-connections failed (write)",
+                "all sub-connections failed (write)",
             )));
         }
 
@@ -428,7 +428,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
                         sub.write_buf.advance(n);
                     }
                     Poll::Ready(Err(e)) => {
-                        error!("Sub {} write error: {}, marking closed", i, e);
+                        error!("sub {} write error: {}, marking closed", i, e);
                         sub.closed = true;
                         // Don't return error yet
                         break;

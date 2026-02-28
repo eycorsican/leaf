@@ -8,7 +8,7 @@ use futures::{
     task::{Context, Poll},
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::info;
+use tracing::debug;
 
 use crate::{proxy::*, session::*};
 
@@ -189,13 +189,9 @@ impl Counter {
 
 impl Drop for Counter {
     fn drop(&mut self) {
-        info!(
-            "[{}] [{}] [{}] [{}] [{}] [{}] [{}] [END]",
-            self.sess
-                .forwarded_source
-                .unwrap_or_else(|| self.sess.source.ip()),
-            self.sess.network,
-            self.sess.inbound_tag,
+        let _g = self.sess.span.enter();
+        debug!(
+            "session end out={} dst={} tx={} rx={}",
             self.sess.outbound_tag,
             self.sess.destination,
             self.bytes_sent(),

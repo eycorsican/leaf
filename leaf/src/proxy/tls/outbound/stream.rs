@@ -201,7 +201,7 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
+        tracing::trace!("handling outbound stream");
         // TODO optimize, dont need copy
         let name = if !&self.server_name.is_empty() {
             self.server_name.clone()

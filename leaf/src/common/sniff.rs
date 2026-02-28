@@ -10,16 +10,8 @@ use tokio::time::timeout;
 
 use crate::session::Session;
 
-fn should_sniff_tls(sess: &Session) -> bool {
-    sess.destination.port() == 443
-}
-
-fn should_sniff_http(sess: &Session) -> bool {
-    sess.destination.port() == 80
-}
-
 pub fn should_sniff(sess: &Session) -> bool {
-    !sess.destination.is_domain() && (should_sniff_tls(sess) || should_sniff_http(sess))
+    !sess.destination.is_domain()
 }
 
 pub enum SniffKind {
@@ -201,7 +193,7 @@ where
         SniffResult::NotEnoughData
     }
 
-    pub async fn sniff(&mut self, sess: &Session) -> io::Result<Option<(SniffKind, String)>> {
+    pub async fn sniff(&mut self, _sess: &Session) -> io::Result<Option<(SniffKind, String)>> {
         for _ in 0..3 {
             match timeout(
                 Duration::from_millis(100),
@@ -214,22 +206,18 @@ where
                         if n == 0 {
                             return Ok(None);
                         }
-                        if should_sniff_tls(sess) {
-                            match self.sniff_tls_sni(&self.buf[..]) {
-                                SniffResult::NotEnoughData => continue,
-                                SniffResult::NotMatch => (),
-                                SniffResult::Domain(domain) => {
-                                    return Ok(Some((SniffKind::Tls, domain)))
-                                }
+                        match self.sniff_tls_sni(&self.buf[..]) {
+                            SniffResult::NotEnoughData => continue,
+                            SniffResult::NotMatch => (),
+                            SniffResult::Domain(domain) => {
+                                return Ok(Some((SniffKind::Tls, domain)))
                             }
                         }
-                        if should_sniff_http(sess) {
-                            match self.sniff_http_host(&self.buf[..]) {
-                                SniffResult::NotEnoughData => continue,
-                                SniffResult::NotMatch => (),
-                                SniffResult::Domain(domain) => {
-                                    return Ok(Some((SniffKind::Http, domain)))
-                                }
+                        match self.sniff_http_host(&self.buf[..]) {
+                            SniffResult::NotEnoughData => continue,
+                            SniffResult::NotMatch => (),
+                            SniffResult::Domain(domain) => {
+                                return Ok(Some((SniffKind::Http, domain)))
                             }
                         }
                         return Ok(None);

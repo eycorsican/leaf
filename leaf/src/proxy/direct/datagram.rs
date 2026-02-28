@@ -21,7 +21,7 @@ impl OutboundDatagramHandler for Handler {
         _sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        tracing::trace!("handling outbound datagram session: {:?}", _sess);
+        tracing::trace!("handling outbound datagram");
         if let Some(OutboundTransport::Datagram(dgram)) = transport {
             Ok(dgram)
         } else {

@@ -36,7 +36,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         _transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        tracing::trace!("handling outbound datagram session: {:?}", sess);
+        tracing::trace!("handling outbound datagram");
         // TODO support chaining, this requires implementing our own socks5 client
         let stream = self
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)

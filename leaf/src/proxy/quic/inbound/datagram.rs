@@ -139,12 +139,12 @@ async fn handle_conn(
     let (conn, _) = conn
         .into_0rtt()
         .map_err(|_| anyhow!("convert 0rtt failed"))?;
-    trace!("QUIC handling connection from {}", remote_addr);
+    trace!("quic handling connection from {}", remote_addr);
     loop {
         let s = conn.accept_bi().await?;
-        trace!("QUIC accepted stream from {}", remote_addr);
+        trace!("quic accepted stream from {}", remote_addr);
         if stream_tx.capacity() == 0 {
-            warn!("QUIC accept channel full");
+            warn!("quic accept channel full");
         }
         let _ = stream_tx.send((*remote_addr, s)).await;
     }
@@ -172,13 +172,13 @@ impl InboundDatagramHandler for Handler {
                             if let Err(e) = handle_conn(stream_tx_c, &remote_addr, connecting).await
                             {
                                 debug!(
-                                    "handle QUIC connection from {} failed: {}",
+                                    "handle quic connection from {} failed: {}",
                                     &remote_addr, e
                                 );
                             }
                         }
                         Err(e) => {
-                            debug!("accept QUIC connection from {} failed: {}", &remote_addr, e);
+                            debug!("accept quic connection from {} failed: {}", &remote_addr, e);
                         }
                     }
                 });

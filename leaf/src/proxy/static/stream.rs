@@ -60,7 +60,7 @@ impl OutboundStreamHandler for Handler {
         lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
+        tracing::trace!("handling outbound stream");
         match self.method {
             Method::Random => {
                 let current = self.next.load(Ordering::Relaxed);

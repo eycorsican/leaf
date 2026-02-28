@@ -12,11 +12,22 @@ use super::protocol::{Address, UdpHeader};
 
 pub struct MptpDatagram<S> {
     stream: S,
+    source: Option<DatagramSource>,
 }
 
 impl<S> MptpDatagram<S> {
     pub fn new(stream: S) -> Self {
-        Self { stream }
+        Self {
+            stream,
+            source: None,
+        }
+    }
+
+    pub fn new_with_source(stream: S, source: DatagramSource) -> Self {
+        Self {
+            stream,
+            source: Some(source),
+        }
     }
 }
 
@@ -32,7 +43,7 @@ where
     ) {
         let (r, w) = split(self.stream);
         (
-            Box::new(InboundDatagramRecvHalfImpl(r)),
+            Box::new(InboundDatagramRecvHalfImpl(r, self.source)),
             Box::new(InboundDatagramSendHalfImpl(w)),
         )
     }
@@ -60,7 +71,7 @@ where
     }
 }
 
-pub struct InboundDatagramRecvHalfImpl<R>(ReadHalf<R>);
+pub struct InboundDatagramRecvHalfImpl<R>(ReadHalf<R>, Option<DatagramSource>);
 
 #[async_trait]
 impl<R: AsyncRead + Send + Sync + Unpin> InboundDatagramRecvHalf
@@ -107,8 +118,11 @@ impl<R: AsyncRead + Send + Sync + Unpin> InboundDatagramRecvHalf
         };
 
         // For inbound, we don't really know the source addr from the stream itself.
-        // We just use a placeholder.
-        let src_addr = DatagramSource::new("0.0.0.0:0".parse().unwrap(), None);
+        // We just use a placeholder if not provided.
+        let src_addr = self
+            .1
+            .clone()
+            .unwrap_or_else(|| DatagramSource::new("0.0.0.0:0".parse().unwrap(), None));
 
         Ok((payload_len, src_addr, dst_addr))
     }

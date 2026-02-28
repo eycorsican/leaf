@@ -34,7 +34,7 @@ impl std::fmt::Display for UdpPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "{} <-> {}, {} bytes",
+            "src={} dst={} len={}",
             self.src_addr,
             self.dst_addr,
             self.data.len()
@@ -128,7 +128,7 @@ impl NatManager {
             return;
         }
 
-        let mut sess = sess.cloned().unwrap_or(Session {
+        let mut sess = sess.cloned().unwrap_or_else(|| Session {
             network: Network::Udp,
             source: dgram_src.address,
             destination: pkt.dst_addr.clone(),
@@ -136,9 +136,14 @@ impl NatManager {
             process_name: dgram_src.process_name.clone(),
             ..Default::default()
         });
+
         if sess.inbound_tag.is_empty() {
             sess.inbound_tag = inbound_tag.to_string();
         }
+
+        sess.new_span();
+        let span = sess.span();
+        let _g = span.enter();
 
         // Always update destination to the packet's destination, because the session passed
         // from inbound listener might have a default (empty) destination.
@@ -187,11 +192,15 @@ impl NatManager {
         // because we have stream type transports for UDP traffic, establishing a
         // TCP stream would block the task.
         let raddr_cloned = raddr.clone();
-        let span = sess.create_span();
+        let span = sess.span();
         tokio::spawn(
             async move {
                 // new socket to communicate with the target.
-                let socket = match dispatcher.dispatch_datagram(sess).await {
+                let socket = match dispatcher
+                    .dispatch_datagram(sess)
+                    .instrument(tracing::Span::current())
+                    .await
+                {
                     Ok(s) => s,
                     Err(e) => {
                         debug!("dispatch {} failed: {}", &raddr_cloned, e);
@@ -216,7 +225,7 @@ impl NatManager {
                                 break;
                             }
                             Ok((n, addr)) => {
-                                trace!("outbound received UDP packet: src {}, {} bytes", &addr, n);
+                                trace!("outbound received udp packet src={} len={}", &addr, n);
                                 let pkt = UdpPacket::new(
                                     buf[..n].to_vec(),
                                     addr.clone(),
@@ -238,9 +247,11 @@ impl NatManager {
                                             // If the destination port is 53, we assume it's a
                                             // DNS query and set a negative timeout so it will
                                             // be removed on next check.
-                                            sess.2.checked_sub(Duration::from_secs(
-                                                *option::UDP_SESSION_TIMEOUT,
-                                            ));
+                                            if let Some(new_time) = sess.2.checked_sub(
+                                                Duration::from_secs(*option::UDP_SESSION_TIMEOUT),
+                                            ) {
+                                                sess.2 = new_time;
+                                            }
                                         } else {
                                             sess.2 = Instant::now();
                                         }
@@ -268,7 +279,7 @@ impl NatManager {
                     async move {
                         while let Some(pkt) = target_ch_rx.recv().await {
                             trace!(
-                                "outbound send UDP packet: dst {}, {} bytes",
+                                "outbound send udp packet dst={} len={}",
                                 &pkt.dst_addr,
                                 pkt.data.len()
                             );

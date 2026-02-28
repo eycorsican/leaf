@@ -29,7 +29,7 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        tracing::trace!("handling outbound datagram session: {:?}", sess);
+        tracing::trace!("handling outbound datagram");
         let u = Uuid::parse_str(&self.uuid)
             .map_err(|e| io::Error::other(format!("parse uuid failed: {}", e)))?;
         let uuid_bytes = *u.as_bytes();

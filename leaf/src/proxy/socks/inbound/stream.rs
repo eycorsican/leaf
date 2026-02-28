@@ -3,7 +3,7 @@ use std::io;
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::debug;
+use tracing::{debug, Instrument};
 
 use crate::{
     proxy::*,
@@ -202,18 +202,21 @@ impl Handler {
                 let relay_addr = SocksAddr::from(sess.local_addr);
                 relay_addr.write_buf(&mut buf, SocksAddrWireType::PortLast);
                 stream.write_all(&buf[..]).await?;
-                tokio::spawn(async move {
-                    let mut buf = [0u8; 1];
-                    // TODO explicitly drop resources allocated above before waiting?
-                    // if stream.read_exact(&mut buf).await.is_err() {
-                    //     // perhaps explicitly notifies the NAT manager?
-                    //     debug!("udp association end");
-                    // }
-                    if let Err(e) = stream.read_exact(&mut buf).await {
-                        // perhaps explicitly notifies the NAT manager?
-                        debug!("udp association end: {}", e);
+                tokio::spawn(
+                    async move {
+                        let mut buf = [0u8; 1];
+                        // TODO explicitly drop resources allocated above before waiting?
+                        // if stream.read_exact(&mut buf).await.is_err() {
+                        //     // perhaps explicitly notifies the NAT manager?
+                        //     debug!("udp association end");
+                        // }
+                        if let Err(e) = stream.read_exact(&mut buf).await {
+                            // perhaps explicitly notifies the NAT manager?
+                            debug!("udp association end: {}", e);
+                        }
                     }
-                });
+                    .instrument(sess.span()),
+                );
                 Ok(InboundTransport::Empty)
             }
             _ => Err(io::Error::other("invalid cmd")),
@@ -228,12 +231,13 @@ impl InboundStreamHandler for Handler {
         sess: Session,
         mut stream: AnyStream,
     ) -> std::io::Result<AnyInboundTransport> {
-        tracing::trace!("handling inbound stream session: {:?}", sess);
+        tracing::trace!("handling inbound stream");
         let mut buf = [0u8; 1];
         stream.read_exact(&mut buf).await?;
+        let span = sess.span();
         match buf[0] {
-            0x04 => self.handle_socks4(sess, stream).await,
-            0x05 => self.handle_socks5(sess, stream).await,
+            0x04 => self.handle_socks4(sess, stream).instrument(span).await,
+            0x05 => self.handle_socks5(sess, stream).instrument(span).await,
             v => Err(io::Error::other(format!("unknown socks version {}", v))),
         }
     }

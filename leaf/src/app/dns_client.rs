@@ -223,12 +223,18 @@ impl DnsClient {
                     network: Network::Udp,
                     source,
                     destination: SocksAddr::from(server),
-                    inbound_tag: "internal".to_string(),
+                    inbound_tag: "dnsclient".to_string(),
                     ..Default::default()
                 };
-                let span = sess.create_span();
+                let span = sess.span();
                 if let Some(dispatcher) = dispatcher_weak.upgrade() {
-                    (dispatcher.dispatch_datagram(sess).await?, span)
+                    (
+                        dispatcher
+                            .dispatch_datagram(sess)
+                            .instrument(span.clone())
+                            .await?,
+                        span,
+                    )
                 } else {
                     return Err(anyhow!("dispatcher is deallocated"));
                 }
@@ -242,7 +248,7 @@ impl DnsClient {
             let server = SocksAddr::from(server);
             for i in 0..*option::MAX_DNS_RETRIES {
                 debug!(
-                    "looking up host {} on {} ({}/{})",
+                    "looking up host={} server={} ({}/{})",
                     host,
                     server,
                     i + 1,
@@ -318,12 +324,11 @@ impl DnsClient {
                 let elapsed = tokio::time::Instant::now().duration_since(start);
                 let ttl = resp.answers().iter().next().unwrap().ttl();
                 debug!(
-                    "return {} ips (ttl {}) for {} from {} in {}ms",
-                    ips.len(),
-                    ttl,
-                    host,
+                    "received from server={} ttl={} elapsed={}ms ips={:?}",
                     server,
+                    ttl,
                     elapsed.as_millis(),
+                    &ips,
                 );
 
                 let Some(deadline) = Instant::now().checked_add(Duration::from_secs(ttl.into()))
@@ -333,10 +338,9 @@ impl DnsClient {
                 };
 
                 let entry = CacheEntry { ips, deadline };
-                debug!("ips for {}: {:?}", host, &entry);
                 return Ok(entry);
             }
-            Err(anyhow!("all lookup attempts for {} failed", host))
+            Err(anyhow!("all lookup attempts failed"))
         }
         .instrument(span)
         .await
@@ -535,8 +539,7 @@ impl DnsClient {
     }
 
     pub async fn _lookup(&self, host: &String, is_direct: bool) -> Result<Vec<IpAddr>> {
-        let span = tracing::info_span!("dns_lookup", host = %host);
-        self._lookup_inner(host, is_direct).instrument(span).await
+        self._lookup_inner(host, is_direct).await
     }
 
     async fn _lookup_inner(&self, host: &String, is_direct: bool) -> Result<Vec<IpAddr>> {

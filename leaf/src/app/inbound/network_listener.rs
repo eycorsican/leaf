@@ -44,8 +44,8 @@ async fn handle_inbound_datagram(
 ) {
     let mut sess = sess.unwrap_or_default();
     sess.network = Network::Udp;
-    let span = sess.create_span();
-    handle_inbound_datagram_inner(inbound_tag, socket, Some(sess), nat_manager)
+    let span = sess.span();
+    handle_inbound_datagram_inner(inbound_tag, socket, sess, nat_manager)
         .instrument(span)
         .await
 }
@@ -53,7 +53,7 @@ async fn handle_inbound_datagram(
 async fn handle_inbound_datagram_inner(
     inbound_tag: String,
     socket: Box<dyn InboundDatagram>,
-    sess: Option<Session>,
+    sess: Session,
     nat_manager: Arc<NatManager>,
 ) {
     // Left-hand side socket, it's usually encapsulated with inbound protocol
@@ -69,26 +69,25 @@ async fn handle_inbound_datagram_inner(
     let (l_tx, mut l_rx): (TokioSender<UdpPacket>, TokioReceiver<UdpPacket>) =
         tokio_channel(*crate::option::UDP_UPLINK_CHANNEL_SIZE);
 
-    tokio::spawn(async move {
-        while let Some(pkt) = l_rx.recv().await {
-            let dst_addr = pkt.dst_addr.must_ip();
-            trace!(
-                "inbound send UDP packet: dst {}, {} bytes",
-                &dst_addr,
-                pkt.data.len()
-            );
-            if let Err(e) = ls.send_to(&pkt.data[..], &pkt.src_addr, dst_addr).await {
-                debug!("send datagram failed: {}", e);
+    tokio::spawn(
+        async move {
+            while let Some(pkt) = l_rx.recv().await {
+                let dst_addr = pkt.dst_addr.must_ip();
+                trace!("send udp packet dst={} len={}", &dst_addr, pkt.data.len());
+                if let Err(e) = ls.send_to(&pkt.data[..], &pkt.src_addr, dst_addr).await {
+                    debug!("send datagram failed: {}", e);
+                }
+            }
+            if let Err(e) = ls.close().await {
+                debug!("failed to close inbound datagram: {}", e);
             }
         }
-        if let Err(e) = ls.close().await {
-            debug!("failed to close inbound datagram: {}", e);
-        }
-    });
+        .instrument(sess.span()),
+    );
 
     let mut buf = vec![0u8; *crate::option::DATAGRAM_BUFFER_SIZE * 1024];
     loop {
-        match lr.recv_from(&mut buf).await {
+        match lr.recv_from(&mut buf).instrument(sess.span()).await {
             Err(ProxyError::DatagramFatal(e)) => {
                 debug!("fatal error when receiving datagram: {}", e);
                 break;
@@ -98,18 +97,15 @@ async fn handle_inbound_datagram_inner(
                 continue;
             }
             Ok((n, dgram_src, dst_addr)) => {
-                trace!(
-                    "inbound received UDP packet: src {}, {} bytes",
-                    &dgram_src.address,
-                    n
-                );
+                trace!("received udp packet src={} len={}", &dgram_src.address, n);
                 let pkt = UdpPacket::new(
                     buf[..n].to_vec(),
                     SocksAddr::from(dgram_src.address),
                     dst_addr,
                 );
                 nat_manager
-                    .send(sess.as_ref(), &dgram_src, &inbound_tag, &l_tx, pkt)
+                    .send(Some(&sess), &dgram_src, &inbound_tag, &l_tx, pkt)
+                    .instrument(sess.span())
                     .await;
             }
         }
@@ -126,11 +122,22 @@ async fn handle_inbound_transport(
     match transport {
         // A reliable transport.
         InboundTransport::Stream(stream, sess) => {
-            dispatcher.dispatch_stream(sess, stream).await;
+            let span = sess.span();
+            dispatcher
+                .dispatch_stream(sess, stream)
+                .instrument(span)
+                .await;
         }
         // An unreliable transport.
         InboundTransport::Datagram(socket, sess) => {
-            handle_inbound_datagram(handler.tag().clone(), socket, sess, nat_manager).await;
+            let span = sess.as_ref().map(|x| x.span());
+            if let Some(span) = span {
+                handle_inbound_datagram(handler.tag().clone(), socket, sess, nat_manager)
+                    .instrument(span)
+                    .await;
+            } else {
+                handle_inbound_datagram(handler.tag().clone(), socket, sess, nat_manager).await;
+            }
         }
         // A multiplexed transport.
         InboundTransport::Incoming(mut incoming) => {
@@ -179,15 +186,24 @@ async fn handle_inbound_tcp_stream(
         inbound_tag: handler.tag().clone(),
         ..Default::default()
     };
-    let span = sess.create_span();
+    let span = sess.span();
+    let _g = span.enter();
+    let span = sess.span();
+    debug!(
+        "handle inbound tcp stream src={} local={}",
+        &source, &local_addr
+    );
     async move {
         // Transforms the TCP stream into an inbound transport.
         let transport = timeout(
             Duration::from_secs(*crate::option::INBOUND_ACCEPT_TIMEOUT),
             handler.stream()?.handle(sess, Box::new(stream)),
         )
+        .instrument(tracing::Span::current())
         .await??;
-        handle_inbound_transport(transport, handler, dispatcher, nat_manager).await;
+        handle_inbound_transport(transport, handler, dispatcher, nat_manager)
+            .instrument(tracing::Span::current())
+            .await;
         Ok(())
     }
     .instrument(span)

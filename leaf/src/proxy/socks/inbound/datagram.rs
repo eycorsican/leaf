@@ -55,7 +55,7 @@ impl InboundDatagramRecvHalf for DatagramRecvHalf {
         &mut self,
         buf: &mut [u8],
     ) -> ProxyResult<(usize, DatagramSource, SocksAddr)> {
-        let mut recv_buf = vec![0u8; buf.len()];
+        let mut recv_buf = vec![0u8; buf.len() + 512];
         let (n, src_addr, _) = self.0.recv_from(&mut recv_buf).await?;
         if n < 3 {
             return Err(ProxyError::DatagramWarn(anyhow!("Short message")));

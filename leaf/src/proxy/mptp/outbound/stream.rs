@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use bytes::BytesMut;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
+use tracing::{debug, Instrument};
 use uuid::Uuid;
 
 use crate::{
@@ -36,6 +37,8 @@ impl Handler {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let cid = Uuid::new_v4();
 
+        debug!("CID={} CMD={}", &cid, cmd);
+
         // Clone session and set destination to MPTP server
         let mut server_sess = sess.clone();
         server_sess.destination = SocksAddr::try_from((self.address.clone(), self.port))
@@ -61,56 +64,72 @@ impl Handler {
             let cmd = cmd;
             let target_port = target_port;
 
-            tokio::spawn(async move {
-                if let Ok(stream_handler) = actor.stream() {
-                    // Try to connect if the actor requires a connection
-                    let stream_opt =
-                        match connect_stream_outbound(&server_sess, dns_client, &actor).await {
-                            Ok(opt) => opt,
-                            Err(e) => {
-                                tracing::warn!("Failed to connect sub {}: {}", i, e);
-                                return;
-                            }
-                        };
+            debug!("new sub-conn idx={} actor={}", i, &actor.tag());
 
-                    match stream_handler.handle(&server_sess, None, stream_opt).await {
-                        Ok(mut stream) => {
-                            // 2. Perform Handshake on each sub-connection
-                            let req = HandshakeRequest {
-                                ver: VER,
-                                cid,
-                                cmd,
-                                dst_addr: target_addr,
-                                dst_port: target_port,
+            tokio::spawn(
+                async move {
+                    if let Ok(stream_handler) = actor.stream() {
+                        // Try to connect if the actor requires a connection
+                        let stream_opt =
+                            match connect_stream_outbound(&server_sess, dns_client, &actor)
+                                .instrument(tracing::Span::current())
+                                .await
+                            {
+                                Ok(opt) => opt,
+                                Err(e) => {
+                                    tracing::warn!("Failed to connect sub {}: {}", i, e);
+                                    return;
+                                }
                             };
 
-                            let mut buf = BytesMut::new();
-                            req.encode(&mut buf);
+                        match stream_handler
+                            .handle(&server_sess, None, stream_opt)
+                            .instrument(tracing::Span::current())
+                            .await
+                        {
+                            Ok(mut stream) => {
+                                // 2. Perform Handshake on each sub-connection
+                                let req = HandshakeRequest {
+                                    ver: VER,
+                                    cid,
+                                    cmd,
+                                    dst_addr: target_addr,
+                                    dst_port: target_port,
+                                };
 
-                            // Add a small delay to ensure handshake is sent as a distinct packet if possible
-                            // or to allow server to accept connection properly before data
-                            // tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                                let mut buf = BytesMut::new();
+                                req.encode(&mut buf);
 
-                            if let Err(e) = stream.write_all(&buf).await {
-                                tracing::warn!("Failed to send handshake for sub {}: {}", i, e);
-                                return;
+                                // Add a small delay to ensure handshake is sent as a distinct packet if possible
+                                // or to allow server to accept connection properly before data
+                                // tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+                                if let Err(e) = stream
+                                    .write_all(&buf)
+                                    .instrument(tracing::Span::current())
+                                    .await
+                                {
+                                    tracing::warn!("Failed to send handshake for sub {}: {}", i, e);
+                                    return;
+                                }
+
+                                let _ = tx.send((stream, Some(cid)));
                             }
-
-                            let _ = tx.send((stream, Some(cid)));
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to handle sub {}: {}", i, e);
+                            Err(e) => {
+                                tracing::warn!("Failed to handle sub {}: {}", i, e);
+                            }
                         }
                     }
                 }
-            });
+                .instrument(tracing::Span::current()),
+            );
         }
 
         // Drop our local tx so that rx.recv() returns None when all tasks finish
         drop(tx);
 
         // Wait for the first successful connection
-        if let Some((first_stream, _)) = rx.recv().await {
+        if let Some((first_stream, _)) = rx.recv().instrument(sess.span()).await {
             // 3. Create MptpStream with the first stream and the receiver for subsequent ones
             Ok(MptpStream::new_with_receiver_and_initial(
                 vec![first_stream],
@@ -137,8 +156,11 @@ impl OutboundStreamHandler for Handler {
         _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        tracing::trace!("handling outbound stream session: {:?}", sess);
-        let mptp_stream = self.establish_mptp_stream(sess, CMD_CONNECT).await?;
+        tracing::trace!("handling outbound stream");
+        let mptp_stream = self
+            .establish_mptp_stream(sess, CMD_CONNECT)
+            .instrument(sess.span())
+            .await?;
         Ok(Box::new(mptp_stream))
     }
 }
@@ -158,8 +180,11 @@ impl OutboundDatagramHandler for Handler {
         sess: &'a Session,
         _transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        tracing::trace!("handling outbound datagram session: {:?}", sess);
-        let mptp_stream = self.establish_mptp_stream(sess, CMD_UDP).await?;
+        tracing::trace!("handling outbound datagram");
+        let mptp_stream = self
+            .establish_mptp_stream(sess, CMD_UDP)
+            .instrument(sess.span())
+            .await?;
         let mptp_datagram = MptpDatagram::new(mptp_stream);
         Ok(Box::new(mptp_datagram))
     }
