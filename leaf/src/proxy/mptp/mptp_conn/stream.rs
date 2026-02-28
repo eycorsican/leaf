@@ -270,7 +270,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                         }
                     }
                     MTYP_FIN => {
-                        debug!("received FIN from sub {}", i);
+                        debug!("received fin from sub {}", i);
                         sub.read_buf.advance(1);
                         this.closed = true;
                         // Don't return EOF yet, we might have data in read_buffer

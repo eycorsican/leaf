@@ -10,7 +10,7 @@ use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use tokio::sync::Mutex;
-use tracing::debug;
+use tracing::{debug, Instrument};
 
 use crate::{
     app::SyncDnsClient,
@@ -93,7 +93,7 @@ impl MuxManager {
             let mut conns = self.connectors.lock().await;
             conns.shuffle(&mut StdRng::from_entropy());
             for c in conns.iter_mut() {
-                if let Some(s) = c.new_stream().await {
+                if let Some(s) = c.new_stream().instrument(tracing::Span::current()).await {
                     return Ok(s);
                 }
             }
@@ -104,6 +104,7 @@ impl MuxManager {
         // Create the underlying TCP stream.
         let mut conn = self
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)
+            .instrument(tracing::Span::current())
             .await?;
 
         // Pass the TCP stream through all sub-transports, e.g. TLS, WebSocket.
@@ -113,7 +114,11 @@ impl MuxManager {
         sess.http_sniffed_domain = None;
         sess.tls_sniffed_domain = None;
         for a in self.actors.iter() {
-            conn = a.stream()?.handle(&sess, None, Some(conn)).await?;
+            conn = a
+                .stream()?
+                .handle(&sess, None, Some(conn))
+                .instrument(tracing::Span::current())
+                .await?;
         }
 
         // Create the stream over this new connection.
@@ -130,7 +135,11 @@ impl MuxManager {
                 )
             }
         };
-        let s = match connector.new_stream().await {
+        let s = match connector
+            .new_stream()
+            .instrument(tracing::Span::current())
+            .await
+        {
             Some(s) => s,
             None => return Err(io::Error::other("new stream failed")),
         };
@@ -186,6 +195,11 @@ impl OutboundStreamHandler for Handler {
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         tracing::trace!("handling outbound stream");
-        Ok(Box::new(self.manager.new_stream(sess).await?))
+        Ok(Box::new(
+            self.manager
+                .new_stream(sess)
+                .instrument(tracing::Span::current())
+                .await?,
+        ))
     }
 }

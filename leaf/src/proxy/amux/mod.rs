@@ -23,7 +23,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Instant};
-use tracing::{debug, trace};
+use tracing::{debug, trace, Instrument};
 
 #[cfg(feature = "inbound-amux")]
 pub mod inbound;
@@ -190,12 +190,15 @@ impl AsyncWrite for MuxStream {
                     let to_write = min(buf.len(), MAX_STREAM_FRAME_DATA_LEN.into());
                     let frame = MuxFrame::Stream(self.stream_id, buf[..to_write].to_vec());
                     let tx = self.frame_write_tx.clone();
-                    let task = Box::pin(async move {
-                        tx.send(frame)
-                            .map_ok(|_| to_write)
-                            .map_err(|_| broken_pipe())
-                            .await
-                    });
+                    let task = Box::pin(
+                        async move {
+                            tx.send(frame)
+                                .map_ok(|_| to_write)
+                                .map_err(|_| broken_pipe())
+                                .await
+                        }
+                        .instrument(tracing::Span::current()),
+                    );
                     self.write_state = TaskState::Pending(task);
                 }
                 TaskState::Pending(ref mut task) => {
@@ -217,12 +220,15 @@ impl AsyncWrite for MuxStream {
                 TaskState::Idle => {
                     let frame = MuxFrame::StreamFin(self.stream_id);
                     let tx = self.frame_write_tx.clone();
-                    let task = Box::pin(async move {
-                        tx.send(frame)
-                            .map_ok(|_| 0) // FIXME temp workaround the signature
-                            .map_err(|_| broken_pipe())
-                            .await
-                    });
+                    let task = Box::pin(
+                        async move {
+                            tx.send(frame)
+                                .map_ok(|_| 0) // FIXME temp workaround the signature
+                                .map_err(|_| broken_pipe())
+                                .await
+                        }
+                        .instrument(tracing::Span::current()),
+                    );
                     self.shutdown_state = TaskState::Pending(task);
                 }
                 TaskState::Pending(ref mut task) => {
@@ -408,76 +414,79 @@ impl MuxSession {
     where
         S: 'static + AsyncRead + AsyncWrite + Unpin + Send,
     {
-        let task = Box::pin(async move {
-            while let Some(frame) = frame_stream.next().await {
-                match frame {
-                    Ok(frame) => {
-                        match frame {
-                            MuxFrame::Stream(stream_id, data) => {
-                                // In accept mode.
-                                if let Some(Accept {
-                                    session_id,
-                                    stream_accept_tx,
-                                    frame_write_tx,
-                                }) = accept.as_mut()
-                                {
-                                    // Accepts new stream for an unseen stream ID.
-                                    if let std::collections::hash_map::Entry::Vacant(e) =
-                                        streams.lock().await.entry(stream_id)
+        let task = Box::pin(
+            async move {
+                while let Some(frame) = frame_stream.next().await {
+                    match frame {
+                        Ok(frame) => {
+                            match frame {
+                                MuxFrame::Stream(stream_id, data) => {
+                                    // In accept mode.
+                                    if let Some(Accept {
+                                        session_id,
+                                        stream_accept_tx,
+                                        frame_write_tx,
+                                    }) = accept.as_mut()
                                     {
-                                        let (mux_stream, stream_read_tx) = MuxStream::new(
-                                            *session_id,
-                                            stream_id,
-                                            frame_write_tx.clone(),
-                                            Arc::new(AtomicBool::new(false)),
-                                        );
-                                        e.insert(stream_read_tx);
-                                        if stream_accept_tx.send(mux_stream).await.is_err() {
-                                            // The `Incoming` transport has been dropped.
-                                            break;
+                                        // Accepts new stream for an unseen stream ID.
+                                        if let std::collections::hash_map::Entry::Vacant(e) =
+                                            streams.lock().await.entry(stream_id)
+                                        {
+                                            let (mux_stream, stream_read_tx) = MuxStream::new(
+                                                *session_id,
+                                                stream_id,
+                                                frame_write_tx.clone(),
+                                                Arc::new(AtomicBool::new(false)),
+                                            );
+                                            e.insert(stream_read_tx);
+                                            if stream_accept_tx.send(mux_stream).await.is_err() {
+                                                // The `Incoming` transport has been dropped.
+                                                break;
+                                            }
                                         }
                                     }
-                                }
-                                // Sends data to the stream.
-                                if let Some(stream_read_tx) =
-                                    streams.lock().await.get(&stream_id).cloned()
-                                {
-                                    if let Some(c) = recv_bytes_counter.as_ref() {
-                                        c.fetch_add(data.len(), Ordering::Relaxed);
+                                    // Sends data to the stream.
+                                    if let Some(stream_read_tx) =
+                                        streams.lock().await.get(&stream_id).cloned()
+                                    {
+                                        if let Some(c) = recv_bytes_counter.as_ref() {
+                                            c.fetch_add(data.len(), Ordering::Relaxed);
+                                        }
+                                        // FIXME error
+                                        let _ = stream_read_tx.send(data).await;
                                     }
-                                    // FIXME error
-                                    let _ = stream_read_tx.send(data).await;
                                 }
-                            }
-                            MuxFrame::StreamFin(stream_id) => {
-                                // Send an empty buffer to indicate EOF.
-                                if let Some(stream_read_tx) =
-                                    streams.lock().await.get(&stream_id).cloned()
-                                {
-                                    // FIXME error
-                                    let _ = stream_read_tx.send(Vec::new()).await;
+                                MuxFrame::StreamFin(stream_id) => {
+                                    // Send an empty buffer to indicate EOF.
+                                    if let Some(stream_read_tx) =
+                                        streams.lock().await.get(&stream_id).cloned()
+                                    {
+                                        // FIXME error
+                                        let _ = stream_read_tx.send(Vec::new()).await;
+                                    }
+                                    let streams2 = streams.clone();
+                                    tokio::spawn(async move {
+                                        sleep(Duration::from_secs(4)).await;
+                                        streams2.lock().await.remove(&stream_id);
+                                    });
                                 }
-                                let streams2 = streams.clone();
-                                tokio::spawn(async move {
-                                    sleep(Duration::from_secs(4)).await;
-                                    streams2.lock().await.remove(&stream_id);
-                                });
                             }
                         }
-                    }
-                    // Borken pipe.
-                    Err(e) => {
-                        debug!("receiving frame failed: {}", e);
-                        break;
+                        // Borken pipe.
+                        Err(e) => {
+                            debug!("receiving frame failed: {}", e);
+                            break;
+                        }
                     }
                 }
+                // Stop receving.
+                if let Some(recv_end) = recv_end {
+                    *recv_end.lock().await = true;
+                }
+                streams.lock().await.clear();
             }
-            // Stop receving.
-            if let Some(recv_end) = recv_end {
-                *recv_end.lock().await = true;
-            }
-            streams.lock().await.clear();
-        });
+            .instrument(tracing::Span::current()),
+        );
         let (task, handle) = abortable(task);
         tokio::spawn(task);
         handle
@@ -492,27 +501,33 @@ impl MuxSession {
     where
         S: 'static + AsyncRead + AsyncWrite + Unpin + Send,
     {
-        let task = Box::pin(async move {
-            while let Some(frame) = frame_write_rx.recv().await {
-                // Peek EOF.
-                if let MuxFrame::StreamFin(ref stream_id) = frame {
-                    let streams2 = streams.clone();
-                    let stream_id2 = *stream_id;
-                    tokio::spawn(async move {
-                        sleep(Duration::from_secs(4)).await;
-                        streams2.lock().await.remove(&stream_id2);
-                    });
+        let task = Box::pin(
+            async move {
+                while let Some(frame) = frame_write_rx.recv().await {
+                    // Peek EOF.
+                    if let MuxFrame::StreamFin(ref stream_id) = frame {
+                        let streams2 = streams.clone();
+                        let stream_id2 = *stream_id;
+                        tokio::spawn(
+                            async move {
+                                sleep(Duration::from_secs(4)).await;
+                                streams2.lock().await.remove(&stream_id2);
+                            }
+                            .instrument(tracing::Span::current()),
+                        );
+                    }
+                    // Send
+                    if frame_sink.send(frame).await.is_err() {
+                        break;
+                    }
                 }
-                // Send
-                if frame_sink.send(frame).await.is_err() {
-                    break;
+                if let Some(send_end) = send_end {
+                    *send_end.lock().await = true;
                 }
+                streams.lock().await.clear();
             }
-            if let Some(send_end) = send_end {
-                *send_end.lock().await = true;
-            }
-            streams.lock().await.clear();
-        });
+            .instrument(tracing::Span::current()),
+        );
         let (task, handle) = abortable(task);
         tokio::spawn(task);
         handle

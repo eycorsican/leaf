@@ -37,7 +37,7 @@ impl Handler {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let cid = Uuid::new_v4();
 
-        debug!("CID={} CMD={}", &cid, cmd);
+        debug!("cid={} cmd={}", &cid, cmd);
 
         // Clone session and set destination to MPTP server
         let mut server_sess = sess.clone();
