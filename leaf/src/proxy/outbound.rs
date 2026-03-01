@@ -9,6 +9,7 @@ pub struct Handler {
     tag: String,
     stream_handler: Option<AnyOutboundStreamHandler>,
     datagram_handler: Option<AnyOutboundDatagramHandler>,
+    is_direct: bool,
 }
 
 impl Handler {
@@ -16,11 +17,13 @@ impl Handler {
         tag: String,
         stream_handler: Option<AnyOutboundStreamHandler>,
         datagram_handler: Option<AnyOutboundDatagramHandler>,
+        is_direct: bool,
     ) -> Arc<Self> {
         Arc::new(Handler {
             tag,
             stream_handler,
             datagram_handler,
+            is_direct,
         })
     }
 }
@@ -39,6 +42,10 @@ impl OutboundHandler for Handler {
             .as_ref()
             .ok_or_else(|| io::Error::other("no udp handler"))
     }
+
+    fn is_direct(&self) -> bool {
+        self.is_direct
+    }
 }
 
 impl Tag for Handler {
@@ -51,6 +58,7 @@ pub struct HandlerBuilder {
     tag: String,
     stream_handler: Option<AnyOutboundStreamHandler>,
     datagram_handler: Option<AnyOutboundDatagramHandler>,
+    is_direct: bool,
 }
 
 impl HandlerBuilder {
@@ -59,6 +67,7 @@ impl HandlerBuilder {
             tag: "".to_string(),
             stream_handler: None,
             datagram_handler: None,
+            is_direct: false,
         }
     }
 
@@ -77,8 +86,18 @@ impl HandlerBuilder {
         self
     }
 
+    pub fn is_direct(mut self, v: bool) -> Self {
+        self.is_direct = v;
+        self
+    }
+
     pub fn build(self) -> AnyOutboundHandler {
-        Handler::new(self.tag, self.stream_handler, self.datagram_handler)
+        Handler::new(
+            self.tag,
+            self.stream_handler,
+            self.datagram_handler,
+            self.is_direct,
+        )
     }
 }
 

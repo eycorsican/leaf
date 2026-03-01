@@ -555,6 +555,9 @@ pub trait BaseHandler: Tag + Send + Sync + Unpin {}
 pub trait OutboundHandler: BaseHandler {
     fn stream(&self) -> io::Result<&AnyOutboundStreamHandler>;
     fn datagram(&self) -> io::Result<&AnyOutboundDatagramHandler>;
+    fn is_direct(&self) -> bool {
+        false
+    }
 }
 
 pub type AnyOutboundHandler = Arc<dyn OutboundHandler>;

@@ -129,8 +129,8 @@ fn log_request(sess: &Session, outbound_tag: &str, handshake_time: Option<u128>)
 }
 
 pub struct Dispatcher {
-    outbound_manager: Arc<RwLock<OutboundManager>>,
-    router: Arc<RwLock<Router>>,
+    pub(crate) outbound_manager: Arc<RwLock<OutboundManager>>,
+    pub(crate) router: Arc<RwLock<Router>>,
     dns_client: SyncDnsClient,
     stat_manager: SyncStatManager,
     dns_sniffer: DnsSniffer,
@@ -446,6 +446,14 @@ impl Dispatcher {
                 log_request(&sess, h.tag(), None);
                 Err(e)
             }
+        }
+    }
+
+    pub async fn is_direct_outbound(&self, tag: &str) -> bool {
+        if let Some(h) = self.outbound_manager.read().await.get(tag) {
+            h.is_direct()
+        } else {
+            false
         }
     }
 }

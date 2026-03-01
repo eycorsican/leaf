@@ -120,6 +120,7 @@ impl OutboundManager {
                     .tag(tag.clone())
                     .stream_handler(Arc::new(direct::StreamHandler))
                     .datagram_handler(Arc::new(direct::DatagramHandler))
+                    .is_direct(true)
                     .build(),
                 #[cfg(feature = "outbound-drop")]
                 "drop" => HandlerBuilder::default()

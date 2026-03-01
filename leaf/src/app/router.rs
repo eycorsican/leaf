@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use anyhow::Result;
+use async_recursion::async_recursion;
 use cidr::IpCidr;
 use futures::TryFutureExt;
 use maxminddb::geoip2::Country;
@@ -563,6 +564,7 @@ impl Router {
         Ok(())
     }
 
+    #[async_recursion]
     pub async fn pick_route<'a>(&'a self, sess: &'a Session) -> Result<Option<&'a String>> {
         let effective_dest = &sess.destination;
         for rule in &self.rules {
@@ -570,7 +572,7 @@ impl Router {
                 return Ok(Some(&rule.target));
             }
         }
-        if effective_dest.is_domain() && self.domain_resolve {
+        if effective_dest.is_domain() && self.domain_resolve && !sess.skip_resolve {
             debug!("resolve routing domain={:?}", effective_dest.domain());
             let ips = {
                 self.dns_client

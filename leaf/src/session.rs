@@ -110,6 +110,8 @@ pub struct Session {
     pub dns_sniffed_domain: Option<String>,
     /// Shared state to coordinate XTLS vision read raw mode.
     pub vision_read_raw: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Skip domain resolution during routing.
+    pub skip_resolve: bool,
 }
 
 impl Clone for Session {
@@ -130,6 +132,7 @@ impl Clone for Session {
             http_sniffed_domain: self.http_sniffed_domain.clone(),
             dns_sniffed_domain: self.dns_sniffed_domain.clone(),
             vision_read_raw: self.vision_read_raw.clone(),
+            skip_resolve: self.skip_resolve,
         }
     }
 }
@@ -152,6 +155,7 @@ impl Default for Session {
             http_sniffed_domain: None,
             dns_sniffed_domain: None,
             vision_read_raw: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            skip_resolve: false,
         }
     }
 }
