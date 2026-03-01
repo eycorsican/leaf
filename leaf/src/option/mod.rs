@@ -66,6 +66,11 @@ lazy_static! {
     pub static ref DNS_CACHE_SIZE: usize = {
         get_env_var_or("DNS_CACHE_SIZE", 512)
     };
+
+    /// Maximum number of recent connections stored in StatManager.
+    pub static ref MAX_RECENT_CONNECTIONS: usize = {
+        get_env_var_or("MAX_RECENT_CONNECTIONS", 0)
+    };
 }
 
 lazy_static! {

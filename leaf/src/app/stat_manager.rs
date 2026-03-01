@@ -1,3 +1,4 @@
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::{io, pin::Pin};
@@ -8,9 +9,12 @@ use futures::{
     task::{Context, Poll},
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::sync::{mpsc, RwLock};
 use tracing::debug;
 
-use crate::{proxy::*, session::*};
+use crate::{option, proxy::*, session::*};
+
+pub type SyncStatManager = Arc<RwLock<StatManager>>;
 
 pub struct Stream {
     pub inner: AnyStream,
@@ -19,6 +23,8 @@ pub struct Stream {
     pub recv_completed: Arc<AtomicBool>,
     pub send_completed: Arc<AtomicBool>,
     pub last_peer_active: Arc<AtomicU32>,
+    pub id: u64,
+    pub tx: mpsc::UnboundedSender<u64>,
 }
 
 impl Drop for Stream {
@@ -26,6 +32,7 @@ impl Drop for Stream {
         // In case of abnormal shutdown.
         self.recv_completed.store(true, Ordering::Relaxed);
         self.send_completed.store(true, Ordering::Relaxed);
+        let _ = self.tx.send(self.id);
     }
 }
 
@@ -74,30 +81,42 @@ impl AsyncWrite for Stream {
 }
 
 pub struct Datagram {
-    pub inner: AnyOutboundDatagram,
+    pub inner: Option<AnyOutboundDatagram>,
     pub bytes_recvd: Arc<AtomicU64>,
     pub bytes_sent: Arc<AtomicU64>,
     pub recv_completed: Arc<AtomicBool>,
     pub send_completed: Arc<AtomicBool>,
     pub last_peer_active: Arc<AtomicU32>,
+    pub id: u64,
+    pub tx: mpsc::UnboundedSender<u64>,
+}
+
+impl Drop for Datagram {
+    fn drop(&mut self) {
+        let _ = self.tx.send(self.id);
+    }
 }
 
 impl OutboundDatagram for Datagram {
     fn split(
-        self: Box<Self>,
+        mut self: Box<Self>,
     ) -> (
         Box<dyn OutboundDatagramRecvHalf>,
         Box<dyn OutboundDatagramSendHalf>,
     ) {
-        let (r, s) = self.inner.split();
+        let (r, s) = self.inner.take().expect("inner should be present").split();
         (
             Box::new(DatagramRecvHalf(
                 r,
-                self.bytes_recvd,
-                self.recv_completed,
-                self.last_peer_active,
+                self.bytes_recvd.clone(),
+                self.recv_completed.clone(),
+                self.last_peer_active.clone(),
             )),
-            Box::new(DatagramSendHalf(s, self.bytes_sent, self.send_completed)),
+            Box::new(DatagramSendHalf(
+                s,
+                self.bytes_sent.clone(),
+                self.send_completed.clone(),
+            )),
         )
     }
 }
@@ -152,6 +171,7 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
 }
 
 pub struct Counter {
+    pub id: u64,
     pub sess: Session,
     pub start_time: u32,
     pub bytes_recvd: Arc<AtomicU64>,
@@ -159,6 +179,7 @@ pub struct Counter {
     pub recv_completed: Arc<AtomicBool>,
     pub send_completed: Arc<AtomicBool>,
     pub last_peer_active: Arc<AtomicU32>,
+    pub logged: Arc<AtomicBool>,
 }
 
 impl Counter {
@@ -185,18 +206,24 @@ impl Counter {
     pub fn start_time(&self) -> u32 {
         self.start_time
     }
+
+    pub fn log_session_end(&self) {
+        if !self.logged.swap(true, Ordering::Relaxed) {
+            let _g = self.sess.span.enter();
+            debug!(
+                "session end out={} dst={} tx={} rx={}",
+                self.sess.outbound_tag,
+                self.sess.destination,
+                self.bytes_sent(),
+                self.bytes_recvd(),
+            );
+        }
+    }
 }
 
 impl Drop for Counter {
     fn drop(&mut self) {
-        let _g = self.sess.span.enter();
-        debug!(
-            "session end out={} dst={} tx={} rx={}",
-            self.sess.outbound_tag,
-            self.sess.destination,
-            self.bytes_sent(),
-            self.bytes_recvd(),
-        );
+        self.log_session_end();
     }
 }
 
@@ -207,9 +234,27 @@ fn get_unix_timestamp() -> u32 {
         .unwrap_or(0)
 }
 
-#[derive(Default)]
 pub struct StatManager {
-    pub counters: Vec<Counter>,
+    pub counters: HashMap<u64, Counter>,
+    pub recent_counters: VecDeque<Counter>,
+    pub max_recent_connections: usize,
+    pub next_id: u64,
+    pub tx: mpsc::UnboundedSender<u64>,
+    pub rx: Option<mpsc::UnboundedReceiver<u64>>,
+}
+
+impl Default for StatManager {
+    fn default() -> Self {
+        let (tx, rx) = mpsc::unbounded_channel();
+        Self {
+            counters: HashMap::new(),
+            recent_counters: VecDeque::new(),
+            max_recent_connections: *option::MAX_RECENT_CONNECTIONS,
+            next_id: 1,
+            tx,
+            rx: Some(rx),
+        }
+    }
 }
 
 impl StatManager {
@@ -217,17 +262,77 @@ impl StatManager {
         Self::default()
     }
 
-    pub fn cleanup_task(sm: super::SyncStatManager) -> crate::Runner {
+    pub fn move_to_recent(&mut self) {
+        let mut to_move = Vec::new();
+        for (id, c) in self.counters.iter() {
+            if c.recv_completed() && c.send_completed() {
+                to_move.push(*id);
+            }
+        }
+        for id in to_move {
+            if let Some(counter) = self.counters.remove(&id) {
+                counter.log_session_end();
+                if self.max_recent_connections > 0 {
+                    self.recent_counters.push_back(counter);
+                }
+            }
+        }
+        if self.max_recent_connections > 0 {
+            self.prune_recent();
+        }
+    }
+
+    fn prune_recent(&mut self) {
+        // Only prune when exceeding 2x the limit to reduce sorting frequency
+        if self.recent_counters.len() > self.max_recent_connections * 2 {
+            let mut recent_vec: Vec<Counter> = self.recent_counters.drain(..).collect();
+            recent_vec.sort_by_key(|c| c.start_time());
+            let to_remove = recent_vec.len() - self.max_recent_connections;
+            self.recent_counters = recent_vec.into_iter().skip(to_remove).collect();
+        }
+    }
+
+    pub fn cleanup_task(sm: SyncStatManager) -> crate::Runner {
         Box::pin(async move {
+            let mut rx = {
+                let mut sm_w = sm.write().await;
+                sm_w.rx.take().expect("rx should be present")
+            };
             loop {
-                tokio::time::sleep(std::time::Duration::from_secs(20)).await;
-                let mut sm = sm.write().await;
-                let mut i = 0;
-                while i < sm.counters.len() {
-                    if sm.counters[i].recv_completed() && sm.counters[i].send_completed() {
-                        sm.counters.swap_remove(i);
-                    } else {
-                        i += 1;
+                let mut ids = Vec::new();
+                // Batch up to 100 IDs or wait for a bit
+                match tokio::time::timeout(std::time::Duration::from_millis(100), rx.recv()).await {
+                    Ok(Some(id)) => {
+                        ids.push(id);
+                        // Try to collect more IDs without waiting
+                        while let Ok(id) = rx.try_recv() {
+                            ids.push(id);
+                            if ids.len() >= 500 {
+                                break;
+                            }
+                        }
+                    }
+                    Ok(None) => break, // Channel closed
+                    Err(_) => {
+                        // Timeout reached, check if we need to do periodic cleanup anyway
+                        let mut sm_w = sm.write().await;
+                        sm_w.move_to_recent();
+                        continue;
+                    }
+                }
+
+                if !ids.is_empty() {
+                    let mut sm_w = sm.write().await;
+                    for id in ids {
+                        if let Some(counter) = sm_w.counters.remove(&id) {
+                            counter.log_session_end();
+                            if sm_w.max_recent_connections > 0 {
+                                sm_w.recent_counters.push_back(counter);
+                            }
+                        }
+                    }
+                    if sm_w.max_recent_connections > 0 {
+                        sm_w.prune_recent();
                     }
                 }
             }
@@ -239,17 +344,25 @@ impl StatManager {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let recv_completed = Arc::new(AtomicBool::new(false));
         let send_completed = Arc::new(AtomicBool::new(false));
+        let logged = Arc::new(AtomicBool::new(false));
         let ts = get_unix_timestamp();
         let last_peer_active = Arc::new(AtomicU32::new(ts));
-        self.counters.push(Counter {
-            sess,
-            start_time: ts,
-            bytes_recvd: bytes_recvd.clone(),
-            bytes_sent: bytes_sent.clone(),
-            recv_completed: recv_completed.clone(),
-            send_completed: send_completed.clone(),
-            last_peer_active: last_peer_active.clone(),
-        });
+        let id = self.next_id;
+        self.next_id += 1;
+        self.counters.insert(
+            id,
+            Counter {
+                id,
+                sess,
+                start_time: ts,
+                bytes_recvd: bytes_recvd.clone(),
+                bytes_sent: bytes_sent.clone(),
+                recv_completed: recv_completed.clone(),
+                send_completed: send_completed.clone(),
+                last_peer_active: last_peer_active.clone(),
+                logged,
+            },
+        );
         Box::new(Stream {
             inner: stream,
             bytes_recvd,
@@ -257,6 +370,8 @@ impl StatManager {
             recv_completed,
             send_completed,
             last_peer_active,
+            id,
+            tx: self.tx.clone(),
         })
     }
 
@@ -265,17 +380,25 @@ impl StatManager {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let recv_completed = Arc::new(AtomicBool::new(false));
         let send_completed = Arc::new(AtomicBool::new(false));
+        let logged = Arc::new(AtomicBool::new(false));
         let ts = get_unix_timestamp();
         let last_peer_active = Arc::new(AtomicU32::new(ts));
-        self.counters.push(Counter {
-            sess,
-            start_time: ts,
-            bytes_recvd: bytes_recvd.clone(),
-            bytes_sent: bytes_sent.clone(),
-            recv_completed: recv_completed.clone(),
-            send_completed: send_completed.clone(),
-            last_peer_active: last_peer_active.clone(),
-        });
+        let id = self.next_id;
+        self.next_id += 1;
+        self.counters.insert(
+            id,
+            Counter {
+                id,
+                sess,
+                start_time: ts,
+                bytes_recvd: bytes_recvd.clone(),
+                bytes_sent: bytes_sent.clone(),
+                recv_completed: recv_completed.clone(),
+                send_completed: send_completed.clone(),
+                last_peer_active: last_peer_active.clone(),
+                logged,
+            },
+        );
         Box::new(Stream {
             inner: stream,
             bytes_recvd: bytes_sent,
@@ -283,6 +406,8 @@ impl StatManager {
             recv_completed: send_completed,
             send_completed: recv_completed,
             last_peer_active,
+            id,
+            tx: self.tx.clone(),
         })
     }
 
@@ -295,30 +420,40 @@ impl StatManager {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let recv_completed = Arc::new(AtomicBool::new(false));
         let send_completed = Arc::new(AtomicBool::new(false));
+        let logged = Arc::new(AtomicBool::new(false));
         let ts = get_unix_timestamp();
         let last_peer_active = Arc::new(AtomicU32::new(ts));
-        self.counters.push(Counter {
-            sess,
-            start_time: ts,
-            bytes_recvd: bytes_recvd.clone(),
-            bytes_sent: bytes_sent.clone(),
-            recv_completed: recv_completed.clone(),
-            send_completed: send_completed.clone(),
-            last_peer_active: last_peer_active.clone(),
-        });
+        let id = self.next_id;
+        self.next_id += 1;
+        self.counters.insert(
+            id,
+            Counter {
+                id,
+                sess,
+                start_time: ts,
+                bytes_recvd: bytes_recvd.clone(),
+                bytes_sent: bytes_sent.clone(),
+                recv_completed: recv_completed.clone(),
+                send_completed: send_completed.clone(),
+                last_peer_active: last_peer_active.clone(),
+                logged,
+            },
+        );
         Box::new(Datagram {
-            inner: dgram,
+            inner: Some(dgram),
             bytes_recvd,
             bytes_sent,
             recv_completed,
             send_completed,
             last_peer_active,
+            id,
+            tx: self.tx.clone(),
         })
     }
 
     pub fn get_last_peer_active(&self, outbound_tag: &str) -> Option<u32> {
         self.counters
-            .iter()
+            .values()
             .filter(|counter| counter.sess.outbound_tag == outbound_tag)
             .map(|counter| counter.last_peer_active())
             .max()
@@ -394,6 +529,7 @@ mod tests {
             recv_completed: recv_completed.clone(),
             send_completed: send_completed.clone(),
             last_peer_active: last_peer_active.clone(),
+            sm: None,
         };
 
         let mut data = vec![0u8; 20];
