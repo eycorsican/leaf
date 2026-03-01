@@ -1,4 +1,4 @@
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use super::protocol::{
     Frame, DATA_HEADER_LEN, MTYP_DATA, MTYP_FIN, MTYP_PING, MTYP_PONG, MTYP_RST,
@@ -156,14 +156,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                         all_eof = false;
                     } else {
                         // EOF for this sub
-                        warn!("sub {} EOF, marking closed", i);
+                        debug!("sub {} EOF, marking closed", i);
                         sub.closed = true;
                         // Don't return EOF yet, others might be alive
                     }
                 }
                 Poll::Ready(Err(e)) => {
                     if e.kind() == io::ErrorKind::UnexpectedEof {
-                        warn!("sub {} UnexpectedEof, marking closed", i);
+                        debug!("sub {} UnexpectedEof, marking closed", i);
                     } else {
                         error!("sub {} read error: {}, marking closed", i, e);
                     }
@@ -186,7 +186,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
         let all_closed = this.subs.iter().all(|s| s.closed);
         if all_closed && !this.subs.is_empty() && this.new_subs_rx.is_none() {
             if !this.closed {
-                warn!("all sub-connections closed/failed without MTYP_FIN");
+                debug!("all sub-connections closed/failed without MTYP_FIN");
                 return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
                     "all sub-connections failed",
@@ -279,7 +279,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for MptpStream<S> {
                         break;
                     }
                     MTYP_RST => {
-                        warn!("received RST from sub {}", i);
+                        debug!("received RST from sub {}", i);
                         sub.read_buf.advance(1);
                         return Poll::Ready(Err(io::Error::new(
                             io::ErrorKind::ConnectionReset,
