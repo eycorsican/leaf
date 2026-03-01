@@ -32,7 +32,7 @@ A versatile and efficient proxy framework.
 | AMux | ✅ | ✅ | Leaf specific multiplexing |
 | Obfs | ❌ | ✅ | Simple obfuscation |
 | Reality | ❌ | ✅ | Xray Reality |
-| MPTP | ✅ | ✅ | Multi-path Transport Protocol (Aggregation) |
+| MPTP | ✅ | ✅ | Multi-path Transport Protocol (Aggregation) ([Architecture](docs/mptp_architecture.md)) |
 
 ### Traffic Control
 
