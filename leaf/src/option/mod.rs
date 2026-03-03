@@ -66,14 +66,14 @@ lazy_static! {
     pub static ref DNS_CACHE_SIZE: usize = {
         get_env_var_or("DNS_CACHE_SIZE", 512)
     };
+}
 
+lazy_static! {
     /// Maximum number of recent connections stored in StatManager.
     pub static ref MAX_RECENT_CONNECTIONS: usize = {
         get_env_var_or("MAX_RECENT_CONNECTIONS", 0)
     };
-}
 
-lazy_static! {
     pub static ref HTTP_USER_AGENT: String = {
         get_env_var_or_else(
             "HTTP_USER_AGENT",
