@@ -20,8 +20,21 @@ pub fn to_internal(config: Config) -> Result<internal::Config> {
     common::to_internal(config)
 }
 
+fn apply_env(config: &common::Config) {
+    if let Some(env) = &config.env {
+        for (k, v) in env {
+            if !k.trim().is_empty() {
+                std::env::set_var(k, v);
+            }
+        }
+    }
+}
+
 pub fn json_from_string(config: &str) -> Result<common::Config> {
-    serde_json::from_str(config).map_err(|e| anyhow!("deserialize json config failed: {}", e))
+    let config: common::Config = serde_json::from_str(config)
+        .map_err(|e| anyhow!("deserialize json config failed: {}", e))?;
+    apply_env(&config);
+    Ok(config)
 }
 
 pub fn from_string(s: &str) -> Result<internal::Config> {

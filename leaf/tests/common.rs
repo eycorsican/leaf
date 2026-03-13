@@ -127,6 +127,7 @@ fn new_socks_outbound(
     }];
     let config = leaf::config::json::Config {
         log: None,
+        env: None,
         inbounds: None,
         outbounds: Some(outbounds),
         router: None,

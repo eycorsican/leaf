@@ -514,6 +514,7 @@ pub struct Router {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Config {
     pub log: Option<Log>,
+    pub env: Option<HashMap<String, String>>,
     pub inbounds: Option<Vec<Inbound>>,
     pub outbounds: Option<Vec<Outbound>>,
     pub router: Option<Router>,
