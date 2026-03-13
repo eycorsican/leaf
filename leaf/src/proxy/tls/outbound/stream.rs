@@ -142,29 +142,32 @@ impl Handler {
         let provider = rustls::crypto::ring::default_provider().into();
 
         let builder = ClientConfig::builder_with_provider(provider);
-        #[cfg(feature = "rustls-tls-aws-lc")]
-        let builder = if let Some(ech_config_list) = ech_config_list {
-            let ech_config_list = decode_ech_config_list(ech_config_list)?;
-            let ech_config = EchConfig::new(
-                ech_config_list,
-                rustls::crypto::aws_lc_rs::hpke::ALL_SUPPORTED_SUITES,
-            )
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-            builder
-                .with_ech(EchMode::Enable(ech_config))
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
-        } else {
-            builder
-                .with_safe_default_protocol_versions()
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
-        };
         #[cfg(not(feature = "rustls-tls-aws-lc"))]
-        let builder = {
-            if ech_config_list.is_some() {
+        if ech_config_list.is_some() {
+            return Err(anyhow::anyhow!(
+                "tls outbound ech requires rustls-tls-aws-lc (ring backend has no hpke suites)"
+            ));
+        }
+
+        let builder = if let Some(ech_config_list) = ech_config_list {
+            #[cfg(feature = "rustls-tls-aws-lc")]
+            {
+                let ech_config_list = decode_ech_config_list(ech_config_list)?;
+                let suites = rustls::crypto::aws_lc_rs::hpke::ALL_SUPPORTED_SUITES;
+                let ech_config = EchConfig::new(ech_config_list, suites)
+                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+                builder
+                    .with_ech(EchMode::Enable(ech_config))
+                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
+            }
+            #[cfg(not(feature = "rustls-tls-aws-lc"))]
+            {
+                let _ = ech_config_list;
                 return Err(anyhow::anyhow!(
-                    "tls outbound ech requires rustls-tls-aws-lc"
+                    "tls outbound ech requires rustls-tls-aws-lc (ring backend has no hpke suites)"
                 ));
             }
+        } else {
             builder
                 .with_safe_default_protocol_versions()
                 .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
@@ -249,29 +252,39 @@ impl Handler {
             trace!("ech source for {}: none", name);
             return Ok(None);
         }
-        if self.ech_disable_dns_lookup {
-            if let Some(fixed) = self.fixed_ech_config_list.as_deref() {
-                trace!("ech source for {}: fixed ech config", name);
-                return Ok(Some(fixed.to_string()));
+        #[cfg(feature = "rustls-tls-aws-lc")]
+        {
+            if self.ech_disable_dns_lookup {
+                if let Some(fixed) = self.fixed_ech_config_list.as_deref() {
+                    trace!("ech source for {}: fixed ech config", name);
+                    return Ok(Some(fixed.to_string()));
+                }
+                trace!("ech source for {}: none", name);
+                return Ok(None);
             }
-            trace!("ech source for {}: none", name);
-            return Ok(None);
-        }
-        let auto_result = if allow_dns_lookup {
-            let dns_client = self.dns_client.read().await;
-            Some(dns_client.lookup_ech_config_list(name).await)
-        } else {
-            trace!(
-                "ech source for {}: fixed-or-none (dns lookup skipped)",
-                name
+            let auto_result = if allow_dns_lookup {
+                let dns_client = self.dns_client.read().await;
+                Some(dns_client.lookup_ech_config_list(name).await)
+            } else {
+                trace!(
+                    "ech source for {}: fixed-or-none (dns lookup skipped)",
+                    name
+                );
+                None
+            };
+            return Self::resolve_selected_ech_config_list(
+                name,
+                self.fixed_ech_config_list.as_deref(),
+                auto_result,
             );
-            None
-        };
-        Self::resolve_selected_ech_config_list(
-            name,
-            self.fixed_ech_config_list.as_deref(),
-            auto_result,
-        )
+        }
+        #[cfg(not(feature = "rustls-tls-aws-lc"))]
+        {
+            let _ = (name, allow_dns_lookup);
+            Err(io::Error::other(
+                "tls outbound ech requires rustls-tls-aws-lc (ring backend has no hpke suites)",
+            ))
+        }
     }
 
     pub fn new(
@@ -303,17 +316,10 @@ impl Handler {
 
         #[cfg(feature = "rustls-tls")]
         {
-            #[cfg(feature = "rustls-tls-aws-lc")]
-            {
-                if handler.ech_enabled {
-                    tracing::trace!("tls outbound ech configured");
-                } else {
-                    tracing::trace!("tls outbound ech not configured");
-                }
-            }
-            #[cfg(not(feature = "rustls-tls-aws-lc"))]
-            {
-                handler.ech_enabled = false;
+            if handler.ech_enabled {
+                tracing::trace!("tls outbound ech configured");
+            } else {
+                tracing::trace!("tls outbound ech not configured");
             }
             handler.tls_config = Some(Self::build_rustls_config(
                 &alpns,
@@ -321,7 +327,14 @@ impl Handler {
                 certificate_key.as_ref(),
                 insecure,
                 if handler.ech_enabled {
-                    ech_config_list.as_deref()
+                    #[cfg(feature = "rustls-tls-aws-lc")]
+                    {
+                        ech_config_list.as_deref()
+                    }
+                    #[cfg(not(feature = "rustls-tls-aws-lc"))]
+                    {
+                        None
+                    }
                 } else {
                     None
                 },
@@ -692,29 +705,6 @@ mod tests {
         assert!(!Handler::should_skip_ech_dns_lookup_for_session(&sess));
     }
 
-    #[cfg(not(feature = "rustls-tls-aws-lc"))]
-    #[test]
-    fn test_new_with_ech_requires_aws_lc() {
-        let result = Handler::new(
-            "localhost".to_string(),
-            vec![],
-            None,
-            None,
-            false,
-            true,
-            false,
-            Some("AQID".to_string()),
-            new_test_dns_client(),
-        );
-        assert!(result.is_err());
-        assert!(result
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("rustls-tls-aws-lc"));
-    }
-
-    #[cfg(feature = "rustls-tls-aws-lc")]
     #[test]
     fn test_new_with_invalid_ech_config_list_fails() {
         let result = Handler::new(
@@ -729,5 +719,44 @@ mod tests {
             new_test_dns_client(),
         );
         assert!(result.is_err());
+    }
+
+    #[cfg(not(feature = "rustls-tls-aws-lc"))]
+    #[test]
+    fn test_new_with_ech_on_ring_does_not_fail_startup() {
+        let result = Handler::new(
+            "localhost".to_string(),
+            vec![],
+            None,
+            None,
+            false,
+            true,
+            false,
+            None,
+            new_test_dns_client(),
+        );
+        assert!(result.is_ok());
+    }
+
+    #[cfg(not(feature = "rustls-tls-aws-lc"))]
+    #[tokio::test]
+    async fn test_select_ech_config_list_on_ring_returns_connection_error() {
+        let handler = Handler::new(
+            "localhost".to_string(),
+            vec![],
+            None,
+            None,
+            false,
+            true,
+            false,
+            None,
+            new_test_dns_client(),
+        )
+        .unwrap();
+        let err = handler
+            .select_ech_config_list("example.com", true)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("requires rustls-tls-aws-lc"));
     }
 }
