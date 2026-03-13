@@ -348,6 +348,35 @@ impl Dispatcher {
         }
     }
 
+    pub async fn dispatch_stream_outbound(&self, mut sess: Session) -> io::Result<AnyStream> {
+        let outbound = {
+            let router = self.router.read().await;
+            match router.pick_route(&sess).await {
+                Ok(Some(tag)) => tag.to_owned(),
+                Ok(None) => {
+                    if let Some(tag) = self.outbound_manager.read().await.default_handler() {
+                        tag
+                    } else {
+                        return Err(io::Error::other("no outbound found"));
+                    }
+                }
+                Err(_) => return Err(io::Error::other("pick route failed")),
+            }
+        };
+
+        sess.outbound_tag = outbound.clone();
+
+        let h = if let Some(h) = self.outbound_manager.read().await.get(&outbound) {
+            h
+        } else {
+            return Err(io::Error::other("handler not found"));
+        };
+
+        let stream =
+            crate::proxy::connect_stream_outbound(&sess, self.dns_client.clone(), &h).await?;
+        h.stream()?.handle(&sess, None, stream).await
+    }
+
     #[async_recursion]
     pub async fn dispatch_datagram(
         &self,

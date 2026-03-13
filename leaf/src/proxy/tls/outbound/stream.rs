@@ -235,7 +235,16 @@ impl Handler {
     }
 
     #[cfg(feature = "rustls-tls")]
-    async fn select_ech_config_list(&self, name: &str) -> io::Result<Option<String>> {
+    fn should_skip_ech_dns_lookup_for_session(sess: &Session) -> bool {
+        sess.inbound_tag == "dnsclient"
+    }
+
+    #[cfg(feature = "rustls-tls")]
+    async fn select_ech_config_list(
+        &self,
+        name: &str,
+        allow_dns_lookup: bool,
+    ) -> io::Result<Option<String>> {
         if !self.ech_enabled {
             trace!("ech source for {}: none", name);
             return Ok(None);
@@ -248,9 +257,15 @@ impl Handler {
             trace!("ech source for {}: none", name);
             return Ok(None);
         }
-        let auto_result = {
+        let auto_result = if allow_dns_lookup {
             let dns_client = self.dns_client.read().await;
             Some(dns_client.lookup_ech_config_list(name).await)
+        } else {
+            trace!(
+                "ech source for {}: fixed-or-none (dns lookup skipped)",
+                name
+            );
+            None
         };
         Self::resolve_selected_ech_config_list(
             name,
@@ -489,9 +504,15 @@ impl OutboundStreamHandler for Handler {
         if let Some(stream) = stream {
             #[cfg(feature = "rustls-tls")]
             {
+                let mut ech_config_selected = false;
+                let mut ech_dns_lookup_skipped = false;
                 let tls_config = {
                     if self.ech_enabled {
-                        let selected_ech = self.select_ech_config_list(&name).await?;
+                        ech_dns_lookup_skipped = Self::should_skip_ech_dns_lookup_for_session(sess);
+                        let selected_ech = self
+                            .select_ech_config_list(&name, !ech_dns_lookup_skipped)
+                            .await?;
+                        ech_config_selected = selected_ech.is_some();
                         Self::build_rustls_config(
                             &self.alpns,
                             self.certificate.as_ref(),
@@ -508,9 +529,11 @@ impl OutboundStreamHandler for Handler {
                     }
                 };
                 trace!(
-                    "handling TLS {} with rustls, ech_enabled={}",
+                    "handling TLS {} with rustls, ech_enabled={}, ech_config_selected={}, ech_dns_lookup_skipped={}",
                     &name,
-                    self.ech_enabled
+                    self.ech_enabled,
+                    ech_config_selected,
+                    ech_dns_lookup_skipped
                 );
                 let connector = TlsConnector::from(tls_config);
                 let domain = ServerName::try_from(name.as_str()).map_err(|e| {
@@ -578,7 +601,10 @@ mod tests {
     use protobuf::MessageField;
     use tokio::sync::RwLock;
 
-    use crate::app::{dns_client::DnsClient, SyncDnsClient};
+    use crate::{
+        app::{dns_client::DnsClient, SyncDnsClient},
+        session::Session,
+    };
 
     use super::{decode_base64, ensure_ech_config_list_bytes, Handler};
 
@@ -655,6 +681,15 @@ mod tests {
         assert!(err
             .to_string()
             .contains("auto ech fetch failed for example.com: dns failed"));
+    }
+
+    #[test]
+    fn test_should_skip_ech_dns_lookup_for_dnsclient_session() {
+        let mut sess = Session::default();
+        sess.inbound_tag = "dnsclient".to_string();
+        assert!(Handler::should_skip_ech_dns_lookup_for_session(&sess));
+        sess.inbound_tag = "socks".to_string();
+        assert!(!Handler::should_skip_ech_dns_lookup_for_session(&sess));
     }
 
     #[cfg(not(feature = "rustls-tls-aws-lc"))]

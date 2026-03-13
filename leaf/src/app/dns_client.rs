@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::sync::{Arc, Weak};
@@ -17,9 +17,28 @@ use hickory_proto::{
 };
 use lru::LruCache;
 use rand::{rngs::StdRng, Rng, SeedableRng};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
 use tracing::{debug, trace, Instrument};
+
+#[cfg(feature = "rustls-tls")]
+use {
+    std::sync::Arc as SyncArc,
+    tokio_rustls::{
+        rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
+        TlsConnector,
+    },
+};
+
+#[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
+use {
+    futures::TryFutureExt,
+    openssl::ssl::{Ssl, SslConnector, SslMethod},
+    std::pin::Pin,
+    tokio_openssl::SslStream,
+};
 
 use crate::{app::dispatcher::Dispatcher, option, proxy::*, session::*};
 
@@ -35,9 +54,17 @@ pub struct EchCacheEntry {
     pub deadline: Instant,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
+struct DohResolver {
+    domain: String,
+    bootstrap_ip: Option<IpAddr>,
+    is_direct: bool,
+}
+
+#[derive(Clone, Debug)]
 enum Resolver {
     Server(SocketAddr, bool),
+    DoH(DohResolver),
     System(bool),
 }
 
@@ -50,6 +77,17 @@ impl fmt::Display for Resolver {
                 } else {
                     write!(f, "{}", addr)
                 }
+            }
+            Self::DoH(doh) => {
+                if doh.is_direct {
+                    write!(f, "direct:doh:{}", doh.domain)?;
+                } else {
+                    write!(f, "doh:{}", doh.domain)?;
+                }
+                if let Some(ip) = doh.bootstrap_ip {
+                    write!(f, "@{}", ip)?;
+                }
+                Ok(())
             }
             Self::System(direct) => {
                 if *direct {
@@ -76,19 +114,7 @@ impl DnsClient {
     fn load_servers(dns: &crate::config::Dns) -> Result<Vec<Resolver>> {
         let mut servers = Vec::new();
         for server in dns.servers.iter() {
-            let (server, is_direct) = if server.to_lowercase().starts_with("direct:") {
-                (&server[7..], true)
-            } else {
-                (server.as_str(), false)
-            };
-            if server.to_lowercase() == "system" {
-                servers.push(Resolver::System(is_direct));
-            } else {
-                servers.push(Resolver::Server(
-                    SocketAddr::new(server.parse::<IpAddr>()?, 53),
-                    is_direct,
-                ));
-            }
+            servers.push(Self::parse_server(server)?);
         }
         for server in &servers {
             debug!("loaded dns server: {}", server);
@@ -97,6 +123,418 @@ impl DnsClient {
             return Err(anyhow!("no dns servers"));
         }
         Ok(servers)
+    }
+
+    fn parse_server(server: &str) -> Result<Resolver> {
+        let server_lower = server.to_ascii_lowercase();
+        let (server, is_direct) = if server_lower.starts_with("direct:") {
+            (&server[7..], true)
+        } else {
+            (server, false)
+        };
+        if server.eq_ignore_ascii_case("system") {
+            return Ok(Resolver::System(is_direct));
+        }
+        if server.to_ascii_lowercase().starts_with("doh:") {
+            return Self::parse_doh_server(server, is_direct);
+        }
+        let ip = server
+            .parse::<IpAddr>()
+            .map_err(|e| anyhow!("invalid dns server [{}]: {}", server, e))?;
+        Ok(Resolver::Server(SocketAddr::new(ip, 53), is_direct))
+    }
+
+    fn parse_doh_server(server: &str, is_direct: bool) -> Result<Resolver> {
+        let server = &server[4..];
+        let (domain, ip) = if let Some((domain, ip)) = server.split_once('@') {
+            (domain, Some(ip))
+        } else {
+            (server, None)
+        };
+        if domain.is_empty() {
+            return Err(anyhow!(
+                "invalid dns server [doh:{}]: empty doh domain",
+                server
+            ));
+        }
+        let mut fqdn = domain.to_owned();
+        fqdn.push('.');
+        Name::from_str(&fqdn).map_err(|e| anyhow!("invalid dns server [doh:{}]: {}", server, e))?;
+        let bootstrap_ip = if let Some(ip) = ip {
+            if ip.is_empty() {
+                return Err(anyhow!(
+                    "invalid dns server [doh:{}]: empty bootstrap ip",
+                    server
+                ));
+            }
+            Some(
+                ip.parse::<IpAddr>()
+                    .map_err(|e| anyhow!("invalid dns server [doh:{}]: {}", server, e))?,
+            )
+        } else {
+            None
+        };
+        Ok(Resolver::DoH(DohResolver {
+            domain: domain.to_string(),
+            bootstrap_ip,
+            is_direct,
+        }))
+    }
+
+    async fn resolve_doh_bootstrap_addr(
+        &self,
+        domain: &str,
+        bootstrap_ip: Option<IpAddr>,
+    ) -> Result<SocketAddr> {
+        if let Some(ip) = bootstrap_ip {
+            return Ok(SocketAddr::new(ip, 443));
+        }
+        let domain = domain.to_owned();
+        let addr = tokio::task::spawn_blocking(move || {
+            (domain.as_str(), 443)
+                .to_socket_addrs()
+                .ok()
+                .and_then(|mut addrs| addrs.next())
+        })
+        .await
+        .map_err(|e| anyhow!("spawn blocking failed: {}", e))?
+        .ok_or_else(|| anyhow!("bootstrap failed: no resolved address"))?;
+        Ok(addr)
+    }
+
+    async fn connect_doh_tcp_stream(
+        &self,
+        doh: &DohResolver,
+        bootstrap_addr: SocketAddr,
+    ) -> Result<AnyStream> {
+        if doh.is_direct {
+            let stream = TcpStream::connect(bootstrap_addr).await?;
+            return Ok(Box::new(stream));
+        }
+        if let Some(dispatcher_weak) = self.dispatcher.as_ref() {
+            if let Some(dispatcher) = dispatcher_weak.upgrade() {
+                let source = match bootstrap_addr {
+                    SocketAddr::V4(_) => SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
+                    SocketAddr::V6(_) => SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
+                };
+                let sess = Session {
+                    network: Network::Tcp,
+                    source,
+                    destination: SocksAddr::from(bootstrap_addr),
+                    inbound_tag: "dnsclient".to_string(),
+                    ..Default::default()
+                };
+                return dispatcher
+                    .dispatch_stream_outbound(sess)
+                    .await
+                    .map_err(|e| anyhow!("dispatch stream failed: {}", e));
+            }
+            return Err(anyhow!("dispatcher is gone"));
+        }
+        Err(anyhow!("no dispatcher"))
+    }
+
+    #[cfg(feature = "rustls-tls")]
+    async fn wrap_doh_tls_stream(stream: AnyStream, server_name: &str) -> Result<AnyStream> {
+        let mut roots = RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let connector = TlsConnector::from(SyncArc::new(config));
+        let domain = ServerName::try_from(server_name.to_owned())
+            .map_err(|e| anyhow!("invalid tls server name {}: {}", server_name, e))?;
+        let tls_stream = connector
+            .connect(domain, stream)
+            .await
+            .map_err(|e| anyhow!("connect tls failed: {}", e))?;
+        Ok(Box::new(tls_stream))
+    }
+
+    #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
+    async fn wrap_doh_tls_stream(stream: AnyStream, server_name: &str) -> Result<AnyStream> {
+        let ssl_connector = SslConnector::builder(SslMethod::tls())
+            .map_err(|e| anyhow!("create ssl connector failed: {}", e))?
+            .build();
+        let mut ssl =
+            Ssl::new(ssl_connector.context()).map_err(|e| anyhow!("new ssl failed: {}", e))?;
+        ssl.set_hostname(server_name)
+            .map_err(|e| anyhow!("set tls name failed: {}", e))?;
+        let mut stream =
+            SslStream::new(ssl, stream).map_err(|e| anyhow!("new ssl stream failed: {}", e))?;
+        Pin::new(&mut stream)
+            .connect()
+            .map_err(|e| anyhow!("connect ssl stream failed: {}", e))
+            .await?;
+        Ok(Box::new(stream))
+    }
+
+    #[cfg(not(any(feature = "rustls-tls", feature = "openssl-tls")))]
+    async fn wrap_doh_tls_stream(_stream: AnyStream, _server_name: &str) -> Result<AnyStream> {
+        Err(anyhow!("no tls backend available"))
+    }
+
+    fn build_doh_http_request(domain: &str, body_len: usize) -> String {
+        format!(
+            "POST /dns-query HTTP/1.1\r\nHost: {}\r\nContent-Type: application/dns-message\r\nAccept: application/dns-message\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            domain, body_len
+        )
+    }
+
+    fn decode_chunked_body(mut data: &[u8]) -> Result<Vec<u8>> {
+        let mut out = Vec::new();
+        loop {
+            let line_end = data
+                .windows(2)
+                .position(|w| w == b"\r\n")
+                .ok_or_else(|| anyhow!("invalid chunked response"))?;
+            let size_line = std::str::from_utf8(&data[..line_end])
+                .map_err(|e| anyhow!("invalid chunk size line: {}", e))?;
+            let size_hex = size_line.split(';').next().unwrap_or("").trim();
+            let size = usize::from_str_radix(size_hex, 16)
+                .map_err(|e| anyhow!("invalid chunk size: {}", e))?;
+            data = &data[line_end + 2..];
+            if size == 0 {
+                return Ok(out);
+            }
+            if data.len() < size + 2 {
+                return Err(anyhow!("incomplete chunked body"));
+            }
+            out.extend_from_slice(&data[..size]);
+            if &data[size..size + 2] != b"\r\n" {
+                return Err(anyhow!("invalid chunk terminator"));
+            }
+            data = &data[size + 2..];
+        }
+    }
+
+    fn parse_doh_http_body(resp: &[u8]) -> Result<Vec<u8>> {
+        let header_end = resp
+            .windows(4)
+            .position(|w| w == b"\r\n\r\n")
+            .ok_or_else(|| anyhow!("invalid http response"))?;
+        let header_bytes = &resp[..header_end];
+        let body = &resp[header_end + 4..];
+        let header_text = std::str::from_utf8(header_bytes)
+            .map_err(|e| anyhow!("invalid http headers: {}", e))?;
+        let mut lines = header_text.split("\r\n");
+        let status_line = lines.next().ok_or_else(|| anyhow!("missing status line"))?;
+        let mut status_parts = status_line.split_whitespace();
+        let _http = status_parts.next();
+        let code = status_parts
+            .next()
+            .ok_or_else(|| anyhow!("invalid status line"))?
+            .parse::<u16>()
+            .map_err(|e| anyhow!("invalid status code: {}", e))?;
+        if code != 200 {
+            return Err(anyhow!("doh server returned http status {}", code));
+        }
+        let mut content_length = None;
+        let mut chunked = false;
+        for line in lines {
+            if let Some((k, v)) = line.split_once(':') {
+                let key = k.trim().to_ascii_lowercase();
+                let value = v.trim().to_ascii_lowercase();
+                if key == "content-length" {
+                    let len = value
+                        .parse::<usize>()
+                        .map_err(|e| anyhow!("invalid content-length: {}", e))?;
+                    content_length = Some(len);
+                } else if key == "transfer-encoding" && value.contains("chunked") {
+                    chunked = true;
+                }
+            }
+        }
+        if chunked {
+            return Self::decode_chunked_body(body);
+        }
+        if let Some(len) = content_length {
+            if body.len() < len {
+                return Err(anyhow!("incomplete http body"));
+            }
+            return Ok(body[..len].to_vec());
+        }
+        Ok(body.to_vec())
+    }
+
+    async fn query_doh_message(
+        &self,
+        request: &[u8],
+        host: &str,
+        resolver: &Resolver,
+        doh: &DohResolver,
+    ) -> Result<(Message, Duration)> {
+        for i in 0..*option::MAX_DNS_RETRIES {
+            let start = tokio::time::Instant::now();
+            debug!(
+                "looking up host={} server={} ({}/{})",
+                host,
+                resolver,
+                i + 1,
+                *option::MAX_DNS_RETRIES
+            );
+            let bootstrap_addr = match self
+                .resolve_doh_bootstrap_addr(&doh.domain, doh.bootstrap_ip)
+                .await
+            {
+                Ok(addr) => addr,
+                Err(err) => {
+                    debug!("resolve doh bootstrap failed: {}", err);
+                    continue;
+                }
+            };
+            let stream = match self.connect_doh_tcp_stream(doh, bootstrap_addr).await {
+                Ok(stream) => stream,
+                Err(err) => {
+                    debug!("connect doh stream failed: {}", err);
+                    continue;
+                }
+            };
+            let mut stream = match Self::wrap_doh_tls_stream(stream, &doh.domain).await {
+                Ok(stream) => stream,
+                Err(err) => {
+                    debug!("connect doh tls failed: {}", err);
+                    continue;
+                }
+            };
+            let request_header = Self::build_doh_http_request(&doh.domain, request.len());
+            if let Err(err) = stream.write_all(request_header.as_bytes()).await {
+                debug!("write doh http header failed: {}", err);
+                continue;
+            }
+            if let Err(err) = stream.write_all(request).await {
+                debug!("write doh message body failed: {}", err);
+                continue;
+            }
+            if let Err(err) = stream.flush().await {
+                debug!("flush doh request failed: {}", err);
+                continue;
+            }
+            let mut resp = Vec::new();
+            if let Err(err) = stream.read_to_end(&mut resp).await {
+                debug!("read doh response failed: {}", err);
+                continue;
+            }
+            let dns_payload = match Self::parse_doh_http_body(&resp) {
+                Ok(body) => body,
+                Err(err) => {
+                    debug!("parse doh http response failed: {}", err);
+                    continue;
+                }
+            };
+            let message = match Message::from_vec(&dns_payload) {
+                Ok(message) => message,
+                Err(err) => {
+                    debug!("parse doh dns payload failed: {}", err);
+                    continue;
+                }
+            };
+            if message.response_code() != ResponseCode::NoError {
+                debug!(
+                    "error DNS response from {} for {}: {}",
+                    resolver,
+                    host,
+                    message.response_code()
+                );
+                continue;
+            }
+            let elapsed = tokio::time::Instant::now().duration_since(start);
+            return Ok((message, elapsed));
+        }
+        Err(anyhow!("all doh lookup attempts failed"))
+    }
+
+    async fn query_with_doh(
+        &self,
+        request: Vec<u8>,
+        host: &str,
+        resolver: &Resolver,
+        doh: &DohResolver,
+    ) -> Result<CacheEntry> {
+        let (resp, elapsed) = self
+            .query_doh_message(&request, host, resolver, doh)
+            .await?;
+        let mut ips = Vec::new();
+        for ans in resp.answers() {
+            if let Some(data) = ans.data() {
+                match data {
+                    RData::A(ip) => ips.push(IpAddr::V4(**ip)),
+                    RData::AAAA(ip) => ips.push(IpAddr::V6(**ip)),
+                    _ => (),
+                }
+            }
+        }
+        if ips.is_empty() {
+            return Err(anyhow!(
+                "no records in DNS response from {} for {}",
+                resolver,
+                host
+            ));
+        }
+        let ttl = resp.answers().iter().next().unwrap().ttl();
+        let Some(deadline) = Instant::now().checked_add(Duration::from_secs(ttl.into())) else {
+            return Err(anyhow!("invalid ttl"));
+        };
+        debug!(
+            "received from server={} ttl={} elapsed={}ms ips={:?}",
+            resolver,
+            ttl,
+            elapsed.as_millis(),
+            &ips,
+        );
+        Ok(CacheEntry { ips, deadline })
+    }
+
+    async fn query_ech_with_doh(
+        &self,
+        request: Vec<u8>,
+        host: &str,
+        resolver: &Resolver,
+        doh: &DohResolver,
+        ty: RecordType,
+    ) -> Result<EchCacheEntry> {
+        let (resp, elapsed) = self
+            .query_doh_message(&request, host, resolver, doh)
+            .await?;
+        let mut last_ttl = None;
+        for ans in resp.answers() {
+            if ans.record_type() != ty {
+                continue;
+            }
+            if let Some(data) = ans.data() {
+                last_ttl = Some(ans.ttl());
+                let value = data.to_string();
+                if let Some(ech_config_list) = Self::extract_ech_config_list(&value) {
+                    let ttl = ans.ttl();
+                    let Some(deadline) =
+                        Instant::now().checked_add(Duration::from_secs(ttl.into()))
+                    else {
+                        return Err(anyhow!("invalid ttl"));
+                    };
+                    debug!(
+                        "received ech from server={} type={} ttl={} elapsed={}ms len={}",
+                        resolver,
+                        ty,
+                        ttl,
+                        elapsed.as_millis(),
+                        ech_config_list.len()
+                    );
+                    return Ok(EchCacheEntry {
+                        ech_config_list,
+                        deadline,
+                    });
+                }
+            }
+        }
+        if last_ttl.is_some() {
+            return Err(anyhow!(
+                "missing ech parameter in {} record for {} from {}",
+                ty,
+                host,
+                resolver
+            ));
+        }
+        Err(anyhow!("no {} records for {} from {}", ty, host, resolver))
     }
 
     fn load_hosts(dns: &crate::config::Dns) -> HashMap<String, Vec<IpAddr>> {
@@ -568,6 +1006,9 @@ impl DnsClient {
                     deadline: Instant::now() + Duration::from_secs(60),
                 });
             }
+            Resolver::DoH(doh) => {
+                return self.query_with_doh(request, host, resolver, doh).await;
+            }
         };
 
         self.query_with_socket(socket, request, span, host, resolver)
@@ -621,6 +1062,11 @@ impl DnsClient {
             }
             Resolver::System(_) => {
                 return Err(anyhow!("system resolver does not support {} query", ty));
+            }
+            Resolver::DoH(doh) => {
+                return self
+                    .query_ech_with_doh(request, host, resolver, doh, ty)
+                    .await;
             }
         };
 
@@ -718,6 +1164,9 @@ impl DnsClient {
                     Resolver::Server(_, true) | Resolver::System(true) => {
                         servers.push(server);
                     }
+                    Resolver::DoH(doh) if doh.is_direct => {
+                        servers.push(server);
+                    }
                     _ => (),
                 }
             }
@@ -728,6 +1177,9 @@ impl DnsClient {
                         Resolver::Server(_, false) | Resolver::System(false) => {
                             servers.push(server);
                         }
+                        Resolver::DoH(doh) if !doh.is_direct => {
+                            servers.push(server);
+                        }
                         _ => (),
                     }
                 }
@@ -736,6 +1188,9 @@ impl DnsClient {
             for server in &self.servers {
                 match server {
                     Resolver::Server(_, false) | Resolver::System(false) => {
+                        servers.push(server);
+                    }
+                    Resolver::DoH(doh) if !doh.is_direct => {
                         servers.push(server);
                     }
                     _ => (),
@@ -1083,3 +1538,151 @@ impl DnsClient {
 }
 
 impl UdpConnector for DnsClient {}
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    use super::{DnsClient, Resolver};
+
+    fn new_client(servers: Vec<&str>) -> DnsClient {
+        let mut dns = crate::config::Dns::new();
+        dns.servers = servers.into_iter().map(|s| s.to_string()).collect();
+        DnsClient::new(&protobuf::MessageField::some(dns)).unwrap()
+    }
+
+    fn collect_server_strings(client: &DnsClient, is_direct_outbound: bool) -> Vec<String> {
+        client
+            .collect_servers(is_direct_outbound)
+            .into_iter()
+            .map(|server| server.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn load_servers_supports_legacy_and_doh_with_ip() {
+        let mut dns = crate::config::Dns::new();
+        dns.servers = vec![
+            "1.1.1.1".to_string(),
+            "direct:system".to_string(),
+            "doh:example.com@9.9.9.9".to_string(),
+            "direct:doh:example.com@8.8.8.8".to_string(),
+            "doh:example.net".to_string(),
+        ];
+        let servers = DnsClient::load_servers(&dns).unwrap();
+
+        match &servers[0] {
+            Resolver::Server(addr, false) => assert_eq!(
+                *addr,
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 53)
+            ),
+            _ => panic!("unexpected resolver"),
+        }
+        match &servers[1] {
+            Resolver::System(true) => {}
+            _ => panic!("unexpected resolver"),
+        }
+        match &servers[2] {
+            Resolver::DoH(doh) => {
+                assert_eq!(doh.domain, "example.com");
+                assert_eq!(
+                    doh.bootstrap_ip,
+                    Some(IpAddr::V4(Ipv4Addr::new(9, 9, 9, 9)))
+                );
+                assert!(!doh.is_direct);
+            }
+            _ => panic!("unexpected resolver"),
+        }
+        match &servers[3] {
+            Resolver::DoH(doh) => {
+                assert_eq!(doh.domain, "example.com");
+                assert_eq!(
+                    doh.bootstrap_ip,
+                    Some(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)))
+                );
+                assert!(doh.is_direct);
+            }
+            _ => panic!("unexpected resolver"),
+        }
+        match &servers[4] {
+            Resolver::DoH(doh) => {
+                assert_eq!(doh.domain, "example.net");
+                assert_eq!(doh.bootstrap_ip, None);
+                assert!(!doh.is_direct);
+            }
+            _ => panic!("unexpected resolver"),
+        }
+    }
+
+    #[test]
+    fn load_servers_rejects_invalid_doh_value() {
+        let mut dns = crate::config::Dns::new();
+        dns.servers = vec!["doh:@1.1.1.1".to_string()];
+        let err = DnsClient::load_servers(&dns).unwrap_err();
+        assert!(err.to_string().contains("invalid dns server"));
+
+        dns.servers = vec!["direct:doh:example.com@not-an-ip".to_string()];
+        let err = DnsClient::load_servers(&dns).unwrap_err();
+        assert!(err.to_string().contains("invalid dns server"));
+
+        dns.servers = vec!["doh:example.com#8.8.8.8".to_string()];
+        let err = DnsClient::load_servers(&dns).unwrap_err();
+        assert!(err.to_string().contains("invalid dns server"));
+    }
+
+    #[test]
+    fn collect_servers_includes_direct_doh_for_direct_outbound() {
+        let client = new_client(vec![
+            "1.1.1.1",
+            "doh:normal.example",
+            "direct:doh:direct.example@8.8.8.8",
+        ]);
+        let selected = collect_server_strings(&client, true);
+        assert_eq!(selected, vec!["direct:doh:direct.example@8.8.8.8"]);
+    }
+
+    #[test]
+    fn collect_servers_fallback_to_normal_keeps_non_direct_doh() {
+        let client = new_client(vec!["doh:normal.example", "1.1.1.1", "system"]);
+        let selected = collect_server_strings(&client, true);
+        assert_eq!(
+            selected,
+            vec![
+                "doh:normal.example".to_string(),
+                "1.1.1.1:53".to_string(),
+                "system".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_doh_http_body_supports_content_length() {
+        let body = b"\x01\x02\x03\x04";
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/dns-message\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        );
+        let mut raw = response.into_bytes();
+        raw.extend_from_slice(body);
+
+        let parsed = DnsClient::parse_doh_http_body(&raw).unwrap();
+        assert_eq!(parsed, body);
+    }
+
+    #[test]
+    fn parse_doh_http_body_supports_chunked() {
+        let response =
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nABCD\r\n2\r\nEF\r\n0\r\n\r\n";
+        let parsed = DnsClient::parse_doh_http_body(response).unwrap();
+        assert_eq!(parsed, b"ABCDEF");
+    }
+
+    #[test]
+    fn parse_doh_http_body_rejects_non_200() {
+        let response = b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 3\r\n\r\nbad".to_vec();
+        let err = DnsClient::parse_doh_http_body(&response).unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("doh server returned http status 503"));
+    }
+}
