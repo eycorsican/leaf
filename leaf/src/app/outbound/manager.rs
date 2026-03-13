@@ -327,7 +327,10 @@ impl OutboundManager {
                         certificate,
                         certificate_key,
                         settings.insecure,
+                        settings.ech,
+                        settings.ech_disable_dns_lookup,
                         ech_config_list,
+                        dns_client.clone(),
                     )?);
                     HandlerBuilder::default()
                         .tag(tag.clone())

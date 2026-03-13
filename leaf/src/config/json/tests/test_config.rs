@@ -169,6 +169,7 @@ fn test_tls_outbound_ech_config_mapping() {
                 "tag": "tls_out",
                 "settings": {
                     "serverName": "example.com",
+                    "ech": true,
                     "echConfigList": "test-ech-config-list"
                 }
             }
@@ -180,6 +181,7 @@ fn test_tls_outbound_ech_config_mapping() {
     let outbound =
         crate::config::TlsOutboundSettings::parse_from_bytes(&config.outbounds[0].settings)
             .unwrap();
+    assert!(outbound.ech);
     assert_eq!(outbound.ech_config_list, "test-ech-config-list");
 }
 
@@ -193,6 +195,7 @@ fn test_tls_outbound_ech_config_mapping_aliases() {
                 "tag": "tls_out",
                 "settings": {
                     "server_name": "example.com",
+                    "ech": true,
                     "ech_config_list": "alias-ech-config-list"
                 }
             }
@@ -204,6 +207,7 @@ fn test_tls_outbound_ech_config_mapping_aliases() {
     let outbound =
         crate::config::TlsOutboundSettings::parse_from_bytes(&config.outbounds[0].settings)
             .unwrap();
+    assert!(outbound.ech);
     assert_eq!(outbound.ech_config_list, "alias-ech-config-list");
 }
 
@@ -272,4 +276,59 @@ fn test_tls_outbound_ech_validation() {
     "#;
 
     assert!(crate::config::json::from_string(json_str).is_err());
+}
+
+#[test]
+fn test_tls_ech_fallback_mapping() {
+    let json_str = r#"
+    {
+        "dns": {
+            "servers": ["1.1.1.1"]
+        },
+        "outbounds": [
+            {
+                "protocol": "tls",
+                "tag": "tls_out",
+                "settings": {
+                    "serverName": "example.com",
+                    "ech": true,
+                    "echConfigList": "AQI="
+                }
+            }
+        ]
+    }
+    "#;
+
+    let config = crate::config::json::from_string(json_str).unwrap();
+    let outbound =
+        crate::config::TlsOutboundSettings::parse_from_bytes(&config.outbounds[0].settings)
+            .unwrap();
+    assert!(outbound.ech);
+    assert_eq!(outbound.ech_config_list, "AQI=");
+}
+
+#[test]
+fn test_tls_ech_disable_dns_lookup_mapping() {
+    let json_str = r#"
+    {
+        "outbounds": [
+            {
+                "protocol": "tls",
+                "tag": "tls_out",
+                "settings": {
+                    "tlsEch": true,
+                    "echDisableDnsLookup": true,
+                    "echConfigList": "AQI="
+                }
+            }
+        ]
+    }
+    "#;
+    let config = crate::config::json::from_string(json_str).unwrap();
+    let outbound =
+        crate::config::TlsOutboundSettings::parse_from_bytes(&config.outbounds[0].settings)
+            .unwrap();
+    assert!(outbound.ech);
+    assert!(outbound.ech_disable_dns_lookup);
+    assert_eq!(outbound.ech_config_list, "AQI=");
 }

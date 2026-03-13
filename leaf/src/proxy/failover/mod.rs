@@ -62,10 +62,11 @@ async fn single_health_check(
 
     match network {
         Network::Tcp => {
-            let stream = match crate::proxy::connect_stream_outbound(&sess, dns_client, &h).await {
-                Ok(s) => s,
-                Err(_) => return Measure::new(idx, u128::MAX, tag),
-            };
+            let stream =
+                match crate::proxy::connect_stream_outbound(&sess, dns_client.clone(), &h).await {
+                    Ok(s) => s,
+                    Err(_) => return Measure::new(idx, u128::MAX, tag),
+                };
             let m: Measure;
 
             let Ok(h) = h.stream() else {
@@ -81,7 +82,10 @@ async fn single_health_check(
                         None,
                         None,
                         false,
+                        false,
+                        false,
                         None,
+                        dns_client.clone(),
                     ) else {
                         return Measure::new(idx, u128::MAX, tag);
                     };

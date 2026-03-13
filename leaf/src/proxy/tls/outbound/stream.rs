@@ -30,7 +30,7 @@ use {
     tokio_openssl::SslStream,
 };
 
-use crate::{proxy::*, session::Session};
+use crate::{app::SyncDnsClient, proxy::*, session::Session};
 
 #[cfg(feature = "rustls-tls")]
 mod dangerous {
@@ -95,6 +95,13 @@ mod dangerous {
 
 pub struct Handler {
     server_name: String,
+    alpns: Vec<String>,
+    certificate: Option<String>,
+    certificate_key: Option<String>,
+    insecure: bool,
+    fixed_ech_config_list: Option<String>,
+    ech_disable_dns_lookup: bool,
+    dns_client: SyncDnsClient,
     ech_enabled: bool,
     #[cfg(feature = "rustls-tls")]
     tls_config: Option<Arc<ClientConfig>>,
@@ -103,17 +110,176 @@ pub struct Handler {
 }
 
 impl Handler {
+    #[cfg(feature = "rustls-tls")]
+    fn build_rustls_config(
+        alpns: &[String],
+        certificate: Option<&String>,
+        certificate_key: Option<&String>,
+        insecure: bool,
+        ech_config_list: Option<&str>,
+    ) -> Result<Arc<ClientConfig>> {
+        let mut roots = RootCertStore::empty();
+        if let Some(cert) = certificate {
+            if cert.contains("-----BEGIN") {
+                let mut pem = BufReader::new(Cursor::new(cert.as_bytes()));
+                for cert in rustls_pemfile::certs(&mut pem) {
+                    roots.add(cert?)?;
+                }
+            } else {
+                let mut pem = BufReader::new(File::open(cert).map_err(|e| {
+                    anyhow::anyhow!("load certificates from {} failed: {}", cert, e)
+                })?);
+                for cert in rustls_pemfile::certs(&mut pem) {
+                    roots.add(cert?)?;
+                }
+            }
+        } else {
+            roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        }
+        #[cfg(feature = "rustls-tls-aws-lc")]
+        let provider = rustls::crypto::aws_lc_rs::default_provider().into();
+        #[cfg(not(feature = "rustls-tls-aws-lc"))]
+        let provider = rustls::crypto::ring::default_provider().into();
+
+        let builder = ClientConfig::builder_with_provider(provider);
+        #[cfg(feature = "rustls-tls-aws-lc")]
+        let builder = if let Some(ech_config_list) = ech_config_list {
+            let ech_config_list = decode_ech_config_list(ech_config_list)?;
+            let ech_config = EchConfig::new(
+                ech_config_list,
+                rustls::crypto::aws_lc_rs::hpke::ALL_SUPPORTED_SUITES,
+            )
+            .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
+            builder
+                .with_ech(EchMode::Enable(ech_config))
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
+        } else {
+            builder
+                .with_safe_default_protocol_versions()
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
+        };
+        #[cfg(not(feature = "rustls-tls-aws-lc"))]
+        let builder = {
+            if ech_config_list.is_some() {
+                return Err(anyhow::anyhow!(
+                    "tls outbound ech requires rustls-tls-aws-lc"
+                ));
+            }
+            builder
+                .with_safe_default_protocol_versions()
+                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
+        };
+
+        let mut config = if insecure {
+            let builder = builder
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(dangerous::NotVerified));
+            if certificate.is_some() {
+                if certificate_key.is_some() {
+                    builder.with_no_client_auth()
+                } else {
+                    builder.with_no_client_auth()
+                }
+            } else {
+                builder.with_no_client_auth()
+            }
+        } else {
+            builder.with_root_certificates(roots).with_no_client_auth()
+        };
+        for alpn in alpns {
+            config.alpn_protocols.push(alpn.as_bytes().to_vec());
+        }
+        Ok(Arc::new(config))
+    }
+
+    #[cfg(feature = "rustls-tls")]
+    fn resolve_selected_ech_config_list(
+        name: &str,
+        fixed_ech_config_list: Option<&str>,
+        auto_result: Option<anyhow::Result<String>>,
+    ) -> io::Result<Option<String>> {
+        match auto_result {
+            Some(Ok(value)) => {
+                trace!("ech source for {}: https/svcb dns record", name);
+                Ok(Some(value))
+            }
+            Some(Err(err)) => {
+                if let Some(fixed) = fixed_ech_config_list {
+                    trace!(
+                        "auto ech fetch failed for {}, fallback to fixed ech config: {}",
+                        name,
+                        err
+                    );
+                    Ok(Some(fixed.to_string()))
+                } else {
+                    trace!(
+                        "auto ech fetch failed for {}, no fixed ech config available: {}",
+                        name,
+                        err
+                    );
+                    Err(io::Error::other(format!(
+                        "auto ech fetch failed for {}: {}",
+                        name, err
+                    )))
+                }
+            }
+            None => {
+                if fixed_ech_config_list.is_some() {
+                    trace!("ech source for {}: fixed ech config", name);
+                } else {
+                    trace!("ech source for {}: none", name);
+                }
+                Ok(fixed_ech_config_list.map(str::to_string))
+            }
+        }
+    }
+
+    #[cfg(feature = "rustls-tls")]
+    async fn select_ech_config_list(&self, name: &str) -> io::Result<Option<String>> {
+        if !self.ech_enabled {
+            trace!("ech source for {}: none", name);
+            return Ok(None);
+        }
+        if self.ech_disable_dns_lookup {
+            if let Some(fixed) = self.fixed_ech_config_list.as_deref() {
+                trace!("ech source for {}: fixed ech config", name);
+                return Ok(Some(fixed.to_string()));
+            }
+            trace!("ech source for {}: none", name);
+            return Ok(None);
+        }
+        let auto_result = {
+            let dns_client = self.dns_client.read().await;
+            Some(dns_client.lookup_ech_config_list(name).await)
+        };
+        Self::resolve_selected_ech_config_list(
+            name,
+            self.fixed_ech_config_list.as_deref(),
+            auto_result,
+        )
+    }
+
     pub fn new(
         server_name: String,
         alpns: Vec<String>,
         certificate: Option<String>,
         certificate_key: Option<String>,
         insecure: bool,
+        ech: bool,
+        ech_disable_dns_lookup: bool,
         ech_config_list: Option<String>,
+        dns_client: SyncDnsClient,
     ) -> Result<Self> {
         let mut handler = Handler {
             server_name,
-            ech_enabled: false,
+            alpns: alpns.clone(),
+            certificate: certificate.clone(),
+            certificate_key: certificate_key.clone(),
+            insecure,
+            fixed_ech_config_list: ech_config_list.clone(),
+            ech_disable_dns_lookup,
+            dns_client,
+            ech_enabled: ech,
             #[cfg(feature = "rustls-tls")]
             tls_config: None,
             #[cfg(feature = "openssl-tls")]
@@ -122,49 +288,8 @@ impl Handler {
 
         #[cfg(feature = "rustls-tls")]
         {
-            let mut roots = RootCertStore::empty();
-            if let Some(cert) = certificate.as_ref() {
-                if cert.contains("-----BEGIN") {
-                    let mut pem = BufReader::new(Cursor::new(cert.as_bytes()));
-                    for cert in rustls_pemfile::certs(&mut pem) {
-                        roots.add(cert?)?;
-                    }
-                } else {
-                    let mut pem = BufReader::new(File::open(cert).map_err(|e| {
-                        anyhow::anyhow!("load certificates from {} failed: {}", cert, e)
-                    })?);
-                    for cert in rustls_pemfile::certs(&mut pem) {
-                        roots.add(cert?)?;
-                    }
-                }
-            } else {
-                roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-            }
-            #[cfg(feature = "rustls-tls-aws-lc")]
-            let provider = rustls::crypto::aws_lc_rs::default_provider().into();
-            #[cfg(not(feature = "rustls-tls-aws-lc"))]
-            let provider = rustls::crypto::ring::default_provider().into();
-
-            let builder = ClientConfig::builder_with_provider(provider);
-            #[cfg(feature = "rustls-tls-aws-lc")]
-            let builder = if let Some(ech_config_list) = ech_config_list.as_ref() {
-                let ech_config_list = decode_ech_config_list(ech_config_list)?;
-                let ech_config = EchConfig::new(
-                    ech_config_list,
-                    rustls::crypto::aws_lc_rs::hpke::ALL_SUPPORTED_SUITES,
-                )
-                .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-                builder
-                    .with_ech(EchMode::Enable(ech_config))
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
-            } else {
-                builder
-                    .with_safe_default_protocol_versions()
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
-            };
             #[cfg(feature = "rustls-tls-aws-lc")]
             {
-                handler.ech_enabled = ech_config_list.is_some();
                 if handler.ech_enabled {
                     tracing::trace!("tls outbound ech configured");
                 } else {
@@ -172,38 +297,20 @@ impl Handler {
                 }
             }
             #[cfg(not(feature = "rustls-tls-aws-lc"))]
-            let builder = {
-                if ech_config_list.is_some() {
-                    return Err(anyhow::anyhow!(
-                        "tls outbound ech requires rustls-tls-aws-lc"
-                    ));
-                }
-                builder
-                    .with_safe_default_protocol_versions()
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?
-            };
-
-            let mut config = if insecure {
-                let builder = builder
-                    .dangerous()
-                    .with_custom_certificate_verifier(Arc::new(dangerous::NotVerified));
-                if let Some(_certificate) = certificate {
-                    if let Some(_certificate_key) = certificate_key {
-                        // FIXME support client auth with insecure
-                        builder.with_no_client_auth()
-                    } else {
-                        builder.with_no_client_auth()
-                    }
-                } else {
-                    builder.with_no_client_auth()
-                }
-            } else {
-                builder.with_root_certificates(roots).with_no_client_auth()
-            };
-            for alpn in &alpns {
-                config.alpn_protocols.push(alpn.as_bytes().to_vec());
+            {
+                handler.ech_enabled = false;
             }
-            handler.tls_config = Some(Arc::new(config));
+            handler.tls_config = Some(Self::build_rustls_config(
+                &alpns,
+                certificate.as_ref(),
+                certificate_key.as_ref(),
+                insecure,
+                if handler.ech_enabled {
+                    ech_config_list.as_deref()
+                } else {
+                    None
+                },
+            )?);
         }
 
         #[cfg(feature = "openssl-tls")]
@@ -216,7 +323,7 @@ impl Handler {
                 SslConnector::builder(SslMethod::tls()).expect("create ssl connector failed");
             if !alpns.is_empty() {
                 let wire = alpns
-                    .into_iter()
+                    .iter()
                     .map(|a| [&[a.len() as u8], a.as_bytes()].concat())
                     .collect::<Vec<Vec<u8>>>()
                     .concat();
@@ -239,7 +346,31 @@ fn decode_ech_config_list(ech_config_list: &str) -> io::Result<EchConfigListByte
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))
             .map(EchConfigListBytes::into_owned);
     }
-    decode_base64(ech_config_list).map(EchConfigListBytes::from)
+    let decoded = decode_base64(ech_config_list)?;
+    let (decoded, _) = ensure_ech_config_list_bytes(decoded);
+    Ok(EchConfigListBytes::from(decoded))
+}
+
+#[cfg(all(feature = "rustls-tls", any(feature = "rustls-tls-aws-lc", test)))]
+fn ensure_ech_config_list_bytes(mut decoded: Vec<u8>) -> (Vec<u8>, bool) {
+    if decoded.len() >= 2 {
+        let declared = u16::from_be_bytes([decoded[0], decoded[1]]) as usize;
+        if declared == decoded.len().saturating_sub(2) {
+            return (decoded, false);
+        }
+    }
+
+    if decoded.len() >= 4 && decoded[0] == 0xfe && decoded[1] == 0x0d {
+        let len = decoded.len();
+        if u16::try_from(len).is_ok() {
+            let mut wrapped = Vec::with_capacity(len + 2);
+            wrapped.extend_from_slice(&(len as u16).to_be_bytes());
+            wrapped.append(&mut decoded);
+            return (wrapped, true);
+        }
+    }
+
+    (decoded, false)
 }
 
 #[cfg(all(feature = "rustls-tls", any(feature = "rustls-tls-aws-lc", test)))]
@@ -341,6 +472,7 @@ impl OutboundStreamHandler for Handler {
         OutboundConnect::Next
     }
 
+    #[allow(unreachable_code)]
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
@@ -356,13 +488,31 @@ impl OutboundStreamHandler for Handler {
         };
         if let Some(stream) = stream {
             #[cfg(feature = "rustls-tls")]
-            if let Some(tls_config) = self.tls_config.as_ref() {
+            {
+                let tls_config = {
+                    if self.ech_enabled {
+                        let selected_ech = self.select_ech_config_list(&name).await?;
+                        Self::build_rustls_config(
+                            &self.alpns,
+                            self.certificate.as_ref(),
+                            self.certificate_key.as_ref(),
+                            self.insecure,
+                            selected_ech.as_deref(),
+                        )
+                        .map_err(|e| io::Error::other(format!("build tls config failed: {}", e)))?
+                    } else {
+                        self.tls_config
+                            .as_ref()
+                            .cloned()
+                            .ok_or_else(|| io::Error::other("no tls backend available"))?
+                    }
+                };
                 trace!(
                     "handling TLS {} with rustls, ech_enabled={}",
                     &name,
                     self.ech_enabled
                 );
-                let connector = TlsConnector::from(tls_config.clone());
+                let connector = TlsConnector::from(tls_config);
                 let domain = ServerName::try_from(name.as_str()).map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -422,7 +572,22 @@ impl OutboundStreamHandler for Handler {
 
 #[cfg(all(test, feature = "rustls-tls"))]
 mod tests {
-    use super::{decode_base64, Handler};
+    use anyhow::anyhow;
+    use std::sync::Arc;
+
+    use protobuf::MessageField;
+    use tokio::sync::RwLock;
+
+    use crate::app::{dns_client::DnsClient, SyncDnsClient};
+
+    use super::{decode_base64, ensure_ech_config_list_bytes, Handler};
+
+    fn new_test_dns_client() -> SyncDnsClient {
+        let mut dns = crate::config::Dns::new();
+        dns.servers.push("1.1.1.1".to_string());
+        let dns = MessageField::some(dns);
+        Arc::new(RwLock::new(DnsClient::new(&dns).unwrap()))
+    }
 
     #[test]
     fn test_decode_base64_standard_and_urlsafe() {
@@ -439,6 +604,59 @@ mod tests {
         assert!(decode_base64("AA$A").is_err());
     }
 
+    #[test]
+    fn test_ensure_ech_config_list_bytes_wrap_single_config() {
+        let input = vec![0xfe, 0x0d, 0x00, 0x41];
+        let (out, wrapped) = ensure_ech_config_list_bytes(input);
+        assert!(wrapped);
+        assert_eq!(out[0], 0x00);
+        assert_eq!(out[1], 0x04);
+        assert_eq!(&out[2..], &[0xfe, 0x0d, 0x00, 0x41]);
+    }
+
+    #[test]
+    fn test_ensure_ech_config_list_bytes_keep_existing_list() {
+        let input = vec![0x00, 0x04, 0xfe, 0x0d, 0x00, 0x41];
+        let (out, wrapped) = ensure_ech_config_list_bytes(input.clone());
+        assert!(!wrapped);
+        assert_eq!(out, input);
+    }
+
+    #[test]
+    fn test_resolve_selected_ech_config_list_auto_success() {
+        let result = Handler::resolve_selected_ech_config_list(
+            "example.com",
+            Some("AQI="),
+            Some(Ok("AQID".to_string())),
+        )
+        .unwrap();
+        assert_eq!(result, Some("AQID".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_selected_ech_config_list_auto_failed_fallback() {
+        let result = Handler::resolve_selected_ech_config_list(
+            "example.com",
+            Some("AQI="),
+            Some(Err(anyhow!("dns failed"))),
+        )
+        .unwrap();
+        assert_eq!(result, Some("AQI=".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_selected_ech_config_list_auto_failed_without_fallback() {
+        let err = Handler::resolve_selected_ech_config_list(
+            "example.com",
+            None,
+            Some(Err(anyhow!("dns failed"))),
+        )
+        .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("auto ech fetch failed for example.com: dns failed"));
+    }
+
     #[cfg(not(feature = "rustls-tls-aws-lc"))]
     #[test]
     fn test_new_with_ech_requires_aws_lc() {
@@ -448,7 +666,10 @@ mod tests {
             None,
             None,
             false,
+            true,
+            false,
             Some("AQID".to_string()),
+            new_test_dns_client(),
         );
         assert!(result.is_err());
         assert!(result
@@ -467,7 +688,10 @@ mod tests {
             None,
             None,
             false,
+            true,
+            false,
             Some("$$$".to_string()),
+            new_test_dns_client(),
         );
         assert!(result.is_err());
     }

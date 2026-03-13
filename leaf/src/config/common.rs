@@ -224,6 +224,10 @@ pub struct TlsOutboundSettings {
     #[serde(rename = "rawCertificateKey", alias = "raw_certificate_key")]
     pub raw_certificate_key: Option<Vec<String>>,
     pub insecure: Option<bool>,
+    #[serde(rename = "ech")]
+    pub ech: Option<bool>,
+    #[serde(rename = "echDisableDnsLookup", alias = "ech_disable_dns_lookup")]
+    pub ech_disable_dns_lookup: Option<bool>,
     #[serde(rename = "echConfigList", alias = "ech_config_list")]
     pub ech_config_list: Option<String>,
 }
@@ -1203,6 +1207,14 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         }
                         if let Some(ext_insecure) = ext_settings.insecure {
                             settings.insecure = ext_insecure;
+                        }
+                        if let Some(ext_ech) = ext_settings.ech {
+                            settings.ech = ext_ech;
+                        }
+                        if let Some(ext_ech_disable_dns_lookup) =
+                            ext_settings.ech_disable_dns_lookup
+                        {
+                            settings.ech_disable_dns_lookup = ext_ech_disable_dns_lookup;
                         }
                         if let Some(ext_ech_config_list) = &ext_settings.ech_config_list {
                             settings.ech_config_list = ext_ech_config_list.clone();

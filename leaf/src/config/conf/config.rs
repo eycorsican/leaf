@@ -75,7 +75,9 @@ pub struct Proxy {
     pub tls: Option<bool>,
     pub tls_cert: Option<String>,
     pub tls_insecure: Option<bool>,
-    pub tls_ech: Option<String>,
+    pub tls_ech: Option<bool>,
+    pub tls_ech_disable_dns_lookup: Option<bool>,
+    pub tls_ech_config_list: Option<String>,
     pub ws_path: Option<String>,
     pub ws_host: Option<String>,
 
@@ -118,7 +120,9 @@ impl Default for Proxy {
             tls: Some(false),
             tls_cert: None,
             tls_insecure: Some(false),
-            tls_ech: None,
+            tls_ech: Some(false),
+            tls_ech_disable_dns_lookup: Some(false),
+            tls_ech_config_list: None,
             ws_path: None,
             ws_host: None,
             sni: None,
@@ -633,8 +637,13 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 "tls-insecure" => {
                     proxy.tls_insecure = if v == "true" { Some(true) } else { Some(false) }
                 }
-                "tls-ech" | "ech-config-list" => {
-                    proxy.tls_ech = Some(v.to_string());
+                "tls-ech" => proxy.tls_ech = if v == "true" { Some(true) } else { Some(false) },
+                "tls-ech-disable-dns-lookup" => {
+                    proxy.tls_ech_disable_dns_lookup =
+                        if v == "true" { Some(true) } else { Some(false) }
+                }
+                "tls-ech-config-list" | "ech-config-list" => {
+                    proxy.tls_ech_config_list = Some(v.to_string());
                 }
                 "ws-path" => {
                     proxy.ws_path = Some(v.to_string());
@@ -1277,7 +1286,9 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                                 raw_certificate: None,
                                 raw_certificate_key: None,
                                 insecure: ext_proxy.tls_insecure,
-                                ech_config_list: resolve_ech(&ext_proxy.tls_ech),
+                                ech: ext_proxy.tls_ech,
+                                ech_disable_dns_lookup: ext_proxy.tls_ech_disable_dns_lookup,
+                                ech_config_list: resolve_ech(&ext_proxy.tls_ech_config_list),
                             }),
                         },
                     });
@@ -1725,7 +1736,8 @@ AQI=
         proxy.port = Some(443);
         proxy.password = Some("password".to_string());
         proxy.sni = Some("www.google.com".to_string());
-        proxy.tls_ech = Some("   ".to_string());
+        proxy.tls_ech = Some(true);
+        proxy.tls_ech_config_list = Some("   ".to_string());
 
         let config = Config {
             general: None,
@@ -1771,6 +1783,32 @@ tun-dns-server = 8.8.8.8, 8.8.4.4
         } else {
             panic!("No inbounds");
         }
+    }
+
+    #[test]
+    fn test_tls_ech_fallback_mapping() {
+        let conf = r#"
+[General]
+dns-server = 1.1.1.1
+
+[Proxy]
+Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=true, tls-ech-disable-dns-lookup=true, tls-ech-config-list=AQID
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let internal = to_internal(&config).unwrap();
+
+        let tls_outbound = internal
+            .outbounds
+            .iter()
+            .find(|o| o.tag == "Trojan_tls_xxx")
+            .unwrap();
+        let tls_settings =
+            crate::config::internal::TlsOutboundSettings::parse_from_bytes(&tls_outbound.settings)
+                .unwrap();
+        assert!(tls_settings.ech);
+        assert!(tls_settings.ech_disable_dns_lookup);
+        assert_eq!(tls_settings.ech_config_list, "AQID");
     }
 
     #[test]

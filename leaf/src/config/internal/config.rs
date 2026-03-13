@@ -2772,6 +2772,10 @@ pub struct TlsOutboundSettings {
     pub certificate_key: ::std::string::String,
     // @@protoc_insertion_point(field:TlsOutboundSettings.ech_config_list)
     pub ech_config_list: ::std::string::String,
+    // @@protoc_insertion_point(field:TlsOutboundSettings.ech)
+    pub ech: bool,
+    // @@protoc_insertion_point(field:TlsOutboundSettings.ech_disable_dns_lookup)
+    pub ech_disable_dns_lookup: bool,
     // special fields
     // @@protoc_insertion_point(special_field:TlsOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -2817,6 +2821,12 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 50 => {
                     self.ech_config_list = is.read_string()?;
                 },
+                56 => {
+                    self.ech = is.read_bool()?;
+                },
+                64 => {
+                    self.ech_disable_dns_lookup = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -2847,6 +2857,12 @@ impl ::protobuf::Message for TlsOutboundSettings {
         if !self.ech_config_list.is_empty() {
             my_size += ::protobuf::rt::string_size(6, &self.ech_config_list);
         }
+        if self.ech != false {
+            my_size += 1 + 1;
+        }
+        if self.ech_disable_dns_lookup != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -2871,6 +2887,12 @@ impl ::protobuf::Message for TlsOutboundSettings {
         if !self.ech_config_list.is_empty() {
             os.write_string(6, &self.ech_config_list)?;
         }
+        if self.ech != false {
+            os.write_bool(7, self.ech)?;
+        }
+        if self.ech_disable_dns_lookup != false {
+            os.write_bool(8, self.ech_disable_dns_lookup)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -2894,6 +2916,8 @@ impl ::protobuf::Message for TlsOutboundSettings {
         self.insecure = false;
         self.certificate_key.clear();
         self.ech_config_list.clear();
+        self.ech = false;
+        self.ech_disable_dns_lookup = false;
         self.special_fields.clear();
     }
 
@@ -2905,6 +2929,8 @@ impl ::protobuf::Message for TlsOutboundSettings {
             insecure: false,
             certificate_key: ::std::string::String::new(),
             ech_config_list: ::std::string::String::new(),
+            ech: false,
+            ech_disable_dns_lookup: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
