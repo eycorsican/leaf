@@ -1,3 +1,5 @@
+use protobuf::Message;
+
 #[test]
 fn test_config() {
     let json_str = r#"
@@ -139,4 +141,119 @@ fn test_dns_config() {
     let dns = config.dns.as_ref().unwrap();
     assert_eq!(dns.servers.as_ref().unwrap().len(), 1);
     assert_eq!(dns.servers.as_ref().unwrap()[0], "1.1.1.1");
+}
+
+#[test]
+fn test_tls_outbound_ech_config_mapping() {
+    let json_str = r#"
+    {
+        "outbounds": [
+            {
+                "protocol": "tls",
+                "tag": "tls_out",
+                "settings": {
+                    "serverName": "example.com",
+                    "echConfigList": "test-ech-config-list"
+                }
+            }
+        ]
+    }
+    "#;
+
+    let config = crate::config::json::from_string(json_str).unwrap();
+    let outbound =
+        crate::config::TlsOutboundSettings::parse_from_bytes(&config.outbounds[0].settings)
+            .unwrap();
+    assert_eq!(outbound.ech_config_list, "test-ech-config-list");
+}
+
+#[test]
+fn test_tls_outbound_ech_config_mapping_aliases() {
+    let json_str = r#"
+    {
+        "outbounds": [
+            {
+                "protocol": "tls",
+                "tag": "tls_out",
+                "settings": {
+                    "server_name": "example.com",
+                    "ech_config_list": "alias-ech-config-list"
+                }
+            }
+        ]
+    }
+    "#;
+
+    let config = crate::config::json::from_string(json_str).unwrap();
+    let outbound =
+        crate::config::TlsOutboundSettings::parse_from_bytes(&config.outbounds[0].settings)
+            .unwrap();
+    assert_eq!(outbound.ech_config_list, "alias-ech-config-list");
+}
+
+#[test]
+fn test_tls_inbound_ech_validation() {
+    let json_str = r#"
+    {
+        "inbounds": [
+            {
+                "tag": "tls_in",
+                "protocol": "tls",
+                "address": "127.0.0.1",
+                "port": 1443,
+                "settings": {
+                    "certificate": "cert.pem",
+                    "certificateKey": "key.pem",
+                    "echConfig": "only-config"
+                }
+            }
+        ]
+    }
+    "#;
+
+    assert!(crate::config::json::from_string(json_str).is_err());
+}
+
+#[test]
+fn test_tls_inbound_ech_unsupported() {
+    let json_str = r#"
+    {
+        "inbounds": [
+            {
+                "tag": "tls_in",
+                "protocol": "tls",
+                "address": "127.0.0.1",
+                "port": 1443,
+                "settings": {
+                    "certificate": "cert.pem",
+                    "certificateKey": "key.pem",
+                    "echConfig": "AQID",
+                    "echKey": "BAUG"
+                }
+            }
+        ]
+    }
+    "#;
+    let err = crate::config::json::from_string(json_str).unwrap_err();
+    assert!(err.to_string().contains("inbound ECH is not supported yet"));
+}
+
+#[test]
+fn test_tls_outbound_ech_validation() {
+    let json_str = r#"
+    {
+        "outbounds": [
+            {
+                "protocol": "tls",
+                "tag": "tls_out",
+                "settings": {
+                    "serverName": "example.com",
+                    "echConfigList": "   "
+                }
+            }
+        ]
+    }
+    "#;
+
+    assert!(crate::config::json::from_string(json_str).is_err());
 }

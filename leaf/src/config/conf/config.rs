@@ -75,6 +75,7 @@ pub struct Proxy {
     pub tls: Option<bool>,
     pub tls_cert: Option<String>,
     pub tls_insecure: Option<bool>,
+    pub tls_ech: Option<String>,
     pub ws_path: Option<String>,
     pub ws_host: Option<String>,
 
@@ -117,6 +118,7 @@ impl Default for Proxy {
             tls: Some(false),
             tls_cert: None,
             tls_insecure: Some(false),
+            tls_ech: None,
             ws_path: None,
             ws_host: None,
             sni: None,
@@ -214,6 +216,7 @@ pub struct Config {
     pub rule: Option<Vec<Rule>>,
     pub host: Option<HashMap<String, Vec<String>>>,
     pub certificates: Option<HashMap<String, String>>,
+    pub ech_configs: Option<HashMap<String, String>>,
 }
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -315,6 +318,81 @@ where
     certificates
 }
 
+fn get_ech_sections<'a, I>(lines: I) -> HashMap<String, String>
+where
+    I: Iterator<Item = &'a io::Result<String>>,
+{
+    let mut ech_configs = HashMap::new();
+    let mut current_name: Option<String> = None;
+    let mut current_lines: Vec<String> = Vec::new();
+
+    for line in lines {
+        let line = match line {
+            Ok(line) => line,
+            Err(_) => continue,
+        };
+        let trimmed = line.trim();
+        if let Some(section) = get_section(trimmed) {
+            if let Some(name) = current_name.take() {
+                if !current_lines.is_empty() {
+                    let mut content = current_lines.join("\n");
+                    content.push('\n');
+                    ech_configs.insert(name, content);
+                }
+                current_lines.clear();
+            }
+            let lower = section.to_lowercase();
+            if let Some(name) = section.strip_prefix("Ech.") {
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("ech.") {
+                let name = &section["ech.".len()..];
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("ech_") {
+                let name = &section["ech_".len()..];
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("ech ") {
+                let name = &section["ech ".len()..];
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            } else if lower.starts_with("ech") {
+                let name = &section["ech".len()..];
+                let name = name.trim();
+                if !name.is_empty() {
+                    current_name = Some(name.to_string());
+                }
+            }
+            continue;
+        }
+        if current_name.is_some() {
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+            current_lines.push(trimmed.to_string());
+        }
+    }
+
+    if let Some(name) = current_name.take() {
+        if !current_lines.is_empty() {
+            let mut content = current_lines.join("\n");
+            content.push('\n');
+            ech_configs.insert(name, content);
+        }
+    }
+
+    ech_configs
+}
+
 fn get_lines_by_section<'a, I>(section: &str, lines: I) -> Vec<String>
 where
     I: Iterator<Item = &'a io::Result<String>>,
@@ -373,6 +451,7 @@ where
 
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
     let certificates = get_certificate_sections(lines.iter());
+    let ech_configs = get_ech_sections(lines.iter());
     let env_lines = get_lines_by_section("Env", lines.iter());
     for line in env_lines {
         let parts: Vec<&str> = line
@@ -553,6 +632,9 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 }
                 "tls-insecure" => {
                     proxy.tls_insecure = if v == "true" { Some(true) } else { Some(false) }
+                }
+                "tls-ech" | "ech-config-list" => {
+                    proxy.tls_ech = Some(v.to_string());
                 }
                 "ws-path" => {
                     proxy.ws_path = Some(v.to_string());
@@ -889,6 +971,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         } else {
             Some(certificates)
         },
+        ech_configs: if ech_configs.is_empty() {
+            None
+        } else {
+            Some(ech_configs)
+        },
     })
 }
 
@@ -1009,10 +1096,20 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
 
     let mut outbounds = Vec::new();
     let certificates = conf.certificates.as_ref();
+    let ech_configs = conf.ech_configs.as_ref();
     let resolve_cert = |value: &Option<String>| -> Option<String> {
         let value = value.as_ref()?;
         if let Some(certificates) = certificates {
             if let Some(content) = certificates.get(value) {
+                return Some(content.clone());
+            }
+        }
+        Some(value.clone())
+    };
+    let resolve_ech = |value: &Option<String>| -> Option<String> {
+        let value = value.as_ref()?;
+        if let Some(ech_configs) = ech_configs {
+            if let Some(content) = ech_configs.get(value) {
                 return Some(content.clone());
             }
         }
@@ -1180,6 +1277,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                                 raw_certificate: None,
                                 raw_certificate_key: None,
                                 insecure: ext_proxy.tls_insecure,
+                                ech_config_list: resolve_ech(&ext_proxy.tls_ech),
                             }),
                         },
                     });
@@ -1478,6 +1576,7 @@ pub fn from_string(s: &str) -> Result<internal::Config> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use protobuf::Message;
 
     #[test]
     fn test_trojan_tls_outbound_order() {
@@ -1535,6 +1634,111 @@ Vmess = vmess, 1.2.3.4, 443, username, amux=true, sni=www.google.com
                 Some("username".to_string())
             );
         }
+    }
+
+    #[test]
+    fn test_trojan_tls_ech_mapping() {
+        let conf = r#"
+[Proxy]
+Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=AQID
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let common = to_common(&config).unwrap();
+
+        let outbounds = common.outbounds.unwrap();
+        let tls_outbound = outbounds
+            .iter()
+            .find(|o| o.tag == Some("Trojan_tls_xxx".to_string()))
+            .unwrap();
+        if let common::OutboundSettings::Tls { settings } = &tls_outbound.settings {
+            assert_eq!(
+                settings.as_ref().unwrap().ech_config_list,
+                Some("AQID".to_string())
+            );
+        } else {
+            panic!("Not tls outbound: {:?}", tls_outbound.settings);
+        }
+
+        let internal = to_internal(&config).unwrap();
+        let tls_outbound = internal
+            .outbounds
+            .iter()
+            .find(|o| o.tag == "Trojan_tls_xxx")
+            .unwrap();
+        let tls_settings =
+            crate::config::internal::TlsOutboundSettings::parse_from_bytes(&tls_outbound.settings)
+                .unwrap();
+        assert_eq!(tls_settings.ech_config_list, "AQID".to_string());
+    }
+
+    #[test]
+    fn test_trojan_tls_ech_mapping_from_section() {
+        let conf = r#"
+[Proxy]
+Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=myech
+
+[Ech.myech]
+AQI=
+"#;
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let common = to_common(&config).unwrap();
+
+        let outbounds = common.outbounds.unwrap();
+        let tls_outbound = outbounds
+            .iter()
+            .find(|o| o.tag == Some("Trojan_tls_xxx".to_string()))
+            .unwrap();
+        if let common::OutboundSettings::Tls { settings } = &tls_outbound.settings {
+            assert_eq!(
+                settings
+                    .as_ref()
+                    .unwrap()
+                    .ech_config_list
+                    .as_deref()
+                    .map(str::trim),
+                Some("AQI=")
+            );
+        } else {
+            panic!("Not tls outbound: {:?}", tls_outbound.settings);
+        }
+
+        let internal = to_internal(&config).unwrap();
+        let tls_outbound = internal
+            .outbounds
+            .iter()
+            .find(|o| o.tag == "Trojan_tls_xxx")
+            .unwrap();
+        let tls_settings =
+            crate::config::internal::TlsOutboundSettings::parse_from_bytes(&tls_outbound.settings)
+                .unwrap();
+        assert_eq!(tls_settings.ech_config_list.trim(), "AQI=");
+    }
+
+    #[test]
+    fn test_trojan_tls_ech_validation() {
+        let mut proxy = Proxy::default();
+        proxy.tag = "Trojan".to_string();
+        proxy.protocol = "trojan".to_string();
+        proxy.address = Some("1.2.3.4".to_string());
+        proxy.port = Some(443);
+        proxy.password = Some("password".to_string());
+        proxy.sni = Some("www.google.com".to_string());
+        proxy.tls_ech = Some("   ".to_string());
+
+        let config = Config {
+            general: None,
+            proxy: Some(vec![proxy]),
+            proxy_group: None,
+            rule: None,
+            host: None,
+            certificates: None,
+            ech_configs: None,
+        };
+
+        let err = to_internal(&config).unwrap_err();
+        assert!(err.to_string().contains("echConfigList cannot be empty"));
     }
 
     #[test]

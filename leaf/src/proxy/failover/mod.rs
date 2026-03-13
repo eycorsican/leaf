@@ -81,6 +81,7 @@ async fn single_health_check(
                         None,
                         None,
                         false,
+                        None,
                     ) else {
                         return Measure::new(idx, u128::MAX, tag);
                     };

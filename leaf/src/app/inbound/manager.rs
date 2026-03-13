@@ -229,10 +229,25 @@ impl InboundManager {
                 "tls" => {
                     let settings = config::TlsInboundSettings::parse_from_bytes(&inbound.settings)
                         .map_err(|e| anyhow!("invalid [{}] inbound settings: {}", &tag, e))?;
-                    let stream = Arc::new(tls::inbound::StreamHandler::new(
-                        settings.certificate.clone(),
-                        settings.certificate_key.clone(),
-                    )?);
+                    let ech_config = if settings.ech_config.is_empty() {
+                        None
+                    } else {
+                        Some(settings.ech_config.clone())
+                    };
+                    let ech_key = if settings.ech_key.is_empty() {
+                        None
+                    } else {
+                        Some(settings.ech_key.clone())
+                    };
+                    let stream = Arc::new(
+                        tls::inbound::StreamHandler::new(
+                            settings.certificate.clone(),
+                            settings.certificate_key.clone(),
+                            ech_config,
+                            ech_key,
+                        )
+                        .map_err(|e| anyhow!("invalid [{}] inbound tls capability: {}", &tag, e))?,
+                    );
                     let handler = Arc::new(proxy::inbound::Handler::new(
                         tag.clone(),
                         Some(stream),

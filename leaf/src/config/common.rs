@@ -100,6 +100,10 @@ pub struct TlsInboundSettings {
     pub raw_certificate: Option<Vec<String>>,
     #[serde(rename = "rawCertificateKey", alias = "raw_certificate_key")]
     pub raw_certificate_key: Option<Vec<String>>,
+    #[serde(rename = "echConfig", alias = "ech_config")]
+    pub ech_config: Option<String>,
+    #[serde(rename = "echKey", alias = "ech_key")]
+    pub ech_key: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -220,6 +224,8 @@ pub struct TlsOutboundSettings {
     #[serde(rename = "rawCertificateKey", alias = "raw_certificate_key")]
     pub raw_certificate_key: Option<Vec<String>>,
     pub insecure: Option<bool>,
+    #[serde(rename = "echConfigList", alias = "ech_config_list")]
+    pub ech_config_list: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -516,6 +522,17 @@ pub struct Config {
 
 fn is_inline_certificate(certificate: &str) -> bool {
     certificate.contains("-----BEGIN")
+}
+
+fn validate_non_empty_str(value: &str, field_name: &str, protocol: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        return Err(anyhow::anyhow!(
+            "invalid [{}] settings: {} cannot be empty",
+            protocol,
+            field_name
+        ));
+    }
+    Ok(())
 }
 
 pub fn to_internal(mut config: Config) -> Result<internal::Config> {
@@ -862,6 +879,22 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                 } => {
                     inbound.protocol = "tls".to_string();
                     if let Some(ext_settings) = ext_settings {
+                        if ext_settings.ech_config.is_some() || ext_settings.ech_key.is_some() {
+                            match (&ext_settings.ech_config, &ext_settings.ech_key) {
+                                (Some(ech_config), Some(ech_key)) => {
+                                    validate_non_empty_str(ech_config, "echConfig", "tls inbound")?;
+                                    validate_non_empty_str(ech_key, "echKey", "tls inbound")?;
+                                    return Err(anyhow::anyhow!(
+                                        "invalid [tls inbound] settings: inbound ECH is not supported yet; remove echConfig and echKey"
+                                    ));
+                                }
+                                _ => {
+                                    return Err(anyhow::anyhow!(
+                                        "invalid [tls inbound] settings: echConfig and echKey must be set together"
+                                    ))
+                                }
+                            }
+                        }
                         let mut settings = internal::TlsInboundSettings::new();
                         if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
                             settings.certificate = ext_raw_certificate.join("\n");
@@ -890,6 +923,12 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                                 let path = asset_loc.join(key).to_string_lossy().to_string();
                                 settings.certificate_key = path;
                             }
+                        }
+                        if let Some(ext_ech_config) = &ext_settings.ech_config {
+                            settings.ech_config = ext_ech_config.clone();
+                        }
+                        if let Some(ext_ech_key) = &ext_settings.ech_key {
+                            settings.ech_key = ext_ech_key.clone();
                         }
                         let settings = settings.write_to_bytes().unwrap();
                         inbound.settings = settings;
@@ -1119,6 +1158,13 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                 } => {
                     outbound.protocol = "tls".to_string();
                     if let Some(ext_settings) = ext_settings {
+                        if let Some(ext_ech_config_list) = &ext_settings.ech_config_list {
+                            validate_non_empty_str(
+                                ext_ech_config_list,
+                                "echConfigList",
+                                "tls outbound",
+                            )?;
+                        }
                         let mut settings = internal::TlsOutboundSettings::new();
                         if let Some(ext_server_name) = &ext_settings.server_name {
                             settings.server_name = ext_server_name.clone();
@@ -1156,6 +1202,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         }
                         if let Some(ext_insecure) = ext_settings.insecure {
                             settings.insecure = ext_insecure;
+                        }
+                        if let Some(ext_ech_config_list) = &ext_settings.ech_config_list {
+                            settings.ech_config_list = ext_ech_config_list.clone();
                         }
                         let settings = settings.write_to_bytes().unwrap();
                         outbound.settings = settings;

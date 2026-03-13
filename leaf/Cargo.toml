@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [features]
 default = [
-    "default-ring"
+    "default-aws-lc"
 ]
 
 default-ring = [

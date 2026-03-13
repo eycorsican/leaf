@@ -96,6 +96,8 @@ message QuicInboundSettings {
 message TlsInboundSettings {
 	string certificate = 1;
 	string certificate_key = 2;
+	string ech_config = 3;
+	string ech_key = 4;
 }
 
 message ChainInboundSettings {
@@ -157,6 +159,7 @@ message TlsOutboundSettings {
 	string certificate = 3;
 	bool insecure = 4;
 	string certificate_key = 5;
+	string ech_config_list = 6;
 }
 
 message WebSocketOutboundSettings {

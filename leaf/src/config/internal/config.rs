@@ -1605,6 +1605,10 @@ pub struct TlsInboundSettings {
     pub certificate: ::std::string::String,
     // @@protoc_insertion_point(field:TlsInboundSettings.certificate_key)
     pub certificate_key: ::std::string::String,
+    // @@protoc_insertion_point(field:TlsInboundSettings.ech_config)
+    pub ech_config: ::std::string::String,
+    // @@protoc_insertion_point(field:TlsInboundSettings.ech_key)
+    pub ech_key: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:TlsInboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -1638,6 +1642,12 @@ impl ::protobuf::Message for TlsInboundSettings {
                 18 => {
                     self.certificate_key = is.read_string()?;
                 },
+                26 => {
+                    self.ech_config = is.read_string()?;
+                },
+                34 => {
+                    self.ech_key = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -1656,6 +1666,12 @@ impl ::protobuf::Message for TlsInboundSettings {
         if !self.certificate_key.is_empty() {
             my_size += ::protobuf::rt::string_size(2, &self.certificate_key);
         }
+        if !self.ech_config.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.ech_config);
+        }
+        if !self.ech_key.is_empty() {
+            my_size += ::protobuf::rt::string_size(4, &self.ech_key);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -1667,6 +1683,12 @@ impl ::protobuf::Message for TlsInboundSettings {
         }
         if !self.certificate_key.is_empty() {
             os.write_string(2, &self.certificate_key)?;
+        }
+        if !self.ech_config.is_empty() {
+            os.write_string(3, &self.ech_config)?;
+        }
+        if !self.ech_key.is_empty() {
+            os.write_string(4, &self.ech_key)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -1687,6 +1709,8 @@ impl ::protobuf::Message for TlsInboundSettings {
     fn clear(&mut self) {
         self.certificate.clear();
         self.certificate_key.clear();
+        self.ech_config.clear();
+        self.ech_key.clear();
         self.special_fields.clear();
     }
 
@@ -1694,6 +1718,8 @@ impl ::protobuf::Message for TlsInboundSettings {
         static instance: TlsInboundSettings = TlsInboundSettings {
             certificate: ::std::string::String::new(),
             certificate_key: ::std::string::String::new(),
+            ech_config: ::std::string::String::new(),
+            ech_key: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -2744,6 +2770,8 @@ pub struct TlsOutboundSettings {
     pub insecure: bool,
     // @@protoc_insertion_point(field:TlsOutboundSettings.certificate_key)
     pub certificate_key: ::std::string::String,
+    // @@protoc_insertion_point(field:TlsOutboundSettings.ech_config_list)
+    pub ech_config_list: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:TlsOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -2786,6 +2814,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
                 42 => {
                     self.certificate_key = is.read_string()?;
                 },
+                50 => {
+                    self.ech_config_list = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -2813,6 +2844,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         if !self.certificate_key.is_empty() {
             my_size += ::protobuf::rt::string_size(5, &self.certificate_key);
         }
+        if !self.ech_config_list.is_empty() {
+            my_size += ::protobuf::rt::string_size(6, &self.ech_config_list);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -2833,6 +2867,9 @@ impl ::protobuf::Message for TlsOutboundSettings {
         }
         if !self.certificate_key.is_empty() {
             os.write_string(5, &self.certificate_key)?;
+        }
+        if !self.ech_config_list.is_empty() {
+            os.write_string(6, &self.ech_config_list)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -2856,6 +2893,7 @@ impl ::protobuf::Message for TlsOutboundSettings {
         self.certificate.clear();
         self.insecure = false;
         self.certificate_key.clear();
+        self.ech_config_list.clear();
         self.special_fields.clear();
     }
 
@@ -2866,6 +2904,7 @@ impl ::protobuf::Message for TlsOutboundSettings {
             certificate: ::std::string::String::new(),
             insecure: false,
             certificate_key: ::std::string::String::new(),
+            ech_config_list: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

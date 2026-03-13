@@ -316,12 +316,18 @@ impl OutboundManager {
                     } else {
                         Some(settings.certificate_key.clone())
                     };
+                    let ech_config_list = if settings.ech_config_list.is_empty() {
+                        None
+                    } else {
+                        Some(settings.ech_config_list.clone())
+                    };
                     let stream = Arc::new(tls::outbound::StreamHandler::new(
                         settings.server_name.clone(),
                         settings.alpn.clone(),
                         certificate,
                         certificate_key,
                         settings.insecure,
+                        ech_config_list,
                     )?);
                     HandlerBuilder::default()
                         .tag(tag.clone())
