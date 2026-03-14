@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 
-use crate::app::fake_dns::FakeDns;
 use crate::{proxy::*, session::Session};
 
 use super::NfManager;

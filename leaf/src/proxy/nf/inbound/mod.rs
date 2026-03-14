@@ -1,14 +1,13 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::mem::transmute;
 use std::net::{IpAddr, SocketAddr};
 use std::os::windows::ffi::OsStringExt;
-use std::path::Path;
 use std::ptr::{addr_of, addr_of_mut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -25,7 +24,7 @@ pub use stream::Handler as StreamHandler;
 use anyhow::{anyhow, Result};
 use bytes::{BufMut, BytesMut};
 use parking_lot::RwLock;
-use tracing::{debug, instrument, trace, warn};
+use tracing::{debug, trace, warn};
 
 use packed::{SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6};
 

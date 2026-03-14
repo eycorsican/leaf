@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use tracing::{trace, warn};
+use tracing::warn;
 
 use crate::{
     app::fake_dns::FakeDns,

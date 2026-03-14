@@ -21,7 +21,7 @@ use std::os::unix::io::AsFd;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::os::unix::io::AsRawFd;
 #[cfg(windows)]
-use std::os::windows::io::{AsRawSocket, AsSocket};
+use std::os::windows::io::AsSocket;
 #[cfg(target_os = "android")]
 use {
     std::os::unix::io::{AsRawFd, RawFd},

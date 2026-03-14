@@ -316,7 +316,7 @@ fn test_tls_ech_disable_dns_lookup_mapping() {
                 "protocol": "tls",
                 "tag": "tls_out",
                 "settings": {
-                    "tlsEch": true,
+                    "ech": true,
                     "echDisableDnsLookup": true,
                     "echConfigList": "AQI="
                 }

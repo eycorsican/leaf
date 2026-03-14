@@ -200,7 +200,7 @@ openssl = { version = "0.10", features = ["vendored"], optional = true }
 
 ring = { version = "0.17", optional = true }
 
-aws-lc-rs = { version = "1.7", features = ["bindgen"], optional = true }
+aws-lc-rs = { version = "1.16", optional = true }
 
 # TLS/rustls/QUIC
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "tls12"], optional = true }
@@ -294,7 +294,7 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["fs", "sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
 
 [build-dependencies]
-cc = "1.0"
-bindgen = "0.69"
+cc = "1.2"
+bindgen = "0.72"
 protobuf-codegen = "=3.6.0"
 protoc-bin-vendored = "3.2"

@@ -1651,7 +1651,7 @@ Vmess = vmess, 1.2.3.4, 443, username, amux=true, sni=www.google.com
     fn test_trojan_tls_ech_mapping() {
         let conf = r#"
 [Proxy]
-Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=AQID
+Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=true, tls-ech-config-list=AQID
 "#;
         let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
         let config = from_lines(lines).unwrap();
@@ -1687,7 +1687,7 @@ Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=AQID
     fn test_trojan_tls_ech_mapping_from_section() {
         let conf = r#"
 [Proxy]
-Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=myech
+Trojan = trojan, 1.2.3.4, 443, password, sni=www.google.com, tls-ech=true, tls-ech-config-list=myech
 
 [Ech.myech]
 AQI=
