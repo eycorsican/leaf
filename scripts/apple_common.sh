@@ -55,7 +55,7 @@ build_ios_libs() {
 
     cargo build -p $package $release_flag --no-default-features --features "default-aws-lc" --target aarch64-apple-ios
     cargo build -p $package $release_flag --no-default-features --features "default-aws-lc" --target x86_64-apple-ios
-    cargo build -p $package $release_flag --no-default-features --features "default-ring" --target aarch64-apple-ios-sim
+    cargo build -p $package $release_flag --no-default-features --features "default-aws-lc" --target aarch64-apple-ios-sim
 
     mkdir -p "$BASE_DIR/ios"
     mkdir -p "$BASE_DIR/ios-sim"
