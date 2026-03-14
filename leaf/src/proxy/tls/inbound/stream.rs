@@ -1,6 +1,5 @@
-use std::fs::File;
-use std::io::{self, BufReader};
-use std::path::Path;
+#[cfg(feature = "rustls-tls")]
+use {std::fs::File, std::io, std::io::BufReader, std::path::Path};
 
 use anyhow::Result;
 
@@ -104,12 +103,19 @@ impl Handler {
             Ok(Self { acceptor })
         }
         #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
-        unimplemented!();
+        {
+            let _ = (certificate, certificate_key, ech_config, ech_key);
+            unimplemented!();
+        }
         #[cfg(all(not(feature = "rustls-tls"), not(feature = "openssl-tls")))]
-        Err(anyhow::anyhow!("no tls feature enabled"))
+        {
+            let _ = (certificate, certificate_key, ech_config, ech_key);
+            Err(anyhow::anyhow!("no tls feature enabled"))
+        }
     }
 }
 
+#[cfg(feature = "rustls-tls")]
 fn load_ech(
     ech_config: Option<&str>,
     ech_key: Option<&str>,
@@ -134,6 +140,7 @@ fn load_ech(
     }
 }
 
+#[cfg(feature = "rustls-tls")]
 fn decode_ech_blob(input: &str) -> io::Result<Vec<u8>> {
     let value = input.trim();
     if value.starts_with("-----BEGIN") {
@@ -156,6 +163,7 @@ fn decode_ech_blob(input: &str) -> io::Result<Vec<u8>> {
     decode_base64(value)
 }
 
+#[cfg(feature = "rustls-tls")]
 fn decode_base64(data: &str) -> io::Result<Vec<u8>> {
     fn value(byte: u8) -> Option<u8> {
         match byte {
@@ -265,12 +273,18 @@ impl InboundStreamHandler for Handler {
         }
 
         #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
-        unimplemented!();
+        {
+            let _ = (sess, stream);
+            unimplemented!();
+        }
         #[cfg(all(not(feature = "rustls-tls"), not(feature = "openssl-tls")))]
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            "no tls feature enabled",
-        ))
+        {
+            let _ = (sess, stream);
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "no tls feature enabled",
+            ))
+        }
     }
 }
 

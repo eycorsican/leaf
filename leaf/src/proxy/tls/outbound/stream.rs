@@ -1,7 +1,4 @@
-use std::fs::File;
 use std::io;
-use std::io::BufReader;
-use std::io::Cursor;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -11,6 +8,7 @@ use tracing::trace;
 #[cfg(feature = "rustls-tls")]
 use {
     std::sync::Arc,
+    std::{fs::File, io::BufReader, io::Cursor},
     tokio_rustls::{
         rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
         TlsConnector,
@@ -46,30 +44,33 @@ mod dangerous {
     impl ServerCertVerifier for NotVerified {
         fn verify_server_cert(
             &self,
-            _end_entity: &CertificateDer,
-            _intermediates: &[CertificateDer],
-            _server_name: &ServerName,
-            _ocsp_response: &[u8],
-            _now: UnixTime,
+            end_entity: &CertificateDer,
+            intermediates: &[CertificateDer],
+            server_name: &ServerName,
+            ocsp_response: &[u8],
+            now: UnixTime,
         ) -> core::result::Result<ServerCertVerified, Error> {
+            let _ = (end_entity, intermediates, server_name, ocsp_response, now);
             Ok(ServerCertVerified::assertion())
         }
 
         fn verify_tls12_signature(
             &self,
-            _message: &[u8],
-            _cert: &CertificateDer<'_>,
-            _dss: &DigitallySignedStruct,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
         ) -> Result<HandshakeSignatureValid, Error> {
+            let _ = (message, cert, dss);
             Ok(HandshakeSignatureValid::assertion())
         }
 
         fn verify_tls13_signature(
             &self,
-            _message: &[u8],
-            _cert: &CertificateDer<'_>,
-            _dss: &DigitallySignedStruct,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
         ) -> Result<HandshakeSignatureValid, Error> {
+            let _ = (message, cert, dss);
             Ok(HandshakeSignatureValid::assertion())
         }
 
@@ -95,12 +96,19 @@ mod dangerous {
 
 pub struct Handler {
     server_name: String,
+    #[cfg(feature = "rustls-tls")]
     alpns: Vec<String>,
+    #[cfg(feature = "rustls-tls")]
     certificate: Option<String>,
+    #[cfg(feature = "rustls-tls")]
     certificate_key: Option<String>,
+    #[cfg(feature = "rustls-tls")]
     insecure: bool,
+    #[cfg(feature = "rustls-tls")]
     fixed_ech_config_list: Option<String>,
+    #[cfg(feature = "rustls-tls")]
     ech_disable_dns_lookup: bool,
+    #[cfg(feature = "rustls-tls")]
     dns_client: SyncDnsClient,
     ech_enabled: bool,
     #[cfg(feature = "rustls-tls")]
@@ -237,7 +245,7 @@ impl Handler {
         }
     }
 
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(all(feature = "rustls-tls", feature = "rustls-tls-aws-lc"))]
     fn should_skip_ech_dns_lookup_for_session(sess: &Session) -> bool {
         sess.inbound_tag == "dnsclient"
     }
@@ -252,39 +260,29 @@ impl Handler {
             trace!("ech source for {}: none", name);
             return Ok(None);
         }
-        #[cfg(feature = "rustls-tls-aws-lc")]
-        {
-            if self.ech_disable_dns_lookup {
-                if let Some(fixed) = self.fixed_ech_config_list.as_deref() {
-                    trace!("ech source for {}: fixed ech config", name);
-                    return Ok(Some(fixed.to_string()));
-                }
-                trace!("ech source for {}: none", name);
-                return Ok(None);
+        if self.ech_disable_dns_lookup {
+            if let Some(fixed) = self.fixed_ech_config_list.as_deref() {
+                trace!("ech source for {}: fixed ech config", name);
+                return Ok(Some(fixed.to_string()));
             }
-            let auto_result = if allow_dns_lookup {
-                let dns_client = self.dns_client.read().await;
-                Some(dns_client.lookup_ech_config_list(name).await)
-            } else {
-                trace!(
-                    "ech source for {}: fixed-or-none (dns lookup skipped)",
-                    name
-                );
-                None
-            };
-            return Self::resolve_selected_ech_config_list(
-                name,
-                self.fixed_ech_config_list.as_deref(),
-                auto_result,
+            trace!("ech source for {}: none", name);
+            return Ok(None);
+        }
+        let auto_result = if allow_dns_lookup {
+            let dns_client = self.dns_client.read().await;
+            Some(dns_client.lookup_ech_config_list(name).await)
+        } else {
+            trace!(
+                "ech source for {}: fixed-or-none (dns lookup skipped)",
+                name
             );
-        }
-        #[cfg(not(feature = "rustls-tls-aws-lc"))]
-        {
-            let _ = (name, allow_dns_lookup);
-            Err(io::Error::other(
-                "tls outbound ech requires rustls-tls-aws-lc (ring backend has no hpke suites)",
-            ))
-        }
+            None
+        };
+        Self::resolve_selected_ech_config_list(
+            name,
+            self.fixed_ech_config_list.as_deref(),
+            auto_result,
+        )
     }
 
     pub fn new(
@@ -300,12 +298,19 @@ impl Handler {
     ) -> Result<Self> {
         let mut handler = Handler {
             server_name,
+            #[cfg(feature = "rustls-tls")]
             alpns: alpns.clone(),
+            #[cfg(feature = "rustls-tls")]
             certificate: certificate.clone(),
+            #[cfg(feature = "rustls-tls")]
             certificate_key: certificate_key.clone(),
+            #[cfg(feature = "rustls-tls")]
             insecure,
+            #[cfg(feature = "rustls-tls")]
             fixed_ech_config_list: ech_config_list.clone(),
+            #[cfg(feature = "rustls-tls")]
             ech_disable_dns_lookup,
+            #[cfg(feature = "rustls-tls")]
             dns_client,
             ech_enabled: ech,
             #[cfg(feature = "rustls-tls")]
@@ -313,6 +318,14 @@ impl Handler {
             #[cfg(feature = "openssl-tls")]
             ssl_connector: None,
         };
+        #[cfg(not(feature = "rustls-tls"))]
+        let _ = (
+            &certificate,
+            &certificate_key,
+            ech_disable_dns_lookup,
+            &ech_config_list,
+            &dns_client,
+        );
 
         #[cfg(feature = "rustls-tls")]
         {
@@ -504,9 +517,10 @@ impl OutboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _lhs: Option<&mut AnyStream>,
+        lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        let _ = lhs;
         tracing::trace!("handling outbound stream");
         // TODO optimize, dont need copy
         let name = if !&self.server_name.is_empty() {
@@ -517,11 +531,27 @@ impl OutboundStreamHandler for Handler {
         if let Some(stream) = stream {
             #[cfg(feature = "rustls-tls")]
             {
+                #[cfg(feature = "rustls-tls-aws-lc")]
                 let mut ech_config_selected = false;
+                #[cfg(not(feature = "rustls-tls-aws-lc"))]
+                let ech_config_selected = false;
+                #[cfg(feature = "rustls-tls-aws-lc")]
                 let mut ech_dns_lookup_skipped = false;
+                #[cfg(not(feature = "rustls-tls-aws-lc"))]
+                let ech_dns_lookup_skipped = false;
                 let tls_config = {
                     if self.ech_enabled {
-                        ech_dns_lookup_skipped = Self::should_skip_ech_dns_lookup_for_session(sess);
+                        #[cfg(not(feature = "rustls-tls-aws-lc"))]
+                        {
+                            return Err(io::Error::other(
+                                "tls outbound ech requires rustls-tls-aws-lc (ring backend has no hpke suites)",
+                            ));
+                        }
+                        #[cfg(feature = "rustls-tls-aws-lc")]
+                        {
+                            ech_dns_lookup_skipped =
+                                Self::should_skip_ech_dns_lookup_for_session(sess);
+                        }
                         let selected_ech = self
                             .select_ech_config_list(&name, !ech_dns_lookup_skipped)
                             .await?;
@@ -569,7 +599,11 @@ impl OutboundStreamHandler for Handler {
             }
             #[cfg(feature = "openssl-tls")]
             if let Some(ssl_connector) = self.ssl_connector.as_ref() {
-                trace!("handling TLS {} with openssl", &name);
+                if self.ech_enabled {
+                    return Err(io::Error::other(
+                        "tls outbound ech is not supported with current openssl backend",
+                    ));
+                }
                 let mut ssl = Ssl::new(ssl_connector.context()).map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -582,6 +616,11 @@ impl OutboundStreamHandler for Handler {
                         format!("set tls name failed: {}", e),
                     )
                 })?;
+                trace!(
+                    "handling TLS {} with openssl, ech_enabled={}",
+                    &name,
+                    self.ech_enabled
+                );
                 let mut stream = SslStream::new(ssl, stream).map_err(|e| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -614,10 +653,9 @@ mod tests {
     use protobuf::MessageField;
     use tokio::sync::RwLock;
 
-    use crate::{
-        app::{dns_client::DnsClient, SyncDnsClient},
-        session::Session,
-    };
+    use crate::app::{dns_client::DnsClient, SyncDnsClient};
+    #[cfg(feature = "rustls-tls-aws-lc")]
+    use crate::session::Session;
 
     use super::{decode_base64, ensure_ech_config_list_bytes, Handler};
 
@@ -696,6 +734,7 @@ mod tests {
             .contains("auto ech fetch failed for example.com: dns failed"));
     }
 
+    #[cfg(any(feature = "openssl-tls", feature = "rustls-tls-aws-lc"))]
     #[test]
     fn test_should_skip_ech_dns_lookup_for_dnsclient_session() {
         let mut sess = Session::default();
@@ -739,24 +778,9 @@ mod tests {
     }
 
     #[cfg(not(feature = "rustls-tls-aws-lc"))]
-    #[tokio::test]
-    async fn test_select_ech_config_list_on_ring_returns_connection_error() {
-        let handler = Handler::new(
-            "localhost".to_string(),
-            vec![],
-            None,
-            None,
-            false,
-            true,
-            false,
-            None,
-            new_test_dns_client(),
-        )
-        .unwrap();
-        let err = handler
-            .select_ech_config_list("example.com", true)
-            .await
-            .unwrap_err();
+    #[test]
+    fn test_build_rustls_config_with_ech_on_ring_returns_connection_error() {
+        let err = Handler::build_rustls_config(&[], None, None, false, Some("AQID")).unwrap_err();
         assert!(err.to_string().contains("requires rustls-tls-aws-lc"));
     }
 }
