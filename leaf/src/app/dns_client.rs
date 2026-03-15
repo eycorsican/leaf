@@ -21,7 +21,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
-use tracing::{debug, trace, Instrument};
+use tracing::{debug, trace, warn, Instrument};
 
 #[cfg(feature = "rustls-tls")]
 use {
@@ -114,7 +114,10 @@ impl DnsClient {
     fn load_servers(dns: &crate::config::Dns) -> Result<Vec<Resolver>> {
         let mut servers = Vec::new();
         for server in dns.servers.iter() {
-            servers.push(Self::parse_server(server)?);
+            match Self::parse_server(server) {
+                Ok(parsed) => servers.push(parsed),
+                Err(err) => warn!("skip invalid dns server [{}]: {}", server, err),
+            }
         }
         for server in &servers {
             debug!("loaded dns server: {}", server);
@@ -1615,19 +1618,35 @@ mod tests {
     }
 
     #[test]
-    fn load_servers_rejects_invalid_doh_value() {
+    fn load_servers_ignores_invalid_doh_value_if_any_valid_server_exists() {
         let mut dns = crate::config::Dns::new();
-        dns.servers = vec!["doh:@1.1.1.1".to_string()];
-        let err = DnsClient::load_servers(&dns).unwrap_err();
-        assert!(err.to_string().contains("invalid dns server"));
+        dns.servers = vec![
+            "doh:@1.1.1.1".to_string(),
+            "direct:doh:example.com@not-an-ip".to_string(),
+            "doh:example.com#8.8.8.8".to_string(),
+            "1.1.1.1".to_string(),
+        ];
+        let servers = DnsClient::load_servers(&dns).unwrap();
+        assert_eq!(servers.len(), 1);
+        match &servers[0] {
+            Resolver::Server(addr, false) => assert_eq!(
+                *addr,
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 53)
+            ),
+            _ => panic!("unexpected resolver"),
+        }
+    }
 
-        dns.servers = vec!["direct:doh:example.com@not-an-ip".to_string()];
+    #[test]
+    fn load_servers_rejects_when_all_servers_invalid() {
+        let mut dns = crate::config::Dns::new();
+        dns.servers = vec![
+            "doh:@1.1.1.1".to_string(),
+            "direct:doh:example.com@not-an-ip".to_string(),
+            "doh:example.com#8.8.8.8".to_string(),
+        ];
         let err = DnsClient::load_servers(&dns).unwrap_err();
-        assert!(err.to_string().contains("invalid dns server"));
-
-        dns.servers = vec!["doh:example.com#8.8.8.8".to_string()];
-        let err = DnsClient::load_servers(&dns).unwrap_err();
-        assert!(err.to_string().contains("invalid dns server"));
+        assert!(err.to_string().contains("no dns servers"));
     }
 
     #[test]
