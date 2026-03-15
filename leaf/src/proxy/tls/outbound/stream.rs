@@ -653,7 +653,7 @@ mod tests {
     use protobuf::MessageField;
     use tokio::sync::RwLock;
 
-    use crate::app::{dns_client::DnsClient, SyncDnsClient};
+    use crate::app::{dns::DnsClient, SyncDnsClient};
     #[cfg(feature = "rustls-tls-aws-lc")]
     use crate::session::Session;
 

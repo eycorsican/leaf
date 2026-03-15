@@ -10,7 +10,7 @@ use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 use crate::{
-    app::{dns_client::DnsClient, outbound::manager::OutboundManager, SyncDnsClient},
+    app::{dns::DnsClient, outbound::manager::OutboundManager, SyncDnsClient},
     config::Config,
     proxy::*,
     session::*,

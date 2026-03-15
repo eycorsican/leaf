@@ -18,7 +18,7 @@ use notify::{
 };
 
 use app::{
-    dispatcher::Dispatcher, dns_client::DnsClient, inbound::manager::InboundManager,
+    dispatcher::Dispatcher, dns::DnsClient, inbound::manager::InboundManager,
     nat_manager::NatManager, outbound::manager::OutboundManager, router::Router,
 };
 
