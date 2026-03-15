@@ -307,6 +307,22 @@ lazy_static! {
         get_env_var_or("DNS_TIMEOUT", 4)
     };
 
+    pub static ref DNS_SERVER_RESELECT_INTERVAL_SECS: u64 = {
+        get_env_var_or("DNS_SERVER_RESELECT_INTERVAL_SECS", 30)
+    };
+
+    pub static ref DNS_SERVER_SLOW_RESPONSE_MS: u64 = {
+        get_env_var_or("DNS_SERVER_SLOW_RESPONSE_MS", 800)
+    };
+
+    pub static ref DNS_SERVER_SWITCH_THRESHOLD: usize = {
+        get_env_var_or("DNS_SERVER_SWITCH_THRESHOLD", 3)
+    };
+
+    pub static ref DNS_SERVER_FALLBACK_CONCURRENCY: usize = {
+        get_env_var_or("DNS_SERVER_FALLBACK_CONCURRENCY", 1)
+    };
+
     pub static ref DNS_DUALSTACK_DELAY_MS: u64 = {
         get_env_var_or("DNS_DUALSTACK_DELAY_MS", 250)
     };

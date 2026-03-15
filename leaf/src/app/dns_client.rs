@@ -3,7 +3,7 @@ use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::num::NonZeroUsize;
 use std::str::FromStr;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
@@ -68,6 +68,24 @@ enum Resolver {
     System(bool),
 }
 
+#[derive(Clone, Debug, Default)]
+struct ServerRuntimeStats {
+    avg_latency_ms: f64,
+    samples: u64,
+    successes: u64,
+    failures: u64,
+    timeouts: u64,
+    consecutive_slow: u32,
+    consecutive_failures: u32,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ServerSelectorState {
+    primary_server: Option<String>,
+    stats: HashMap<String, ServerRuntimeStats>,
+    last_reselect_at: Option<Instant>,
+}
+
 impl fmt::Display for Resolver {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -100,6 +118,137 @@ impl fmt::Display for Resolver {
     }
 }
 
+impl ServerSelectorState {
+    fn score_of(&self, server: &str) -> f64 {
+        if let Some(stat) = self.stats.get(server) {
+            let baseline = if stat.samples == 0 {
+                (*option::DNS_SERVER_SLOW_RESPONSE_MS as f64) / 2.0
+            } else {
+                stat.avg_latency_ms
+            };
+            baseline
+                + (stat.failures as f64 * 600.0)
+                + (stat.timeouts as f64 * 900.0)
+                + (stat.consecutive_failures as f64 * 1200.0)
+                + (stat.consecutive_slow as f64 * 300.0)
+        } else {
+            (*option::DNS_SERVER_SLOW_RESPONSE_MS as f64) / 2.0
+        }
+    }
+
+    fn is_degraded(&self, server: &str) -> bool {
+        let switch_threshold = (*option::DNS_SERVER_SWITCH_THRESHOLD).max(1);
+        if let Some(stat) = self.stats.get(server) {
+            (stat.consecutive_failures as usize) >= switch_threshold
+                || (stat.consecutive_slow as usize) >= switch_threshold
+        } else {
+            false
+        }
+    }
+
+    fn ensure_candidates(&mut self, servers: &[&Resolver]) {
+        for server in servers {
+            self.stats.entry(server.to_string()).or_default();
+        }
+    }
+
+    fn select_primary_index(&mut self, servers: &[&Resolver]) -> usize {
+        if servers.len() <= 1 {
+            if let Some(server) = servers.first() {
+                self.primary_server = Some(server.to_string());
+            }
+            return 0;
+        }
+        self.ensure_candidates(servers);
+        let now = Instant::now();
+        let reselect_interval =
+            Duration::from_secs((*option::DNS_SERVER_RESELECT_INTERVAL_SECS).max(1));
+        let should_reselect = self
+            .last_reselect_at
+            .map(|last| now.saturating_duration_since(last) >= reselect_interval)
+            .unwrap_or(true);
+
+        let current_idx = self.primary_server.as_ref().and_then(|primary| {
+            servers
+                .iter()
+                .position(|server| server.to_string() == *primary)
+        });
+        if let Some(idx) = current_idx {
+            let current_key = servers[idx].to_string();
+            if !should_reselect && !self.is_degraded(&current_key) {
+                return idx;
+            }
+        }
+
+        let mut best_idx = 0usize;
+        let mut best_score = f64::MAX;
+        for (idx, server) in servers.iter().enumerate() {
+            let score = self.score_of(&server.to_string());
+            if score < best_score {
+                best_score = score;
+                best_idx = idx;
+            }
+        }
+        self.primary_server = Some(servers[best_idx].to_string());
+        self.last_reselect_at = Some(now);
+        best_idx
+    }
+
+    fn fallback_indices(&self, servers: &[&Resolver], preferred_idx: usize) -> Vec<usize> {
+        let mut candidates: Vec<usize> = (0..servers.len())
+            .filter(|idx| *idx != preferred_idx)
+            .collect();
+        candidates.sort_by(|a, b| {
+            let sa = self.score_of(&servers[*a].to_string());
+            let sb = self.score_of(&servers[*b].to_string());
+            sa.partial_cmp(&sb).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        candidates
+    }
+
+    fn mark_success(&mut self, server: &str, elapsed: Duration) {
+        let stat = self.stats.entry(server.to_owned()).or_default();
+        let elapsed_ms = elapsed.as_millis() as f64;
+        stat.successes = stat.successes.saturating_add(1);
+        stat.samples = stat.samples.saturating_add(1);
+        if stat.samples == 1 {
+            stat.avg_latency_ms = elapsed_ms;
+        } else {
+            stat.avg_latency_ms = stat.avg_latency_ms * 0.8 + elapsed_ms * 0.2;
+        }
+        let slow_threshold = (*option::DNS_SERVER_SLOW_RESPONSE_MS).max(1) as f64;
+        if elapsed_ms >= slow_threshold {
+            stat.consecutive_slow = stat.consecutive_slow.saturating_add(1);
+        } else {
+            stat.consecutive_slow = 0;
+        }
+        stat.consecutive_failures = 0;
+        if self.primary_server.is_none() {
+            self.primary_server = Some(server.to_owned());
+        }
+    }
+
+    fn mark_failure(&mut self, server: &str, is_timeout: bool) {
+        let stat = self.stats.entry(server.to_owned()).or_default();
+        stat.failures = stat.failures.saturating_add(1);
+        if is_timeout {
+            stat.timeouts = stat.timeouts.saturating_add(1);
+        }
+        stat.consecutive_failures = stat.consecutive_failures.saturating_add(1);
+        let switch_threshold = (*option::DNS_SERVER_SWITCH_THRESHOLD).max(1);
+        if self.primary_server.as_deref() == Some(server)
+            && (stat.consecutive_failures as usize) >= switch_threshold
+        {
+            self.primary_server = None;
+        }
+    }
+
+    fn set_primary(&mut self, server: &str) {
+        self.primary_server = Some(server.to_owned());
+        self.last_reselect_at = Some(Instant::now());
+    }
+}
+
 pub struct DnsClient {
     dispatcher: Option<Weak<Dispatcher>>,
     servers: Vec<Resolver>,
@@ -108,6 +257,7 @@ pub struct DnsClient {
     ipv6_cache: Arc<TokioMutex<LruCache<String, CacheEntry>>>,
     ech_cache: Arc<TokioMutex<LruCache<String, EchCacheEntry>>>,
     ech_query_locks: Arc<TokioMutex<HashMap<String, Arc<TokioMutex<()>>>>>,
+    selector_state: Arc<Mutex<ServerSelectorState>>,
 }
 
 impl DnsClient {
@@ -584,6 +734,7 @@ impl DnsClient {
             ipv6_cache,
             ech_cache,
             ech_query_locks: Arc::new(TokioMutex::new(HashMap::new())),
+            selector_state: Arc::new(Mutex::new(ServerSelectorState::default())),
         })
     }
 
@@ -601,6 +752,11 @@ impl DnsClient {
         let hosts = Self::load_hosts(dns);
         self.servers = servers;
         self.hosts = hosts;
+        if let Ok(mut selector) = self.selector_state.lock() {
+            selector.primary_server = None;
+            selector.last_reselect_at = None;
+            selector.stats.clear();
+        }
         Ok(())
     }
 
@@ -1077,6 +1233,42 @@ impl DnsClient {
             .await
     }
 
+    fn select_preferred_server_index(&self, servers: &[&Resolver]) -> usize {
+        if let Ok(mut selector) = self.selector_state.lock() {
+            selector.select_primary_index(servers)
+        } else {
+            0
+        }
+    }
+
+    fn fallback_server_indices(&self, servers: &[&Resolver], preferred_idx: usize) -> Vec<usize> {
+        if let Ok(selector) = self.selector_state.lock() {
+            selector.fallback_indices(servers, preferred_idx)
+        } else {
+            (0..servers.len())
+                .filter(|idx| *idx != preferred_idx)
+                .collect()
+        }
+    }
+
+    fn mark_server_success(&self, resolver: &Resolver, elapsed: Duration) {
+        if let Ok(mut selector) = self.selector_state.lock() {
+            selector.mark_success(&resolver.to_string(), elapsed);
+        }
+    }
+
+    fn mark_server_failure(&self, resolver: &Resolver, is_timeout: bool) {
+        if let Ok(mut selector) = self.selector_state.lock() {
+            selector.mark_failure(&resolver.to_string(), is_timeout);
+        }
+    }
+
+    fn switch_primary_server(&self, resolver: &Resolver) {
+        if let Ok(mut selector) = self.selector_state.lock() {
+            selector.set_primary(&resolver.to_string());
+        }
+    }
+
     async fn query_task(
         &self,
         is_direct: bool,
@@ -1084,7 +1276,8 @@ impl DnsClient {
         host: &str,
         resolver: &Resolver,
         ty: RecordType,
-    ) -> Result<CacheEntry> {
+    ) -> Result<(CacheEntry, Duration)> {
+        let start = tokio::time::Instant::now();
         let res = match timeout(
             Duration::from_secs(*option::DNS_TIMEOUT),
             self.resolve_with_server(is_direct, request, host, resolver),
@@ -1097,9 +1290,13 @@ impl DnsClient {
         match res {
             Ok(entry) => {
                 trace!("query {} {} success with server {}", host, ty, resolver);
-                Ok(entry)
+                let elapsed = start.elapsed();
+                self.mark_server_success(resolver, elapsed);
+                Ok((entry, elapsed))
             }
             Err(e) => {
+                let is_timeout = e.to_string().contains("timeout");
+                self.mark_server_failure(resolver, is_timeout);
                 debug!(
                     "query {} {} failed with server {}: {}",
                     host, ty, resolver, e
@@ -1116,7 +1313,8 @@ impl DnsClient {
         host: &str,
         resolver: &Resolver,
         ty: RecordType,
-    ) -> Result<EchCacheEntry> {
+    ) -> Result<(EchCacheEntry, Duration)> {
+        let start = tokio::time::Instant::now();
         let res = match timeout(
             Duration::from_secs(*option::DNS_TIMEOUT),
             self.resolve_ech_with_server(is_direct, request, host, resolver, ty),
@@ -1127,8 +1325,14 @@ impl DnsClient {
             Err(_) => Err(anyhow!("query {} {} timeout", host, ty)),
         };
         match res {
-            Ok(entry) => Ok(entry),
+            Ok(entry) => {
+                let elapsed = start.elapsed();
+                self.mark_server_success(resolver, elapsed);
+                Ok((entry, elapsed))
+            }
             Err(e) => {
+                let is_timeout = e.to_string().contains("timeout");
+                self.mark_server_failure(resolver, is_timeout);
                 debug!(
                     "query ech {} {} failed with server {}: {}",
                     host, ty, resolver, e
@@ -1223,19 +1427,73 @@ impl DnsClient {
         };
 
         let is_direct_outbound = self.is_direct_outbound(host).await?;
-        let mut tasks = Vec::new();
         let servers = self.collect_servers(is_direct_outbound);
-        for server in servers {
-            let t = self.query_task(is_direct, msg_buf.clone(), host, server, ty);
-            tasks.push(Box::pin(t));
-        }
-
-        if tasks.is_empty() {
+        if servers.is_empty() {
             return Err(anyhow!("no dns servers available for query"));
         }
+        if servers.len() == 1 {
+            return self
+                .query_task(is_direct, msg_buf, host, servers[0], ty)
+                .await
+                .map(|(entry, _)| entry);
+        }
+        let preferred_idx = self.select_preferred_server_index(&servers);
+        let preferred = servers[preferred_idx];
+        let mut errors = Vec::new();
 
-        let (entry, _) = select_ok(tasks.into_iter()).await?;
-        Ok(entry)
+        match self
+            .query_task(is_direct, msg_buf.clone(), host, preferred, ty)
+            .await
+        {
+            Ok((entry, _)) => return Ok(entry),
+            Err(err) => errors.push(format!("{}: {}", preferred, err)),
+        }
+
+        let fallback_indices = self.fallback_server_indices(&servers, preferred_idx);
+        let fallback_concurrency = (*option::DNS_SERVER_FALLBACK_CONCURRENCY).max(1);
+        let mut cursor = 0usize;
+        while cursor < fallback_indices.len() {
+            let batch_end = std::cmp::min(
+                cursor.saturating_add(fallback_concurrency),
+                fallback_indices.len(),
+            );
+            let batch = &fallback_indices[cursor..batch_end];
+            if batch.len() == 1 {
+                let idx = batch[0];
+                match self
+                    .query_task(is_direct, msg_buf.clone(), host, servers[idx], ty)
+                    .await
+                {
+                    Ok((entry, _)) => {
+                        self.switch_primary_server(servers[idx]);
+                        return Ok(entry);
+                    }
+                    Err(err) => errors.push(format!("{}: {}", servers[idx], err)),
+                }
+            } else {
+                let mut tasks = Vec::new();
+                for idx in batch {
+                    let resolver = servers[*idx];
+                    let request = msg_buf.clone();
+                    let t = async move {
+                        self.query_task(is_direct, request, host, resolver, ty)
+                            .await
+                            .map(|(entry, _)| (*idx, entry))
+                    };
+                    tasks.push(Box::pin(t));
+                }
+                match select_ok(tasks.into_iter()).await {
+                    Ok(((idx, entry), _)) => {
+                        self.switch_primary_server(servers[idx]);
+                        return Ok(entry);
+                    }
+                    Err(err) => errors.push(format!("fallback batch failed: {}", err)),
+                }
+            }
+            cursor = batch_end;
+        }
+
+        Err(anyhow!("all dns queries failed: {}", errors.join("; ")))
     }
 
     async fn query_ech_record_type(
@@ -1251,17 +1509,73 @@ impl DnsClient {
             Err(e) => return Err(anyhow!("encode message to buffer failed: {}", e)),
         };
         let is_direct_outbound = self.is_direct_outbound(host).await?;
-        let mut tasks = Vec::new();
         let servers = self.collect_servers(is_direct_outbound);
-        for server in servers {
-            let t = self.query_ech_task(is_direct, msg_buf.clone(), host, server, ty);
-            tasks.push(Box::pin(t));
-        }
-        if tasks.is_empty() {
+        if servers.is_empty() {
             return Err(anyhow!("no dns servers available for query"));
         }
-        let (entry, _) = select_ok(tasks.into_iter()).await?;
-        Ok(entry)
+        if servers.len() == 1 {
+            return self
+                .query_ech_task(is_direct, msg_buf, host, servers[0], ty)
+                .await
+                .map(|(entry, _)| entry);
+        }
+        let preferred_idx = self.select_preferred_server_index(&servers);
+        let preferred = servers[preferred_idx];
+        let mut errors = Vec::new();
+
+        match self
+            .query_ech_task(is_direct, msg_buf.clone(), host, preferred, ty)
+            .await
+        {
+            Ok((entry, _)) => return Ok(entry),
+            Err(err) => errors.push(format!("{}: {}", preferred, err)),
+        }
+
+        let fallback_indices = self.fallback_server_indices(&servers, preferred_idx);
+        let fallback_concurrency = (*option::DNS_SERVER_FALLBACK_CONCURRENCY).max(1);
+        let mut cursor = 0usize;
+        while cursor < fallback_indices.len() {
+            let batch_end = std::cmp::min(
+                cursor.saturating_add(fallback_concurrency),
+                fallback_indices.len(),
+            );
+            let batch = &fallback_indices[cursor..batch_end];
+            if batch.len() == 1 {
+                let idx = batch[0];
+                match self
+                    .query_ech_task(is_direct, msg_buf.clone(), host, servers[idx], ty)
+                    .await
+                {
+                    Ok((entry, _)) => {
+                        self.switch_primary_server(servers[idx]);
+                        return Ok(entry);
+                    }
+                    Err(err) => errors.push(format!("{}: {}", servers[idx], err)),
+                }
+            } else {
+                let mut tasks = Vec::new();
+                for idx in batch {
+                    let resolver = servers[*idx];
+                    let request = msg_buf.clone();
+                    let t = async move {
+                        self.query_ech_task(is_direct, request, host, resolver, ty)
+                            .await
+                            .map(|(entry, _)| (*idx, entry))
+                    };
+                    tasks.push(Box::pin(t));
+                }
+                match select_ok(tasks.into_iter()).await {
+                    Ok(((idx, entry), _)) => {
+                        self.switch_primary_server(servers[idx]);
+                        return Ok(entry);
+                    }
+                    Err(err) => errors.push(format!("fallback batch failed: {}", err)),
+                }
+            }
+            cursor = batch_end;
+        }
+
+        Err(anyhow!("all ech queries failed: {}", errors.join("; ")))
     }
 
     async fn dualstack_query<P, F>(
@@ -1545,8 +1859,9 @@ impl UdpConnector for DnsClient {}
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::time::Duration;
 
-    use super::{DnsClient, Resolver};
+    use super::{DnsClient, Resolver, ServerSelectorState};
 
     fn new_client(servers: Vec<&str>) -> DnsClient {
         let mut dns = crate::config::Dns::new();
@@ -1703,5 +2018,48 @@ mod tests {
         assert!(err
             .to_string()
             .contains("doh server returned http status 503"));
+    }
+
+    #[test]
+    fn selector_primary_switches_after_consecutive_failures() {
+        let s1 = DnsClient::parse_server("1.1.1.1").unwrap();
+        let s2 = DnsClient::parse_server("8.8.8.8").unwrap();
+        let servers = vec![&s1, &s2];
+        let mut selector = ServerSelectorState::default();
+        let initial = selector.select_primary_index(&servers);
+        assert_eq!(initial, 0);
+        let key = s1.to_string();
+        let threshold = (*crate::option::DNS_SERVER_SWITCH_THRESHOLD).max(1);
+        for _ in 0..threshold {
+            selector.mark_failure(&key, true);
+        }
+        let selected = selector.select_primary_index(&servers);
+        assert_eq!(selected, 1);
+    }
+
+    #[test]
+    fn selector_prefers_lower_latency_in_fallback_order() {
+        let s1 = DnsClient::parse_server("1.1.1.1").unwrap();
+        let s2 = DnsClient::parse_server("8.8.8.8").unwrap();
+        let s3 = DnsClient::parse_server("9.9.9.9").unwrap();
+        let servers = vec![&s1, &s2, &s3];
+        let mut selector = ServerSelectorState::default();
+        selector.mark_success(&s2.to_string(), Duration::from_millis(30));
+        selector.mark_success(&s3.to_string(), Duration::from_millis(450));
+        let order = selector.fallback_indices(&servers, 0);
+        assert_eq!(order, vec![1, 2]);
+    }
+
+    #[test]
+    fn selector_marks_slow_server_as_degraded() {
+        let server = DnsClient::parse_server("1.1.1.1").unwrap();
+        let mut selector = ServerSelectorState::default();
+        let key = server.to_string();
+        let threshold = (*crate::option::DNS_SERVER_SWITCH_THRESHOLD).max(1);
+        let slow_elapsed = Duration::from_millis(*crate::option::DNS_SERVER_SLOW_RESPONSE_MS + 50);
+        for _ in 0..threshold {
+            selector.mark_success(&key, slow_elapsed);
+        }
+        assert!(selector.is_degraded(&key));
     }
 }
