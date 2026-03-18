@@ -156,95 +156,63 @@ impl InboundStreamHandler for Handler {
 
                     let prefixed_stream = PrefixedStream::new(stream, remaining);
 
-                    // Check CID
-                    let is_new = {
-                        let sessions = self
-                            .sessions
-                            .read()
-                            .map_err(|_| io::Error::new(io::ErrorKind::Other, "Lock poisoned"))?;
-                        !sessions.contains_key(&req.cid)
+                    let mut sessions = self
+                        .sessions
+                        .write()
+                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Lock poisoned"))?;
+
+                    if let Some(tx) = sessions.get(&req.cid).cloned() {
+                        drop(sessions);
+                        tracing::debug!("Joining existing MPTP session: {}", req.cid);
+                        if let Err(_) = tx.send((prefixed_stream, Some(req.cid))) {
+                            tracing::warn!("MPTP session {} channel closed", req.cid);
+                            return Err(io::Error::new(
+                                io::ErrorKind::ConnectionAborted,
+                                "Session closed",
+                            ));
+                        }
+                        return Ok(InboundTransport::Empty);
+                    }
+
+                    tracing::info!("New MPTP session: {}", req.cid);
+                    let (tx, rx) = mpsc::unbounded_channel();
+                    sessions.insert(req.cid, tx.clone());
+                    drop(sessions);
+
+                    let _ = tx.send((prefixed_stream, Some(req.cid)));
+
+                    let mptp_stream = MptpStream::new_with_receiver(rx);
+                    let tracked_stream = TrackedMptpStream {
+                        inner: mptp_stream,
+                        cid: req.cid,
+                        sessions: self.sessions.clone(),
                     };
 
-                    if is_new {
-                        tracing::info!("New MPTP session: {}", req.cid);
-                        let (tx, rx) = mpsc::unbounded_channel();
-
-                        // Register session
-                        {
-                            let mut sessions = self.sessions.write().map_err(|_| {
-                                io::Error::new(io::ErrorKind::Other, "Lock poisoned")
-                            })?;
-                            sessions.insert(req.cid, tx.clone());
+                    match req.dst_addr {
+                        Address::Ipv4(ip) => {
+                            sess.destination = SocksAddr::from((ip, req.dst_port));
                         }
-
-                        // Send the first stream (this one) to the MptpStream via channel?
-                        // No, MptpStream::new_with_receiver takes the receiver.
-                        // And we can pass the initial stream(s) via channel or maybe constructor supports it?
-                        // MptpStream::new_with_receiver(rx) creates an empty one that pulls from rx.
-                        // So we should send this stream to tx.
-
-                        let _ = tx.send((prefixed_stream, Some(req.cid)));
-
-                        let mptp_stream = MptpStream::new_with_receiver(rx);
-                        let tracked_stream = TrackedMptpStream {
-                            inner: mptp_stream,
-                            cid: req.cid,
-                            sessions: self.sessions.clone(),
-                        };
-
-                        // Update session destination
-                        match req.dst_addr {
-                            Address::Ipv4(ip) => {
-                                sess.destination = SocksAddr::from((ip, req.dst_port));
-                            }
-                            Address::Ipv6(ip) => {
-                                sess.destination = SocksAddr::from((ip, req.dst_port));
-                            }
-                            Address::Domain(domain) => {
-                                sess.destination = SocksAddr::try_from((domain, req.dst_port))
-                                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-                            }
+                        Address::Ipv6(ip) => {
+                            sess.destination = SocksAddr::from((ip, req.dst_port));
                         }
-
-                        if req.cmd == CMD_UDP {
-                            let stream_id = StreamId::Uuid(req.cid);
-                            let dgram_src = DatagramSource::new(sess.source, Some(stream_id));
-                            let mptp_datagram =
-                                MptpDatagram::new_with_source(tracked_stream, dgram_src);
-                            return Ok(InboundTransport::Datagram(
-                                Box::new(mptp_datagram),
-                                Some(sess),
-                            ));
-                        }
-
-                        return Ok(InboundTransport::Stream(Box::new(tracked_stream), sess));
-                    } else {
-                        tracing::debug!("Joining existing MPTP session: {}", req.cid);
-                        let tx = {
-                            let sessions = self.sessions.read().map_err(|_| {
-                                io::Error::new(io::ErrorKind::Other, "Lock poisoned")
-                            })?;
-                            sessions.get(&req.cid).cloned()
-                        };
-
-                        if let Some(tx) = tx {
-                            if let Err(_) = tx.send((prefixed_stream, Some(req.cid))) {
-                                // Channel closed, session probably dead
-                                tracing::warn!("MPTP session {} channel closed", req.cid);
-                                return Err(io::Error::new(
-                                    io::ErrorKind::ConnectionAborted,
-                                    "Session closed",
-                                ));
-                            }
-                            return Ok(InboundTransport::Empty);
-                        } else {
-                            // Should not happen due to lock, but possible if removed concurrently
-                            return Err(io::Error::new(
-                                io::ErrorKind::ConnectionRefused,
-                                "Session not found",
-                            ));
+                        Address::Domain(domain) => {
+                            sess.destination = SocksAddr::try_from((domain, req.dst_port))
+                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
                         }
                     }
+
+                    if req.cmd == CMD_UDP {
+                        let stream_id = StreamId::Uuid(req.cid);
+                        let dgram_src = DatagramSource::new(sess.source, Some(stream_id));
+                        let mptp_datagram =
+                            MptpDatagram::new_with_source(tracked_stream, dgram_src);
+                        return Ok(InboundTransport::Datagram(
+                            Box::new(mptp_datagram),
+                            Some(sess),
+                        ));
+                    }
+
+                    return Ok(InboundTransport::Stream(Box::new(tracked_stream), sess));
                 }
                 Ok(None) => {
                     // Need more data
