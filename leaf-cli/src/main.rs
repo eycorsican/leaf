@@ -76,18 +76,19 @@ fn main() {
     }
 
     if args.test {
-        if let Err(e) = leaf::test_config(&args.config) {
+        match leaf::test_config(&args.config) { Err(e) => {
             println!("{}", e);
             exit(1);
-        } else {
+        } _ => {
             println!("ok");
             exit(0);
-        }
+        }}
     }
 
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     if let Some(iface) = args.boundif {
-        std::env::set_var("OUTBOUND_INTERFACE", iface);
+        // TODO: Audit that the environment access only happens in single-threaded code.
+        unsafe { std::env::set_var("OUTBOUND_INTERFACE", iface) };
     }
 
     if let Some(tag) = args.test_outbound {
