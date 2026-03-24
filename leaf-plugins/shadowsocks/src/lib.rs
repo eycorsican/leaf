@@ -116,7 +116,7 @@ impl ExternalOutboundDatagramHandler for UdpHandler {
             let socket = if let Some(AnyOutboundTransport::Datagram(socket)) = transport {
                 socket
             } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "invalid input"));
+                return Err(io::Error::other("invalid input"));
             };
 
             let dgram = ShadowedDatagram::new(&self.cipher, &self.password)?;
@@ -187,9 +187,9 @@ impl OutboundDatagramRecvHalf for DatagramRecvHalf {
             println!("truncated udp packet, please report this issue");
         }
         buf[..to_write].copy_from_slice(&plaintext[src_addr.size()..src_addr.size() + to_write]);
-        if self.2.is_some() {
+        if let Some(dest) = self.2.as_ref() {
             // must be a domain destination
-            Ok((to_write, self.2.as_ref().unwrap().clone()))
+            Ok((to_write, dest.clone()))
         } else {
             Ok((to_write, src_addr))
         }
