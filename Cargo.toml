@@ -11,6 +11,10 @@ rust-version = "1.94.0"
 thiserror = { version = "^2.0" }
 anyhow = { version = "^1.0" }
 
+tracing = { version = "^0.1" }
+tracing-appender = { version = "^0.2" }
+tracing-subscriber = { version = "^0.3" }
+
 [profile.release]
 opt-level = 3
 lto = true

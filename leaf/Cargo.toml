@@ -201,9 +201,9 @@ hickory-proto = { version = "0.24", default-features = false }
 lru = "0.12"
 
 # Logging
-tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = "0.3"
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
 chrono = "0.4"
 
 # Router
