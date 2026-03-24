@@ -187,13 +187,13 @@ protobuf = "3.6"
 futures = "0.3"
 async-trait = "0.1"
 bytes = "1"
-anyhow = "1.0"
 rand = "0.8"
 socket2 = "0.5"
 async-recursion = "1.1"
 parking_lot = "0.12"
 uuid = { version = "1", features = ["v4"] }
 
+anyhow.workspace = true
 thiserror.workspace = true
 
 # DNS

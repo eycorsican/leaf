@@ -9,6 +9,7 @@ rust-version = "1.94.0"
 
 [workspace.dependencies]
 thiserror = { version = "^2.0" }
+anyhow = { version = "^1.0" }
 
 [profile.release]
 opt-level = 3
