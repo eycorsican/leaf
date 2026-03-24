@@ -17,10 +17,10 @@ use leaf::{
 };
 use tokio::io::AsyncWriteExt;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub static plugin_spec: PluginSpec = PluginSpec { add_handler_fn };
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn add_handler_fn(registrar: &mut dyn PluginRegistrar, tag: &str, args: &str) {
     let mut args = args.split(';');
     let address: String = args.next().unwrap().to_string();
@@ -68,11 +68,13 @@ impl ExternalOutboundStreamHandler for TcpHandler {
         async move {
             let mut stream =
                 ShadowedStream::new(stream.unwrap(), &self.cipher, &self.password, None)?;
-            let mut buf = BytesMut::new();
-            sess.destination
-                .write_buf(&mut buf, SocksAddrWireType::PortLast);
-            // FIXME combine header and first payload
-            stream.write_all(&buf).await?;
+            {
+                let mut buf = BytesMut::new();
+                sess.destination
+                    .write_buf(&mut buf, SocksAddrWireType::PortLast);
+                // FIXME combine header and first payload
+                stream.write_all(&buf).await?;
+            }
             Ok(Box::new(stream) as Box<dyn ProxyStream>)
         }
         .into_ffi()
@@ -208,10 +210,12 @@ impl OutboundDatagramSendHalf for DatagramSendHalf {
         buf2.put_slice(buf);
 
         let ciphertext = self.dgram.encrypt(buf2).map_err(|_| shadow::crypto_err())?;
-        match self.send_half.send_to(&ciphertext, &self.server_addr).await {
-            Ok(_) => Ok(buf.len()),
-            Err(err) => Err(err),
-        }
+        let len = self
+            .send_half
+            .send_to(&ciphertext, &self.server_addr)
+            .await
+            .map(|_| buf.len())?;
+        Ok(len)
     }
 
     async fn close(&mut self) -> io::Result<()> {
