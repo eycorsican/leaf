@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::mpsc::sync_channel;
 
 use anyhow::anyhow;
-use lazy_static::lazy_static;
+
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
@@ -347,10 +348,8 @@ impl RuntimeManager {
 
 pub type RuntimeId = u16;
 
-lazy_static! {
-    pub static ref RUNTIME_MANAGER: Mutex<HashMap<RuntimeId, Arc<RuntimeManager>>> =
-        Mutex::new(HashMap::new());
-}
+pub static RUNTIME_MANAGER: LazyLock<Mutex<HashMap<RuntimeId, Arc<RuntimeManager>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn reload(key: RuntimeId) -> Result<(), Error> {
     if let Some(m) = RUNTIME_MANAGER
