@@ -183,10 +183,10 @@ fn test_quic_trojan() -> anyhow::Result<()> {
         ]
     }
     "#;
-
-    std::env::set_var("TCP_DOWNLINK_TIMEOUT", "3");
-    std::env::set_var("TCP_UPLINK_TIMEOUT", "3");
-
+    unsafe {
+        std::env::set_var("TCP_DOWNLINK_TIMEOUT", "3");
+        std::env::set_var("TCP_UPLINK_TIMEOUT", "3");
+    }
     let mut path =
         std::env::current_exe().map_err(|e| anyhow::anyhow!("current exe failed: {}", e))?;
     path.pop();
