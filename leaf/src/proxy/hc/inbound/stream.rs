@@ -110,8 +110,11 @@ impl Handler {
         }
 
         // Send the configured response
-        let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n{}", 
-                               self.response.len(), self.response);
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n{}",
+            self.response.len(),
+            self.response
+        );
         stream.write_all(response.as_bytes()).await?;
         stream.flush().await?;
 

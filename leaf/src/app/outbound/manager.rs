@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map, HashMap},
+    collections::{HashMap, hash_map},
     convert::From,
     sync::Arc,
 };
@@ -7,7 +7,7 @@ use std::{
 #[cfg(feature = "outbound-select")]
 use tokio::sync::RwLock;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::future::AbortHandle;
 use protobuf::Message;
 use tracing::{debug, trace};
@@ -18,10 +18,10 @@ use crate::proxy::chain;
 use crate::proxy::failover;
 #[cfg(feature = "outbound-mptp")]
 use crate::proxy::mptp;
-#[cfg(feature = "outbound-static")]
-use crate::proxy::r#static;
 #[cfg(feature = "outbound-select")]
 use crate::proxy::select;
+#[cfg(feature = "outbound-static")]
+use crate::proxy::r#static;
 #[cfg(feature = "outbound-tryall")]
 use crate::proxy::tryall;
 
@@ -213,7 +213,7 @@ impl OutboundManager {
                                 "invalid [{}] outbound settings: unknown obfs method {}",
                                 &tag,
                                 method
-                            ))
+                            ));
                         }
                     };
                     HandlerBuilder::default()

@@ -114,8 +114,7 @@ where
         } else {
             trace!(
                 "trojan outbound received UDP {} bytes from {}",
-                payload_len,
-                &addr
+                payload_len, &addr
             );
             Ok((payload_len, addr))
         }

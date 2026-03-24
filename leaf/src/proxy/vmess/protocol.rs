@@ -1,16 +1,16 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use aes::cipher::{AsyncStreamCipher, BlockEncrypt, KeyInit, KeyIvInit};
 use aes::Aes128;
+use aes::cipher::{AsyncStreamCipher, BlockEncrypt, KeyInit, KeyIvInit};
 use aes_gcm::{AeadInPlace, Aes128Gcm};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ByteOrder};
 use bytes::{BufMut, BytesMut};
 use hmac::{Hmac, Mac};
 use lz_fnv::{Fnv1a, FnvHasher};
 use md5::{Digest, Md5};
 use rand::RngCore;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use uuid::Uuid;
 
 use crate::session::{SocksAddr, SocksAddrWireType};

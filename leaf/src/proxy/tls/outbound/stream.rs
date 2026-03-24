@@ -10,15 +10,15 @@ use {
     std::sync::Arc,
     std::{fs::File, io::BufReader, io::Cursor},
     tokio_rustls::{
-        rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
         TlsConnector,
+        rustls::{ClientConfig, RootCertStore, pki_types::ServerName},
     },
 };
 
 #[cfg(all(feature = "rustls-tls", feature = "rustls-tls-aws-lc"))]
 use tokio_rustls::rustls::client::{EchConfig, EchMode};
 #[cfg(all(feature = "rustls-tls", feature = "rustls-tls-aws-lc"))]
-use tokio_rustls::rustls::pki_types::{pem::PemObject, EchConfigListBytes};
+use tokio_rustls::rustls::pki_types::{EchConfigListBytes, pem::PemObject};
 
 #[cfg(feature = "openssl-tls")]
 use {
@@ -33,9 +33,9 @@ use crate::{app::SyncDnsClient, proxy::*, session::Session};
 #[cfg(feature = "rustls-tls")]
 mod dangerous {
     use tokio_rustls::rustls::{
+        DigitallySignedStruct, Error, SignatureScheme,
         client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
         pki_types::{CertificateDer, ServerName, UnixTime},
-        DigitallySignedStruct, Error, SignatureScheme,
     };
 
     #[derive(Debug)]
@@ -218,15 +218,13 @@ impl Handler {
                 if let Some(fixed) = fixed_ech_config_list {
                     trace!(
                         "auto ech fetch failed for {}, fallback to fixed ech config: {}",
-                        name,
-                        err
+                        name, err
                     );
                     Ok(Some(fixed.to_string()))
                 } else {
                     trace!(
                         "auto ech fetch failed for {}, no fixed ech config available: {}",
-                        name,
-                        err
+                        name, err
                     );
                     Err(io::Error::other(format!(
                         "auto ech fetch failed for {}: {}",
@@ -573,10 +571,7 @@ impl OutboundStreamHandler for Handler {
                 };
                 trace!(
                     "handling TLS {} with rustls, ech_enabled={}, ech_config_selected={}, ech_dns_lookup_skipped={}",
-                    &name,
-                    self.ech_enabled,
-                    ech_config_selected,
-                    ech_dns_lookup_skipped
+                    &name, self.ech_enabled, ech_config_selected, ech_dns_lookup_skipped
                 );
                 let connector = TlsConnector::from(tls_config);
                 let domain = ServerName::try_from(name.as_str()).map_err(|e| {
@@ -618,8 +613,7 @@ impl OutboundStreamHandler for Handler {
                 })?;
                 trace!(
                     "handling TLS {} with openssl, ech_enabled={}",
-                    &name,
-                    self.ech_enabled
+                    &name, self.ech_enabled
                 );
                 let mut stream = SslStream::new(ssl, stream).map_err(|e| {
                     io::Error::new(
@@ -653,11 +647,11 @@ mod tests {
     use protobuf::MessageField;
     use tokio::sync::RwLock;
 
-    use crate::app::{dns::DnsClient, SyncDnsClient};
+    use crate::app::{SyncDnsClient, dns::DnsClient};
     #[cfg(feature = "rustls-tls-aws-lc")]
     use crate::session::Session;
 
-    use super::{decode_base64, ensure_ech_config_list_bytes, Handler};
+    use super::{Handler, decode_base64, ensure_ech_config_list_bytes};
 
     fn new_test_dns_client() -> SyncDnsClient {
         let mut dns = crate::config::Dns::new();
@@ -729,9 +723,10 @@ mod tests {
             Some(Err(anyhow!("dns failed"))),
         )
         .unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("auto ech fetch failed for example.com: dns failed"));
+        assert!(
+            err.to_string()
+                .contains("auto ech fetch failed for example.com: dns failed")
+        );
     }
 
     #[cfg(any(feature = "openssl-tls", feature = "rustls-tls-aws-lc"))]

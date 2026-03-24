@@ -426,11 +426,7 @@ where
             items.push(item.to_string());
         }
     }
-    if !items.is_empty() {
-        Some(items)
-    } else {
-        None
-    }
+    if !items.is_empty() { Some(items) } else { None }
 }
 
 fn get_string(text: &str) -> Option<String> {

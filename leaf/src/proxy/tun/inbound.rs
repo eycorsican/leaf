@@ -2,15 +2,16 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::{sink::SinkExt, stream::StreamExt};
 use protobuf::Message;
+use tokio::sync::Mutex;
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
-use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::{
+    Runner,
     app::dispatcher::Dispatcher,
     app::fake_dns::{FakeDns, FakeDnsMode},
     app::nat_manager::NatManager,
@@ -18,7 +19,6 @@ use crate::{
     config::{Inbound, TunInboundSettings},
     option,
     session::{DatagramSource, Network, Session, SocksAddr},
-    Runner,
 };
 
 #[cfg(feature = "netstack-lwip")]

@@ -8,12 +8,12 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::crypto::{
-    aead::{AeadDecryptor, AeadEncryptor},
     Decryptor, Encryptor,
+    aead::{AeadDecryptor, AeadEncryptor},
 };
 
 use super::crypto::{PaddingLengthGenerator, ShakeSizeParser, VMessAEADSequence};

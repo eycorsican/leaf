@@ -6,29 +6,29 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_recursion::async_recursion;
 use futures::future::select_ok;
 use hickory_proto::{
     op::{
-        header::MessageType, op_code::OpCode, query::Query, response_code::ResponseCode, Message,
+        Message, header::MessageType, op_code::OpCode, query::Query, response_code::ResponseCode,
     },
-    rr::{record_data::RData, record_type::RecordType, Name},
+    rr::{Name, record_data::RData, record_type::RecordType},
 };
 use lru::LruCache;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::timeout;
-use tracing::{debug, trace, warn, Instrument};
+use tracing::{Instrument, debug, trace, warn};
 
 #[cfg(feature = "rustls-tls")]
 use {
     std::sync::Arc as SyncArc,
     tokio_rustls::{
-        rustls::{pki_types::ServerName, ClientConfig, RootCertStore},
         TlsConnector,
+        rustls::{ClientConfig, RootCertStore, pki_types::ServerName},
     },
 };
 
@@ -852,9 +852,7 @@ impl DnsClient {
                 if last_ttl.is_some() {
                     trace!(
                         "ech parameter missing in record host={} type={} server={}",
-                        host,
-                        ty,
-                        resolver
+                        host, ty, resolver
                     );
                     return Err(anyhow!(
                         "missing ech parameter in {} record for {} from {}",

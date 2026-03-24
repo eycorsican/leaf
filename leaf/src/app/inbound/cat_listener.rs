@@ -2,22 +2,22 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{io, pin::Pin};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use futures::task::{Context, Poll};
 use futures::TryFutureExt;
+use futures::task::{Context, Poll};
 use protobuf::Message;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 use tracing::{debug, info};
 
+use crate::Runner;
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::{NatManager, UdpPacket};
 use crate::config::{CatInboundSettings, Inbound};
 use crate::proxy::*;
 use crate::session::*;
-use crate::Runner;
 
 struct Stream {
     input: tokio::io::Stdin,

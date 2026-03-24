@@ -9,10 +9,10 @@ use std::mem::transmute;
 use std::net::{IpAddr, SocketAddr};
 use std::os::windows::ffi::OsStringExt;
 use std::ptr::{addr_of, addr_of_mut};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 mod datagram;
@@ -21,7 +21,7 @@ mod stream;
 pub use datagram::Handler as DatagramHandler;
 pub use stream::Handler as StreamHandler;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bytes::{BufMut, BytesMut};
 use parking_lot::RwLock;
 use tracing::{debug, trace, warn};
@@ -275,9 +275,7 @@ unsafe extern "C" fn tcpConnectRequest(id: EndpointId, conn_info: *mut NfTcpConn
 
     trace!(
         "tcpConnectRequest id={} local={} remote={}",
-        id,
-        &local_addr,
-        &remote_addr
+        id, &local_addr, &remote_addr
     );
 
     if remote_addr.is_ipv6() {

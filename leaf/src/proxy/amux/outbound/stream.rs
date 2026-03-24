@@ -3,14 +3,14 @@ use std::io;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::future::{abortable, AbortHandle};
 use futures::FutureExt;
+use futures::future::BoxFuture;
+use futures::future::{AbortHandle, abortable};
+use rand::SeedableRng;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
-use rand::SeedableRng;
 use tokio::sync::Mutex;
-use tracing::{debug, Instrument};
+use tracing::{Instrument, debug};
 
 use crate::{
     app::SyncDnsClient,

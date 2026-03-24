@@ -6,9 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use futures::TryFutureExt;
 use futures::future::select_ok;
 use futures::stream::Stream;
-use futures::TryFutureExt;
 use socket2::{Domain, SockRef, Socket, Type};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};

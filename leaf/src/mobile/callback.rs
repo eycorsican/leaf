@@ -42,8 +42,8 @@
 pub mod android {
     use std::os::unix::io::RawFd;
 
-    use anyhow::{anyhow, Result};
-    use jni::{objects::*, JavaVM};
+    use anyhow::{Result, anyhow};
+    use jni::{JavaVM, objects::*};
     use std::sync::RwLock;
 
     static JVM: RwLock<Option<JavaVM>> = RwLock::new(None);

@@ -1,11 +1,11 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use protobuf::Message;
 use tracing::warn;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 fn get_cache_file_path() -> Result<PathBuf> {
     let cache_loc = if !(&*crate::option::CACHE_LOCATION).is_empty() {

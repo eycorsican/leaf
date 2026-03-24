@@ -4,13 +4,13 @@ use std::{sync::Arc, time::Duration};
 
 use bytes::BytesMut;
 use hickory_proto::{
-    op::{header::MessageType, op_code::OpCode, query::Query, Message},
-    rr::{record_type::RecordType, Name},
+    op::{Message, header::MessageType, op_code::OpCode, query::Query},
+    rr::{Name, record_type::RecordType},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
 use tracing::{debug, trace, warn};
 
 use crate::{app::SyncDnsClient, proxy::*, session::*};

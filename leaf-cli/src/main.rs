@@ -76,13 +76,16 @@ fn main() {
     }
 
     if args.test {
-        match leaf::test_config(&args.config) { Err(e) => {
-            println!("{}", e);
-            exit(1);
-        } _ => {
-            println!("ok");
-            exit(0);
-        }}
+        match leaf::test_config(&args.config) {
+            Err(e) => {
+                println!("{}", e);
+                exit(1);
+            }
+            _ => {
+                println!("ok");
+                exit(0);
+            }
+        }
     }
 
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]

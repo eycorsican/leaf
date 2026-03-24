@@ -6,11 +6,11 @@ use anyhow::Result;
 #[cfg(feature = "rustls-tls")]
 use {
     rustls_pemfile::{certs, ec_private_keys, pkcs8_private_keys, rsa_private_keys},
-    tokio_rustls::rustls::{
-        pki_types::{CertificateDer, PrivateKeyDer},
-        ServerConfig,
-    },
     tokio_rustls::TlsAcceptor,
+    tokio_rustls::rustls::{
+        ServerConfig,
+        pki_types::{CertificateDer, PrivateKeyDer},
+    },
 };
 
 use crate::{proxy::*, session::Session};

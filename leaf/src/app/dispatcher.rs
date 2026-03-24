@@ -5,7 +5,7 @@ use std::time::Duration;
 use async_recursion::async_recursion;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn, Instrument};
+use tracing::{Instrument, debug, info, warn};
 
 use crate::{
     app::SyncDnsClient,

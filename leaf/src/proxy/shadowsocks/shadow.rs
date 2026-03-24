@@ -6,16 +6,16 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
-use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::debug;
 
 use crate::common::crypto::{
-    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
     Cipher, Decryptor, Encryptor, SizedCipher,
+    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
 };
 
-use super::crypto::{hkdf_sha1, kdf, ShadowsocksNonceSequence};
+use super::crypto::{ShadowsocksNonceSequence, hkdf_sha1, kdf};
 
 enum ReadState {
     WaitingSalt,

@@ -7,11 +7,11 @@ use std::sync::Arc;
 use chrono::{Local, TimeZone};
 
 use axum::{
+    Router,
     extract::{Path, State},
     http::StatusCode,
     response::{Html, Json},
     routing::{get, post},
-    Router,
 };
 use tracing::info;
 
