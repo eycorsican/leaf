@@ -2,7 +2,9 @@
 name = "leaf-cli"
 version = "0.14.2"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
-edition = "2021"
+
+edition.workspace = true
+rust-version.workspace = true
 
 [[bin]]
 name = "leaf"
@@ -15,11 +17,7 @@ argh = "0.1"
 [target.'cfg(not(windows))'.dependencies.leaf]
 path = "../leaf"
 default-features = false
-features = [
-  "default-aws-lc",
-  "ctrlc",
-  "auto-reload"
-]
+features = ["default-aws-lc", "ctrlc", "auto-reload"]
 
 [target.'cfg(windows)'.dependencies.leaf]
 path = "../leaf"
@@ -29,5 +27,5 @@ features = [
   "ctrlc",
   "auto-reload",
   "inbound-nf",
-  "rule-process-name"
+  "rule-process-name",
 ]

@@ -466,7 +466,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         if parts.len() != 2 {
             continue;
         }
-        std::env::set_var(parts[0], parts[1]);
+        unsafe { std::env::set_var(parts[0], parts[1]) };
     }
 
     let mut general = General::default();

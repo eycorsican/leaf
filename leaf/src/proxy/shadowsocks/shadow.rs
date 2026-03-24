@@ -384,7 +384,7 @@ impl ShadowedDatagram {
         // generate random salt
         let mut rng = StdRng::from_entropy();
         for i in 0..salt_size {
-            buffer[i] = rng.gen();
+            buffer[i] = rng.r#gen();
         }
 
         let key = hkdf_sha1(

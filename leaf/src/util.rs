@@ -114,7 +114,7 @@ async fn test_udp_outbound(
     let query = Query::query(name, RecordType::A);
     msg.add_query(query);
     let mut rng = StdRng::from_entropy();
-    let id: u16 = rng.gen();
+    let id: u16 = rng.r#gen();
     msg.set_id(id);
     msg.set_op_code(OpCode::Query);
     msg.set_message_type(MessageType::Query);

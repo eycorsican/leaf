@@ -265,7 +265,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for VMessAuthStream<T> {
                         piece3.resize(padding_size, 0);
                         let mut rng = StdRng::from_entropy();
                         for i in 0..piece3.len() {
-                            piece3[i] = rng.gen();
+                            piece3[i] = rng.r#gen();
                         }
                     }
 

@@ -51,7 +51,7 @@ impl RequestHeader {
         let mut buf = BytesMut::new();
         buf.put_i64(ts);
         let mut rng = StdRng::from_entropy();
-        let rand_bytes: [u8; 4] = rng.gen();
+        let rand_bytes: [u8; 4] = rng.r#gen();
         buf.put_slice(&rand_bytes);
         buf.put_u32(crc32fast::hash(&buf));
         let cipher = Aes128::new_from_slice(
@@ -172,7 +172,7 @@ impl RequestHeader {
             unsafe { padding_bytes.set_len(padding_len as usize) };
             let mut rng = StdRng::from_entropy();
             for i in 0..padding_bytes.len() {
-                padding_bytes[i] = rng.gen();
+                padding_bytes[i] = rng.r#gen();
             }
             buf.put_slice(&padding_bytes);
         }
@@ -233,7 +233,7 @@ impl ClientSession {
         unsafe { rand_bytes.set_len(16 + 16 + 1) };
         let mut rng = StdRng::from_entropy();
         for i in 0..rand_bytes.len() {
-            rand_bytes[i] = rng.gen();
+            rand_bytes[i] = rng.r#gen();
         }
         request_body_key[..].copy_from_slice(&rand_bytes[..16]);
         request_body_iv[..].copy_from_slice(&rand_bytes[16..32]);

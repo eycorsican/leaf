@@ -1,12 +1,11 @@
 [workspace]
-members = [
-    "leaf",
-    "leaf-cli",
-    "leaf-ffi",
-    "leaf-plugins/shadowsocks",
-]
+members = ["leaf", "leaf-cli", "leaf-ffi", "leaf-plugins/shadowsocks"]
 default-members = ["leaf-cli"]
 resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.94.0"
 
 [profile.release]
 opt-level = 3

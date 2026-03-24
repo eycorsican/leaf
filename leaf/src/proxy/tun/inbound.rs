@@ -598,7 +598,7 @@ pub fn new(
             .collect();
         cfg.metric(0);
         cfg.platform_config(|x| {
-            x.device_guid(rng.gen());
+            x.device_guid(rng.r#gen());
             if !dns_servers.is_empty() {
                 x.dns_servers(&dns_servers);
             }

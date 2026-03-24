@@ -511,12 +511,12 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
             } else {
                 iface.clone()
             };
-            std::env::set_var("OUTBOUND_INTERFACE", binds);
+            unsafe {std::env::set_var("OUTBOUND_INTERFACE", binds)};
         }
     }
 
     #[cfg(all(feature = "inbound-tun", target_os = "windows"))]
-    {
+    unsafe {
         std::env::set_var("OUTBOUND_INTERFACE", winsys::get_default_interface_ips());
     }
 
