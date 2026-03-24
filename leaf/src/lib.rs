@@ -1,20 +1,21 @@
 use std::collections::HashMap;
 use std::io;
-use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::Mutex;
+use std::sync::mpsc::sync_channel;
 
 use anyhow::anyhow;
-use lazy_static::lazy_static;
+
 use thiserror::Error;
-use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::time::{timeout, Duration};
+use tokio::sync::mpsc;
+use tokio::time::{Duration, timeout};
 use tracing::{info, trace, warn};
 
 #[cfg(feature = "auto-reload")]
 use notify::{
-    event, Error as NotifyError, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher,
+    Error as NotifyError, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher, event,
 };
 
 use app::{
@@ -22,7 +23,7 @@ use app::{
     nat_manager::NatManager, outbound::manager::OutboundManager, router::Router,
 };
 
-use crate::app::{stat_manager::StatManager, SyncStatManager};
+use crate::app::{SyncStatManager, stat_manager::StatManager};
 
 #[cfg(feature = "api")]
 use crate::app::api::api_server::ApiServer;
@@ -347,10 +348,8 @@ impl RuntimeManager {
 
 pub type RuntimeId = u16;
 
-lazy_static! {
-    pub static ref RUNTIME_MANAGER: Mutex<HashMap<RuntimeId, Arc<RuntimeManager>>> =
-        Mutex::new(HashMap::new());
-}
+pub static RUNTIME_MANAGER: LazyLock<Mutex<HashMap<RuntimeId, Arc<RuntimeManager>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn reload(key: RuntimeId) -> Result<(), Error> {
     if let Some(m) = RUNTIME_MANAGER
@@ -511,12 +510,12 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
             } else {
                 iface.clone()
             };
-            std::env::set_var("OUTBOUND_INTERFACE", binds);
+            unsafe { std::env::set_var("OUTBOUND_INTERFACE", binds) };
         }
     }
 
     #[cfg(all(feature = "inbound-tun", target_os = "windows"))]
-    {
+    unsafe {
         std::env::set_var("OUTBOUND_INTERFACE", winsys::get_default_interface_ips());
     }
 

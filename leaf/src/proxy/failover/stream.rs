@@ -2,9 +2,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::future::{abortable, AbortHandle};
 use futures::FutureExt;
+use futures::future::BoxFuture;
+use futures::future::{AbortHandle, abortable};
 use lru_time_cache::LruCache;
 use tokio::sync::{Mutex, Notify};
 use tokio::time::Instant;

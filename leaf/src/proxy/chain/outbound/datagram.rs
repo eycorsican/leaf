@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::io;
 
 use async_trait::async_trait;
-use tracing::{trace, Instrument};
+use tracing::{Instrument, trace};
 
 use crate::{proxy::*, session::*};
 

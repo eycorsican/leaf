@@ -5,8 +5,8 @@ use std::sync::{Arc, RwLock};
 use std::task::{Context, Poll};
 
 use crate::proxy::mptp::mptp_conn::{
-    protocol::{Address, HandshakeRequest, CMD_UDP},
     MptpDatagram, MptpStream,
+    protocol::{Address, CMD_UDP, HandshakeRequest},
 };
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};

@@ -8,12 +8,12 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::crypto::{
-    aead::{AeadDecryptor, AeadEncryptor},
     Decryptor, Encryptor,
+    aead::{AeadDecryptor, AeadEncryptor},
 };
 
 use super::crypto::{PaddingLengthGenerator, ShakeSizeParser, VMessAEADSequence};
@@ -265,7 +265,7 @@ impl<T: AsyncWrite + Unpin> AsyncWrite for VMessAuthStream<T> {
                         piece3.resize(padding_size, 0);
                         let mut rng = StdRng::from_entropy();
                         for i in 0..piece3.len() {
-                            piece3[i] = rng.gen();
+                            piece3[i] = rng.r#gen();
                         }
                     }
 

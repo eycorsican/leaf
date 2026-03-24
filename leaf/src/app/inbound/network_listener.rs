@@ -10,13 +10,13 @@ use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 use tokio::time::timeout;
-use tracing::{debug, info, trace, warn, Instrument};
+use tracing::{Instrument, debug, info, trace, warn};
 
+use crate::Runner;
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::{NatManager, UdpPacket};
 use crate::proxy::*;
 use crate::session::{Network, Session, SocksAddr};
-use crate::Runner;
 
 #[cfg(feature = "inbound-nf")]
 lazy_static::lazy_static! {

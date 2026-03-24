@@ -6,7 +6,7 @@ use anyhow::Result;
 use tracing::field::Visit;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    filter::{filter_fn, LevelFilter},
+    filter::{LevelFilter, filter_fn},
     fmt,
     layer::{Layer, Layered},
     prelude::*,

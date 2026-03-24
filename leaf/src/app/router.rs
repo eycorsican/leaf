@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use async_recursion::async_recursion;
 use cidr::IpCidr;
 use futures::TryFutureExt;
-use maxminddb::geoip2::Country;
 use maxminddb::Mmap;
+use maxminddb::geoip2::Country;
 #[cfg(feature = "rule-process-name")]
 use regex::Regex;
 use tracing::{debug, warn};

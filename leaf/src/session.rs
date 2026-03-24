@@ -272,7 +272,7 @@ impl SocksAddr {
 
     pub fn must_ip(&self) -> &SocketAddr {
         match self {
-            SocksAddr::Ip(ref a) => a,
+            SocksAddr::Ip(a) => a,
             _ => {
                 panic!("assert SocksAddr as SocketAddr failed");
             }
@@ -304,7 +304,7 @@ impl SocksAddr {
     }
 
     pub fn domain(&self) -> Option<&String> {
-        if let SocksAddr::Domain(ref domain, _) = self {
+        if let SocksAddr::Domain(domain, _) = self {
             Some(domain)
         } else {
             None

@@ -426,11 +426,7 @@ where
             items.push(item.to_string());
         }
     }
-    if !items.is_empty() {
-        Some(items)
-    } else {
-        None
-    }
+    if !items.is_empty() { Some(items) } else { None }
 }
 
 fn get_string(text: &str) -> Option<String> {
@@ -466,7 +462,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         if parts.len() != 2 {
             continue;
         }
-        std::env::set_var(parts[0], parts[1]);
+        unsafe { std::env::set_var(parts[0], parts[1]) };
     }
 
     let mut general = General::default();

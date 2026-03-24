@@ -2,14 +2,14 @@
 
 use std::io::Write;
 use std::path::Path;
-use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
 
 use futures::future::abortable;
 
 use rand::RngCore;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
@@ -393,13 +393,14 @@ pub fn test_tcp_half_close_on_configs(
     }));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(())) => Ok(()),
@@ -541,13 +542,14 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => (),
@@ -640,13 +642,14 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => (),
@@ -770,13 +773,14 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => (),
@@ -907,13 +911,14 @@ pub fn test_data_transfering_reliability_on_configs(
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => Ok(()),
@@ -1124,14 +1129,15 @@ pub fn test_configs_with_auth(
 
     for id in leaf_rt_ids.into_iter() {
         assert!(leaf::shutdown(id));
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))?;
                 Ok::<(), anyhow::Error>(())
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
 
     match res {

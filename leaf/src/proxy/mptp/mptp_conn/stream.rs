@@ -1,7 +1,7 @@
 use tracing::{debug, error};
 
 use super::protocol::{
-    Frame, DATA_HEADER_LEN, MTYP_DATA, MTYP_FIN, MTYP_PING, MTYP_PONG, MTYP_RST,
+    DATA_HEADER_LEN, Frame, MTYP_DATA, MTYP_FIN, MTYP_PING, MTYP_PONG, MTYP_RST,
 };
 use bytes::{Buf, Bytes, BytesMut};
 use std::collections::BTreeMap;

@@ -4,14 +4,14 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use rustls::pki_types::CertificateDer;
 use rustls_pemfile::certs;
 use tokio::sync::RwLock;
-use tokio::time::{timeout, Duration};
-use tracing::{debug, trace, Instrument};
+use tokio::time::{Duration, timeout};
+use tracing::{Instrument, debug, trace};
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
 

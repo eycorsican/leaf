@@ -896,7 +896,7 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                                 _ => {
                                     return Err(anyhow::anyhow!(
                                         "invalid [tls inbound] settings: echConfig and echKey must be set together"
-                                    ))
+                                    ));
                                 }
                             }
                         }

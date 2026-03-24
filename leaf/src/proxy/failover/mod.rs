@@ -4,13 +4,13 @@ use std::{sync::Arc, time::Duration};
 
 use bytes::BytesMut;
 use hickory_proto::{
-    op::{header::MessageType, op_code::OpCode, query::Query, Message},
-    rr::{record_type::RecordType, Name},
+    op::{Message, header::MessageType, op_code::OpCode, query::Query},
+    rr::{Name, record_type::RecordType},
 };
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{Mutex, Notify};
-use tokio::time::{timeout, Instant};
+use tokio::time::{Instant, timeout};
 use tracing::{debug, trace, warn};
 
 use crate::{app::SyncDnsClient, proxy::*, session::*};
@@ -148,7 +148,7 @@ async fn single_health_check(
                     let query = Query::query(name, RecordType::A);
                     msg.add_query(query);
                     let mut rng = StdRng::from_entropy();
-                    let id: u16 = rng.gen();
+                    let id: u16 = rng.r#gen();
                     msg.set_id(id);
                     msg.set_op_code(OpCode::Query);
                     msg.set_message_type(MessageType::Query);

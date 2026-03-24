@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use reality_rustls::pki_types::ServerName;
 
-use super::super::stream::{build_rustls_config, create_reality_provider, RealityStream};
+use super::super::stream::{RealityStream, build_rustls_config, create_reality_provider};
 use crate::proxy::*;
 
 pub struct Handler {
@@ -13,8 +13,8 @@ pub struct Handler {
     pub short_id: String,
 }
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 #[async_trait]
 impl OutboundStreamHandler for Handler {

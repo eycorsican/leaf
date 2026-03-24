@@ -1,6 +1,6 @@
 use std::net::{SocketAddr, SocketAddrV6};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 pub fn parse_bind_addr(bind: &str) -> Result<SocketAddr> {
     let mut split = bind.split('%');

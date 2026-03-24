@@ -146,7 +146,9 @@ fn test_dns_config() {
 #[test]
 fn test_env_config_sets_process_env() {
     let key = "LEAF_JSON_ENV_TEST_KEY";
-    std::env::remove_var(key);
+    unsafe {
+        std::env::remove_var(key);
+    }
     let json_str = r#"
     {
         "env": {
@@ -156,7 +158,9 @@ fn test_env_config_sets_process_env() {
     "#;
     let _ = crate::config::json::json_from_string(json_str).unwrap();
     assert_eq!(std::env::var(key).unwrap(), "json-env-value");
-    std::env::remove_var(key);
+    unsafe {
+        std::env::remove_var(key);
+    }
 }
 
 #[test]
