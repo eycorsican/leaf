@@ -390,9 +390,7 @@ impl Dispatcher {
             sess.dns_sniffed_domain = Some(domain);
         }
 
-        if let Some(domain) = sess.destination.domain()
-            && domain == "healthcheck.leaf"
-        {
+        if let Some("healthcheck.leaf") = sess.destination.domain().map(String::as_str) {
             let recv = HealthcheckUdpRecvHalf {
                 responded: false,
                 src_addr: sess.destination.clone(),
