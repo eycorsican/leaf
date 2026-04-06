@@ -159,12 +159,12 @@ impl InboundStreamHandler for Handler {
                     let mut sessions = self
                         .sessions
                         .write()
-                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Lock poisoned"))?;
+                        .map_err(|_| io::Error::other("Lock poisoned"))?;
 
                     if let Some(tx) = sessions.get(&req.cid).cloned() {
                         drop(sessions);
                         tracing::debug!("Joining existing MPTP session: {}", req.cid);
-                        if let Err(_) = tx.send((prefixed_stream, Some(req.cid))) {
+                        if tx.send((prefixed_stream, Some(req.cid))).is_err() {
                             tracing::warn!("MPTP session {} channel closed", req.cid);
                             return Err(io::Error::new(
                                 io::ErrorKind::ConnectionAborted,

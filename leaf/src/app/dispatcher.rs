@@ -169,22 +169,19 @@ impl Dispatcher {
             &sess.network, &sess.inbound_tag, &sess.source, &sess.destination
         );
 
-        if option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
-            if let Some(ip) = sess.destination.ip() {
-                if let Some(domain) = self.dns_sniffer.get(&ip).await {
-                    debug!("dns sniffed domain={}", &domain);
-                    sess.dns_sniffed_domain = Some(domain);
-                }
-            }
+        if option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed)
+            && let Some(ip) = sess.destination.ip()
+            && let Some(domain) = self.dns_sniffer.get(&ip).await
+        {
+            debug!("dns sniffed domain={}", &domain);
+            sess.dns_sniffed_domain = Some(domain);
         }
 
-        if let Some(domain) = sess.destination.domain() {
-            if domain == "healthcheck.leaf" {
-                if let Err(e) = healthcheck_respond_simple(&mut lhs).await {
-                    debug!("healthcheck response failed: {}", e);
-                }
-                return;
+        if let Some("healthcheck.leaf") = sess.destination.domain().map(String::as_str) {
+            if let Err(e) = healthcheck_respond_simple(&mut lhs).await {
+                debug!("healthcheck response failed: {}", e);
             }
+            return;
         }
 
         let tls_sniff = option::TLS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed);
@@ -219,12 +216,11 @@ impl Dispatcher {
                             }
                         }
 
-                        if option::DOMAIN_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed) {
-                            if let Ok(dest) = SocksAddr::try_from((domain, sess.destination.port()))
-                            {
-                                debug!("override destination with sniffed domain={}", dest);
-                                sess.destination = dest;
-                            }
+                        if option::DOMAIN_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed)
+                            && let Ok(dest) = SocksAddr::try_from((domain, sess.destination.port()))
+                        {
+                            debug!("override destination with sniffed domain={}", dest);
+                            sess.destination = dest;
                         }
                     }
                 }
@@ -387,26 +383,26 @@ impl Dispatcher {
             &sess.network, &sess.inbound_tag, &sess.source, &sess.destination
         );
 
-        if let Some(ip) = sess.destination.ip() {
-            if let Some(domain) = self.dns_sniffer.get(&ip).await {
-                debug!("dns sniffed domain={}", &domain);
-                sess.dns_sniffed_domain = Some(domain);
-            }
+        if let Some(ip) = sess.destination.ip()
+            && let Some(domain) = self.dns_sniffer.get(&ip).await
+        {
+            debug!("dns sniffed domain={}", &domain);
+            sess.dns_sniffed_domain = Some(domain);
         }
 
-        if let Some(domain) = sess.destination.domain() {
-            if domain == "healthcheck.leaf" {
-                let recv = HealthcheckUdpRecvHalf {
-                    responded: false,
-                    src_addr: sess.destination.clone(),
-                };
-                let d = HealthcheckUdpDatagram {
-                    recv,
-                    send: HealthcheckUdpSendHalf,
-                };
-                let d: Box<dyn OutboundDatagram> = Box::new(d);
-                return Ok(d);
-            }
+        if let Some(domain) = sess.destination.domain()
+            && domain == "healthcheck.leaf"
+        {
+            let recv = HealthcheckUdpRecvHalf {
+                responded: false,
+                src_addr: sess.destination.clone(),
+            };
+            let d = HealthcheckUdpDatagram {
+                recv,
+                send: HealthcheckUdpSendHalf,
+            };
+            let d: Box<dyn OutboundDatagram> = Box::new(d);
+            return Ok(d);
         }
 
         let outbound = {

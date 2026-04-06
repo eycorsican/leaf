@@ -19,12 +19,13 @@ use crate::proxy::*;
 use crate::session::{Network, Session, SocksAddr};
 
 #[cfg(feature = "inbound-nf")]
-lazy_static::lazy_static! {
-    pub static ref TCP_LISTENING_ADDRESSES: std::sync::RwLock<std::collections::HashMap<String, SocketAddr>> =
-        std::sync::RwLock::new(std::collections::HashMap::new());
-    pub static ref UDP_LISTENING_ADDRESSES: std::sync::RwLock<std::collections::HashMap<String, SocketAddr>> =
-        std::sync::RwLock::new(std::collections::HashMap::new());
-}
+pub static TCP_LISTENING_ADDRESSES: std::sync::LazyLock<
+    std::sync::RwLock<std::collections::HashMap<String, SocketAddr>>,
+> = LazyLock::new(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+#[cfg(feature = "inbound-nf")]
+pub static UDP_LISTENING_ADDRESSES: std::sync::LazyLock<
+    std::sync::RwLock<std::collections::HashMap<String, SocketAddr>>,
+> = std::sync::LazyLock::new(|| std::sync::RwLock::new(std::collections::HashMap::new()));
 
 #[cfg(feature = "inbound-nf")]
 pub fn get_network_listen_addr(tag: &str, kind: Network) -> Option<SocketAddr> {

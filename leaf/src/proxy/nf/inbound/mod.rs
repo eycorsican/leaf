@@ -185,15 +185,17 @@ struct NfTcpConnInfo {
 
 impl NfTcpConnInfo {
     unsafe fn get_local_address(info: *const NfTcpConnInfo) -> Result<SocketAddr> {
-        sockaddr_to_socketaddr(
-            &addr_of!((*info).localAddress).read_unaligned() as *const [u8; 28] as *const SOCKADDR,
-        )
+        unsafe {
+            sockaddr_to_socketaddr(&addr_of!((*info).localAddress).read_unaligned()
+                as *const [u8; 28] as *const SOCKADDR)
+        }
     }
 
     unsafe fn get_remote_address(info: *const NfTcpConnInfo) -> Result<SocketAddr> {
-        sockaddr_to_socketaddr(
-            &addr_of!((*info).remoteAddress).read_unaligned() as *const [u8; 28] as *const SOCKADDR,
-        )
+        unsafe {
+            sockaddr_to_socketaddr(&addr_of!((*info).remoteAddress).read_unaligned()
+                as *const [u8; 28] as *const SOCKADDR)
+        }
     }
 }
 
@@ -206,9 +208,10 @@ struct NfUdpConnInfo {
 
 impl NfUdpConnInfo {
     unsafe fn get_local_address(info: *const NfUdpConnInfo) -> Result<SocketAddr> {
-        sockaddr_to_socketaddr(
-            &addr_of!((*info).localAddress).read_unaligned() as *const [u8; 28] as *const SOCKADDR,
-        )
+        unsafe {
+            sockaddr_to_socketaddr(&addr_of!((*info).localAddress).read_unaligned()
+                as *const [u8; 28] as *const SOCKADDR)
+        }
     }
 }
 
@@ -264,11 +267,11 @@ unsafe extern "C" fn threadEnd() {
 }
 
 unsafe extern "C" fn tcpConnectRequest(id: EndpointId, conn_info: *mut NfTcpConnInfo) {
-    let Ok(local_addr) = NfTcpConnInfo::get_local_address(conn_info) else {
+    let Ok(local_addr) = (unsafe { NfTcpConnInfo::get_local_address(conn_info) }) else {
         debug!("unable to get local address");
         return;
     };
-    let Ok(remote_addr) = NfTcpConnInfo::get_remote_address(conn_info) else {
+    let Ok(remote_addr) = (unsafe { NfTcpConnInfo::get_remote_address(conn_info) }) else {
         debug!("unable to get remote address");
         return;
     };
@@ -280,7 +283,10 @@ unsafe extern "C" fn tcpConnectRequest(id: EndpointId, conn_info: *mut NfTcpConn
 
     if remote_addr.is_ipv6() {
         // Block IPv6.
-        addr_of_mut!((*conn_info).filteringFlag).write_unaligned(NfFilteringFlag::NfBlock.value());
+        unsafe {
+            addr_of_mut!((*conn_info).filteringFlag)
+                .write_unaligned(NfFilteringFlag::NfBlock.value())
+        };
         return;
     }
 
@@ -288,12 +294,8 @@ unsafe extern "C" fn tcpConnectRequest(id: EndpointId, conn_info: *mut NfTcpConn
         return;
     }
 
-    let process_id = addr_of!((*conn_info).processId).read_unaligned();
-    let process_name = if let Ok(name) = get_process_name(process_id) {
-        Some(name)
-    } else {
-        None
-    };
+    let process_id = unsafe { addr_of!((*conn_info).processId).read_unaligned() };
+    let process_name = unsafe { get_process_name(process_id).ok() };
 
     debug!(
         "tcpConnectRequest id={} local={} remote={} process_id={} process_name={}",
@@ -332,23 +334,25 @@ unsafe extern "C" fn tcpConnectRequest(id: EndpointId, conn_info: *mut NfTcpConn
             let new_remote_addr: SOCKADDR_IN = addr.into();
             let addr_ptr = &new_remote_addr as *const SOCKADDR_IN as *const u8;
             let addr_len = std::mem::size_of::<packed::SOCKADDR_IN>();
-            let new_remote_addr_data = std::slice::from_raw_parts(addr_ptr, addr_len);
+            let new_remote_addr_data = unsafe { std::slice::from_raw_parts(addr_ptr, addr_len) };
             let mut write_buf = [0u8; 28];
             write_buf[..addr_len].copy_from_slice(&new_remote_addr_data[..addr_len]);
-            addr_of_mut!((*conn_info).remoteAddress).write_unaligned(write_buf);
+            unsafe { addr_of_mut!((*conn_info).remoteAddress).write_unaligned(write_buf) };
         }
         SocketAddr::V6(addr) => {
             let new_remote_addr: SOCKADDR_IN6 = addr.into();
             let addr_ptr = &new_remote_addr as *const SOCKADDR_IN6 as *const u8;
             let addr_len = std::mem::size_of::<SOCKADDR_IN6>();
-            let new_remote_addr_data = std::slice::from_raw_parts(addr_ptr, addr_len);
+            let new_remote_addr_data = unsafe { std::slice::from_raw_parts(addr_ptr, addr_len) };
             let mut write_buf = [0u8; 28];
             write_buf[..addr_len].copy_from_slice(&new_remote_addr_data[..addr_len]);
-            addr_of_mut!((*conn_info).remoteAddress).write_unaligned(write_buf);
+            unsafe { addr_of_mut!((*conn_info).remoteAddress).write_unaligned(write_buf) };
         }
     }
 
-    NF_TCP_DISABLE_FILTERING.unwrap()(id);
+    unsafe {
+        NF_TCP_DISABLE_FILTERING.unwrap()(id);
+    }
 }
 
 unsafe extern "C" fn tcpConnected(id: EndpointId, _conn_info: *mut NfTcpConnInfo) {
@@ -366,7 +370,9 @@ unsafe extern "C" fn tcpReceive(id: EndpointId, buf: *const u8, len: i32) {
         id,
         len
     );
-    NF_TCP_POST_RECEIVE.unwrap()(id, buf, len);
+    unsafe {
+        NF_TCP_POST_RECEIVE.unwrap()(id, buf, len);
+    }
 }
 
 unsafe extern "C" fn tcpSend(id: EndpointId, _buf: *const u8, len: i32) {
@@ -387,13 +393,13 @@ unsafe extern "C" fn tcpCanSend(id: EndpointId) {
 }
 
 unsafe extern "C" fn udpCreated(id: EndpointId, conn_info: *mut NfUdpConnInfo) {
-    let Ok(local_address) = NfUdpConnInfo::get_local_address(conn_info) else {
+    let Ok(local_address) = (unsafe { NfUdpConnInfo::get_local_address(conn_info) }) else {
         debug!("unable to get local address");
         return;
     };
 
-    let process_id = addr_of!((*conn_info).processId).read_unaligned();
-    let process_name = if let Ok(name) = get_process_name(process_id) {
+    let process_id = unsafe { addr_of!((*conn_info).processId).read_unaligned() };
+    let process_name = if let Ok(name) = unsafe { get_process_name(process_id) } {
         Some(name)
     } else {
         None
@@ -437,7 +443,7 @@ unsafe extern "C" fn udpReceive(
     options: *mut NfUdpOptions,
 ) {
     trace!("udpReceive id={}", id);
-    NF_UDP_POST_RECEIVE.unwrap()(id, remote_address, buf, len, options);
+    unsafe { NF_UDP_POST_RECEIVE.unwrap()(id, remote_address, buf, len, options) };
 }
 
 unsafe extern "C" fn udpSend(
@@ -447,9 +453,9 @@ unsafe extern "C" fn udpSend(
     len: i32,
     options: *mut NfUdpOptions,
 ) {
-    let Ok(remote_addr) =
+    let Ok(remote_addr) = (unsafe {
         sockaddr_to_socketaddr(transmute::<*const u8, *const SOCKADDR>(remote_address))
-    else {
+    }) else {
         debug!("unable to get remote address");
         return;
     };
@@ -459,7 +465,7 @@ unsafe extern "C" fn udpSend(
     // Drop IPv6
     if remote_addr.is_ipv6() {
         trace!("Pass IPv6");
-        let status = NF_UDP_POST_SEND.unwrap()(id, remote_address, buf, len, options);
+        let status = unsafe { NF_UDP_POST_SEND.unwrap()(id, remote_address, buf, len, options) };
         if status != NF_STATUS_SUCCESS {
             debug!("send to local failed, status={}", status);
         }
@@ -467,17 +473,18 @@ unsafe extern "C" fn udpSend(
     }
 
     if remote_addr.ip().is_loopback() {
-        NF_UDP_DISABLE_FILTERING.unwrap()(id);
+        unsafe { NF_UDP_DISABLE_FILTERING.unwrap()(id) };
         return;
     }
 
     let mut conn_info = NfUdpConnInfo::default();
-    let status = NF_GET_UDP_CONN_INFO.unwrap()(id, &mut conn_info as *mut _);
+    let status = unsafe { NF_GET_UDP_CONN_INFO.unwrap()(id, &mut conn_info as *mut _) };
     if status != NF_STATUS_SUCCESS {
         debug!("get udp conn info failed id={} status={}", id, status);
         return;
     }
-    let Ok(local_address) = NfUdpConnInfo::get_local_address(&conn_info as *const NfUdpConnInfo)
+    let Ok(local_address) =
+        (unsafe { NfUdpConnInfo::get_local_address(&conn_info as *const NfUdpConnInfo) })
     else {
         debug!("unable to get local address");
         return;
@@ -491,19 +498,19 @@ unsafe extern "C" fn udpSend(
     });
 
     UDP_OPTIONS.lock().unwrap().entry(id).or_insert_with(|| {
-        let opts_len = (*options).optionsLength;
+        let opts_len = unsafe { (*options).optionsLength };
         let opts_data_len = std::mem::size_of::<NfUdpOptions>() - 1 + opts_len as usize;
         let mut opts_buf = vec![0u8; opts_data_len];
-        let options_data = std::slice::from_raw_parts(options as *mut u8, opts_data_len);
+        let options_data = unsafe { std::slice::from_raw_parts(options as *mut u8, opts_data_len) };
         opts_buf[..opts_data_len]
             .as_mut()
             .copy_from_slice(&options_data[..opts_data_len]);
         opts_buf
     });
 
-    let Ok(original_remote_addr) =
+    let Ok(original_remote_addr) = (unsafe {
         sockaddr_to_socketaddr(transmute::<*const u8, *const SOCKADDR>(remote_address))
-    else {
+    }) else {
         debug!("unable to get original remote address");
         return;
     };
@@ -512,7 +519,7 @@ unsafe extern "C" fn udpSend(
     let dst_addr = crate::session::SocksAddr::from(original_remote_addr);
     dst_addr.write_buf(&mut new_buf, crate::session::SocksAddrWireType::PortLast);
     new_buf.put_u64(id);
-    let buf = std::slice::from_raw_parts(buf, len as _);
+    let buf = unsafe { std::slice::from_raw_parts(buf, len as _) };
     new_buf.put_slice(buf);
 
     // FIXME retrieve from inbound settings
@@ -724,89 +731,55 @@ pub mod packed {
 }
 
 unsafe fn sockaddr_to_socketaddr(addr: *const packed::SOCKADDR) -> Result<SocketAddr> {
-    match addr_of!((*addr).sa_family).read_unaligned() {
-        packed::AF_INET => {
-            let addr: *const packed::SOCKADDR_IN = transmute(addr);
-            Ok(SocketAddr::new(
-                IpAddr::V4(addr_of!((*addr).sin_addr).read_unaligned().into()),
-                u16::from_be(addr_of!((*addr).sin_port).read_unaligned()),
-            ))
+    unsafe {
+        match addr_of!((*addr).sa_family).read_unaligned() {
+            packed::AF_INET => {
+                let addr: *const packed::SOCKADDR_IN = transmute(addr);
+                Ok(SocketAddr::new(
+                    IpAddr::V4(addr_of!((*addr).sin_addr).read_unaligned().into()),
+                    u16::from_be(addr_of!((*addr).sin_port).read_unaligned()),
+                ))
+            }
+            packed::AF_INET6 => {
+                let addr: *const packed::SOCKADDR_IN6 = transmute(addr);
+                Ok(SocketAddr::new(
+                    IpAddr::V6(addr_of!((*addr).sin6_addr).read_unaligned().into()),
+                    u16::from_be(addr_of!((*addr).sin6_port).read_unaligned()),
+                ))
+            }
+            _ => Err(anyhow!("unknown address family")),
         }
-        packed::AF_INET6 => {
-            let addr: *const packed::SOCKADDR_IN6 = transmute(addr);
-            Ok(SocketAddr::new(
-                IpAddr::V6(addr_of!((*addr).sin6_addr).read_unaligned().into()),
-                u16::from_be(addr_of!((*addr).sin6_port).read_unaligned()),
-            ))
-        }
-        _ => Err(anyhow!("unknown address family")),
     }
 }
 
 #[allow(clippy::missing_transmute_annotations)]
 unsafe fn init_nf_fns<P: AsRef<OsStr>>(nfapi: P) -> Result<()> {
-    let nfapi = libloading::Library::new(nfapi)?;
+    let nfapi = unsafe { libloading::Library::new(nfapi)? };
 
-    NF_INIT = Some(transmute(
-        nfapi
-            .get::<libloading::Symbol<NfInitFn>>(b"nf_init\0")?
-            .into_raw(),
-    ));
-
-    let nf_free: libloading::Symbol<NfFreeFn> = nfapi.get(b"nf_free\0")?;
-    NF_FREE = Some(transmute(nf_free.into_raw()));
-
-    let nf_add_rule: libloading::Symbol<NfAddRuleFn> = nfapi.get(b"nf_addRule\0")?;
-    NF_ADD_RULE = Some(transmute(nf_add_rule.into_raw()));
-
-    let nf_tcp_post_receive: libloading::Symbol<NfTcpPostReceiveFn> =
-        nfapi.get(b"nf_tcpPostReceive\0")?;
-    NF_TCP_POST_RECEIVE = Some(transmute(nf_tcp_post_receive.into_raw()));
-
-    let nf_tcp_post_send: libloading::Symbol<NfTcpPostSendFn> = nfapi.get(b"nf_tcpPostSend\0")?;
-    NF_TCP_POST_SEND = Some(transmute(nf_tcp_post_send.into_raw()));
-
-    let nf_udp_post_receive: libloading::Symbol<NfUdpPostReceiveFn> =
-        nfapi.get(b"nf_udpPostReceive\0")?;
-    NF_UDP_POST_RECEIVE = Some(transmute(nf_udp_post_receive.into_raw()));
-
-    let nf_udp_post_send: libloading::Symbol<NfUdpPostSendFn> = nfapi.get(b"nf_udpPostSend\0")?;
-    NF_UDP_POST_SEND = Some(transmute(nf_udp_post_send.into_raw()));
-
-    NF_TCP_DISABLE_FILTERING = Some(std::mem::transmute(
-        nfapi
-            .get::<libloading::Symbol<NfTcpDisableFilteringFn>>(b"nf_tcpDisableFiltering\0")?
-            .into_raw(),
-    ));
-
-    NF_UDP_DISABLE_FILTERING = Some(std::mem::transmute(
-        nfapi
-            .get::<libloading::Symbol<NfUdpDisableFilteringFn>>(b"nf_udpDisableFiltering\0")?
-            .into_raw(),
-    ));
-
-    let nf_adjust_process_priviledges: libloading::Symbol<NfAdjustProcessPriviledgesFn> =
-        nfapi.get(b"nf_adjustProcessPriviledges\0")?;
-    NF_ADJUST_PROCESS_PRIVILEDGES = Some(transmute(nf_adjust_process_priviledges.into_raw()));
-
-    NF_GET_UDP_CONN_INFO = Some(transmute(
-        nfapi
-            .get::<libloading::Symbol<NfGetUdpConnInfoFn>>(b"nf_getUDPConnInfo\0")?
-            .into_raw(),
-    ));
-
-    let nf_get_process_name: libloading::Symbol<NfGetProcessNameFn> =
-        nfapi.get(b"nf_getProcessNameW\0")?;
-    NF_GET_PROCESS_NAME = Some(std::mem::transmute(nf_get_process_name.into_raw()));
-
-    NF_GET_PROCESS_NAME_FROM_KERNEL = Some(transmute(
-        nfapi
-            .get::<libloading::Symbol<NfGetProcessNameFromKernelFn>>(
-                b"nf_getProcessNameFromKernel\0",
-            )?
-            .into_raw(),
-    ));
-
+    macro_rules! init_statics {
+        ($s: ident => $t: ty => $n: literal$(,$s_o: ident => $t_o: ty => $n_o: literal)*$(,)?
+        ) => {{
+            $s = Some(transmute(nfapi.get::<libloading::Symbol<$t>>(const { $n.to_bytes_with_nul() })?.into_raw()));
+            $($s_o = Some(transmute(nfapi.get::<libloading::Symbol<$t_o>>(const { $n_o.to_bytes_with_nul() })?.into_raw()));)*
+        }};
+    }
+    unsafe {
+        init_statics!(
+            NF_INIT => NfInitFn => c"nf_init",
+            NF_FREE => NfFreeFn => c"nf_free",
+            NF_ADD_RULE => NfAddRuleFn => c"nf_addRule",
+            NF_TCP_POST_RECEIVE => NfTcpPostReceiveFn => c"nf_tcpPostReceive",
+            NF_TCP_POST_SEND => NfTcpPostSendFn => c"nf_tcpPostSend",
+            NF_UDP_POST_RECEIVE => NfUdpPostReceiveFn => c"nf_udpPostReceive",
+            NF_UDP_POST_SEND => NfUdpPostSendFn => c"nf_udpPostSend",
+            NF_TCP_DISABLE_FILTERING => NfTcpDisableFilteringFn => c"nf_tcpDisableFiltering",
+            NF_UDP_DISABLE_FILTERING => NfUdpDisableFilteringFn => c"nf_udpDisableFiltering",
+            NF_ADJUST_PROCESS_PRIVILEDGES => NfAdjustProcessPriviledgesFn => c"nf_adjustProcessPriviledges",
+            NF_GET_UDP_CONN_INFO => NfGetUdpConnInfoFn => c"nf_getUdpConnInfo",
+            NF_GET_PROCESS_NAME => NfGetProcessNameFn => c"nf_getProcessName",
+            NF_GET_PROCESS_NAME_FROM_KERNEL => NfGetProcessNameFromKernelFn => c"nf_getProcessNameFromKernel",
+        );
+    }
     *NFAPI.write() = Some(nfapi);
 
     Ok(())
@@ -817,9 +790,9 @@ unsafe fn init_nf<P: AsRef<OsStr>>(
     nfapi: P,
     res_tx: std::sync::mpsc::Sender<bool>,
 ) -> Result<()> {
-    init_nf_fns(nfapi)?;
+    unsafe { init_nf_fns(nfapi)? };
 
-    NF_ADJUST_PROCESS_PRIVILEDGES.unwrap()();
+    unsafe { NF_ADJUST_PROCESS_PRIVILEDGES.unwrap()() };
 
     let eh = NfEventHandler {
         threadStart,
@@ -840,13 +813,15 @@ unsafe fn init_nf<P: AsRef<OsStr>>(
         udpCanSend,
     };
 
-    let status = NF_INIT.unwrap()(
-        CString::new(driver_name)
-            .unwrap()
-            .as_bytes_with_nul()
-            .as_ptr(),
-        &eh as *const _,
-    );
+    let status = unsafe {
+        NF_INIT.unwrap()(
+            CString::new(driver_name)
+                .unwrap()
+                .as_bytes_with_nul()
+                .as_ptr(),
+            &eh as *const _,
+        )
+    };
     if status != NF_STATUS_SUCCESS {
         return Err(anyhow!("nf_init failed, status={}", status));
     }
@@ -858,7 +833,7 @@ unsafe fn init_nf<P: AsRef<OsStr>>(
         filteringFlag: NfFilteringFlag::NfIndicateConnectRequests.value(),
         ..Default::default()
     };
-    let status = NF_ADD_RULE.unwrap()(&rule as *const _, 0);
+    let status = unsafe { NF_ADD_RULE.unwrap()(&rule as *const _, 0) };
     if status != NF_STATUS_SUCCESS {
         return Err(anyhow!("adding rule failed: {}", status));
     }
@@ -867,7 +842,7 @@ unsafe fn init_nf<P: AsRef<OsStr>>(
         filteringFlag: NfFilteringFlag::NfFilter.value(),
         ..Default::default()
     };
-    let status = NF_ADD_RULE.unwrap()(&rule as *const _, 0);
+    let status = unsafe { NF_ADD_RULE.unwrap()(&rule as *const _, 0) };
     if status != NF_STATUS_SUCCESS {
         return Err(anyhow!("adding rule failed: {}", status));
     }
@@ -875,7 +850,9 @@ unsafe fn init_nf<P: AsRef<OsStr>>(
     *UDP_SEND_SOCKET.write() = Some(std::net::UdpSocket::bind("0.0.0.0:0")?);
 
     let (tx, rx) = std::sync::mpsc::channel();
-    TX = Some(tx);
+    unsafe {
+        TX = Some(tx);
+    }
 
     if let Err(e) = res_tx.send(true) {
         debug!("unable to send nf init result: {}", e);
@@ -916,7 +893,9 @@ fn init<P: AsRef<OsStr>>(driver_name: String, nfapi: P) -> Result<()> {
 
 unsafe fn uninit_nf() {
     if IS_NF_INITIALIZED.swap(false, Ordering::Relaxed) {
-        NF_FREE.unwrap()();
+        unsafe {
+            NF_FREE.unwrap()();
+        }
         if let Some(nfapi) = NFAPI.write().take() {
             if let Err(e) = nfapi.close() {
                 debug!("close nf failed: {}", e);
@@ -933,12 +912,17 @@ pub fn uninit() {
 pub unsafe fn get_process_name(pid: u32) -> Result<String> {
     let mut process_name_buf = vec![0u16; MAX_PATH];
     let process_name_len = process_name_buf.len() as u32;
-    if !NF_GET_PROCESS_NAME_FROM_KERNEL.unwrap()(
-        pid,
-        process_name_buf.as_mut_ptr() as _,
-        process_name_len,
-    ) && !NF_GET_PROCESS_NAME.unwrap()(pid, process_name_buf.as_mut_ptr() as _, process_name_len)
-    {
+    if unsafe {
+        !NF_GET_PROCESS_NAME_FROM_KERNEL.unwrap()(
+            pid,
+            process_name_buf.as_mut_ptr() as _,
+            process_name_len,
+        ) && !NF_GET_PROCESS_NAME.unwrap()(
+            pid,
+            process_name_buf.as_mut_ptr() as _,
+            process_name_len,
+        )
+    } {
         return Err(anyhow!("Unable to get process name pid={}", pid));
     }
     let process_name: OsString = OsString::from_wide(

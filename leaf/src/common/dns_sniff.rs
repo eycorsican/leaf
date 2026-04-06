@@ -72,31 +72,31 @@ impl OutboundDatagramRecvHalf for SniffingDatagramRecvHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
         let (len, src_addr) = self.inner.recv_from(buf).await?;
 
-        if let Ok(msg) = Message::from_vec(&buf[..len]) {
-            if msg.message_type() == MessageType::Response {
-                // Extract domain from the first query in the response
-                let domain = if let Some(query) = msg.queries().first() {
-                    let mut name = query.name().to_string();
-                    if name.ends_with('.') {
-                        name.pop();
-                    }
-                    Some(name)
-                } else {
-                    None
-                };
+        if let Ok(msg) = Message::from_vec(&buf[..len])
+            && msg.message_type() == MessageType::Response
+        {
+            // Extract domain from the first query in the response
+            let domain = if let Some(query) = msg.queries().first() {
+                let mut name = query.name().to_string();
+                if name.ends_with('.') {
+                    name.pop();
+                }
+                Some(name)
+            } else {
+                None
+            };
 
-                if let Some(domain) = domain {
-                    for answer in msg.answers() {
-                        if let Some(rdata) = answer.data() {
-                            match rdata {
-                                RData::A(ip) => {
-                                    self.sniffer.add(IpAddr::V4(ip.0), domain.clone()).await;
-                                }
-                                RData::AAAA(ip) => {
-                                    self.sniffer.add(IpAddr::V6(ip.0), domain.clone()).await;
-                                }
-                                _ => {}
+            if let Some(domain) = domain {
+                for answer in msg.answers() {
+                    if let Some(rdata) = answer.data() {
+                        match rdata {
+                            RData::A(ip) => {
+                                self.sniffer.add(IpAddr::V4(ip.0), domain.clone()).await;
                             }
+                            RData::AAAA(ip) => {
+                                self.sniffer.add(IpAddr::V6(ip.0), domain.clone()).await;
+                            }
+                            _ => {}
                         }
                     }
                 }

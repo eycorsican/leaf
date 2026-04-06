@@ -10,12 +10,13 @@ fn get_env_var_or<T>(key: &str, default: T) -> T
 where
     T: FromStr,
 {
-    if let Ok(v) = env::var(key) {
-        if let Ok(v) = v.parse::<T>() {
-            return v;
-        }
+    if let Ok(v) = env::var(key)
+        && let Ok(v) = v.parse::<T>()
+    {
+        v
+    } else {
+        default
     }
-    default
 }
 
 fn get_env_var_or_else<T, F>(key: &str, f: F) -> T
@@ -23,10 +24,10 @@ where
     T: FromStr,
     F: FnOnce() -> T,
 {
-    if let Ok(v) = env::var(key) {
-        if let Ok(v) = v.parse::<T>() {
-            return v;
-        }
+    if let Ok(v) = env::var(key)
+        && let Ok(v) = v.parse::<T>()
+    {
+        return v;
     }
     f()
 }

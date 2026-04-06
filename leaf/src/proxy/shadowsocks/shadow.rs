@@ -50,15 +50,16 @@ impl<T> ShadowedStream<T> {
             .map_err(|e| io::Error::other(format!("create AEAD cipher failed: {}", e)))?;
         let psk = kdf(password, cipher.key_len())
             .map_err(|e| io::Error::other(format!("derive key failed: {}", e)))?;
-        if let Some(prefix) = prefix.as_ref() {
-            if prefix.len() > cipher.key_len() {
-                return Err(io::Error::other(format!(
-                    "prefix length exceeding cipher key length: {} > {}",
-                    prefix.len(),
-                    cipher.key_len()
-                )));
-            }
+        if let Some(prefix) = prefix.as_ref()
+            && prefix.len() > cipher.key_len()
+        {
+            return Err(io::Error::other(format!(
+                "prefix length exceeding cipher key length: {} > {}",
+                prefix.len(),
+                cipher.key_len()
+            )));
         }
+
         Ok(ShadowedStream {
             inner: s,
             cipher,

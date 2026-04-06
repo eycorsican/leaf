@@ -299,10 +299,10 @@ async fn health_check_task(
                 let mut min_prefer_actor_rtt =
                     Duration::from_secs(health_check_timeout as u64).as_millis();
                 for t in health_check_prefers.iter() {
-                    if let Some(m) = measures.iter().find(|x| &x.tag == t) {
-                        if m.rtt < min_prefer_actor_rtt {
-                            min_prefer_actor_rtt = m.rtt;
-                        }
+                    if let Some(m) = measures.iter().find(|x| &x.tag == t)
+                        && m.rtt < min_prefer_actor_rtt
+                    {
+                        min_prefer_actor_rtt = m.rtt;
                     }
                 }
 

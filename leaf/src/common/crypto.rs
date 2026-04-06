@@ -45,16 +45,15 @@ pub mod aead {
 
     use super::*;
 
-    lazy_static! {
-        static ref AEAD_LIST: HashMap<&'static str, symm::Cipher> = {
+    static AEAD_LIST: std::sync::LazyLock<HashMap<&'static str, symm::Cipher>> =
+        std::sync::LazyLock::new(|| {
             let mut m = HashMap::new();
             m.insert("chacha20-poly1305", symm::Cipher::chacha20_poly1305());
             m.insert("chacha20-ietf-poly1305", symm::Cipher::chacha20_poly1305());
             m.insert("aes-256-gcm", symm::Cipher::aes_256_gcm());
             m.insert("aes-128-gcm", symm::Cipher::aes_128_gcm());
             m
-        };
-    }
+        });
 
     pub struct AeadCipher {
         cipher: symm::Cipher,
@@ -364,11 +363,7 @@ mod tests {
 
         impl ShadowsocksNonceSequence {
             fn new(size: usize) -> Self {
-                let mut c = Vec::new();
-                for _ in 0..size {
-                    c.push(0xff);
-                }
-                ShadowsocksNonceSequence(c)
+                ShadowsocksNonceSequence(std::iter::repeat_n(0xff, size).collect())
             }
 
             fn inc(&mut self) {

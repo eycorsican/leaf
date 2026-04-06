@@ -88,7 +88,7 @@ pub fn build_rustls_config(
         .with_no_client_auth();
 
     config.reality_callback = Some(reality_state);
-    config.alpn_protocols = vec![b"h2".to_vec().into(), b"http/1.1".to_vec().into()];
+    config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
 
     Ok(Arc::new(config))
 }
@@ -274,12 +274,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncRead for RealityStream<S> {
         let this = self.get_mut();
 
         let mut read_raw = this.read_raw;
-        if !read_raw {
-            if let Some(shared) = &this.shared_read_raw {
-                read_raw = shared.load(std::sync::atomic::Ordering::Relaxed);
-                if read_raw {
-                    this.read_raw = true; // Cache it
-                }
+        if !read_raw && let Some(shared) = &this.shared_read_raw {
+            read_raw = shared.load(std::sync::atomic::Ordering::Relaxed);
+            if read_raw {
+                this.read_raw = true; // Cache it
             }
         }
 

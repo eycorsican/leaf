@@ -82,10 +82,10 @@ impl MuxManager {
 
     pub async fn new_stream(&self, sess: &Session) -> io::Result<MuxStream> {
         // Run the cleanup task, if it's not already running.
-        if self.monitor_task.lock().await.is_some() {
-            if let Some(task) = self.monitor_task.lock().await.take() {
-                tokio::spawn(task);
-            }
+        if self.monitor_task.lock().await.is_some()
+            && let Some(task) = self.monitor_task.lock().await.take()
+        {
+            tokio::spawn(task);
         }
 
         if !sess.new_conn_once {

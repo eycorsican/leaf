@@ -388,11 +388,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
         // Broadcast to all non-full subs
         let mut sent_count = 0;
         for sub in &mut this.subs {
-            if !sub.closed {
-                if sub.write_buf.len() <= 64 * 1024 {
-                    sub.write_buf.extend_from_slice(&encoded_bytes);
-                    sent_count += 1;
-                }
+            if !sub.closed && sub.write_buf.len() <= 64 * 1024 {
+                sub.write_buf.extend_from_slice(&encoded_bytes);
+                sent_count += 1;
             }
         }
 

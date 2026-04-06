@@ -55,20 +55,16 @@ impl Condition for MmdbMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
             .destination_for_routing()
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
-        if !destination.is_domain() {
-            if let Some(ip) = destination.ip() {
-                if let Ok(country) = self.reader.lookup::<Country>(ip) {
-                    if let Some(country) = country.country {
-                        if let Some(iso_code) = country.iso_code {
-                            if iso_code.to_lowercase() == self.country_code.to_lowercase() {
-                                debug!("[{}] matches geoip code [{}]", ip, &self.country_code);
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
+            .unwrap_or(std::borrow::Cow::Borrowed(&sess.destination));
+        if !destination.is_domain()
+            && let Some(ip) = destination.ip()
+            && let Ok(country) = self.reader.lookup::<Country>(ip)
+            && let Some(country) = country.country
+            && let Some(iso_code) = country.iso_code
+            && iso_code.to_lowercase() == self.country_code.to_lowercase()
+        {
+            debug!("[{}] matches geoip code [{}]", ip, &self.country_code);
+            return true;
         }
         false
     }
@@ -99,14 +95,14 @@ impl Condition for IpCidrMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
             .destination_for_routing()
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
+            .unwrap_or(std::borrow::Cow::Borrowed(&sess.destination));
         if !destination.is_domain() {
             for cidr in &self.values {
-                if let Some(ip) = destination.ip() {
-                    if cidr.contains(&ip) {
-                        debug!("[{}] matches ip-cidr [{}]", ip, &cidr);
-                        return true;
-                    }
+                if let Some(ip) = destination.ip()
+                    && cidr.contains(&ip)
+                {
+                    debug!("[{}] matches ip-cidr [{}]", ip, &cidr);
+                    return true;
                 }
             }
         }
@@ -227,7 +223,7 @@ impl Condition for PortRangeMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let port = sess
             .destination_for_routing()
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination))
+            .unwrap_or(std::borrow::Cow::Borrowed(&sess.destination))
             .port();
         if port >= self.start && port <= self.end {
             debug!(
@@ -255,14 +251,13 @@ impl Condition for DomainKeywordMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
             .destination_for_routing()
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
-        if destination.is_domain() {
-            if let Some(domain) = destination.domain() {
-                if domain.contains(&self.value) {
-                    debug!("[{}] matches domain keyword [{}]", domain, &self.value);
-                    return true;
-                }
-            }
+            .unwrap_or(std::borrow::Cow::Borrowed(&sess.destination));
+        if destination.is_domain()
+            && let Some(domain) = destination.domain()
+            && domain.contains(&self.value)
+        {
+            debug!("[{}] matches domain keyword [{}]", domain, &self.value);
+            return true;
         }
         false
     }
@@ -302,14 +297,13 @@ impl Condition for DomainSuffixMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
             .destination_for_routing()
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
-        if destination.is_domain() {
-            if let Some(domain) = destination.domain() {
-                if is_sub_domain(domain, &self.value) {
-                    debug!("[{}] matches domain suffix [{}]", domain, &self.value);
-                    return true;
-                }
-            }
+            .unwrap_or(std::borrow::Cow::Borrowed(&sess.destination));
+        if destination.is_domain()
+            && let Some(domain) = destination.domain()
+            && is_sub_domain(domain, &self.value)
+        {
+            debug!("[{}] matches domain suffix [{}]", domain, &self.value);
+            return true;
         }
         false
     }
@@ -329,14 +323,13 @@ impl Condition for DomainFullMatcher {
     fn apply(&self, sess: &Session) -> bool {
         let destination = sess
             .destination_for_routing()
-            .unwrap_or_else(|_| std::borrow::Cow::Borrowed(&sess.destination));
-        if destination.is_domain() {
-            if let Some(domain) = destination.domain() {
-                if domain == &self.value {
-                    debug!("{} matches domain [{}]", domain, &self.value);
-                    return true;
-                }
-            }
+            .unwrap_or(std::borrow::Cow::Borrowed(&sess.destination));
+        if destination.is_domain()
+            && let Some(domain) = destination.domain()
+            && domain == &self.value
+        {
+            debug!("{} matches domain [{}]", domain, &self.value);
+            return true;
         }
         false
     }
@@ -629,7 +622,7 @@ mod tests {
         };
 
         // test port range
-        let m = PortMatcher::new(&vec!["1024-5000".to_string(), "6000-7000".to_string()]);
+        let m = PortMatcher::new(&["1024-5000".to_string(), "6000-7000".to_string()]);
         sess.destination = SocksAddr::Domain("www.google.com".to_string(), 2000);
         assert!(m.apply(&sess));
         sess.destination = SocksAddr::Domain("www.google.com".to_string(), 5001);
@@ -638,7 +631,7 @@ mod tests {
         assert!(m.apply(&sess));
 
         // test single port range
-        let m = PortMatcher::new(&vec!["22-22".to_string()]);
+        let m = PortMatcher::new(&["22-22".to_string()]);
         sess.destination = SocksAddr::Domain("www.google.com".to_string(), 22);
         assert!(m.apply(&sess));
 

@@ -122,7 +122,7 @@ impl Handler {
     fn build_rustls_config(
         alpns: &[String],
         certificate: Option<&String>,
-        certificate_key: Option<&String>,
+        _certificate_key: Option<&String>,
         insecure: bool,
         ech_config_list: Option<&str>,
     ) -> Result<Arc<ClientConfig>> {
@@ -182,18 +182,19 @@ impl Handler {
         };
 
         let mut config = if insecure {
-            let builder = builder
+            builder
                 .dangerous()
-                .with_custom_certificate_verifier(Arc::new(dangerous::NotVerified));
-            if certificate.is_some() {
-                if certificate_key.is_some() {
-                    builder.with_no_client_auth()
-                } else {
-                    builder.with_no_client_auth()
-                }
-            } else {
-                builder.with_no_client_auth()
-            }
+                .with_custom_certificate_verifier(Arc::new(dangerous::NotVerified))
+                .with_no_client_auth()
+            // if certificate.is_some() {
+            //     if certificate_key.is_some() {
+            //         builder.with_no_client_auth()
+            //     } else {
+            //         builder.with_no_client_auth()
+            //     }
+            // } else {
+            //     builder.with_no_client_auth()
+            // }
         } else {
             builder.with_root_certificates(roots).with_no_client_auth()
         };
@@ -732,8 +733,10 @@ mod tests {
     #[cfg(any(feature = "openssl-tls", feature = "rustls-tls-aws-lc"))]
     #[test]
     fn test_should_skip_ech_dns_lookup_for_dnsclient_session() {
-        let mut sess = Session::default();
-        sess.inbound_tag = "dnsclient".to_string();
+        let mut sess = Session {
+            inbound_tag: "dnsclient".into(),
+            ..Default::default()
+        };
         assert!(Handler::should_skip_ech_dns_lookup_for_session(&sess));
         sess.inbound_tag = "socks".to_string();
         assert!(!Handler::should_skip_ech_dns_lookup_for_session(&sess));

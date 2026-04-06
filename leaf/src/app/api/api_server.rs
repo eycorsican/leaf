@@ -267,8 +267,7 @@ table, th, td {
                 Local
                     .timestamp_opt(c.start_time() as i64, 0)
                     .unwrap()
-                    .format("%H:%M:%S")
-                    .to_string(),
+                    .format("%H:%M:%S"),
             ));
         }
         body.push_str("</table></html>");
@@ -316,7 +315,6 @@ table, th, td {
                     .timestamp_opt(c.start_time() as i64, 0)
                     .unwrap()
                     .format("%H:%M:%S")
-                    .to_string(),
             ));
         }
         body.push_str("</table></html>");

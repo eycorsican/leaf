@@ -427,9 +427,12 @@ pub async fn connect_datagram_outbound(
                     Ok(ip) if ip.is_loopback() => new_udp_socket(&SocketAddr::new(ip, 0)).await?,
                     _ => new_udp_socket(&crate::option::UNSPECIFIED_BIND_ADDR).await?,
                 };
-                Ok(Some(OutboundTransport::Datagram(Box::new(
-                    DomainResolveOutboundDatagram::new(socket, dns_client.clone()),
-                ))))
+                Ok(Some(
+                    OutboundTransport::Datagram(Box::new(DomainResolveOutboundDatagram::new(
+                        socket,
+                        dns_client.clone(),
+                    )) as Box<dyn OutboundDatagram>) as AnyOutboundTransport,
+                ))
             }
             Network::Tcp => {
                 let stream = new_tcp_stream(dns_client.clone(), &addr, &port).await?;
@@ -439,20 +442,20 @@ pub async fn connect_datagram_outbound(
         OutboundConnect::Direct => match &sess.destination {
             SocksAddr::Domain(domain, port) => {
                 let socket = new_udp_socket(&crate::option::UNSPECIFIED_BIND_ADDR).await?;
-                Ok(Some(OutboundTransport::Datagram(Box::new(
-                    DomainAssociatedOutboundDatagram::new(
+                Ok(Some(OutboundTransport::Datagram(
+                    Box::new(DomainAssociatedOutboundDatagram::new(
                         socket,
                         sess.source,
                         SocksAddr::Domain(domain.to_owned(), *port),
                         dns_client.clone(),
-                    ),
-                ))))
+                    )) as Box<dyn OutboundDatagram>,
+                )))
             }
             SocksAddr::Ip(addr) => {
                 let socket = new_udp_socket(addr).await?;
-                Ok(Some(OutboundTransport::Datagram(Box::new(
-                    StdOutboundDatagram::new(socket),
-                ))))
+                Ok(Some(OutboundTransport::Datagram(
+                    Box::new(StdOutboundDatagram::new(socket)) as Box<dyn OutboundDatagram>,
+                )))
             }
         },
         _ => Ok(None),

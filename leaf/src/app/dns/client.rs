@@ -145,7 +145,7 @@ impl DnsClient {
     ) -> Result<AnyStream> {
         if doh.is_direct {
             let stream = TcpStream::connect(bootstrap_addr).await?;
-            return Ok(Box::new(stream));
+            return Ok(Box::new(stream) as AnyStream);
         }
         if let Some(dispatcher_weak) = self.dispatcher.as_ref() {
             if let Some(dispatcher) = dispatcher_weak.upgrade() {
@@ -1125,20 +1125,19 @@ impl DnsClient {
 
     async fn is_direct_outbound(&self, host: &str) -> Result<bool> {
         let mut is_direct_outbound = false;
-        if let Some(dispatcher_weak) = self.dispatcher.as_ref() {
-            if let Some(dispatcher) = dispatcher_weak.upgrade() {
-                let dest = match SocksAddr::try_from((host.to_owned(), 0)) {
-                    Ok(d) => d,
-                    Err(e) => return Err(anyhow!("invalid host {}: {}", host, e)),
-                };
-                let sess = Session {
-                    destination: dest,
-                    skip_resolve: true,
-                    ..Default::default()
-                };
-                if let Ok(Some(tag)) = dispatcher.router.read().await.pick_route(&sess).await {
-                    is_direct_outbound = dispatcher.is_direct_outbound(tag).await;
-                }
+        if let Some(dispatcher_weak) = self.dispatcher.as_ref()
+            && let Some(dispatcher) = dispatcher_weak.upgrade()
+        {
+            let dest = SocksAddr::try_from((host.to_owned(), 0))
+                .map_err(|e| anyhow!("invalid host {}: {}", host, e))?;
+
+            let sess = Session {
+                destination: dest,
+                skip_resolve: true,
+                ..Default::default()
+            };
+            if let Ok(Some(tag)) = dispatcher.router.read().await.pick_route(&sess).await {
+                is_direct_outbound = dispatcher.is_direct_outbound(tag).await;
             }
         }
         Ok(is_direct_outbound)
@@ -1439,14 +1438,13 @@ impl DnsClient {
 
     async fn get_cached_ech(&self, host: &str) -> Option<String> {
         let mut cache = self.ech_cache.lock().await;
-        if let Some(entry) = cache.get(host) {
-            if entry
+        if let Some(entry) = cache.get(host)
+            && entry
                 .deadline
                 .checked_duration_since(Instant::now())
                 .is_some()
-            {
-                return Some(entry.ech_config_list.clone());
-            }
+        {
+            return Some(entry.ech_config_list.clone());
         }
         cache.pop(host);
         None
@@ -1503,10 +1501,10 @@ impl DnsClient {
         };
         {
             let mut locks = self.ech_query_locks.lock().await;
-            if let Some(current) = locks.get(host) {
-                if Arc::ptr_eq(current, &host_lock) {
-                    locks.remove(host);
-                }
+            if let Some(current) = locks.get(host)
+                && Arc::ptr_eq(current, &host_lock)
+            {
+                locks.remove(host);
             }
         }
         result
@@ -1569,25 +1567,24 @@ impl DnsClient {
         // Making cache lookup a priority rather than static hosts lookup
         // and insert the static IPs to the cache because there's a chance
         // for the IPs in the cache to be re-ordered.
-        if !self.hosts.is_empty() {
-            if let Some(ips) = self.hosts.get(host) {
-                if !ips.is_empty() {
-                    if ips.len() > 1 {
-                        let deadline = Instant::now()
-                            .checked_add(Duration::from_secs(6000))
-                            .unwrap();
-                        self.cache_insert(
-                            host,
-                            CacheEntry {
-                                ips: ips.clone(),
-                                deadline,
-                            },
-                        )
-                        .await;
-                    }
-                    return Ok(ips.to_vec());
-                }
+        if !self.hosts.is_empty()
+            && let Some(ips) = self.hosts.get(host)
+            && !ips.is_empty()
+        {
+            if ips.len() > 1 {
+                let deadline = Instant::now()
+                    .checked_add(Duration::from_secs(6000))
+                    .unwrap();
+                self.cache_insert(
+                    host,
+                    CacheEntry {
+                        ips: ips.clone(),
+                        deadline,
+                    },
+                )
+                .await;
             }
+            return Ok(ips.to_vec());
         }
 
         let mut fqdn = host.to_owned();

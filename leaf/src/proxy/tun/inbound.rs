@@ -44,23 +44,23 @@ async fn handle_inbound_stream_lwip(
         ..Default::default()
     };
     // Whether to override the destination according to Fake DNS.
-    if let Some(fakedns) = fakedns {
-        if fakedns.is_fake_ip(&remote_addr.ip()).await {
-            if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
-                sess.destination = SocksAddr::Domain(domain, remote_addr.port());
-            } else {
-                // Although requests targeting fake IPs are assumed
-                // never happen in real network traffic, which are
-                // likely caused by poisoned DNS cache records, we
-                // still have a chance to sniff the request domain
-                // for TLS traffic in dispatcher.
-                if remote_addr.port() != 443 && remote_addr.port() != 80 {
-                    debug!(
-                        "No paired domain found for this fake IP: {}, connection is rejected.",
-                        &remote_addr.ip()
-                    );
-                    return;
-                }
+    if let Some(fakedns) = fakedns
+        && fakedns.is_fake_ip(&remote_addr.ip()).await
+    {
+        if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
+            sess.destination = SocksAddr::Domain(domain, remote_addr.port());
+        } else {
+            // Although requests targeting fake IPs are assumed
+            // never happen in real network traffic, which are
+            // likely caused by poisoned DNS cache records, we
+            // still have a chance to sniff the request domain
+            // for TLS traffic in dispatcher.
+            if remote_addr.port() != 443 && remote_addr.port() != 80 {
+                debug!(
+                    "No paired domain found for this fake IP: {}, connection is rejected.",
+                    &remote_addr.ip()
+                );
+                return;
             }
         }
     }
@@ -85,23 +85,23 @@ async fn handle_inbound_stream_smoltcp(
         ..Default::default()
     };
     // Whether to override the destination according to Fake DNS.
-    if let Some(fakedns) = fakedns {
-        if fakedns.is_fake_ip(&remote_addr.ip()).await {
-            if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
-                sess.destination = SocksAddr::Domain(domain, remote_addr.port());
-            } else {
-                // Although requests targeting fake IPs are assumed
-                // never happen in real network traffic, which are
-                // likely caused by poisoned DNS cache records, we
-                // still have a chance to sniff the request domain
-                // for TLS traffic in dispatcher.
-                if remote_addr.port() != 443 && remote_addr.port() != 80 {
-                    debug!(
-                        "No paired domain found for this fake IP: {}, connection is rejected.",
-                        &remote_addr.ip()
-                    );
-                    return;
-                }
+    if let Some(fakedns) = fakedns
+        && fakedns.is_fake_ip(&remote_addr.ip()).await
+    {
+        if let Some(domain) = fakedns.query_domain(&remote_addr.ip()).await {
+            sess.destination = SocksAddr::Domain(domain, remote_addr.port());
+        } else {
+            // Although requests targeting fake IPs are assumed
+            // never happen in real network traffic, which are
+            // likely caused by poisoned DNS cache records, we
+            // still have a chance to sniff the request domain
+            // for TLS traffic in dispatcher.
+            if remote_addr.port() != 443 && remote_addr.port() != 80 {
+                debug!(
+                    "No paired domain found for this fake IP: {}, connection is rejected.",
+                    &remote_addr.ip()
+                );
+                return;
             }
         }
     }
@@ -164,18 +164,18 @@ async fn handle_inbound_datagram_lwip(
             }
             Ok((data, src_addr, dst_addr)) => {
                 // Fake DNS logic.
-                if dst_addr.port() == 53 {
-                    if let Some(fakedns) = &fakedns {
-                        match fakedns.generate_fake_response(&data).await {
-                            Ok(resp) => {
-                                if let Err(e) = ls.send_to(resp.as_ref(), &dst_addr, &src_addr) {
-                                    warn!("A packet failed to send to the netstack: {}", e);
-                                }
-                                continue;
+                if dst_addr.port() == 53
+                    && let Some(fakedns) = fakedns.as_deref()
+                {
+                    match fakedns.generate_fake_response(&data).await {
+                        Ok(resp) => {
+                            if let Err(e) = ls.send_to(resp.as_ref(), &dst_addr, &src_addr) {
+                                warn!("A packet failed to send to the netstack: {}", e);
                             }
-                            Err(err) => {
-                                debug!("generate fake ip failed: {}", err);
-                            }
+                            continue;
+                        }
+                        Err(err) => {
+                            debug!("generate fake ip failed: {}", err);
                         }
                     }
                 }
@@ -277,18 +277,18 @@ async fn handle_inbound_datagram_smoltcp(
     while let Some(item) = lr.next().await {
         let (data, src_addr, dst_addr) = item;
         // Fake DNS logic.
-        if dst_addr.port() == 53 {
-            if let Some(fakedns) = &fakedns {
-                match fakedns.generate_fake_response(&data).await {
-                    Ok(resp) => {
-                        if let Err(e) = ls.lock().await.send((resp, dst_addr, src_addr)).await {
-                            warn!("A packet failed to send to the netstack: {}", e);
-                        }
-                        continue;
+        if dst_addr.port() == 53
+            && let Some(fakedns) = fakedns.as_deref()
+        {
+            match fakedns.generate_fake_response(&data).await {
+                Ok(resp) => {
+                    if let Err(e) = ls.lock().await.send((resp, dst_addr, src_addr)).await {
+                        warn!("A packet failed to send to the netstack: {}", e);
                     }
-                    Err(err) => {
-                        debug!("generate fake ip failed: {}", err);
-                    }
+                    continue;
+                }
+                Err(err) => {
+                    debug!("generate fake ip failed: {}", err);
                 }
             }
         }
@@ -529,7 +529,7 @@ pub fn new(
         let s = UdpSocket::bind("0.0.0.0:0")?;
         s.connect("1.1.1.1:53")?;
         let bind_addr = s.local_addr()?.ip().to_string();
-        std::env::set_var("OUTBOUND_INTERFACE", &bind_addr);
+        unsafe { std::env::set_var("OUTBOUND_INTERFACE", &bind_addr) };
         tracing::info!("set OUTBOUND_INTERFACE={}", bind_addr);
     }
 

@@ -1486,21 +1486,19 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                 rule.target_tag = target_tag;
 
                 // handle FINAL rule first
-                if let Some(type_field) = &ext_rule.type_field {
-                    if type_field == "FINAL" {
-                        // reorder outbounds to make the FINAL one first
-                        let mut idx = None;
-                        for (i, v) in outbounds.iter().enumerate() {
-                            if v.tag == rule.target_tag {
-                                idx = Some(i);
-                            }
+                if let Some("FINAL") = ext_rule.type_field.as_deref() {
+                    // reorder outbounds to make the FINAL one first
+                    let mut idx = None;
+                    for (i, v) in outbounds.iter().enumerate() {
+                        if v.tag == rule.target_tag {
+                            idx = Some(i);
                         }
-                        if let Some(idx) = idx {
-                            let final_ob = outbounds.remove(idx);
-                            outbounds.insert(0, final_ob);
-                        }
-                        continue;
                     }
+                    if let Some(idx) = idx {
+                        let final_ob = outbounds.remove(idx);
+                        outbounds.insert(0, final_ob);
+                    }
+                    continue;
                 }
 
                 if let Some(ext_ips) = ext_rule.ip.as_mut() {

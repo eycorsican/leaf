@@ -195,7 +195,7 @@ impl RequestHeader {
         let key = hasher.finalize();
 
         if sess.aead {
-            let out = Self::seal_vmess_aead_header(&key[..16], &buf)?;
+            let out = Self::seal_vmess_aead_header(&key[..16], buf)?;
             buf.clear();
             buf.extend_from_slice(&out);
         } else {

@@ -321,10 +321,10 @@ impl RuntimeManager {
                             // The config file could somehow be removed and re-created
                             // by an editor, in that case create a new watcher to watch
                             // the new file.
-                            if let event::EventKind::Remove(event::RemoveKind::File) = ev.kind {
-                                if let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&rt_id) {
-                                    let _ = m.new_watcher();
-                                }
+                            if let event::EventKind::Remove(event::RemoveKind::File) = ev.kind
+                                && let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&rt_id)
+                            {
+                                let _ = m.new_watcher();
                             }
                         }
                         Err(e) => {
