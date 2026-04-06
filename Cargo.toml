@@ -1,7 +1,7 @@
 [workspace]
 members = ["leaf", "leaf-cli", "leaf-ffi", "leaf-plugins/shadowsocks"]
 default-members = ["leaf-cli"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 edition = "2024"
