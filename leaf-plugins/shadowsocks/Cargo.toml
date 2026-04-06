@@ -18,5 +18,5 @@ leaf = { path = "../../leaf", features = [
 ] }
 async-trait = "0.1"
 tokio = { version = "1", features = ["net"] }
-async-ffi = "0.2"
+async-ffi.workspace = true
 bytes = "1"
