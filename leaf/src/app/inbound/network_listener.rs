@@ -21,7 +21,7 @@ use crate::session::{Network, Session, SocksAddr};
 #[cfg(feature = "inbound-nf")]
 pub static TCP_LISTENING_ADDRESSES: std::sync::LazyLock<
     std::sync::RwLock<std::collections::HashMap<String, SocketAddr>>,
-> = LazyLock::new(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+> = std::sync::LazyLock::new(|| std::sync::RwLock::new(std::collections::HashMap::new()));
 #[cfg(feature = "inbound-nf")]
 pub static UDP_LISTENING_ADDRESSES: std::sync::LazyLock<
     std::sync::RwLock<std::collections::HashMap<String, SocketAddr>>,
