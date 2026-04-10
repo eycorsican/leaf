@@ -17,10 +17,11 @@ impl OutboundDatagramHandler for Handler {
         let a = &self.actors[self.selected.load(Ordering::Relaxed)];
         match a.datagram() {
             Ok(h) => return h.connect_addr(),
-            _ => match a.stream() {
-                Ok(h) => return h.connect_addr(),
-                _ => (),
-            },
+            _ => {
+                if let Ok(h) = a.stream() {
+                    return h.connect_addr();
+                }
+            }
         }
         OutboundConnect::Unknown
     }
