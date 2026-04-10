@@ -1,7 +1,7 @@
 use tracing::{debug, error};
 
 use super::protocol::{
-    Frame, DATA_HEADER_LEN, MTYP_DATA, MTYP_FIN, MTYP_PING, MTYP_PONG, MTYP_RST,
+    DATA_HEADER_LEN, Frame, MTYP_DATA, MTYP_FIN, MTYP_PING, MTYP_PONG, MTYP_RST,
 };
 use bytes::{Buf, Bytes, BytesMut};
 use std::collections::BTreeMap;
@@ -388,11 +388,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> AsyncWrite for MptpStream<S> {
         // Broadcast to all non-full subs
         let mut sent_count = 0;
         for sub in &mut this.subs {
-            if !sub.closed {
-                if sub.write_buf.len() <= 64 * 1024 {
-                    sub.write_buf.extend_from_slice(&encoded_bytes);
-                    sent_count += 1;
-                }
+            if !sub.closed && sub.write_buf.len() <= 64 * 1024 {
+                sub.write_buf.extend_from_slice(&encoded_bytes);
+                sent_count += 1;
             }
         }
 

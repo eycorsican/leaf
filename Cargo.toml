@@ -1,12 +1,21 @@
 [workspace]
-members = [
-    "leaf",
-    "leaf-cli",
-    "leaf-ffi",
-    "leaf-plugins/shadowsocks",
-]
+members = ["leaf", "leaf-cli", "leaf-ffi", "leaf-plugins/shadowsocks"]
 default-members = ["leaf-cli"]
-resolver = "2"
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.94.0"
+
+[workspace.dependencies]
+async-ffi = { version = "0.5" }
+
+thiserror = { version = "^2.0" }
+anyhow = { version = "^1.0" }
+
+tracing = { version = "^0.1" }
+tracing-appender = { version = "^0.2" }
+tracing-subscriber = { version = "^0.3" }
 
 [profile.release]
 opt-level = 3

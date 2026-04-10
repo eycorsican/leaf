@@ -183,23 +183,23 @@ fn test_quic_trojan() -> anyhow::Result<()> {
         ]
     }
     "#;
-
-    std::env::set_var("TCP_DOWNLINK_TIMEOUT", "3");
-    std::env::set_var("TCP_UPLINK_TIMEOUT", "3");
-
+    unsafe {
+        std::env::set_var("TCP_DOWNLINK_TIMEOUT", "3");
+        std::env::set_var("TCP_UPLINK_TIMEOUT", "3");
+    }
     let mut path =
         std::env::current_exe().map_err(|e| anyhow::anyhow!("current exe failed: {}", e))?;
     path.pop();
     let rcgen::CertifiedKey { cert, key_pair } =
         rcgen::generate_simple_self_signed(vec!["localhost".into()])
             .map_err(|e| anyhow::anyhow!("generate cert failed: {}", e))?;
-    std::fs::write(&path.join("key.der"), &key_pair.serialize_der())
+    std::fs::write(path.join("key.der"), key_pair.serialize_der())
         .map_err(|e| anyhow::anyhow!("write key.der failed: {}", e))?;
-    std::fs::write(&path.join("cert.der"), &cert.der().to_vec())
+    std::fs::write(path.join("cert.der"), cert.der())
         .map_err(|e| anyhow::anyhow!("write cert.der failed: {}", e))?;
-    std::fs::write(&path.join("key.pem"), &key_pair.serialize_pem())
+    std::fs::write(path.join("key.pem"), key_pair.serialize_pem())
         .map_err(|e| anyhow::anyhow!("write key.pem failed: {}", e))?;
-    std::fs::write(&path.join("cert.pem"), &cert.pem())
+    std::fs::write(path.join("cert.pem"), cert.pem())
         .map_err(|e| anyhow::anyhow!("write cert.pem failed: {}", e))?;
     let cert_pem = cert.pem();
 

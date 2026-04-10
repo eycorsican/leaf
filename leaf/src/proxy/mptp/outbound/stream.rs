@@ -1,22 +1,22 @@
 use std::io;
 
 use crate::proxy::mptp::mptp_conn::protocol::{
-    Address, HandshakeRequest, CMD_CONNECT, CMD_UDP, VER,
+    Address, CMD_CONNECT, CMD_UDP, HandshakeRequest, VER,
 };
 use crate::proxy::mptp::mptp_conn::{MptpDatagram, MptpStream};
 use async_trait::async_trait;
 use bytes::BytesMut;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
-use tracing::{debug, Instrument};
+use tracing::{Instrument, debug};
 use uuid::Uuid;
 
 use crate::{
     app::SyncDnsClient,
     proxy::{
-        connect_stream_outbound, AnyOutboundDatagram, AnyOutboundHandler, AnyOutboundTransport,
-        AnyStream, DatagramTransportType, OutboundConnect, OutboundDatagramHandler,
-        OutboundStreamHandler,
+        AnyOutboundDatagram, AnyOutboundHandler, AnyOutboundTransport, AnyStream,
+        DatagramTransportType, OutboundConnect, OutboundDatagramHandler, OutboundStreamHandler,
+        connect_stream_outbound,
     },
     session::{Session, SocksAddr},
 };
@@ -60,9 +60,9 @@ impl Handler {
             let dns_client = self.dns_client.clone();
             let tx = tx.clone();
             let target_addr = target_addr.clone();
-            let cid = cid;
-            let cmd = cmd;
-            let target_port = target_port;
+            // let cid = cid;
+            // let cmd = cmd;
+            // let target_port = target_port;
 
             debug!("new sub-conn idx={} actor={}", i, &actor.tag());
 
@@ -136,10 +136,7 @@ impl Handler {
                 rx,
             ))
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "No available sub-connections",
-            ))
+            Err(io::Error::other("No available sub-connections"))
         }
     }
 }

@@ -244,7 +244,7 @@ fn get_section(text: &str) -> Option<&str> {
 }
 
 fn normalize_section(s: &str) -> String {
-    s.to_lowercase().replace(' ', "").replace('_', "")
+    s.to_lowercase().replace([' ', '_'], "")
 }
 
 fn get_certificate_sections<'a, I>(lines: I) -> HashMap<String, String>
@@ -311,12 +311,12 @@ where
         }
     }
 
-    if let Some(name) = current_name.take() {
-        if !current_lines.is_empty() {
-            let mut content = current_lines.join("\n");
-            content.push('\n');
-            certificates.insert(name, content);
-        }
+    if let Some(name) = current_name.take()
+        && !current_lines.is_empty()
+    {
+        let mut content = current_lines.join("\n");
+        content.push('\n');
+        certificates.insert(name, content);
     }
 
     certificates
@@ -386,12 +386,12 @@ where
         }
     }
 
-    if let Some(name) = current_name.take() {
-        if !current_lines.is_empty() {
-            let mut content = current_lines.join("\n");
-            content.push('\n');
-            ech_configs.insert(name, content);
-        }
+    if let Some(name) = current_name.take()
+        && !current_lines.is_empty()
+    {
+        let mut content = current_lines.join("\n");
+        content.push('\n');
+        ech_configs.insert(name, content);
     }
 
     ech_configs
@@ -426,11 +426,7 @@ where
             items.push(item.to_string());
         }
     }
-    if !items.is_empty() {
-        Some(items)
-    } else {
-        None
-    }
+    if !items.is_empty() { Some(items) } else { None }
 }
 
 fn get_string(text: &str) -> Option<String> {
@@ -445,12 +441,13 @@ fn get_value<T>(text: &str) -> Option<T>
 where
     T: std::str::FromStr,
 {
-    if !text.is_empty() {
-        if let Ok(v) = text.parse::<T>() {
-            return Some(v);
-        }
+    if !text.is_empty()
+        && let Ok(v) = text.parse::<T>()
+    {
+        Some(v)
+    } else {
+        None
     }
-    None
 }
 
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
@@ -466,7 +463,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         if parts.len() != 2 {
             continue;
         }
-        std::env::set_var(parts[0], parts[1]);
+        unsafe { std::env::set_var(parts[0], parts[1]) };
     }
 
     let mut general = General::default();
@@ -482,7 +479,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             }
             "tun" => {
                 if let Some(items) = get_char_sep_slice(parts[1], ',') {
-                    if items.len() >= 1 && items[0] == "auto" {
+                    if let Some("auto") = items.first().map(String::as_str) {
                         general.tun_auto = Some(true);
                         continue;
                     }
@@ -1108,19 +1105,19 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
     let ech_configs = conf.ech_configs.as_ref();
     let resolve_cert = |value: &Option<String>| -> Option<String> {
         let value = value.as_ref()?;
-        if let Some(certificates) = certificates {
-            if let Some(content) = certificates.get(value) {
-                return Some(content.clone());
-            }
+        if let Some(certificates) = certificates
+            && let Some(content) = certificates.get(value)
+        {
+            return Some(content.clone());
         }
         Some(value.clone())
     };
     let resolve_ech = |value: &Option<String>| -> Option<String> {
         let value = value.as_ref()?;
-        if let Some(ech_configs) = ech_configs {
-            if let Some(content) = ech_configs.get(value) {
-                return Some(content.clone());
-            }
+        if let Some(ech_configs) = ech_configs
+            && let Some(content) = ech_configs.get(value)
+        {
+            return Some(content.clone());
         }
         Some(value.clone())
     };
@@ -1584,6 +1581,15 @@ pub fn from_string(s: &str) -> Result<internal::Config> {
     to_internal(&config)
 }
 
+pub fn from_file<P>(path: P) -> Result<internal::Config>
+where
+    P: AsRef<Path>,
+{
+    let lines = read_lines(path)?.collect();
+    let config = from_lines(lines)?;
+    to_internal(&config)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1729,15 +1735,18 @@ AQI=
 
     #[test]
     fn test_trojan_tls_ech_validation() {
-        let mut proxy = Proxy::default();
-        proxy.tag = "Trojan".to_string();
-        proxy.protocol = "trojan".to_string();
-        proxy.address = Some("1.2.3.4".to_string());
-        proxy.port = Some(443);
-        proxy.password = Some("password".to_string());
-        proxy.sni = Some("www.google.com".to_string());
-        proxy.tls_ech = Some(true);
-        proxy.tls_ech_config_list = Some("   ".to_string());
+        // let mut proxy = Proxy::default();
+        let proxy = Proxy {
+            tag: "Trojan".into(),
+            protocol: "trojan".into(),
+            address: Some("1.2.3.4".into()),
+            port: Some(443),
+            password: Some("password".into()),
+            sni: Some("www.google.com".into()),
+            tls_ech: Some(true),
+            tls_ech_config_list: Some("   ".into()),
+            ..Default::default()
+        };
 
         let config = Config {
             general: None,
@@ -1970,13 +1979,4 @@ CERT4
         assert_eq!(certs.get("MyThirdCert").unwrap(), "CERT3\n");
         assert_eq!(certs.get("NoSpaceCert").unwrap(), "CERT4\n");
     }
-}
-
-pub fn from_file<P>(path: P) -> Result<internal::Config>
-where
-    P: AsRef<Path>,
-{
-    let lines = read_lines(path)?.collect();
-    let config = from_lines(lines)?;
-    to_internal(&config)
 }

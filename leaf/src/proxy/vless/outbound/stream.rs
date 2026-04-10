@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-use super::super::stream::{build_vless_tcp_header, VlessStream};
+use super::super::stream::{VlessStream, build_vless_tcp_header};
 use crate::{proxy::*, session::*};
 
 pub struct Handler {

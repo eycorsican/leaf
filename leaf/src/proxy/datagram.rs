@@ -186,10 +186,10 @@ impl OutboundDatagram for DomainAssociatedOutboundDatagram {
 }
 
 fn unmapped_ipv4(addr: SocketAddr) -> SocketAddr {
-    if let SocketAddr::V6(ref a) = addr {
-        if let Some(a_v4) = a.ip().to_ipv4() {
-            return SocketAddr::new(IpAddr::V4(a_v4), a.port());
-        }
+    if let SocketAddr::V6(ref a) = addr
+        && let Some(a_v4) = a.ip().to_ipv4()
+    {
+        return SocketAddr::new(IpAddr::V4(a_v4), a.port());
     }
     addr
 }

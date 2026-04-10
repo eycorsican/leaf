@@ -59,7 +59,7 @@ impl OutboundDatagramHandler for Handler {
                 return Err(io::Error::other(format!(
                     "unsupported cipher: {}",
                     &self.security
-                )))
+                )));
             }
         }
 

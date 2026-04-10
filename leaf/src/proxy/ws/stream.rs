@@ -11,8 +11,8 @@ use futures::{
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::trace;
-use tungstenite::error::Error as WsError;
 use tungstenite::Message;
+use tungstenite::error::Error as WsError;
 
 pub struct WebSocketToStream<S> {
     buf: BytesMut,
@@ -78,9 +78,11 @@ impl<S: Sink<Message> + Unpin> AsyncWrite for WebSocketToStream<S> {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         trace!("poll_write {} bytes", buf.len());
-        ready!(Pin::new(&mut self.inner)
-            .poll_ready(cx)
-            .map_err(|_| broken_pipe()))?;
+        ready!(
+            Pin::new(&mut self.inner)
+                .poll_ready(cx)
+                .map_err(|_| broken_pipe())
+        )?;
 
         let msg = Message::Binary(buf.to_vec());
         Pin::new(&mut self.inner)

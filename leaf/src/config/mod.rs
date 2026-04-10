@@ -1,7 +1,8 @@
+use std::ffi::OsStr;
 use std::path::Path;
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 
 pub mod common;
 pub mod external_rule;
@@ -32,15 +33,13 @@ pub fn from_string(s: &str) -> Result<internal::Config> {
 }
 
 pub fn from_file(path: &str) -> Result<internal::Config> {
-    if let Some(ext) = Path::new(path).extension() {
-        if let Some(ext) = ext.to_str() {
-            match ext {
-                #[cfg(feature = "config-json")]
-                "json" => return json::from_file(path),
-                #[cfg(feature = "config-conf")]
-                "conf" => return conf::from_file(path),
-                _ => (),
-            }
+    if let Some(ext) = Path::new(path).extension().and_then(OsStr::to_str) {
+        match ext {
+            #[cfg(feature = "config-json")]
+            "json" => return json::from_file(path),
+            #[cfg(feature = "config-conf")]
+            "conf" => return conf::from_file(path),
+            _ => (),
         }
     }
     Err(anyhow!("config files use extension .json or .conf"))

@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
+use crate::Runner;
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
 use crate::config::Inbound;
 use crate::proxy::tun;
-use crate::Runner;
 
 pub struct TunInboundListener {
     pub inbound: Inbound,

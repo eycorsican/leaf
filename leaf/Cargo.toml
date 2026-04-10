@@ -2,17 +2,17 @@
 name = "leaf"
 version = "0.1.2"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
-edition = "2021"
 build = "build.rs"
+
+edition.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "leaf"
 path = "src/lib.rs"
 
 [features]
-default = [
-    "default-aws-lc"
-]
+default = ["default-aws-lc"]
 
 default-ring = [
     "all-configs",
@@ -49,10 +49,7 @@ quinn-ring = ["quinn/rustls-ring", "quinn/runtime-tokio"]
 quinn-aws-lc = ["quinn/rustls-aws-lc-rs", "quinn/runtime-tokio"]
 
 # Grouping all features
-all-configs = [
-    "config-conf",
-    "config-json",
-]
+all-configs = ["config-conf", "config-json"]
 all-endpoints = [
     # inbounds
     "inbound-chain",
@@ -111,23 +108,49 @@ rule-process-name = ["regex"]
 outbound-direct = []
 outbound-drop = []
 outbound-redirect = []
-outbound-shadowsocks = ["hkdf", "sha-1", "md-5", "percent-encoding", "tokio-util"]
+outbound-shadowsocks = [
+    "hkdf",
+    "sha-1",
+    "md-5",
+    "percent-encoding",
+    "tokio-util",
+]
 outbound-obfs = ["base64", "memchr"]
 outbound-socks = ["async-socks5"]
 outbound-trojan = ["sha2", "hex"]
 outbound-tls = []
 outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 outbound-failover = ["lru_time_cache"]
-outbound-static= []
+outbound-static = []
 outbound-tryall = []
 outbound-chain = []
 outbound-vless = ["hex"]
-outbound-reality = ["reality", "reality-rustls", "webpki-roots", "rustls-pemfile", "hex", "base64"]
-outbound-amux= ["tokio-util"]
+outbound-reality = [
+    "reality",
+    "reality-rustls",
+    "webpki-roots",
+    "rustls-pemfile",
+    "hex",
+    "base64",
+]
+outbound-amux = ["tokio-util"]
 outbound-quic = ["rustls", "webpki-roots-old", "rustls-pemfile-old"]
 outbound-mptp = []
 outbound-select = ["directories", "axum/query"]
-outbound-vmess = ["lz_fnv", "cfb-mode", "hmac", "sha2", "aes", "aes-gcm", "sha3", "digest", "md-5", "tokio-util", "byteorder", "crc32fast"]
+outbound-vmess = [
+    "lz_fnv",
+    "cfb-mode",
+    "hmac",
+    "sha2",
+    "aes",
+    "aes-gcm",
+    "sha3",
+    "digest",
+    "md-5",
+    "tokio-util",
+    "byteorder",
+    "crc32fast",
+]
 
 # Inbounds
 inbound-trojan = ["sha2", "hex"]
@@ -152,28 +175,35 @@ ctrlc = ["tokio/signal"]
 
 [dependencies]
 # Common
-tokio = { version = "1", features = ["sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
+tokio = { version = "1", features = [
+    "sync",
+    "io-util",
+    "net",
+    "time",
+    "rt",
+    "rt-multi-thread",
+] }
 protobuf = "3.6"
-thiserror = "1.0"
 futures = "0.3"
 async-trait = "0.1"
 bytes = "1"
-lazy_static = "1.5"
-anyhow = "1.0"
 rand = "0.8"
 socket2 = "0.5"
 async-recursion = "1.1"
 parking_lot = "0.12"
 uuid = { version = "1", features = ["v4"] }
 
+anyhow.workspace = true
+thiserror.workspace = true
+
 # DNS
 hickory-proto = { version = "0.24", default-features = false }
 lru = "0.12"
 
 # Logging
-tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = "0.3"
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
 chrono = "0.4"
 
 # Router
@@ -186,7 +216,7 @@ regex = { version = "1.11", optional = true }
 directories = { version = "4.0", optional = true }
 
 # plugin
-async-ffi = { version = "0.2", optional = true }
+async-ffi = { workspace = true, optional = true }
 libloading = { version = "0.7", optional = true }
 
 # config-json
@@ -203,7 +233,10 @@ ring = { version = "0.17", optional = true }
 aws-lc-rs = { version = "1.16", optional = true }
 
 # TLS/rustls/QUIC
-tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "tls12"], optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = [
+    "logging",
+    "tls12",
+], optional = true }
 webpki-roots = { version = "0.26", optional = true }
 webpki-roots-old = { package = "webpki-roots", version = "0.25", optional = true }
 rustls-pemfile = { version = "2.1", optional = true }
@@ -253,24 +286,39 @@ crc32fast = { version = "1", optional = true }
 lru_time_cache = { version = "0.11", optional = true }
 
 # amux
-tokio-util = { version = "0.7", default-features = false, features = ["io", "codec", "compat"], optional = true }
+tokio-util = { version = "0.7", default-features = false, features = [
+    "io",
+    "codec",
+    "compat",
+], optional = true }
 
 # QUIC
 quinn = { version = "0.11", default-features = false, optional = true }
-rustls = { version = "0.23", default-features = false, features = ["std"], optional = true }
+rustls = { version = "0.23", default-features = false, features = [
+    "std",
+], optional = true }
 
 # Reality
 reality = { git = "https://github.com/eycorsican/reality-rs.git", optional = true }
-reality-rustls = { package = "rustls", git = "https://github.com/eycorsican/reality-rustls.git", branch = "reality-rebase-0.23.36", optional = true, default-features = false, features = ["ring", "std", "tls12", "logging"] }
+reality-rustls = { package = "rustls", git = "https://github.com/eycorsican/reality-rustls.git", branch = "reality-rebase-0.23.36", optional = true, default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+    "logging",
+] }
 
 # API
-axum = { version = "0.7", default-features = false, features = ["http1", "tokio", "json"], optional = true }
+axum = { version = "0.7", default-features = false, features = [
+    "http1",
+    "tokio",
+    "json",
+], optional = true }
 
 # Auto reload
 notify = { version = "6", optional = true }
 
 # TUN
-tun = { version = "0.7", features = ["async"], optional = true  }
+tun = { version = "0.7", features = ["async"], optional = true }
 netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip", rev = "4cc3162", optional = true }
 netstack-smoltcp = { git = "https://github.com/eycorsican/netstack-smoltcp", branch = "pr-16-initialize-unfilled", optional = true }
 
@@ -291,7 +339,15 @@ memchr = { version = "2" }
 [dev-dependencies]
 rcgen = "0.13"
 sha2 = "0.10"
-tokio = { version = "1", features = ["fs", "sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
+tokio = { version = "1", features = [
+    "fs",
+    "sync",
+    "io-util",
+    "net",
+    "time",
+    "rt",
+    "rt-multi-thread",
+] }
 
 [build-dependencies]
 cc = "1.2"

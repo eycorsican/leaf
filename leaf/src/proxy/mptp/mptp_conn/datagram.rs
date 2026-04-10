@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use bytes::{BufMut, BytesMut};
-use tokio::io::{split, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf, split};
 
 use crate::proxy::*;
 use crate::session::{DatagramSource, SocksAddr};
@@ -49,7 +49,7 @@ where
     }
 
     fn into_std(self: Box<Self>) -> io::Result<std::net::UdpSocket> {
-        Err(io::Error::new(io::ErrorKind::Other, "not supported"))
+        Err(io::Error::other("not supported"))
     }
 }
 

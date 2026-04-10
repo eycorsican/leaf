@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use crate::config::{common, internal};
 
@@ -24,7 +24,7 @@ fn apply_env(config: &common::Config) {
     if let Some(env) = &config.env {
         for (k, v) in env {
             if !k.trim().is_empty() {
-                std::env::set_var(k, v);
+                unsafe { std::env::set_var(k, v) };
             }
         }
     }

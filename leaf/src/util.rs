@@ -4,13 +4,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 use crate::{
-    app::{dns::DnsClient, outbound::manager::OutboundManager, SyncDnsClient},
+    app::{SyncDnsClient, dns::DnsClient, outbound::manager::OutboundManager},
     config::Config,
     proxy::*,
     session::*,
@@ -96,10 +96,10 @@ async fn test_udp_outbound(
     handler: AnyOutboundHandler,
 ) -> Result<Duration> {
     use hickory_proto::{
-        op::{header::MessageType, op_code::OpCode, query::Query, Message},
-        rr::{record_type::RecordType, Name},
+        op::{Message, header::MessageType, op_code::OpCode, query::Query},
+        rr::{Name, record_type::RecordType},
     };
-    use rand::{rngs::StdRng, Rng, SeedableRng};
+    use rand::{Rng, SeedableRng, rngs::StdRng};
     let addr = SocksAddr::Ip(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 53));
     let sess = Session {
         destination: addr.clone(),
@@ -114,7 +114,7 @@ async fn test_udp_outbound(
     let query = Query::query(name, RecordType::A);
     msg.add_query(query);
     let mut rng = StdRng::from_entropy();
-    let id: u16 = rng.gen();
+    let id: u16 = rng.r#gen();
     msg.set_id(id);
     msg.set_op_code(OpCode::Query);
     msg.set_message_type(MessageType::Query);

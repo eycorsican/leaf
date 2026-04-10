@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadHalf, WriteHalf};
 use uuid::Uuid;
 
-use super::super::datagram::{build_vless_udp_header, VlessUdpParser};
+use super::super::datagram::{VlessUdpParser, build_vless_udp_header};
 use crate::{proxy::*, session::*};
 
 pub struct Handler {

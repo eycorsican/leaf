@@ -2,9 +2,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::future::{abortable, AbortHandle};
 use futures::FutureExt;
+use futures::future::BoxFuture;
+use futures::future::{AbortHandle, abortable};
 use lru_time_cache::LruCache;
 use tokio::sync::{Mutex, Notify};
 use tokio::time::Instant;
@@ -138,12 +138,13 @@ impl OutboundStreamHandler for Handler {
             tokio::spawn(task);
         }
 
-        if self.health_check && !self.is_first_health_check_done.load(Ordering::Relaxed) {
-            if let Some(w) = self.wait_for_health_check.as_ref() {
-                debug!("holding {}", &sess.destination);
-                w.notified().await;
-                debug!("{} resumed", &sess.destination);
-            }
+        if self.health_check
+            && !self.is_first_health_check_done.load(Ordering::Relaxed)
+            && let Some(w) = self.wait_for_health_check.as_ref()
+        {
+            debug!("holding {}", &sess.destination);
+            w.notified().await;
+            debug!("{} resumed", &sess.destination);
         }
 
         if let Some(cache) = &self.cache {
@@ -176,8 +177,10 @@ impl OutboundStreamHandler for Handler {
 
         // Use the last resort outbound if all outbounds have failed in
         // the last health check.
-        if schedule.is_empty() && self.last_resort.is_some() {
-            let a = &self.last_resort.as_ref().unwrap();
+        if schedule.is_empty()
+            && let Some(a) = self.last_resort.as_ref()
+        {
+            // let a = &self.last_resort.as_ref().unwrap();
             debug!(
                 "failover handles tcp [{}] to last resort [{}]",
                 sess.destination,
@@ -222,13 +225,14 @@ impl OutboundStreamHandler for Handler {
                 Ok(t) => match t {
                     Ok(v) => {
                         // Only cache for fallback actors.
-                        if let Some(cache) = &self.cache {
-                            if sche_idx > 0 {
-                                let cache_key = sess.destination.to_string();
-                                trace!("failover inserts {} -> {} to cache", cache_key, a.tag());
-                                cache.lock().await.insert(cache_key, actor_idx);
-                            }
+                        if let Some(cache) = &self.cache
+                            && sche_idx > 0
+                        {
+                            let cache_key = sess.destination.to_string();
+                            trace!("failover inserts {} -> {} to cache", cache_key, a.tag());
+                            cache.lock().await.insert(cache_key, actor_idx);
                         }
+
                         return Ok(v);
                     }
                     Err(e) => {

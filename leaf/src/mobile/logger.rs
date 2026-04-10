@@ -6,7 +6,7 @@ use std::{
 use bytes::BytesMut;
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
-use super::bindings::{asl_log, ASL_LEVEL_NOTICE};
+use super::bindings::{ASL_LEVEL_NOTICE, asl_log};
 
 #[cfg(target_os = "android")]
 use super::bindings::{__android_log_print, android_LogPriority_ANDROID_LOG_VERBOSE};

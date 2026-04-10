@@ -6,16 +6,16 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
-use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::debug;
 
 use crate::common::crypto::{
-    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
     Cipher, Decryptor, Encryptor, SizedCipher,
+    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
 };
 
-use super::crypto::{hkdf_sha1, kdf, ShadowsocksNonceSequence};
+use super::crypto::{ShadowsocksNonceSequence, hkdf_sha1, kdf};
 
 enum ReadState {
     WaitingSalt,
@@ -50,15 +50,16 @@ impl<T> ShadowedStream<T> {
             .map_err(|e| io::Error::other(format!("create AEAD cipher failed: {}", e)))?;
         let psk = kdf(password, cipher.key_len())
             .map_err(|e| io::Error::other(format!("derive key failed: {}", e)))?;
-        if let Some(prefix) = prefix.as_ref() {
-            if prefix.len() > cipher.key_len() {
-                return Err(io::Error::other(format!(
-                    "prefix length exceeding cipher key length: {} > {}",
-                    prefix.len(),
-                    cipher.key_len()
-                )));
-            }
+        if let Some(prefix) = prefix.as_ref()
+            && prefix.len() > cipher.key_len()
+        {
+            return Err(io::Error::other(format!(
+                "prefix length exceeding cipher key length: {} > {}",
+                prefix.len(),
+                cipher.key_len()
+            )));
         }
+
         Ok(ShadowedStream {
             inner: s,
             cipher,
@@ -384,7 +385,7 @@ impl ShadowedDatagram {
         // generate random salt
         let mut rng = StdRng::from_entropy();
         for i in 0..salt_size {
-            buffer[i] = rng.gen();
+            buffer[i] = rng.r#gen();
         }
 
         let key = hkdf_sha1(

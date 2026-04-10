@@ -31,17 +31,15 @@ impl<'a> Callback for SimpleCallback<'a> {
             .headers()
             .get(&*crate::option::HTTP_FORWARDED_HEADER)
             .map(|x| x.to_str())
-        {
-            if let Some(f) = forwarded
+            && let Some(f) = forwarded
                 .split(',')
                 .map(str::trim)
                 .map(|x| x.parse::<IpAddr>())
                 .take_while(|x| x.is_ok())
                 .map(|x| x.unwrap())
                 .last()
-            {
-                self.sess.forwarded_source.replace(f);
-            }
+        {
+            self.sess.forwarded_source.replace(f);
         }
         Ok(response)
     }

@@ -210,14 +210,14 @@ where
                             SniffResult::NotEnoughData => continue,
                             SniffResult::NotMatch => (),
                             SniffResult::Domain(domain) => {
-                                return Ok(Some((SniffKind::Tls, domain)))
+                                return Ok(Some((SniffKind::Tls, domain)));
                             }
                         }
                         match self.sniff_http_host(&self.buf[..]) {
                             SniffResult::NotEnoughData => continue,
                             SniffResult::NotMatch => (),
                             SniffResult::Domain(domain) => {
-                                return Ok(Some((SniffKind::Http, domain)))
+                                return Ok(Some((SniffKind::Http, domain)));
                             }
                         }
                         return Ok(None);

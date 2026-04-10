@@ -2,14 +2,14 @@
 
 use std::io::Write;
 use std::path::Path;
-use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::Duration;
 
 use futures::future::abortable;
 
 use rand::RngCore;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
@@ -208,8 +208,10 @@ pub fn test_tcp_half_close_on_configs(
         let local_addr = listener
             .local_addr()
             .map_err(|e| anyhow::anyhow!("get local addr failed: {}", e))?;
-        let mut sess = leaf::session::Session::default();
-        sess.destination = leaf::session::SocksAddr::Ip(local_addr);
+        let sess = leaf::session::Session {
+            destination: leaf::session::SocksAddr::Ip(local_addr),
+            ..Default::default()
+        };
         let mut client_stream =
             new_socks_stream(&socks_addr, socks_port, &sess, None, None).await?;
         let (mut server_stream, _) = listener
@@ -393,13 +395,14 @@ pub fn test_tcp_half_close_on_configs(
     }));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(())) => Ok(()),
@@ -516,8 +519,10 @@ pub fn test_data_transfering_reliability_on_configs(
     let send_task = async move {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         let source = path.join(src_file);
-        let mut sess = leaf::session::Session::default();
-        sess.destination = leaf::session::SocksAddr::Ip(local_addr);
+        let sess = leaf::session::Session {
+            destination: leaf::session::SocksAddr::Ip(local_addr),
+            ..Default::default()
+        };
         let mut stream =
             new_socks_stream(&socks_addr_cloned, socks_port, &sess, None, None).await?;
         let mut src = tokio::fs::File::open(source)
@@ -533,21 +538,20 @@ pub fn test_data_transfering_reliability_on_configs(
         Ok::<(), anyhow::Error>(())
     };
     let leaf_rt_ids = run_leaf_instances(&rt, configs.clone())?;
-    let mut futs: Vec<
-        std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>,
-    > = Vec::new();
-    futs.push(Box::pin(recv_task));
-    futs.push(Box::pin(send_task));
+    let futs: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>> =
+        vec![Box::pin(recv_task), Box::pin(send_task)];
+
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => (),
@@ -570,8 +574,10 @@ pub fn test_data_transfering_reliability_on_configs(
         let source = path.join(src_file);
         let dst = path.join(dst_file);
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        let mut sess = leaf::session::Session::default();
-        sess.destination = leaf::session::SocksAddr::Ip(local_addr);
+        let sess = leaf::session::Session {
+            destination: leaf::session::SocksAddr::Ip(local_addr),
+            ..Default::default()
+        };
         let mut stream =
             new_socks_stream(&socks_addr_cloned, socks_port, &sess, None, None).await?;
         if dst.exists() {
@@ -632,21 +638,20 @@ pub fn test_data_transfering_reliability_on_configs(
         Ok::<(), anyhow::Error>(())
     };
     let leaf_rt_ids = run_leaf_instances(&rt, configs.clone())?;
-    let mut futs: Vec<
-        std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>,
-    > = Vec::new();
-    futs.push(Box::pin(recv_task));
-    futs.push(Box::pin(send_task));
+    let futs: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>> =
+        vec![Box::pin(recv_task), Box::pin(send_task)];
+
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => (),
@@ -731,8 +736,10 @@ pub fn test_data_transfering_reliability_on_configs(
     let send_task = async move {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         let source = path.join(src_file);
-        let mut sess = leaf::session::Session::default();
-        sess.destination = leaf::session::SocksAddr::Ip(local_addr);
+        let sess = leaf::session::Session {
+            destination: leaf::session::SocksAddr::Ip(local_addr),
+            ..Default::default()
+        };
         let dgram = new_socks_datagram(&socks_addr_cloned, socks_port, &sess, None, None).await?;
         let (_, mut s) = dgram.split();
         let mut src = tokio::fs::File::open(source)
@@ -762,21 +769,20 @@ pub fn test_data_transfering_reliability_on_configs(
         Ok::<(), anyhow::Error>(())
     };
     let leaf_rt_ids = run_leaf_instances(&rt, configs.clone())?;
-    let mut futs: Vec<
-        std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>,
-    > = Vec::new();
-    futs.push(Box::pin(recv_task));
-    futs.push(Box::pin(send_task));
+    let futs: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>> =
+        vec![Box::pin(recv_task), Box::pin(send_task)];
+
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => (),
@@ -798,8 +804,10 @@ pub fn test_data_transfering_reliability_on_configs(
     path.pop();
     let recv_task = async move {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        let mut sess = leaf::session::Session::default();
-        sess.destination = leaf::session::SocksAddr::Ip(local_addr);
+        let sess = leaf::session::Session {
+            destination: leaf::session::SocksAddr::Ip(local_addr),
+            ..Default::default()
+        };
         let dgram = new_socks_datagram(&socks_addr_cloned, socks_port, &sess, None, None).await?;
         let (mut r, mut s) = dgram.split();
         let source = path.join(src_file);
@@ -899,21 +907,20 @@ pub fn test_data_transfering_reliability_on_configs(
         Ok::<(), anyhow::Error>(())
     };
     let leaf_rt_ids = run_leaf_instances(&rt, configs.clone())?;
-    let mut futs: Vec<
-        std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>,
-    > = Vec::new();
-    futs.push(Box::pin(recv_task));
-    futs.push(Box::pin(send_task));
+    let futs: Vec<std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>> =
+        vec![Box::pin(recv_task), Box::pin(send_task)];
+
     let res = rt.block_on(rt.spawn(futures::future::try_join_all(futs)));
     for id in leaf_rt_ids.into_iter() {
         leaf::shutdown(id);
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
     match res {
         Ok(Ok(_)) => Ok(()),
@@ -959,8 +966,10 @@ pub fn test_configs_with_auth(
     let app_task = async move {
         tokio::time::sleep(Duration::from_millis(200)).await;
 
-        let mut sess = leaf::session::Session::default();
-        sess.destination = leaf::session::SocksAddr::Ip(tcp_addr);
+        let mut sess = leaf::session::Session {
+            destination: leaf::session::SocksAddr::Ip(tcp_addr),
+            ..Default::default()
+        };
         let mut s = timeout(
             Duration::from_secs(1),
             new_socks_stream(
@@ -1040,7 +1049,7 @@ pub fn test_configs_with_auth(
                 &buf[..n]
             ));
         }
-        if &raddr != &sess.destination {
+        if raddr != sess.destination {
             return Err(anyhow::anyhow!(
                 "datagram source mismatch: expected {:?}, got {:?}",
                 sess.destination,
@@ -1095,7 +1104,7 @@ pub fn test_configs_with_auth(
                 &buf[..n]
             ));
         }
-        if &raddr != &sess.destination {
+        if raddr != sess.destination {
             return Err(anyhow::anyhow!(
                 "second datagram source mismatch: expected {:?}, got {:?}",
                 sess.destination,
@@ -1113,9 +1122,8 @@ pub fn test_configs_with_auth(
             Err(_) => Ok(()), // Aborted
         }
     };
-    let mut futs = Vec::new();
-    futs.push(rt.spawn(bg_task));
-    futs.push(rt.spawn(app_task));
+    let futs = vec![rt.spawn(bg_task), rt.spawn(app_task)];
+
     let res = rt.block_on(async {
         timeout(Duration::from_secs(30), futures::future::select_all(futs))
             .await
@@ -1124,14 +1132,15 @@ pub fn test_configs_with_auth(
 
     for id in leaf_rt_ids.into_iter() {
         assert!(leaf::shutdown(id));
-        assert!(rt
-            .block_on(rt.spawn(async move {
+        assert!(
+            rt.block_on(rt.spawn(async move {
                 timeout(Duration::from_millis(50), wait_for_shutdown(id))
                     .await
                     .map_err(|e| anyhow::anyhow!("wait shutdown timeout: {}", e))?;
                 Ok::<(), anyhow::Error>(())
             }))
-            .is_ok());
+            .is_ok()
+        );
     }
 
     match res {

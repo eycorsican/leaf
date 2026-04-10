@@ -1,20 +1,21 @@
 use std::collections::HashMap;
 use std::io;
-use std::sync::mpsc::sync_channel;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::Mutex;
+use std::sync::mpsc::sync_channel;
 
 use anyhow::anyhow;
-use lazy_static::lazy_static;
+
 use thiserror::Error;
-use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::time::{timeout, Duration};
+use tokio::sync::mpsc;
+use tokio::time::{Duration, timeout};
 use tracing::{info, trace, warn};
 
 #[cfg(feature = "auto-reload")]
 use notify::{
-    event, Error as NotifyError, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher,
+    Error as NotifyError, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher, event,
 };
 
 use app::{
@@ -22,7 +23,7 @@ use app::{
     nat_manager::NatManager, outbound::manager::OutboundManager, router::Router,
 };
 
-use crate::app::{stat_manager::StatManager, SyncStatManager};
+use crate::app::{SyncStatManager, stat_manager::StatManager};
 
 #[cfg(feature = "api")]
 use crate::app::api::api_server::ApiServer;
@@ -320,10 +321,10 @@ impl RuntimeManager {
                             // The config file could somehow be removed and re-created
                             // by an editor, in that case create a new watcher to watch
                             // the new file.
-                            if let event::EventKind::Remove(event::RemoveKind::File) = ev.kind {
-                                if let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&rt_id) {
-                                    let _ = m.new_watcher();
-                                }
+                            if let event::EventKind::Remove(event::RemoveKind::File) = ev.kind
+                                && let Some(m) = RUNTIME_MANAGER.lock().unwrap().get(&rt_id)
+                            {
+                                let _ = m.new_watcher();
                             }
                         }
                         Err(e) => {
@@ -347,10 +348,8 @@ impl RuntimeManager {
 
 pub type RuntimeId = u16;
 
-lazy_static! {
-    pub static ref RUNTIME_MANAGER: Mutex<HashMap<RuntimeId, Arc<RuntimeManager>>> =
-        Mutex::new(HashMap::new());
-}
+pub static RUNTIME_MANAGER: LazyLock<Mutex<HashMap<RuntimeId, Arc<RuntimeManager>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub fn reload(key: RuntimeId) -> Result<(), Error> {
     if let Some(m) = RUNTIME_MANAGER
@@ -511,12 +510,12 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
             } else {
                 iface.clone()
             };
-            std::env::set_var("OUTBOUND_INTERFACE", binds);
+            unsafe { std::env::set_var("OUTBOUND_INTERFACE", binds) };
         }
     }
 
     #[cfg(all(feature = "inbound-tun", target_os = "windows"))]
-    {
+    unsafe {
         std::env::set_var("OUTBOUND_INTERFACE", winsys::get_default_interface_ips());
     }
 

@@ -42,10 +42,10 @@ impl OutboundDatagramHandler for Handler {
             .new_tcp_stream(self.dns_client.clone(), &self.address, &self.port)
             .await?;
         let mut indicator = sess.source;
-        if let Ok(ip) = self.address.parse::<IpAddr>() {
-            if ip.is_loopback() {
-                indicator = SocketAddr::new(ip, 0);
-            }
+        if let Ok(ip) = self.address.parse::<IpAddr>()
+            && ip.is_loopback()
+        {
+            indicator = SocketAddr::new(ip, 0);
         }
         let socket = self.new_udp_socket(&indicator).await?;
 

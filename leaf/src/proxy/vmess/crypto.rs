@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ByteOrder};
 use digest::{ExtendableOutput, Update, XofReader};
 use md5::{Digest, Md5};
 use sha3::Shake128;
 
 use crate::common::crypto::{
-    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
     Cipher, NonceSequence, SizedCipher,
+    aead::{AeadCipher, AeadDecryptor, AeadEncryptor},
 };
 
 pub fn generate_chacha20poly1305_key(key: &[u8]) -> Vec<u8> {

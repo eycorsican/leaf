@@ -2,9 +2,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::{io, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use futures::future::BoxFuture;
-use futures::future::{abortable, AbortHandle};
 use futures::FutureExt;
+use futures::future::BoxFuture;
+use futures::future::{AbortHandle, abortable};
 use tokio::sync::{Mutex, Notify};
 use tokio::time::Instant;
 use tracing::{debug, trace};
@@ -124,20 +124,22 @@ impl OutboundDatagramHandler for Handler {
             tokio::spawn(task);
         }
 
-        if self.health_check && !self.is_first_health_check_done.load(Ordering::Relaxed) {
-            if let Some(w) = self.wait_for_health_check.as_ref() {
-                debug!("holding {}", &sess.destination);
-                w.notified().await;
-                debug!("{} resumed", &sess.destination);
-            }
+        if self.health_check
+            && !self.is_first_health_check_done.load(Ordering::Relaxed)
+            && let Some(w) = self.wait_for_health_check.as_ref()
+        {
+            debug!("holding {}", &sess.destination);
+            w.notified().await;
+            debug!("{} resumed", &sess.destination);
         }
 
         let schedule = self.schedule.lock().await.clone();
 
         // Use the last resort outbound if all outbounds have failed in
         // the last health check.
-        if schedule.is_empty() && self.last_resort.is_some() {
-            let a = &self.last_resort.as_ref().unwrap();
+        if schedule.is_empty()
+            && let Some(a) = self.last_resort.as_ref()
+        {
             debug!(
                 "failover handles udp [{}] to last resort [{}]",
                 sess.destination,

@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use futures::future::{abortable, BoxFuture};
+use futures::future::{BoxFuture, abortable};
 use tokio::sync::{
+    Mutex, MutexGuard,
     mpsc::{self, Sender},
-    oneshot, Mutex, MutexGuard,
+    oneshot,
 };
-use tracing::{debug, error, trace, Instrument};
+use tracing::{Instrument, debug, error, trace};
 
 use crate::app::dispatcher::Dispatcher;
 use crate::option;

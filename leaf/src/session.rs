@@ -187,24 +187,22 @@ impl Session {
 
     pub fn destination_for_routing(&self) -> io::Result<Cow<'_, SocksAddr>> {
         let mut target_domain = None;
-        if crate::option::TLS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed) {
-            if let Some(domain) = &self.tls_sniffed_domain {
-                target_domain = Some(domain);
-            }
+        if crate::option::TLS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed)
+            && let Some(domain) = &self.tls_sniffed_domain
+        {
+            target_domain = Some(domain);
         }
         if target_domain.is_none()
             && crate::option::HTTP_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed)
+            && let Some(domain) = &self.http_sniffed_domain
         {
-            if let Some(domain) = &self.http_sniffed_domain {
-                target_domain = Some(domain);
-            }
+            target_domain = Some(domain);
         }
         if target_domain.is_none()
             && crate::option::DNS_DOMAIN_SNIFFING.load(std::sync::atomic::Ordering::Relaxed)
+            && let Some(domain) = &self.dns_sniffed_domain
         {
-            if let Some(domain) = &self.dns_sniffed_domain {
-                target_domain = Some(domain);
-            }
+            target_domain = Some(domain);
         }
 
         if let Some(domain) = target_domain {
@@ -272,7 +270,7 @@ impl SocksAddr {
 
     pub fn must_ip(&self) -> &SocketAddr {
         match self {
-            SocksAddr::Ip(ref a) => a,
+            SocksAddr::Ip(a) => a,
             _ => {
                 panic!("assert SocksAddr as SocketAddr failed");
             }
@@ -304,7 +302,7 @@ impl SocksAddr {
     }
 
     pub fn domain(&self) -> Option<&String> {
-        if let SocksAddr::Domain(ref domain, _) = self {
+        if let SocksAddr::Domain(domain, _) = self {
             Some(domain)
         } else {
             None

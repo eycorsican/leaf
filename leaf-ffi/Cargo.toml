@@ -2,7 +2,9 @@
 name = "leaf-ffi"
 version = "0.1.0"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
-edition = "2021"
+
+edition.workspace = true
+rust-version.workspace = true
 
 [lib]
 name = "leaf"
@@ -10,27 +12,19 @@ path = "src/lib.rs"
 crate-type = ["staticlib", "dylib"]
 
 [features]
-default = [
-    "default-aws-lc",
-    "auto-reload",
-]
+default = ["default-aws-lc", "auto-reload"]
 
-default-aws-lc= [
-    "leaf/default-aws-lc",
-]
+default-aws-lc = ["leaf/default-aws-lc"]
 
-default-ring = [
-    "leaf/default-ring",
-]
+default-ring = ["leaf/default-ring"]
 
-default-openssl = [
-    "leaf/default-openssl",
-]
+default-openssl = ["leaf/default-openssl"]
 
 auto-reload = ["leaf/auto-reload"]
 
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 tokio = { version = "1", features = ["rt"] }
-anyhow = "1.0"
 futures = "0.3"
+
+anyhow.workspace = true

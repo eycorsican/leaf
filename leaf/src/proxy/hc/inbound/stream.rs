@@ -77,30 +77,29 @@ impl Handler {
         // For POST requests, read and check the body
         if !is_get_request {
             let mut request_body = String::new();
-            if let Some(content_length) = self.extract_content_length(headers_str) {
-                if content_length > 0 && content_length <= BUFFER_SIZE {
-                    let mut body = Vec::new();
-                    body.extend_from_slice(&body_remaining);
+            if let Some(content_length @ 1..=BUFFER_SIZE) = self.extract_content_length(headers_str)
+            {
+                let mut body = Vec::new();
+                body.extend_from_slice(&body_remaining);
 
-                    // Read the remaining body if needed
-                    let mut remaining_to_read = content_length.saturating_sub(body.len());
-                    while remaining_to_read > 0 {
-                        let mut buf = vec![0u8; remaining_to_read.min(BUFFER_SIZE)];
-                        let n = stream.read(&mut buf).await?;
-                        if n == 0 {
-                            break;
-                        }
-                        body.extend_from_slice(&buf[..n]);
-                        remaining_to_read = remaining_to_read.saturating_sub(n);
+                // Read the remaining body if needed
+                let mut remaining_to_read = content_length.saturating_sub(body.len());
+                while remaining_to_read > 0 {
+                    let mut buf = vec![0u8; remaining_to_read.min(BUFFER_SIZE)];
+                    let n = stream.read(&mut buf).await?;
+                    if n == 0 {
+                        break;
                     }
-
-                    // Ensure we don't read more than content_length
-                    if body.len() > content_length {
-                        body.truncate(content_length);
-                    }
-
-                    request_body = String::from_utf8_lossy(&body).to_string();
+                    body.extend_from_slice(&buf[..n]);
+                    remaining_to_read = remaining_to_read.saturating_sub(n);
                 }
+
+                // Ensure we don't read more than content_length
+                if body.len() > content_length {
+                    body.truncate(content_length);
+                }
+
+                request_body = String::from_utf8_lossy(&body).to_string();
             }
 
             // Check if the request body matches
@@ -110,8 +109,11 @@ impl Handler {
         }
 
         // Send the configured response
-        let response = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n{}", 
-                               self.response.len(), self.response);
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n{}",
+            self.response.len(),
+            self.response
+        );
         stream.write_all(response.as_bytes()).await?;
         stream.flush().await?;
 
@@ -155,12 +157,11 @@ impl Handler {
 
     fn extract_content_length(&self, headers: &str) -> Option<usize> {
         for line in headers.lines() {
-            if line.to_lowercase().starts_with("content-length:") {
-                if let Some(len_str) = line.split(':').nth(1) {
-                    if let Ok(len) = len_str.trim().parse::<usize>() {
-                        return Some(len);
-                    }
-                }
+            if line.to_lowercase().starts_with("content-length:")
+                && let Some(len_str) = line.split(':').nth(1)
+                && let Ok(len) = len_str.trim().parse::<usize>()
+            {
+                return Some(len);
             }
         }
         None

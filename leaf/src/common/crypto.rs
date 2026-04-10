@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Result};
-use lazy_static::lazy_static;
+use anyhow::{Result, anyhow};
 
 pub trait Cipher<N>: Sync + Send + Unpin
 where
@@ -46,16 +45,15 @@ pub mod aead {
 
     use super::*;
 
-    lazy_static! {
-        static ref AEAD_LIST: HashMap<&'static str, symm::Cipher> = {
+    static AEAD_LIST: std::sync::LazyLock<HashMap<&'static str, symm::Cipher>> =
+        std::sync::LazyLock::new(|| {
             let mut m = HashMap::new();
             m.insert("chacha20-poly1305", symm::Cipher::chacha20_poly1305());
             m.insert("chacha20-ietf-poly1305", symm::Cipher::chacha20_poly1305());
             m.insert("aes-256-gcm", symm::Cipher::aes_256_gcm());
             m.insert("aes-128-gcm", symm::Cipher::aes_128_gcm());
             m
-        };
-    }
+        });
 
     pub struct AeadCipher {
         cipher: symm::Cipher,
@@ -209,6 +207,8 @@ pub mod aead {
     not(feature = "openssl-aead")
 ))]
 pub mod aead {
+    use std::sync::LazyLock;
+
     #[cfg(feature = "aws-lc-aead")]
     use aws_lc_rs::aead::{self, Aad, Algorithm, LessSafeKey, Nonce, UnboundKey};
     #[cfg(all(feature = "ring-aead", not(feature = "aws-lc-aead")))]
@@ -216,16 +216,14 @@ pub mod aead {
 
     use super::*;
 
-    lazy_static! {
-        static ref AEAD_LIST: HashMap<&'static str, &'static Algorithm> = {
-            let mut m = HashMap::new();
-            m.insert("chacha20-poly1305", &aead::CHACHA20_POLY1305);
-            m.insert("chacha20-ietf-poly1305", &aead::CHACHA20_POLY1305);
-            m.insert("aes-256-gcm", &aead::AES_256_GCM);
-            m.insert("aes-128-gcm", &aead::AES_128_GCM);
-            m
-        };
-    }
+    static AEAD_LIST: LazyLock<HashMap<&'static str, &'static Algorithm>> = LazyLock::new(|| {
+        let mut m = HashMap::new();
+        m.insert("chacha20-poly1305", &aead::CHACHA20_POLY1305);
+        m.insert("chacha20-ietf-poly1305", &aead::CHACHA20_POLY1305);
+        m.insert("aes-256-gcm", &aead::AES_256_GCM);
+        m.insert("aes-128-gcm", &aead::AES_128_GCM);
+        m
+    });
 
     pub struct AeadCipher {
         algorithm: &'static Algorithm,
@@ -365,11 +363,7 @@ mod tests {
 
         impl ShadowsocksNonceSequence {
             fn new(size: usize) -> Self {
-                let mut c = Vec::new();
-                for _ in 0..size {
-                    c.push(0xff);
-                }
-                ShadowsocksNonceSequence(c)
+                ShadowsocksNonceSequence(std::iter::repeat_n(0xff, size).collect())
             }
 
             fn inc(&mut self) {

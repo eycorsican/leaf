@@ -10,21 +10,22 @@ use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::mpsc::channel as tokio_channel;
 use tokio::sync::mpsc::{Receiver as TokioReceiver, Sender as TokioSender};
 use tokio::time::timeout;
-use tracing::{debug, info, trace, warn, Instrument};
+use tracing::{Instrument, debug, info, trace, warn};
 
+use crate::Runner;
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::{NatManager, UdpPacket};
 use crate::proxy::*;
 use crate::session::{Network, Session, SocksAddr};
-use crate::Runner;
 
 #[cfg(feature = "inbound-nf")]
-lazy_static::lazy_static! {
-    pub static ref TCP_LISTENING_ADDRESSES: std::sync::RwLock<std::collections::HashMap<String, SocketAddr>> =
-        std::sync::RwLock::new(std::collections::HashMap::new());
-    pub static ref UDP_LISTENING_ADDRESSES: std::sync::RwLock<std::collections::HashMap<String, SocketAddr>> =
-        std::sync::RwLock::new(std::collections::HashMap::new());
-}
+pub static TCP_LISTENING_ADDRESSES: std::sync::LazyLock<
+    std::sync::RwLock<std::collections::HashMap<String, SocketAddr>>,
+> = std::sync::LazyLock::new(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+#[cfg(feature = "inbound-nf")]
+pub static UDP_LISTENING_ADDRESSES: std::sync::LazyLock<
+    std::sync::RwLock<std::collections::HashMap<String, SocketAddr>>,
+> = std::sync::LazyLock::new(|| std::sync::RwLock::new(std::collections::HashMap::new()));
 
 #[cfg(feature = "inbound-nf")]
 pub fn get_network_listen_addr(tag: &str, kind: Network) -> Option<SocketAddr> {

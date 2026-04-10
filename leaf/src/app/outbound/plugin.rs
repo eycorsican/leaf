@@ -149,6 +149,9 @@ impl ExternalHandlers {
         Self::default()
     }
 
+    /// # SAFETY
+    ///
+    /// Path must be a valid path to a shared library, that exports a valid plugin_spec
     pub unsafe fn new_handler<P>(&mut self, path: P, tag: &str, args: &str) -> io::Result<()>
     where
         P: AsRef<OsStr> + ToString + Clone,
@@ -156,14 +159,14 @@ impl ExternalHandlers {
         let lib = if let Some(lib) = self.libraries.get(&path.to_string()) {
             lib.clone()
         } else {
-            let lib = Arc::new(Library::new(path.clone()).unwrap());
+            let lib = Arc::new(unsafe { Library::new(path.clone()) }.unwrap());
             self.libraries.insert(path.to_string(), lib.clone());
             lib
         };
 
-        let plugin = lib.get::<*mut PluginSpec>(b"plugin_spec\0").unwrap().read();
+        let plugin = unsafe { lib.get::<*mut PluginSpec>(b"plugin_spec\0").unwrap().read() };
         let mut registrar = PluginRegistrarImpl::new(Arc::clone(&lib));
-        (plugin.add_handler_fn)(&mut registrar, tag, args);
+        unsafe { (plugin.add_handler_fn)(&mut registrar, tag, args) };
         self.stream_handlers.extend(registrar.stream_handlers);
         self.datagram_handlers.extend(registrar.datagram_handlers);
         Ok(())

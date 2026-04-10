@@ -54,7 +54,7 @@ fn to_errno(e: leaf::Error) -> i32 {
 /// @param stack_size Sets stack size of the runtime worker threads, takes effect when
 ///                   multi_thread is true.
 /// @return ERR_OK on finish running, any other errors means a startup failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(unused_variables)]
 pub unsafe extern "C" fn leaf_run_with_options(
     rt_id: u16,
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn leaf_run_with_options(
 /// @param config_path The path of the config file, must be a file with suffix .conf
 ///                    or .json, according to the enabled features.
 /// @return ERR_OK on finish running, any other errors means a startup failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32 {
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
         let opts = leaf::StartOptions {
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leaf_run_with_config_string(rt_id: u16, config: *const c_char) -> i32 {
     if let Ok(config) = unsafe { CStr::from_ptr(config).to_str() } {
         let opts = leaf::StartOptions {
@@ -133,7 +133,7 @@ pub unsafe extern "C" fn leaf_run_with_config_string(rt_id: u16, config: *const 
 /// @param rt_id The ID of the leaf instance to reload.
 ///
 /// @return Returns ERR_OK on success.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn leaf_reload(rt_id: u16) -> i32 {
     if let Err(e) = leaf::reload(rt_id) {
         return to_errno(e);
@@ -146,7 +146,7 @@ pub extern "C" fn leaf_reload(rt_id: u16) -> i32 {
 /// @param rt_id The ID of the leaf instance to reload.
 ///
 /// @return Returns true on success, false otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn leaf_shutdown(rt_id: u16) -> bool {
     leaf::shutdown(rt_id)
 }
@@ -156,7 +156,7 @@ pub extern "C" fn leaf_shutdown(rt_id: u16) -> bool {
 /// @param config_path The path of the config file, must be a file with suffix .conf
 ///                    or .json, according to the enabled features.
 /// @return Returns ERR_OK on success, i.e no syntax error.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
         if let Err(e) = leaf::test_config(config_path) {
@@ -177,7 +177,7 @@ pub unsafe extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
 /// @param callback The callback function to receive results.
 ///                 Arguments: tag (string), tcp_latency (ms, -1 if failed), udp_latency (ms, -1 if failed), context.
 /// @return Returns ERR_OK on success.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leaf_test_outbounds(
     config: *const c_char,
     concurrency: u32,
@@ -262,7 +262,7 @@ pub unsafe extern "C" fn leaf_test_outbounds(
 /// @param outbound_tag The tag of the outbound to test.
 /// @param timeout_ms Timeout in milliseconds (0 for default 4 seconds).
 /// @return Returns ERR_OK if either TCP or UDP health check succeeds, error code otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leaf_health_check(
     rt_id: u16,
     outbound_tag: *const c_char,
@@ -309,7 +309,7 @@ pub unsafe extern "C" fn leaf_health_check(
 /// @param outbound_tag The tag of the outbound.
 /// @param timestamp_s Pointer to store the timestamp in seconds since epoch.
 /// @return Returns ERR_OK on success, ERR_NO_DATA if no active time found, error code otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leaf_get_last_active(
     rt_id: u16,
     outbound_tag: *const c_char,
@@ -348,7 +348,7 @@ pub unsafe extern "C" fn leaf_get_last_active(
 /// @param outbound_tag The tag of the outbound.
 /// @param since_s Pointer to store the seconds since last active.
 /// @return Returns ERR_OK on success, ERR_NO_DATA if no active time found, error code otherwise.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn leaf_get_since_last_active(
     rt_id: u16,
     outbound_tag: *const c_char,

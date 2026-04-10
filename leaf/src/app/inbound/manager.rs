@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use protobuf::Message;
 
+use crate::Runner;
 use crate::app::dispatcher::Dispatcher;
 use crate::app::nat_manager::NatManager;
 use crate::config;
 use crate::proxy;
 use crate::proxy::AnyInboundHandler;
-use crate::Runner;
 
 #[cfg(feature = "inbound-amux")]
 use crate::proxy::amux;

@@ -1,29 +1,28 @@
 use std::cmp::min;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use std::{io, pin::Pin};
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures::future::{abortable, AbortHandle};
+use futures::SinkExt;
+use futures::StreamExt;
+use futures::future::{AbortHandle, abortable};
 use futures::sink::Sink;
 use futures::stream::SplitSink;
 use futures::stream::SplitStream;
 use futures::stream::Stream;
-use futures::SinkExt;
-use futures::StreamExt;
 use futures::{
-    ready,
+    Future, TryFutureExt, ready,
     task::{Context, Poll},
-    Future, TryFutureExt,
 };
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::Mutex;
-use tokio::time::{sleep, Instant};
-use tracing::{debug, trace, Instrument};
+use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::time::{Instant, sleep};
+use tracing::{Instrument, debug, trace};
 
 #[cfg(feature = "inbound-amux")]
 pub mod inbound;
@@ -35,7 +34,7 @@ pub const FRAME_STREAM_FIN: u8 = 0x02;
 pub const MAX_STREAM_FRAME_DATA_LEN: u16 = u16::MAX;
 
 pub fn random_u16() -> u16 {
-    use rand::{rngs::StdRng, RngCore, SeedableRng};
+    use rand::{RngCore, SeedableRng, rngs::StdRng};
     let mut buf = [0u8; std::mem::size_of::<u16>()];
     let mut rng = StdRng::from_entropy();
     rng.fill_bytes(&mut buf);
@@ -139,8 +138,7 @@ impl Drop for MuxStream {
         self.stream_end.store(true, Ordering::Relaxed);
         trace!(
             "drop mux stream {} (session {})",
-            self.stream_id,
-            self.session_id
+            self.stream_id, self.session_id
         );
     }
 }
@@ -665,9 +663,7 @@ impl MuxConnector {
     ) -> Self {
         trace!(
             "new mux connector {} (max_accepts: {}, concurrency: {})",
-            session_id,
-            max_accepts,
-            concurrency
+            session_id, max_accepts, concurrency
         );
         MuxConnector {
             max_accepts,

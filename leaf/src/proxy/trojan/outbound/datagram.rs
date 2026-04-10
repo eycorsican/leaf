@@ -104,18 +104,16 @@ where
         // domain address instead of the real source address. That also
         // means we assume all received packets are comming from a same
         // address.
-        if self.1.is_some() {
+        if let Some(addr) = self.1.as_ref() {
             trace!(
                 "trojan outbound received UDP {} bytes from {}",
-                payload_len,
-                self.1.as_ref().unwrap()
+                payload_len, addr
             );
-            Ok((payload_len, self.1.as_ref().unwrap().clone()))
+            Ok((payload_len, addr.to_owned()))
         } else {
             trace!(
                 "trojan outbound received UDP {} bytes from {}",
-                payload_len,
-                &addr
+                payload_len, &addr
             );
             Ok((payload_len, addr))
         }
@@ -138,11 +136,11 @@ where
         data.put_slice(buf);
 
         // Writes the header along with the first payload.
-        if self.1.is_some() {
-            if let Some(mut head) = self.1.take() {
-                head.extend_from_slice(&data);
-                return self.0.write_all(&head).map_ok(|_| buf.len()).await;
-            }
+        if self.1.is_some()
+            && let Some(mut head) = self.1.take()
+        {
+            head.extend_from_slice(&data);
+            return self.0.write_all(&head).map_ok(|_| buf.len()).await;
         }
 
         self.0.write_all(&data).map_ok(|_| buf.len()).await

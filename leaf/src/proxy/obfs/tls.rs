@@ -1,10 +1,10 @@
 use std::io::{Cursor, IoSlice};
 use std::mem::MaybeUninit;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 
 use async_trait::async_trait;
-use rand::{thread_rng, RngCore};
+use rand::{RngCore, thread_rng};
 use tokio::io::ReadBuf;
 use tokio_util::io::poll_write_buf;
 

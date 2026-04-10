@@ -1,10 +1,10 @@
 use std::net::SocketAddr;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use futures::TryFutureExt;
+use rand::SeedableRng;
 use rand::prelude::SliceRandom;
 use rand::rngs::StdRng;
-use rand::SeedableRng;
 
 use crate::app::SyncDnsClient;
 use crate::proxy::DialOrder;

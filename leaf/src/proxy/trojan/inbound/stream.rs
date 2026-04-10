@@ -75,8 +75,7 @@ where
             .await?;
         trace!(
             "trojan inbound received UDP {} bytes for {}",
-            payload_len,
-            &dst_addr
+            payload_len, &dst_addr
         );
         Ok((payload_len, self.1.clone(), dst_addr))
     }

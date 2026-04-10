@@ -12,8 +12,8 @@ use crate::{
     session::{SocksAddr, SocksAddrWireType},
 };
 
-use super::packed::{SOCKADDR_IN, SOCKADDR_IN6};
 use super::NfManager;
+use super::packed::{SOCKADDR_IN, SOCKADDR_IN6};
 
 pub struct Handler {
     pub manager: Arc<NfManager>,
