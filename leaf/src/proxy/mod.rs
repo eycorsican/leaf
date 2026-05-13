@@ -1,4 +1,4 @@
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
 use std::ffi::CString;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
@@ -18,7 +18,7 @@ use tracing::debug;
 
 #[cfg(unix)]
 use std::os::unix::io::AsFd;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
 use std::os::unix::io::AsRawFd;
 #[cfg(windows)]
 use std::os::windows::io::{AsRawSocket, AsSocket};
@@ -161,12 +161,12 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
 trait BindSocket: AsFd {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux")))]
 trait BindSocket {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
 }
@@ -227,7 +227,7 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
     for bind in option::OUTBOUND_BINDS.iter() {
         match bind {
             OutboundBind::Interface(iface) => {
-                #[cfg(target_os = "macos")]
+                #[cfg(any(target_os = "macos", target_os = "ios"))]
                 unsafe {
                     let ifa = CString::new(iface.as_bytes()).unwrap();
                     let ifidx: libc::c_uint = libc::if_nametoindex(ifa.as_ptr());
@@ -276,7 +276,7 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                     debug!("socket bind {}", iface);
                     return Ok(());
                 }
-                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux")))]
                 {
                     let _ = iface;
                     return Err(io::Error::new(
