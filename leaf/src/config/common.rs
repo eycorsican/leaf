@@ -775,6 +775,8 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         let mut settings = internal::ShadowsocksInboundSettings::new();
                         if let Some(ext_method) = &ext_settings.method {
                             settings.method = ext_method.clone();
+                        } else {
+                            settings.method = "chacha20-ietf-poly1305".to_string();
                         }
                         if let Some(ext_password) = &ext_settings.password {
                             settings.password = ext_password.clone();

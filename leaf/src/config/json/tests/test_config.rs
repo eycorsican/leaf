@@ -332,3 +332,29 @@ fn test_tls_ech_disable_dns_lookup_mapping() {
     assert!(outbound.ech_disable_dns_lookup);
     assert_eq!(outbound.ech_config_list, "AQI=");
 }
+
+#[test]
+fn test_shadowsocks_inbound_default_method_mapping() {
+    let json_str = r#"
+    {
+        "inbounds": [
+            {
+                "tag": "ss_in",
+                "protocol": "shadowsocks",
+                "address": "127.0.0.1",
+                "port": 3001,
+                "settings": {
+                    "password": "password"
+                }
+            }
+        ]
+    }
+    "#;
+
+    let config = crate::config::json::from_string(json_str).unwrap();
+    let inbound =
+        crate::config::ShadowsocksInboundSettings::parse_from_bytes(&config.inbounds[0].settings)
+            .unwrap();
+    assert_eq!(inbound.method, "chacha20-ietf-poly1305");
+    assert_eq!(inbound.password, "password");
+}
