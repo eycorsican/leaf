@@ -3,17 +3,24 @@ pub fn build_vless_tcp_header(
     dst_addr: &str,
     dst_port: u16,
     addr_type: u8,
+    flow: &str,
 ) -> Vec<u8> {
     let mut vless_header = vec![];
     vless_header.push(0x00); // Version
     vless_header.extend_from_slice(uuid_bytes);
 
-    // TCP - Use Vision Flow
-    let flow_str = b"xtls-rprx-vision";
-    vless_header.push(18); // Extensions length
-    vless_header.push(0x0a); // Protobuf Field 1, Type Length-Delimited
-    vless_header.push(16); // String length
-    vless_header.extend_from_slice(flow_str);
+    // Addons: a non-empty flow (e.g. "xtls-rprx-vision") is encoded as a
+    // protobuf message in field 1; an empty flow means no addons, which is
+    // what transports like WebSocket and gRPC require.
+    if flow.is_empty() {
+        vless_header.push(0x00); // Addons length = 0
+    } else {
+        let flow_bytes = flow.as_bytes();
+        vless_header.push((flow_bytes.len() + 2) as u8); // Addons length
+        vless_header.push(0x0a); // Protobuf Field 1, Type Length-Delimited
+        vless_header.push(flow_bytes.len() as u8); // String length
+        vless_header.extend_from_slice(flow_bytes);
+    }
     vless_header.push(0x01); // Command: TCP
 
     vless_header.push((dst_port >> 8) as u8);
@@ -51,7 +58,7 @@ pub struct VisionParser {
 }
 
 impl VisionParser {
-    pub fn new(uuid_bytes: [u8; 16]) -> Self {
+    pub fn new(uuid_bytes: [u8; 16], vision_enabled: bool) -> Self {
         Self {
             uuid_bytes,
             v_remaining_cmd: -1,
@@ -60,8 +67,10 @@ impl VisionParser {
             v_current_cmd: 0,
             v_buffer: Vec::new(),
             vless_response_header_parsed: false,
-            v_direct_copy_rx: false,
-            v_vision_done: false,
+            // With no flow, there is no Vision framing: once the 2-byte VLESS
+            // response header is consumed, the rest is passed through verbatim.
+            v_direct_copy_rx: !vision_enabled,
+            v_vision_done: !vision_enabled,
         }
     }
 
@@ -203,10 +212,15 @@ pub struct VlessStream<S> {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> VlessStream<S> {
-    pub fn new(stream: S, uuid_bytes: [u8; 16], shared_read_raw: Option<Arc<AtomicBool>>) -> Self {
+    pub fn new(
+        stream: S,
+        uuid_bytes: [u8; 16],
+        shared_read_raw: Option<Arc<AtomicBool>>,
+        vision_enabled: bool,
+    ) -> Self {
         Self {
             stream,
-            vision_parser: VisionParser::new(uuid_bytes),
+            vision_parser: VisionParser::new(uuid_bytes, vision_enabled),
             plaintext_buffer: Vec::new(),
             is_direct_copy: false,
             shared_read_raw,
