@@ -1,4 +1,8 @@
 <p align="center">
+<img src=".github/assets/leaf-logo-horizontal-white-bg.png" alt="Leaf Logo" width="360">
+</p>
+
+<p align="center">
 <img src="https://github.com/eycorsican/leaf/workflows/releases/badge.svg">
 <img src="https://github.com/eycorsican/leaf/workflows/ci/badge.svg">
 </p>
