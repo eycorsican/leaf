@@ -123,8 +123,11 @@ impl Handler {
         transport_config.max_concurrent_bidi_streams(quinn::VarInt::from_u32(
             *crate::option::QUIC_MAX_CONCURRENT_BIDI_STREAMS,
         ));
-        transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(
-            quinn::VarInt::from_u32(*crate::option::QUIC_MAX_IDLE_TIMEOUT_MS),
+        transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
+            crate::option::get_env_var_or("QUIC_SERVER_MAX_IDLE_TIMEOUT_MS", 120_000),
+        ))));
+        transport_config.keep_alive_interval(Some(Duration::from_millis(
+            crate::option::get_env_var_or("QUIC_SERVER_KEEP_ALIVE_INTERVAL_MS", 0),
         )));
         transport_config
             .congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));

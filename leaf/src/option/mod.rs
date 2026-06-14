@@ -7,7 +7,7 @@ use lazy_static::lazy_static;
 
 // Gets an environment variable by a key and parses as type `T` or returns
 // the provided default value.
-fn get_env_var_or<T>(key: &str, default: T) -> T
+pub fn get_env_var_or<T>(key: &str, default: T) -> T
 where
     T: FromStr,
 {
@@ -182,11 +182,15 @@ lazy_static! {
     };
 
     pub static ref QUIC_MAX_CONCURRENT_BIDI_STREAMS: u32 = {
-        get_env_var_or("QUIC_MAX_CONCURRENT_BIDI_STREAMS", 256)
+        get_env_var_or("QUIC_MAX_CONCURRENT_BIDI_STREAMS", 1024)
     };
 
     pub static ref QUIC_MAX_IDLE_TIMEOUT_MS: u32 = {
-        get_env_var_or("QUIC_MAX_IDLE_TIMEOUT_MS", 120_000)
+        get_env_var_or("QUIC_MAX_IDLE_TIMEOUT_MS", 15_000)
+    };
+
+    pub static ref QUIC_KEEP_ALIVE_INTERVAL_MS: u64 = {
+        get_env_var_or("QUIC_KEEP_ALIVE_INTERVAL_MS", 3_000)
     };
 
     pub static ref QUIC_ACCEPT_QUEUE_TIMEOUT: u64 = {

@@ -95,11 +95,15 @@ impl Manager {
             quinn::crypto::rustls::QuicClientConfig::try_from(client_crypto).unwrap(),
         ));
         let mut transport_config = quinn::TransportConfig::default();
-        transport_config.max_concurrent_bidi_streams(quinn::VarInt::from_u32(64));
+        transport_config.max_concurrent_bidi_streams(quinn::VarInt::from_u32(
+            *crate::option::QUIC_MAX_CONCURRENT_BIDI_STREAMS,
+        ));
         transport_config.max_idle_timeout(Some(quinn::IdleTimeout::from(quinn::VarInt::from_u32(
-            300_000,
+            *crate::option::QUIC_MAX_IDLE_TIMEOUT_MS,
         ))));
-        transport_config.keep_alive_interval(Some(Duration::from_secs(10)));
+        transport_config.keep_alive_interval(Some(Duration::from_millis(
+            *crate::option::QUIC_KEEP_ALIVE_INTERVAL_MS,
+        )));
         transport_config
             .congestion_controller_factory(Arc::new(quinn::congestion::BbrConfig::default()));
         client_config.transport_config(Arc::new(transport_config));
