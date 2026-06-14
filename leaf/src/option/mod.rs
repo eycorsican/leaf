@@ -221,7 +221,7 @@ lazy_static! {
     };
 
     pub static ref OUTBOUND_DIAL_TIMEOUT: u64 = {
-        get_env_var_or("OUTBOUND_DIAL_TIMEOUT", 4)
+        get_env_var_or("OUTBOUND_DIAL_TIMEOUT", 8)
     };
 
     pub static ref OUTBOUND_DIAL_ORDER: crate::proxy::DialOrder = {
