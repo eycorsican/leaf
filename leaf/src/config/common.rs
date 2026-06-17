@@ -332,6 +332,8 @@ pub struct Inbound {
     pub tag: Option<String>,
     pub address: Option<String>,
     pub port: Option<u16>,
+    pub max_conn_data: Option<u64>,
+    pub max_ips_conn: Option<u32>,
     #[serde(flatten)]
     pub settings: InboundSettings,
 }
@@ -591,6 +593,12 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
             }
             if let Some(ext_port) = ext_inbound.port {
                 inbound.port = ext_port as u32;
+            }
+            if let Some(max_conn_data) = ext_inbound.max_conn_data {
+                inbound.max_conn_data = max_conn_data;
+            }
+            if let Some(max_ips_conn) = ext_inbound.max_ips_conn {
+                inbound.max_ips_conn = max_ips_conn;
             }
 
             match &ext_inbound.settings {

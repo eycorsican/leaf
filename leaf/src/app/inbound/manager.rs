@@ -368,6 +368,8 @@ impl InboundManager {
                             handler: h.clone(),
                             dispatcher: dispatcher.clone(),
                             nat_manager: nat_manager.clone(),
+                            max_conn_data: inbound.max_conn_data,
+                            max_ips_conn: inbound.max_ips_conn,
                         };
                         network_listeners.insert(tag.clone(), listener);
                     }

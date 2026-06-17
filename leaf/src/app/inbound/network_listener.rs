@@ -172,6 +172,7 @@ async fn handle_inbound_tcp_stream(
     handler: AnyInboundHandler,
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
+    max_conn_data: u64,
 ) -> io::Result<()> {
     let source = stream
         .peer_addr()
@@ -193,6 +194,9 @@ async fn handle_inbound_tcp_stream(
         "handle inbound tcp stream src={} local={}",
         &source, &local_addr
     );
+
+    let stream = crate::app::inbound::tracked_stream::TrackedStream::new(stream, max_conn_data);
+
     async move {
         // Transforms the TCP stream into an inbound transport.
         let transport = timeout(
@@ -216,6 +220,8 @@ async fn handle_tcp_listen(
     handler: AnyInboundHandler,
     dispatcher: Arc<Dispatcher>,
     nat_manager: Arc<NatManager>,
+    max_conn_data: u64,
+    max_ips_conn: u32,
 ) -> io::Result<()> {
     let listener = crate::proxy::TcpListener::bind(&listen_addr).await?;
     let listen_addr = listener.io().local_addr()?;
@@ -229,11 +235,33 @@ async fn handle_tcp_listen(
             .insert(handler.tag().clone(), listen_addr);
     }
 
+    let mut ip_conn_counts: Option<Arc<tokio::sync::Mutex<std::collections::HashMap<std::net::IpAddr, u32>>>> = None;
+    if max_ips_conn > 0 {
+        ip_conn_counts = Some(Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())));
+    }
+
     loop {
         let (stream, _) = listener.accept().await?;
+
+        if let Some(counts) = &ip_conn_counts {
+            let ip = stream.peer_addr().map(|a| a.ip());
+            if let Ok(ip) = ip {
+                let mut counts_lock = counts.lock().await;
+                let count = counts_lock.entry(ip).or_insert(0);
+                if *count >= max_ips_conn {
+                    warn!("ip {} exceeds max concurrent connections {}", ip, max_ips_conn);
+                    continue;
+                }
+                *count += 1;
+            }
+        }
+
         let handler_cloned = handler.clone();
         let dispatcher_cloned = dispatcher.clone();
         let nat_manager_cloned = nat_manager.clone();
+        let counts_cloned = ip_conn_counts.clone();
+        let peer_ip = stream.peer_addr().map(|a| a.ip()).ok();
+
         tokio::spawn(async move {
             // Handle each TCP stream.
             if let Err(e) = handle_inbound_tcp_stream(
@@ -241,10 +269,21 @@ async fn handle_tcp_listen(
                 handler_cloned,
                 dispatcher_cloned,
                 nat_manager_cloned,
+                max_conn_data,
             )
             .await
             {
                 debug!("handle inbound stream failed: {}", e);
+            }
+
+            if let (Some(counts), Some(ip)) = (counts_cloned, peer_ip) {
+                let mut counts_lock = counts.lock().await;
+                if let Some(count) = counts_lock.get_mut(&ip) {
+                    *count -= 1;
+                    if *count == 0 {
+                        counts_lock.remove(&ip);
+                    }
+                }
             }
         });
     }
@@ -284,6 +323,8 @@ pub struct NetworkInboundListener {
     pub handler: AnyInboundHandler,
     pub dispatcher: Arc<Dispatcher>,
     pub nat_manager: Arc<NatManager>,
+    pub max_conn_data: u64,
+    pub max_ips_conn: u32,
 }
 
 impl NetworkInboundListener {
@@ -296,12 +337,16 @@ impl NetworkInboundListener {
             let handler_cloned = self.handler.clone();
             let dispatcher_cloned = self.dispatcher.clone();
             let nat_manager_cloned = self.nat_manager.clone();
+            let max_conn_data_cloned = self.max_conn_data;
+            let max_ips_conn_cloned = self.max_ips_conn;
             runners.push(Box::pin(async move {
                 if let Err(e) = handle_tcp_listen(
                     listen_addr_cloned,
                     handler_cloned,
                     dispatcher_cloned,
                     nat_manager_cloned,
+                    max_conn_data_cloned,
+                    max_ips_conn_cloned,
                 )
                 .await
                 {
