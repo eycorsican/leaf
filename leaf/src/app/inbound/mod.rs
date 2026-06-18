@@ -1,5 +1,4 @@
 pub mod network_listener;
-pub mod tracked_stream;
 
 #[cfg(feature = "inbound-tun")]
 mod tun_listener;

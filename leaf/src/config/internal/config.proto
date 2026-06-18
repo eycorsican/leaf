@@ -119,8 +119,6 @@ message Inbound {
 	string address = 3;
 	uint32 port = 4;
 	bytes settings = 5;
-	uint64 max_conn_data = 6;
-	uint32 max_ips_conn = 7;
 }
 
 message RedirectOutboundSettings {

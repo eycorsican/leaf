@@ -1009,8 +1009,6 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 tag: Some("http".to_string()),
                 address: Some(interface.clone()),
                 port: Some(*port),
-                max_conn_data: None,
-                max_ips_conn: None,
                 settings: common::InboundSettings::Http,
             });
         }
@@ -1023,8 +1021,6 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 tag: Some("socks".to_string()),
                 address: Some(interface.clone()),
                 port: Some(*port),
-                max_conn_data: None,
-                max_ips_conn: None,
                 settings: common::InboundSettings::Socks { settings: None },
             });
         }
@@ -1034,8 +1030,6 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 tag: Some("nf".to_string()),
                 address: Some("127.0.0.1".to_string()),
                 port: Some(0),
-                max_conn_data: None,
-                max_ips_conn: None,
                 settings: common::InboundSettings::Nf {
                     settings: Some(common::NfInboundSettings {
                         driver_name: nf.driver_name.clone(),
@@ -1087,8 +1081,6 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                 tag: Some("tun".to_string()),
                 address: None,
                 port: None,
-                max_conn_data: None,
-                max_ips_conn: None,
                 settings: common::InboundSettings::Tun {
                     settings: Some(settings),
                 },

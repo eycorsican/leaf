@@ -2022,10 +2022,6 @@ pub struct Inbound {
     pub port: u32,
     // @@protoc_insertion_point(field:Inbound.settings)
     pub settings: ::std::vec::Vec<u8>,
-    // @@protoc_insertion_point(field:Inbound.max_conn_data)
-    pub max_conn_data: u64,
-    // @@protoc_insertion_point(field:Inbound.max_ips_conn)
-    pub max_ips_conn: u32,
     // special fields
     // @@protoc_insertion_point(special_field:Inbound.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -2068,12 +2064,6 @@ impl ::protobuf::Message for Inbound {
                 42 => {
                     self.settings = is.read_bytes()?;
                 },
-                48 => {
-                    self.max_conn_data = is.read_uint64()?;
-                },
-                56 => {
-                    self.max_ips_conn = is.read_uint32()?;
-                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -2101,12 +2091,6 @@ impl ::protobuf::Message for Inbound {
         if !self.settings.is_empty() {
             my_size += ::protobuf::rt::bytes_size(5, &self.settings);
         }
-        if self.max_conn_data != 0 {
-            my_size += ::protobuf::rt::uint64_size(6, self.max_conn_data);
-        }
-        if self.max_ips_conn != 0 {
-            my_size += ::protobuf::rt::uint32_size(7, self.max_ips_conn);
-        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -2127,12 +2111,6 @@ impl ::protobuf::Message for Inbound {
         }
         if !self.settings.is_empty() {
             os.write_bytes(5, &self.settings)?;
-        }
-        if self.max_conn_data != 0 {
-            os.write_uint64(6, self.max_conn_data)?;
-        }
-        if self.max_ips_conn != 0 {
-            os.write_uint32(7, self.max_ips_conn)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -2156,8 +2134,6 @@ impl ::protobuf::Message for Inbound {
         self.address.clear();
         self.port = 0;
         self.settings.clear();
-        self.max_conn_data = 0;
-        self.max_ips_conn = 0;
         self.special_fields.clear();
     }
 
@@ -2168,8 +2144,6 @@ impl ::protobuf::Message for Inbound {
             address: ::std::string::String::new(),
             port: 0,
             settings: ::std::vec::Vec::new(),
-            max_conn_data: 0,
-            max_ips_conn: 0,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
