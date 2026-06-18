@@ -186,6 +186,9 @@ pub struct VlessOutboundSettings {
     pub address: Option<String>,
     pub port: Option<u16>,
     pub uuid: Option<String>,
+    /// VLESS flow, e.g. "xtls-rprx-vision". Empty/absent means no flow,
+    /// which is required for transports like WebSocket.
+    pub flow: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1134,6 +1137,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         }
                         if let Some(ext_uuid) = &ext_settings.uuid {
                             settings.uuid = ext_uuid.clone();
+                        }
+                        if let Some(ext_flow) = &ext_settings.flow {
+                            settings.flow = ext_flow.clone();
                         }
                         let settings = settings.write_to_bytes().unwrap();
                         outbound.settings = settings;

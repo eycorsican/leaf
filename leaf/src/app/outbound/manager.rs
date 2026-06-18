@@ -274,6 +274,7 @@ impl OutboundManager {
                         address: settings.address.clone(),
                         port: settings.port as u16,
                         uuid: settings.uuid.clone(),
+                        flow: settings.flow.clone(),
                     });
                     let datagram = Arc::new(vless::outbound::DatagramHandler {
                         address: settings.address.clone(),
