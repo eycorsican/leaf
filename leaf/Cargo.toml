@@ -282,6 +282,9 @@ jni = "0.21"
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pnet_datalink = { version = "0.34", package = "pnet_datalink", optional = true }
+
+# libc is also required on iOS (for IP_BOUND_IF outbound binding)
+[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))'.dependencies]
 libc = "0.2"
 
 # Used in mobile logger
