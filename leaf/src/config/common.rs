@@ -393,6 +393,7 @@ pub enum InboundSettings {
         settings: Option<SocksInboundSettings>,
     },
     Http,
+    Tproxy,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -765,6 +766,10 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                 }
                 InboundSettings::Http => {
                     inbound.protocol = "http".to_string();
+                    inbounds.push(inbound);
+                }
+                InboundSettings::Tproxy => {
+                    inbound.protocol = "tproxy".to_string();
                     inbounds.push(inbound);
                 }
                 InboundSettings::Shadowsocks {

@@ -492,6 +492,14 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         .map_err(Error::Config)?;
     runners.append(&mut inbound_net_runners);
 
+    #[cfg(all(feature = "inbound-tproxy", target_os = "linux"))]
+    {
+        let mut tproxy_runners = inbound_manager
+            .get_tproxy_runners()
+            .map_err(Error::Config)?;
+        runners.append(&mut tproxy_runners);
+    }
+
     #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
     let net_info = if inbound_manager.has_tun_listener() && inbound_manager.tun_auto() {
         sys::get_net_info()

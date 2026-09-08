@@ -45,12 +45,17 @@ use super::cat_listener::CatInboundListener;
 #[cfg(feature = "inbound-tun")]
 use super::tun_listener::TunInboundListener;
 
+#[cfg(all(feature = "inbound-tproxy", target_os = "linux"))]
+use super::tproxy_listener::TproxyInboundListener;
+
 pub struct InboundManager {
     network_listeners: HashMap<String, NetworkInboundListener>,
     #[cfg(feature = "inbound-tun")]
     tun_listener: Option<TunInboundListener>,
     #[cfg(feature = "inbound-cat")]
     cat_listener: Option<CatInboundListener>,
+    #[cfg(all(feature = "inbound-tproxy", target_os = "linux"))]
+    tproxy_listeners: Vec<TproxyInboundListener>,
     tun_auto: bool,
 }
 
@@ -334,6 +339,9 @@ impl InboundManager {
         #[cfg(feature = "inbound-cat")]
         let mut cat_listener: Option<CatInboundListener> = None;
 
+        #[cfg(all(feature = "inbound-tproxy", target_os = "linux"))]
+        let mut tproxy_listeners: Vec<TproxyInboundListener> = Vec::new();
+
         let mut tun_auto = false;
 
         for inbound in inbounds.iter() {
@@ -360,6 +368,14 @@ impl InboundManager {
                     };
                     cat_listener.replace(listener);
                 }
+                #[cfg(all(feature = "inbound-tproxy", target_os = "linux"))]
+                "tproxy" => {
+                    tproxy_listeners.push(TproxyInboundListener {
+                        inbound: inbound.clone(),
+                        dispatcher: dispatcher.clone(),
+                        nat_manager: nat_manager.clone(),
+                    });
+                }
                 _ => {
                     if let Some(h) = handlers.get(&tag) {
                         let listener = NetworkInboundListener {
@@ -381,8 +397,19 @@ impl InboundManager {
             tun_listener,
             #[cfg(feature = "inbound-cat")]
             cat_listener,
+            #[cfg(all(feature = "inbound-tproxy", target_os = "linux"))]
+            tproxy_listeners,
             tun_auto,
         })
+    }
+
+    #[cfg(all(feature = "inbound-tproxy", target_os = "linux"))]
+    pub fn get_tproxy_runners(&self) -> Result<Vec<Runner>> {
+        let mut runners: Vec<Runner> = Vec::new();
+        for listener in self.tproxy_listeners.iter() {
+            runners.append(&mut listener.listen()?);
+        }
+        Ok(runners)
     }
 
     pub fn get_network_runners(&self) -> Result<Vec<Runner>> {
