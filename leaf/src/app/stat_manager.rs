@@ -93,7 +93,14 @@ pub struct Datagram {
 
 impl Drop for Datagram {
     fn drop(&mut self) {
-        let _ = self.tx.send(self.id);
+        // If the datagram is dropped before being split, treat it as a completed
+        // session and notify the cleanup task immediately. Once split, the recv/send
+        // halves own the completion state and will drive retirement via move_to_recent.
+        if self.inner.is_some() {
+            self.recv_completed.store(true, Ordering::Relaxed);
+            self.send_completed.store(true, Ordering::Relaxed);
+            let _ = self.tx.send(self.id);
+        }
     }
 }
 
@@ -468,6 +475,10 @@ impl StatManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::proxy::{OutboundDatagram, OutboundDatagramRecvHalf, OutboundDatagramSendHalf};
+    use crate::session::SocksAddr;
+    use async_trait::async_trait;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use tokio::io::ReadBuf;
 
     struct MockStream {
@@ -505,6 +516,44 @@ mod tests {
         }
         fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<io::Result<()>> {
             Poll::Ready(Ok(()))
+        }
+    }
+
+    struct MockOutboundDatagramRecvHalf;
+
+    #[async_trait]
+    impl OutboundDatagramRecvHalf for MockOutboundDatagramRecvHalf {
+        async fn recv_from(&mut self, _buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
+            Err(io::Error::new(io::ErrorKind::UnexpectedEof, "eof"))
+        }
+    }
+
+    struct MockOutboundDatagramSendHalf;
+
+    #[async_trait]
+    impl OutboundDatagramSendHalf for MockOutboundDatagramSendHalf {
+        async fn send_to(&mut self, _buf: &[u8], _dst_addr: &SocksAddr) -> io::Result<usize> {
+            Ok(0)
+        }
+
+        async fn close(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct MockOutboundDatagram;
+
+    impl OutboundDatagram for MockOutboundDatagram {
+        fn split(
+            self: Box<Self>,
+        ) -> (
+            Box<dyn OutboundDatagramRecvHalf>,
+            Box<dyn OutboundDatagramSendHalf>,
+        ) {
+            (
+                Box::new(MockOutboundDatagramRecvHalf),
+                Box::new(MockOutboundDatagramSendHalf),
+            )
         }
     }
 
@@ -548,5 +597,56 @@ mod tests {
 
         let received = bytes_recvd.load(Ordering::Relaxed);
         assert_eq!(received, 5, "Expected 5 bytes received, got {}", received);
+    }
+
+    #[test]
+    fn stat_outbound_datagram_does_not_end_on_split() {
+        let mut sm = StatManager::new();
+        let sess = Session {
+            outbound_tag: "ss-cabi".to_string(),
+            destination: SocksAddr::from(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8001)),
+            ..Default::default()
+        };
+
+        let dgram = sm.stat_outbound_datagram(Box::new(MockOutboundDatagram), sess);
+        assert_eq!(sm.counters.len(), 1);
+
+        let (recv_half, send_half) = dgram.split();
+        assert_eq!(sm.counters.len(), 1);
+        assert!(
+            sm.rx.as_mut().expect("rx should exist").try_recv().is_err(),
+            "splitting datagram should not end the session immediately"
+        );
+
+        drop(recv_half);
+        drop(send_half);
+        sm.move_to_recent();
+
+        assert!(sm.counters.is_empty());
+        assert!(
+            sm.rx.as_mut().expect("rx should exist").try_recv().is_err(),
+            "split datagram retirement should be driven by half completion, not drop notifications"
+        );
+    }
+
+    #[test]
+    fn stat_outbound_datagram_unsplit_drop_ends_session() {
+        let mut sm = StatManager::new();
+        let sess = Session {
+            outbound_tag: "ss-cabi".to_string(),
+            destination: SocksAddr::from(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8001)),
+            ..Default::default()
+        };
+
+        let dgram = sm.stat_outbound_datagram(Box::new(MockOutboundDatagram), sess);
+        drop(dgram);
+
+        let id = sm
+            .rx
+            .as_mut()
+            .expect("rx should exist")
+            .try_recv()
+            .expect("unsplit datagram drop should enqueue cleanup");
+        assert_eq!(id, 1);
     }
 }
