@@ -187,12 +187,13 @@ async fn handle_inbound_tcp_stream(
         ..Default::default()
     };
     let span = sess.span();
-    let _g = span.enter();
-    let span = sess.span();
-    debug!(
-        "handle inbound tcp stream src={} local={}",
-        &source, &local_addr
-    );
+    {
+        let _g = span.enter();
+        debug!(
+            "handle inbound tcp stream src={} local={}",
+            &source, &local_addr
+        );
+    }
     async move {
         // Transforms the TCP stream into an inbound transport.
         let transport = timeout(
