@@ -185,7 +185,8 @@ impl InboundDatagramHandler for Handler {
                     let remote_addr = incoming.remote_address();
                     match incoming.accept() {
                         Ok(connecting) => {
-                            if let Err(e) = handle_conn(stream_tx_c, remote_addr, connecting).await {
+                            if let Err(e) = handle_conn(stream_tx_c, remote_addr, connecting).await
+                            {
                                 debug!(
                                     "handle quic connection from {} failed: {}",
                                     &remote_addr, e

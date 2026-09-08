@@ -46,9 +46,14 @@ async fn run_stream_actors(
     handshake_timeout: Duration,
 ) -> io::Result<AnyBaseInboundTransport> {
     for actor in actors {
-        let transport = timeout(handshake_timeout, actor.stream()?.handle(sess.clone(), stream))
-            .await
-            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "incoming stream handle timed out"))??;
+        let transport = timeout(
+            handshake_timeout,
+            actor.stream()?.handle(sess.clone(), stream),
+        )
+        .await
+        .map_err(|_| {
+            io::Error::new(io::ErrorKind::TimedOut, "incoming stream handle timed out")
+        })??;
         match transport {
             InboundTransport::Stream(new_stream, new_sess) => {
                 stream = new_stream;
@@ -58,7 +63,9 @@ async fn run_stream_actors(
                 return Ok(AnyBaseInboundTransport::Datagram(socket, sess));
             }
             _ => {
-                return Err(io::Error::other("invalid chain inbound incoming stream transport"));
+                return Err(io::Error::other(
+                    "invalid chain inbound incoming stream transport",
+                ));
             }
         }
     }
@@ -74,7 +81,12 @@ async fn run_datagram_actors(
     for actor in actors {
         let transport = timeout(handshake_timeout, actor.datagram()?.handle(socket))
             .await
-            .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "incoming datagram handle timed out"))??;
+            .map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "incoming datagram handle timed out",
+                )
+            })??;
         match transport {
             InboundTransport::Stream(stream, sess) => {
                 return Ok(AnyBaseInboundTransport::Stream(stream, sess));
@@ -122,8 +134,11 @@ impl Stream for Incoming {
                 match Stream::poll_next(Pin::new(&mut self.incoming), cx) {
                     Poll::Ready(Some(transport)) => {
                         let actors = self.actors.clone();
-                        self.pending
-                            .push(Box::pin(run_actors(transport, actors, handshake_timeout)));
+                        self.pending.push(Box::pin(run_actors(
+                            transport,
+                            actors,
+                            handshake_timeout,
+                        )));
                     }
                     Poll::Ready(None) => {
                         self.state = State::Closed;
