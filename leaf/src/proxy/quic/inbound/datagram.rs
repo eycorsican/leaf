@@ -9,7 +9,7 @@ use futures::stream::Stream;
 use futures::task::{Context, Poll};
 use quinn::{RecvStream, SendStream};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
+use rustls_pemfile::{certs, ec_private_keys, pkcs8_private_keys, rsa_private_keys};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::{timeout, Duration};
 use tracing::{debug, trace, warn};
@@ -95,7 +95,22 @@ impl Handler {
                     match rsa.into_iter().next() {
                         Some(x) => PrivateKeyDer::Pkcs1(x),
                         None => {
-                            return Err(anyhow!("no private keys found",));
+                            // A SEC1 key -- "BEGIN EC PRIVATE KEY", what
+                            // openssl and rcgen hand out for an elliptic curve
+                            // by default. The TLS inbound has always taken
+                            // one; without this the same key file works there
+                            // and fails here with "no private keys found",
+                            // which says nothing about what is wrong with it.
+                            let ec = ec_private_keys(&mut io::BufReader::new(&*key))
+                                .collect::<Result<Vec<_>, _>>()?;
+                            match ec.into_iter().next() {
+                                Some(x) => PrivateKeyDer::Sec1(x),
+                                None => {
+                                    return Err(anyhow!(
+                                        "no private key found: expected a PKCS#8, PKCS#1 or SEC1 key"
+                                    ));
+                                }
+                            }
                         }
                     }
                 }

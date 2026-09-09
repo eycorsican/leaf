@@ -529,6 +529,28 @@ fn is_inline_certificate(certificate: &str) -> bool {
     certificate.contains("-----BEGIN")
 }
 
+/// Resolves a certificate or a private key, either of which may be given
+/// inline or as a path.
+///
+/// The two halves of a keypair are configured the same way and have to be read
+/// the same way. They were not: a certificate was recognised inline and a key
+/// never was, so an inline key became a path under the asset directory made of
+/// PEM, and what the operator saw was "no private keys found" about a key that
+/// was right there in the configuration.
+fn resolve_certificate(value: &str) -> String {
+    if is_inline_certificate(value) {
+        return value.to_string();
+    }
+    let path = Path::new(value);
+    if path.is_absolute() {
+        return path.to_string_lossy().to_string();
+    }
+    Path::new(&*crate::option::ASSET_LOCATION)
+        .join(path)
+        .to_string_lossy()
+        .to_string()
+}
+
 fn validate_non_empty_str(value: &str, field_name: &str, protocol: &str) -> Result<()> {
     if value.trim().is_empty() {
         return Err(anyhow::anyhow!(
@@ -846,30 +868,12 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
                             settings.certificate = ext_raw_certificate.join("\n");
                         } else if let Some(ext_certificate) = &ext_settings.certificate {
-                            if is_inline_certificate(ext_certificate) {
-                                settings.certificate = ext_certificate.clone();
-                            } else {
-                                let cert = Path::new(&ext_certificate);
-                                if cert.is_absolute() {
-                                    settings.certificate = cert.to_string_lossy().to_string();
-                                } else {
-                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                    settings.certificate = path;
-                                }
-                            }
+                            settings.certificate = resolve_certificate(ext_certificate);
                         }
                         if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
                             settings.certificate_key = ext_raw_certificate_key.join("\n");
                         } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
-                            let key = Path::new(&ext_certificate_key);
-                            if key.is_absolute() {
-                                settings.certificate_key = key.to_string_lossy().to_string();
-                            } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(key).to_string_lossy().to_string();
-                                settings.certificate_key = path;
-                            }
+                            settings.certificate_key = resolve_certificate(ext_certificate_key);
                         }
                         if let Some(ext_alpns) = &ext_settings.alpn {
                             for ext_alpn in ext_alpns {
@@ -906,30 +910,12 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
                             settings.certificate = ext_raw_certificate.join("\n");
                         } else if let Some(ext_certificate) = &ext_settings.certificate {
-                            if is_inline_certificate(ext_certificate) {
-                                settings.certificate = ext_certificate.clone();
-                            } else {
-                                let cert = Path::new(&ext_certificate);
-                                if cert.is_absolute() {
-                                    settings.certificate = cert.to_string_lossy().to_string();
-                                } else {
-                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                    settings.certificate = path;
-                                }
-                            }
+                            settings.certificate = resolve_certificate(ext_certificate);
                         }
                         if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
                             settings.certificate_key = ext_raw_certificate_key.join("\n");
                         } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
-                            let key = Path::new(&ext_certificate_key);
-                            if key.is_absolute() {
-                                settings.certificate_key = key.to_string_lossy().to_string();
-                            } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(key).to_string_lossy().to_string();
-                                settings.certificate_key = path;
-                            }
+                            settings.certificate_key = resolve_certificate(ext_certificate_key);
                         }
                         if let Some(ext_ech_config) = &ext_settings.ech_config {
                             settings.ech_config = ext_ech_config.clone();
@@ -1182,30 +1168,12 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
                             settings.certificate = ext_raw_certificate.join("\n");
                         } else if let Some(ext_certificate) = &ext_settings.certificate {
-                            if is_inline_certificate(ext_certificate) {
-                                settings.certificate = ext_certificate.clone();
-                            } else {
-                                let cert = Path::new(&ext_certificate);
-                                if cert.is_absolute() {
-                                    settings.certificate = cert.to_string_lossy().to_string();
-                                } else {
-                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                    settings.certificate = path;
-                                }
-                            }
+                            settings.certificate = resolve_certificate(ext_certificate);
                         }
                         if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
                             settings.certificate_key = ext_raw_certificate_key.join("\n");
                         } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
-                            let key = Path::new(&ext_certificate_key);
-                            if key.is_absolute() {
-                                settings.certificate_key = key.to_string_lossy().to_string();
-                            } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(key).to_string_lossy().to_string();
-                                settings.certificate_key = path;
-                            }
+                            settings.certificate_key = resolve_certificate(ext_certificate_key);
                         }
                         if let Some(ext_insecure) = ext_settings.insecure {
                             settings.insecure = ext_insecure;
@@ -1369,30 +1337,12 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         if let Some(ext_raw_certificate) = &ext_settings.raw_certificate {
                             settings.certificate = ext_raw_certificate.join("\n");
                         } else if let Some(ext_certificate) = &ext_settings.certificate {
-                            if is_inline_certificate(ext_certificate) {
-                                settings.certificate = ext_certificate.clone();
-                            } else {
-                                let cert = Path::new(&ext_certificate);
-                                if cert.is_absolute() {
-                                    settings.certificate = cert.to_string_lossy().to_string();
-                                } else {
-                                    let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                    let path = asset_loc.join(cert).to_string_lossy().to_string();
-                                    settings.certificate = path;
-                                }
-                            }
+                            settings.certificate = resolve_certificate(ext_certificate);
                         }
                         if let Some(ext_raw_certificate_key) = &ext_settings.raw_certificate_key {
                             settings.certificate_key = ext_raw_certificate_key.join("\n");
                         } else if let Some(ext_certificate_key) = &ext_settings.certificate_key {
-                            let key = Path::new(&ext_certificate_key);
-                            if key.is_absolute() {
-                                settings.certificate_key = key.to_string_lossy().to_string();
-                            } else {
-                                let asset_loc = Path::new(&*crate::option::ASSET_LOCATION);
-                                let path = asset_loc.join(key).to_string_lossy().to_string();
-                                settings.certificate_key = path;
-                            }
+                            settings.certificate_key = resolve_certificate(ext_certificate_key);
                         }
                         if let Some(ext_alpns) = &ext_settings.alpn {
                             settings.alpn = ext_alpns.clone();
@@ -1626,4 +1576,41 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
     config.router = router;
     config.dns = protobuf::MessageField::some(dns);
     Ok(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const INLINE_KEY: &str = "-----BEGIN PRIVATE KEY-----\nMIGH\n-----END PRIVATE KEY-----\n";
+
+    /// Both halves of a keypair are configured the same way and have to be
+    /// read the same way. The key was not: it was always taken for a path, so
+    /// an inline one became a filename made of PEM under the asset directory,
+    /// and what the operator saw was "no private keys found" about a key that
+    /// was right there in the configuration.
+    #[test]
+    fn an_inline_key_is_not_mistaken_for_a_path() {
+        assert_eq!(resolve_certificate(INLINE_KEY), INLINE_KEY);
+    }
+
+    #[test]
+    fn an_absolute_path_is_left_alone() {
+        assert_eq!(
+            resolve_certificate("/etc/leaf/cert.pem"),
+            "/etc/leaf/cert.pem"
+        );
+    }
+
+    /// A relative path is still resolved against the asset directory, which is
+    /// what makes `"certificate": "cert.pem"` work in a config file.
+    #[test]
+    fn a_relative_path_is_resolved_against_the_asset_directory() {
+        let resolved = resolve_certificate("cert.pem");
+        assert!(
+            resolved.ends_with("cert.pem") && resolved != "cert.pem",
+            "expected a path under the asset directory, got {}",
+            resolved
+        );
+    }
 }
