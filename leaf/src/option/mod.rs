@@ -19,6 +19,22 @@ where
     default
 }
 
+/// Reads a boolean option, accepting the spellings people actually use.
+///
+/// `bool::from_str` takes `true` and `false` and nothing else, so a `FOO=1`
+/// reads as the default and says nothing about it. An option that is silently
+/// ignored is worse than one that is missing.
+pub fn get_env_bool(key: &str, default: bool) -> bool {
+    match env::var(key) {
+        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
+            "1" | "true" | "yes" | "on" => true,
+            "0" | "false" | "no" | "off" => false,
+            _ => default,
+        },
+        Err(_) => default,
+    }
+}
+
 fn get_env_var_or_else<T, F>(key: &str, f: F) -> T
 where
     T: FromStr,
@@ -170,7 +186,33 @@ lazy_static! {
     /// So turn this on where a device cannot afford the sockets, not as a
     /// matter of course.
     pub static ref TCP_INBOUND_ABORT_ON_CLOSE: bool = {
-        get_env_var_or("TCP_INBOUND_ABORT_ON_CLOSE", false)
+        get_env_bool("TCP_INBOUND_ABORT_ON_CLOSE", false)
+    };
+
+    /// Whether a websocket transport tells the far end when its side of the
+    /// conversation has ended.
+    ///
+    /// A client that has finished sending says so by closing its write side
+    /// and going on reading, and plenty of protocols end a request that way
+    /// and no other. WebSocket has no half-close: the nearest thing is a Close
+    /// frame, which RFC 6455 defines as the start of closing the whole
+    /// connection. leaf's own websocket transport reads a Close frame as the
+    /// end of the peer's side alone and keeps carrying the other direction, so
+    /// between two leaf nodes a Close frame is exactly the missing signal.
+    ///
+    /// Against anything else it may not be. A strict peer answers a Close
+    /// frame with its own and closes, which would cut off a reply that is
+    /// still coming -- and that reply arrives today, because leaf sends
+    /// nothing and lets the session run on until its downlink grace expires.
+    /// Turning a working session into a broken one is worse than a request
+    /// whose end never arrives, so this is off unless a deployment knows what
+    /// is at the other end.
+    ///
+    /// With it off, a request that ends in a half-close is never signalled
+    /// over a websocket transport at all: the far end learns only when the
+    /// connection itself goes away.
+    pub static ref WS_HALF_CLOSE: bool = {
+        get_env_bool("WS_HALF_CLOSE", false)
     };
 
     /// Buffer size for uplink and downlink connections, in KB.
