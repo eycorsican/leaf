@@ -4,6 +4,7 @@ use async_trait::async_trait;
 
 use crate::{proxy::*, session::Session};
 
+use super::fold::{fold, Folded};
 use super::Incoming;
 
 pub struct Handler {
@@ -14,38 +15,31 @@ pub struct Handler {
 impl InboundStreamHandler for Handler {
     async fn handle<'a>(
         &'a self,
-        mut sess: Session,
-        mut stream: AnyStream,
-    ) -> std::io::Result<AnyInboundTransport> {
+        sess: Session,
+        stream: AnyStream,
+    ) -> io::Result<AnyInboundTransport> {
         tracing::trace!("handling inbound stream");
-        for (i, a) in self.actors.iter().enumerate() {
-            let transport = a.stream()?.handle(sess.clone(), stream).await?;
-            match transport {
-                InboundTransport::Stream(new_stream, new_sess) => {
-                    stream = new_stream;
-                    sess = new_sess;
-                }
-                InboundTransport::Datagram(socket, sess) => {
-                    // If the input stream has been converted to a datagram,
-                    // we assume it's the last actor. Because we can not convert
-                    // a datagram back to stream, and can't chain multiple
-                    // inbound datagrams for a stream-initiated transport
-                    // on a single node.
-                    //
-                    // TODO Warns if there are further actors in the chain.
-                    return Ok(InboundTransport::Datagram(socket, sess));
-                }
-                InboundTransport::Incoming(incoming) => {
-                    return Ok(InboundTransport::Incoming(Box::new(Incoming::new(
-                        incoming,
-                        self.actors[i + 1..].to_vec(), // FIXME oob check
-                    ))));
-                }
-                _ => {
-                    return Err(io::Error::other("invalid transport"));
-                }
+        match fold(
+            AnyBaseInboundTransport::Stream(stream, sess),
+            &self.actors,
+            None,
+        )
+        .await?
+        {
+            Folded::Done(AnyBaseInboundTransport::Stream(stream, sess)) => {
+                Ok(InboundTransport::Stream(stream, sess))
             }
+            Folded::Done(AnyBaseInboundTransport::Datagram(socket, sess)) => {
+                Ok(InboundTransport::Datagram(socket, sess))
+            }
+            Folded::Done(AnyBaseInboundTransport::Empty) => {
+                Err(io::Error::other("the chain produced nothing"))
+            }
+            // The actors that have not run belong to each transport this one
+            // yields, not to the thing yielding them.
+            Folded::Incoming(incoming, next) => Ok(InboundTransport::Incoming(Box::new(
+                Incoming::new(incoming, self.actors[next..].to_vec()),
+            ))),
         }
-        Ok(InboundTransport::Stream(stream, sess))
     }
 }

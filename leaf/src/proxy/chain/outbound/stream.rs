@@ -1,84 +1,58 @@
-use std::convert::TryFrom;
 use std::io;
 
 use async_trait::async_trait;
 use tracing::Instrument;
 
-use crate::{
-    proxy::*,
-    session::{Session, SocksAddr},
-};
+use crate::{proxy::*, session::Session};
+
+use super::plan::Plan;
 
 pub struct Handler {
     pub actors: Vec<AnyOutboundHandler>,
 }
 
-impl Handler {
-    fn next_connect_addr(&self, start: usize) -> OutboundConnect {
-        for a in self.actors[start..].iter() {
-            match a.stream() {
-                Ok(h) => {
-                    let oc = h.connect_addr();
-                    if let OutboundConnect::Next = oc {
-                        continue;
-                    }
-                    return oc;
-                }
-                _ => {
-                    if let Ok(h) = a.datagram() {
-                        let oc = h.connect_addr();
-                        if let OutboundConnect::Next = oc {
-                            continue;
-                        }
-                        return oc;
-                    }
-                }
-            }
-        }
-        OutboundConnect::Unknown
-    }
-
-    fn next_session(&self, mut sess: Session, start: usize) -> Session {
-        if let OutboundConnect::Proxy(_, address, port) = self.next_connect_addr(start) {
-            if let Ok(addr) = SocksAddr::try_from((address, port)) {
-                sess.destination = addr;
-                sess.dns_sniffed_domain = None;
-                sess.http_sniffed_domain = None;
-                sess.tls_sniffed_domain = None;
-            }
-        }
-        sess
-    }
-}
-
 #[async_trait]
 impl OutboundStreamHandler for Handler {
     fn connect_addr(&self) -> OutboundConnect {
-        self.next_connect_addr(0)
+        Plan::for_stream(&self.actors).dial
     }
 
+    /// Runs each actor over what the one before it produced.
+    ///
+    /// The plan has already decided what each actor is told to reach; all that
+    /// is left here is the I/O, in order, with each actor's failure named
+    /// after it.
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
         mut lhs: Option<&mut AnyStream>,
-        mut stream: Option<AnyStream>,
+        stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
         tracing::trace!("handling outbound stream");
-        for (i, a) in self.actors.iter().enumerate() {
-            let new_sess = self.next_session(sess.clone(), i + 1);
-            let s = stream.take();
-            let lhs_stream = if i == self.actors.len() - 1 {
+        let plan = Plan::for_stream(&self.actors);
+        let last = plan.last();
+        let mut stream = stream;
+
+        for stage in &plan.stages {
+            // Only the actor that talks to the destination is shown the
+            // client's side of the connection: it is the one that can read the
+            // first payload and put it in its own handshake.
+            let lhs = if stage.index == last {
                 lhs.take()
             } else {
                 None
             };
-            stream.replace(
-                a.stream()?
-                    .handle(&new_sess, lhs_stream, s)
-                    .instrument(sess.span())
-                    .await?,
-            );
+            let actor = &self.actors[stage.index];
+            let handled = actor
+                .stream()
+                .map_err(|err| stage.error(err))?
+                .handle(&stage.session(sess), lhs, stream.take())
+                .instrument(sess.span())
+                .await
+                .map_err(|err| stage.error(err))?;
+            stream.replace(handled);
         }
-        Ok(stream.ok_or_else(|| io::Error::other("chain tcp invalid input"))?)
+
+        stream.ok_or_else(|| io::Error::other("a chain with no actors carries nothing"))
     }
 }

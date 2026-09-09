@@ -5,13 +5,15 @@ use futures::{
     future::BoxFuture,
     task::{Context, Poll},
 };
-use tokio::time::timeout;
 use tracing::debug;
 
 use crate::proxy::*;
 
 mod datagram;
+mod fold;
 mod stream;
+
+use fold::{fold, Folded};
 
 pub use datagram::Handler as DatagramHandler;
 pub use stream::Handler as StreamHandler;
@@ -39,85 +41,20 @@ impl Incoming {
     }
 }
 
-async fn run_stream_actors(
-    mut stream: AnyStream,
-    mut sess: Session,
-    actors: Vec<AnyInboundHandler>,
-    handshake_timeout: Duration,
-) -> io::Result<AnyBaseInboundTransport> {
-    for actor in actors {
-        let transport = timeout(
-            handshake_timeout,
-            actor.stream()?.handle(sess.clone(), stream),
-        )
-        .await
-        .map_err(|_| {
-            io::Error::new(io::ErrorKind::TimedOut, "incoming stream handle timed out")
-        })??;
-        match transport {
-            InboundTransport::Stream(new_stream, new_sess) => {
-                stream = new_stream;
-                sess = new_sess;
-            }
-            InboundTransport::Datagram(socket, sess) => {
-                return Ok(AnyBaseInboundTransport::Datagram(socket, sess));
-            }
-            _ => {
-                return Err(io::Error::other(
-                    "invalid chain inbound incoming stream transport",
-                ));
-            }
-        }
-    }
-    Ok(AnyBaseInboundTransport::Stream(stream, sess))
-}
-
-async fn run_datagram_actors(
-    mut socket: AnyInboundDatagram,
-    mut sess: Option<Session>,
-    actors: Vec<AnyInboundHandler>,
-    handshake_timeout: Duration,
-) -> io::Result<AnyBaseInboundTransport> {
-    for actor in actors {
-        let transport = timeout(handshake_timeout, actor.datagram()?.handle(socket))
-            .await
-            .map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "incoming datagram handle timed out",
-                )
-            })??;
-        match transport {
-            InboundTransport::Stream(stream, sess) => {
-                return Ok(AnyBaseInboundTransport::Stream(stream, sess));
-            }
-            InboundTransport::Datagram(new_socket, new_sess) => {
-                socket = new_socket;
-                sess = new_sess;
-            }
-            _ => {
-                return Err(io::Error::other(
-                    "invalid chain inbound incoming datagram transport",
-                ));
-            }
-        }
-    }
-    Ok(AnyBaseInboundTransport::Datagram(socket, sess))
-}
-
+/// Runs the actors that had not run when a multiplexed transport appeared,
+/// once for every transport it yields.
 async fn run_actors(
     transport: AnyBaseInboundTransport,
     actors: Vec<AnyInboundHandler>,
     handshake_timeout: Duration,
 ) -> io::Result<AnyBaseInboundTransport> {
-    match transport {
-        AnyBaseInboundTransport::Stream(stream, sess) => {
-            run_stream_actors(stream, sess, actors, handshake_timeout).await
-        }
-        AnyBaseInboundTransport::Datagram(socket, sess) => {
-            run_datagram_actors(socket, sess, actors, handshake_timeout).await
-        }
-        AnyBaseInboundTransport::Empty => Err(io::Error::other("empty chain inbound transport")),
+    match fold(transport, &actors, Some(handshake_timeout)).await? {
+        Folded::Done(transport) => Ok(transport),
+        // Neither shape of chain unwraps one of these inside another, and a
+        // silent failure here would look like a connection that never arrived.
+        Folded::Incoming(..) => Err(io::Error::other(
+            "a multiplexed transport inside another one is not supported",
+        )),
     }
 }
 

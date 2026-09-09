@@ -1,157 +1,64 @@
-use std::convert::TryFrom;
 use std::io;
 
 use async_trait::async_trait;
-use tracing::{trace, Instrument};
+use tracing::Instrument;
 
-use crate::{proxy::*, session::*};
+use crate::{proxy::*, session::Session};
+
+use super::plan::{Input, Kind, Plan};
 
 pub struct Handler {
     pub actors: Vec<AnyOutboundHandler>,
 }
 
-impl Handler {
-    fn next_connect_addr(&self, start: usize) -> OutboundConnect {
-        for a in self.actors[start..].iter() {
-            match a.datagram() {
-                Ok(h) => {
-                    if self.unreliable_chain(start + 1) {
-                        let oc = h.connect_addr();
-                        if let OutboundConnect::Next = oc {
-                            continue;
-                        }
-                        return oc;
-                    } else if let Ok(h) = a.stream() {
-                        let oc = h.connect_addr();
-                        if let OutboundConnect::Next = oc {
-                            continue;
-                        }
-                        return oc;
-                    }
-                }
-                _ => {
-                    if let Ok(h) = a.stream() {
-                        let oc = h.connect_addr();
-                        if let OutboundConnect::Next = oc {
-                            continue;
-                        }
-                        return oc;
-                    }
-                }
-            }
+/// What the chain is carrying between two actors.
+///
+/// A chain that ends in datagrams may still start as a stream: a datagram
+/// tunnelled over a reliable protocol is a stream until the actor that
+/// tunnels it, and there is no way back.
+enum Carried {
+    Nothing,
+    Stream(AnyStream),
+    Datagram(AnyOutboundDatagram),
+}
+
+impl Carried {
+    fn from(transport: Option<AnyOutboundTransport>) -> Self {
+        match transport {
+            Some(OutboundTransport::Stream(stream)) => Carried::Stream(stream),
+            Some(OutboundTransport::Datagram(datagram)) => Carried::Datagram(datagram),
+            None => Carried::Nothing,
         }
-        OutboundConnect::Unknown
     }
 
-    fn next_session(&self, mut sess: Session, start: usize) -> Session {
-        if let OutboundConnect::Proxy(_, address, port) = self.next_connect_addr(start) {
-            if let Ok(addr) = SocksAddr::try_from((address, port)) {
-                sess.destination = addr;
-                sess.dns_sniffed_domain = None;
-                sess.http_sniffed_domain = None;
-                sess.tls_sniffed_domain = None;
-            }
+    fn input(&self) -> Input {
+        match self {
+            Carried::Nothing => Input::Nothing,
+            Carried::Stream(_) => Input::Stream,
+            Carried::Datagram(_) => Input::Datagram,
         }
-        sess
-    }
-
-    fn unreliable_chain(&self, start: usize) -> bool {
-        for a in self.actors[start..].iter() {
-            if let Ok(uh) = a.datagram() {
-                if uh.transport_type() != DatagramTransportType::Unreliable {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        true
-    }
-
-    async fn handle<'a>(
-        &'a self,
-        sess: &'a Session,
-        mut stream: Option<Box<dyn ProxyStream>>,
-        mut dgram: Option<Box<dyn OutboundDatagram>>,
-    ) -> io::Result<Box<dyn OutboundDatagram>> {
-        for (i, a) in self.actors.iter().enumerate() {
-            let new_sess = self.next_session(sess.clone(), i + 1);
-
-            trace!("handle actor idx={} tag={}", i, a.tag());
-
-            if let Ok(uh) = a.datagram() {
-                trace!("has datagram");
-                if let Some(d) = dgram.take() {
-                    dgram.replace(
-                        uh.handle(&new_sess, Some(OutboundTransport::Datagram(d)))
-                            .instrument(tracing::Span::current())
-                            .await?,
-                    );
-                } else if let Some(s) = stream.take() {
-                    trace!("has input stream");
-                    // Check whether all subsequent handlers can use unreliable
-                    // transport, otherwise we must not convert the stream to
-                    // a datagram.
-                    if self.unreliable_chain(i + 1) {
-                        trace!("unreliable chain");
-                        dgram.replace(
-                            uh.handle(&new_sess, Some(OutboundTransport::Stream(s)))
-                                .instrument(tracing::Span::current())
-                                .await?,
-                        );
-                    } else {
-                        trace!("reliable chain");
-                        stream.replace(
-                            a.stream()?
-                                .handle(&new_sess, None, Some(s))
-                                .instrument(tracing::Span::current())
-                                .await?,
-                        );
-                    }
-                } else if self.unreliable_chain(i + 1) {
-                    trace!("unreliable chain fallback");
-                    dgram.replace(
-                        uh.handle(&new_sess, None)
-                            .instrument(tracing::Span::current())
-                            .await?,
-                    );
-                } else {
-                    trace!("reliable chain");
-                    stream.replace(
-                        a.stream()?
-                            .handle(&new_sess, None, None)
-                            .instrument(tracing::Span::current())
-                            .await?,
-                    );
-                }
-            } else {
-                trace!("no datagram, use stream");
-                let s = stream.take();
-                stream.replace(
-                    a.stream()?
-                        .handle(&new_sess, None, s)
-                        .instrument(tracing::Span::current())
-                        .await?,
-                );
-            }
-        }
-        dgram.ok_or_else(|| io::Error::other("no datagram"))
     }
 }
 
 #[async_trait]
 impl OutboundDatagramHandler for Handler {
     fn connect_addr(&self) -> OutboundConnect {
-        self.next_connect_addr(0)
+        // What is dialled does not depend on what the chain is handed: the
+        // first actor that names an endpoint names it either way.
+        Plan::for_datagram(&self.actors, Input::Nothing).dial
     }
 
+    /// What the *first* actor accepts, which is what an enclosing chain is
+    /// asking about when it decides whether it may convert a stream into a
+    /// datagram before reaching this one. Not what this chain produces.
     fn transport_type(&self) -> DatagramTransportType {
         self.actors
             .first()
-            .map(|x| {
-                x.datagram()
-                    .map(|x| x.transport_type())
-                    .unwrap_or(DatagramTransportType::Unknown)
+            .and_then(|actor| {
+                actor
+                    .datagram()
+                    .ok()
+                    .map(|handler| handler.transport_type())
             })
             .unwrap_or(DatagramTransportType::Unknown)
     }
@@ -162,27 +69,66 @@ impl OutboundDatagramHandler for Handler {
         transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
         tracing::trace!("handling outbound datagram");
-        match transport {
-            Some(transport) => match transport {
-                OutboundTransport::Datagram(dgram) => {
-                    trace!("datagram transport");
-                    self.handle(sess, None, Some(dgram))
-                        .instrument(tracing::Span::current())
-                        .await
+        let mut carried = Carried::from(transport);
+        let plan = Plan::for_datagram(&self.actors, carried.input());
+
+        for stage in &plan.stages {
+            let actor = &self.actors[stage.index];
+            let sess = stage.session(sess);
+            carried = match stage.kind {
+                Kind::Datagram => {
+                    let transport = match carried {
+                        Carried::Nothing => None,
+                        Carried::Stream(stream) => Some(OutboundTransport::Stream(stream)),
+                        Carried::Datagram(datagram) => Some(OutboundTransport::Datagram(datagram)),
+                    };
+                    Carried::Datagram(
+                        actor
+                            .datagram()
+                            .map_err(|err| stage.error(err))?
+                            .handle(&sess, transport)
+                            .instrument(tracing::Span::current())
+                            .await
+                            .map_err(|err| stage.error(err))?,
+                    )
                 }
-                OutboundTransport::Stream(stream) => {
-                    trace!("stream transport");
-                    self.handle(sess, Some(stream), None)
-                        .instrument(tracing::Span::current())
-                        .await
+                Kind::Stream => {
+                    let stream = match carried {
+                        Carried::Nothing => None,
+                        Carried::Stream(stream) => Some(stream),
+                        // The actor before produced a datagram and this one
+                        // speaks only streams. Nothing can be done with it,
+                        // and silently dropping it is how this used to end as
+                        // "invalid input" from an actor that was handed
+                        // nothing.
+                        Carried::Datagram(_) => {
+                            return Err(stage
+                                .failed("cannot carry the datagram the actor before it produced"))
+                        }
+                    };
+                    Carried::Stream(
+                        actor
+                            .stream()
+                            .map_err(|err| stage.error(err))?
+                            .handle(&sess, None, stream)
+                            .instrument(tracing::Span::current())
+                            .await
+                            .map_err(|err| stage.error(err))?,
+                    )
                 }
-            },
-            None => {
-                trace!("stream=None, datagram=None");
-                self.handle(sess, None, None)
-                    .instrument(tracing::Span::current())
-                    .await
-            }
+            };
+        }
+
+        match carried {
+            Carried::Datagram(datagram) => Ok(datagram),
+            _ => Err(io::Error::other(format!(
+                "chain [{}] carries no datagrams: no actor in it turns a stream into one",
+                plan.stages
+                    .iter()
+                    .map(|stage| stage.tag.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))),
         }
     }
 }

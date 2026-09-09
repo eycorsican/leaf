@@ -4,6 +4,7 @@ use async_trait::async_trait;
 
 use crate::proxy::*;
 
+use super::fold::{fold, Folded};
 use super::Incoming;
 
 pub struct Handler {
@@ -12,33 +13,29 @@ pub struct Handler {
 
 #[async_trait]
 impl InboundDatagramHandler for Handler {
-    async fn handle<'a>(
-        &'a self,
-        mut socket: AnyInboundDatagram,
-    ) -> io::Result<AnyInboundTransport> {
+    async fn handle<'a>(&'a self, socket: AnyInboundDatagram) -> io::Result<AnyInboundTransport> {
         tracing::trace!("handling inbound datagram");
-        let mut sess: Option<Session> = None;
-        for (i, a) in self.actors.iter().enumerate() {
-            let transport = a.datagram()?.handle(socket).await?;
-            match transport {
-                InboundTransport::Stream(..) => {
-                    unimplemented!();
-                }
-                InboundTransport::Datagram(new_socket, new_sess) => {
-                    socket = new_socket;
-                    sess = new_sess;
-                }
-                InboundTransport::Incoming(incoming) => {
-                    return Ok(InboundTransport::Incoming(Box::new(Incoming::new(
-                        incoming,
-                        self.actors[i + 1..].to_vec(), // FIXME oob check
-                    ))));
-                }
-                _ => {
-                    return Err(io::Error::other("invalid transport"));
-                }
+        match fold(
+            AnyBaseInboundTransport::Datagram(socket, None),
+            &self.actors,
+            None,
+        )
+        .await?
+        {
+            Folded::Done(AnyBaseInboundTransport::Datagram(socket, sess)) => {
+                Ok(InboundTransport::Datagram(socket, sess))
             }
+            // A datagram actor that hands back a stream: the chain ends there,
+            // with the stream, rather than panicking as it used to.
+            Folded::Done(AnyBaseInboundTransport::Stream(stream, sess)) => {
+                Ok(InboundTransport::Stream(stream, sess))
+            }
+            Folded::Done(AnyBaseInboundTransport::Empty) => {
+                Err(io::Error::other("the chain produced nothing"))
+            }
+            Folded::Incoming(incoming, next) => Ok(InboundTransport::Incoming(Box::new(
+                Incoming::new(incoming, self.actors[next..].to_vec()),
+            ))),
         }
-        Ok(InboundTransport::Datagram(socket, sess))
     }
 }
