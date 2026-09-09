@@ -200,7 +200,12 @@ impl TcpListener {
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
         let (stream, addr) = self.inner.accept().await?;
         apply_socket_opts(&stream)?;
-        SockRef::from(&stream).set_linger(Some(Duration::ZERO))?;
+        if *option::TCP_INBOUND_ABORT_ON_CLOSE {
+            // Reclaims the socket the moment it is closed, and discards
+            // anything still queued for the peer along with it. See the
+            // option's own documentation for when that trade is the right one.
+            SockRef::from(&stream).set_linger(Some(Duration::ZERO))?;
+        }
         Ok((stream, addr))
     }
 }
@@ -764,4 +769,48 @@ pub async fn peek_tcp_one_off(lhs: Option<&mut AnyStream>) -> Vec<u8> {
         }
     }
     Vec::new()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    /// An accepted connection is closed gracefully unless the option asks for
+    /// the aggressive reclaim: a reset discards whatever is still queued for
+    /// the peer, including the tail of a response whose end is the close.
+    #[test]
+    fn accepted_socket_linger_follows_the_option() {
+        runtime().block_on(async {
+            let listener = TcpListener::bind(&"127.0.0.1:0".parse().unwrap())
+                .await
+                .unwrap();
+            let addr = listener.io().local_addr().unwrap();
+            let connecting = tokio::spawn(TcpStream::connect(addr));
+            let (accepted, _) = listener.accept().await.unwrap();
+            let _client = connecting.await.unwrap().unwrap();
+
+            let linger = SockRef::from(&accepted).linger().unwrap();
+            if *option::TCP_INBOUND_ABORT_ON_CLOSE {
+                assert_eq!(linger, Some(Duration::ZERO));
+            } else {
+                assert_eq!(linger, None);
+            }
+        });
+    }
+
+    #[test]
+    fn abort_on_close_is_off_unless_asked_for() {
+        if std::env::var("TCP_INBOUND_ABORT_ON_CLOSE").is_ok() {
+            // The environment chose; the case above covers the wiring.
+            return;
+        }
+        assert!(!*option::TCP_INBOUND_ABORT_ON_CLOSE);
+    }
 }

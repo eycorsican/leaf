@@ -152,6 +152,27 @@ lazy_static! {
         get_env_var_or("TCP_DOWNLINK_TIMEOUT", 10)
     };
 
+    /// Whether to abort inbound TCP connections instead of closing them
+    /// gracefully.
+    ///
+    /// With this on, every accepted socket gets `SO_LINGER = 0`, so closing it
+    /// sends a reset: no TIME_WAIT, nothing left waiting on a peer that has
+    /// gone away, and the socket reclaimed at once. It also discards whatever
+    /// is still queued for that peer, which is why it is off by default. A
+    /// response whose end is marked by the close itself -- HTTP/1.0, a body
+    /// with no length, anything read to EOF -- can be truncated, and a peer
+    /// that has received every byte but not yet read them can still see the
+    /// transfer fail.
+    ///
+    /// The reclaim is only ever paid for on the paths where leaf closes first,
+    /// which are the idle timeouts and the error teardowns. When the peer
+    /// closes first, leaf is the passive closer and has no TIME_WAIT to avoid.
+    /// So turn this on where a device cannot afford the sockets, not as a
+    /// matter of course.
+    pub static ref TCP_INBOUND_ABORT_ON_CLOSE: bool = {
+        get_env_var_or("TCP_INBOUND_ABORT_ON_CLOSE", false)
+    };
+
     /// Buffer size for uplink and downlink connections, in KB.
     pub static ref LINK_BUFFER_SIZE: usize = {
         get_env_var_or("LINK_BUFFER_SIZE", 2)
