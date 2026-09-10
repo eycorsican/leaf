@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "leaf",
+    "leaf-plugin-abi",
     "leaf-cli",
     "leaf-ffi",
     "leaf-plugins/shadowsocks",

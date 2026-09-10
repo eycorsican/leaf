@@ -1,0 +1,9 @@
+[package]
+name = "leaf-plugin-abi"
+version = "0.1.0"
+edition = "2021"
+description = "The C ABI shared between the leaf plugin host and out-of-tree plugins"
+
+[lib]
+# Intentionally dependency-free: plugins must be able to depend on the ABI
+# without pulling in the proxy engine.
