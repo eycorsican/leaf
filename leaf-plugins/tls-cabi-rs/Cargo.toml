@@ -1,0 +1,20 @@
+[package]
+name = "tls-cabi-rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0"
+bytes = "1"
+leaf-plugin-abi = { path = "../../leaf-plugin-abi" }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "logging", "tls12"] }
+rustls-pemfile = "2.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+webpki-roots = "0.26"
+
+[dev-dependencies]
+rcgen = "0.13"

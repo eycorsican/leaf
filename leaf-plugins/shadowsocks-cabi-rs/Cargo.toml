@@ -1,0 +1,18 @@
+[package]
+name = "shadowsocks-cabi-rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0"
+bytes = "1"
+hkdf = "0.12"
+leaf = { path = "../../leaf", features = ["plugin"] }
+leaf-plugin-abi = { path = "../../leaf-plugin-abi" }
+md-5 = "0.10"
+percent-encoding = "2.3"
+rand = "0.8"
+sha-1 = "0.10"
