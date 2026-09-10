@@ -515,8 +515,14 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         }
     }
 
+    // Only when a TUN inbound is actually going to route through this process,
+    // which is the same condition the other platforms apply above. Setting it
+    // unconditionally pins every outbound socket that asks for the wildcard
+    // bind to the default interface, and a socket bound to that interface
+    // cannot reach a destination the interface does not serve -- loopback
+    // most of all, where it fails with WSAEADDRNOTAVAIL.
     #[cfg(all(feature = "inbound-tun", target_os = "windows"))]
-    {
+    if inbound_manager.has_tun_listener() && inbound_manager.tun_auto() {
         std::env::set_var("OUTBOUND_INTERFACE", winsys::get_default_interface_ips());
     }
 
