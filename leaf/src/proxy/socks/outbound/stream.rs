@@ -72,27 +72,42 @@ mod tests {
             ..Default::default()
         };
 
-        // Mock a SOCKS5 server in a separate task
+        // Mock a SOCKS5 server in a separate task.
+        //
+        // It has to consume everything the client sends, not merely enough to
+        // know what to reply: a socket dropped with unread bytes still in it is
+        // reset rather than closed, and the client loses the reply it was in
+        // the middle of being given. This used to read the greeting as two
+        // bytes, one short of the shortest there is, and every read after it
+        // was off by that byte -- so the request went unread, the close became
+        // a reset, and whether the client got the reply out first was a race it
+        // won often enough on Unix to look like a passing test.
         tokio::spawn(async move {
             let (mut socket, _) = listener.accept().await.unwrap();
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-            // Handshake
-            let mut buf = [0u8; 2];
-            socket.read_exact(&mut buf).await.unwrap();
+            // Greeting: VER, NMETHODS, and then that many method bytes.
+            let mut greeting = [0u8; 2];
+            socket.read_exact(&mut greeting).await.unwrap();
+            let mut methods = vec![0u8; greeting[1] as usize];
+            socket.read_exact(&mut methods).await.unwrap();
             socket.write_all(&[0x05, 0x00]).await.unwrap();
 
-            // Request
-            let mut buf = [0u8; 10]; // Minimum size for domain request
-            socket.read_exact(&mut buf[..4]).await.unwrap();
-            let atyp = buf[3];
-            if atyp == 0x03 {
-                let mut len_buf = [0u8; 1];
-                socket.read_exact(&mut len_buf).await.unwrap();
-                let len = len_buf[0] as usize;
-                let mut domain_buf = vec![0u8; len + 2];
-                socket.read_exact(&mut domain_buf).await.unwrap();
-            }
+            // Request: VER, CMD, RSV, ATYP, and then the address and port.
+            let mut request = [0u8; 4];
+            socket.read_exact(&mut request).await.unwrap();
+            let address_len = match request[3] {
+                0x01 => 4,
+                0x04 => 16,
+                0x03 => {
+                    let mut len = [0u8; 1];
+                    socket.read_exact(&mut len).await.unwrap();
+                    len[0] as usize
+                }
+                other => panic!("the client asked for address type {}", other),
+            };
+            let mut address_and_port = vec![0u8; address_len + 2];
+            socket.read_exact(&mut address_and_port).await.unwrap();
 
             // Reply
             socket
@@ -105,6 +120,10 @@ mod tests {
         let result = handler
             .handle(&sess, None, Some(Box::new(client_stream)))
             .await;
-        assert!(result.is_ok());
+        assert!(
+            result.is_ok(),
+            "the handshake failed: {}",
+            result.err().unwrap()
+        );
     }
 }

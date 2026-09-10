@@ -1594,12 +1594,20 @@ mod tests {
         assert_eq!(resolve_certificate(INLINE_KEY), INLINE_KEY);
     }
 
+    /// What counts as absolute is the platform's business, and the test has to
+    /// ask the same question the code does. A leading slash is a whole path on
+    /// Unix; on Windows it names the root of whichever drive is current, so
+    /// `resolve_certificate` resolves it against the asset directory like any
+    /// other relative path -- correctly, and to something no assertion written
+    /// for Unix would recognise.
     #[test]
     fn an_absolute_path_is_left_alone() {
-        assert_eq!(
-            resolve_certificate("/etc/leaf/cert.pem"),
+        let absolute = if cfg!(windows) {
+            r"C:\leaf\cert.pem"
+        } else {
             "/etc/leaf/cert.pem"
-        );
+        };
+        assert_eq!(resolve_certificate(absolute), absolute);
     }
 
     /// A relative path is still resolved against the asset directory, which is
