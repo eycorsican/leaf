@@ -6,6 +6,8 @@ members = [
     "leaf-ffi",
     "leaf-plugins/shadowsocks-cabi-rs",
     "leaf-plugins/tls-cabi-rs",
+    "leaf-e2e",
+    "leaf-e2e/plugins/conformance-cabi",
 ]
 default-members = ["leaf-cli"]
 resolver = "2"

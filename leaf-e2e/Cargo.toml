@@ -1,0 +1,48 @@
+[package]
+name = "leaf-e2e"
+version = "0.1.0"
+edition = "2021"
+publish = false
+build = "build.rs"
+description = "End-to-end test harness for the leaf plugin host"
+
+[lib]
+name = "leaf_e2e"
+path = "src/lib.rs"
+# The library is the harness, not a unit-tested component; everything it has to
+# say is said by the `e2e` target.
+test = false
+
+[dependencies]
+anyhow = "1"
+futures = "0.3"
+# `auto-reload` is enabled unconditionally, not mirrored behind a feature of
+# our own: it changes the shape of `StartOptions`, and cargo unifies features
+# across a workspace build, so leaf-cli asking for it would otherwise leave this
+# crate compiling against a struct it cannot see. Every node passes `false`.
+leaf = { path = "../leaf", features = ["auto-reload", "plugin"] }
+libloading = "0.7"
+libtest-mimic = "0.8"
+rcgen = "0.13"
+rand = "0.8"
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = [
+    "io-util",
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "sync",
+    "time",
+] }
+
+# Raising the descriptor limit and reading process CPU time: both are what a
+# load generator needs to tell a real failure apart from a limit it hit.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# The whole crate is a test harness; the single `[[test]]` target owns the CLI,
+# so libtest's own harness is turned off.
+[[test]]
+name = "e2e"
+harness = false

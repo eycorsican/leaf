@@ -1,0 +1,13 @@
+[package]
+name = "conformance-cabi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "A plugin that misbehaves on purpose, for the end-to-end suite"
+
+[lib]
+name = "conformance_cabi"
+crate-type = ["cdylib"]
+
+[dependencies]
+leaf-plugin-abi = { path = "../../../leaf-plugin-abi" }
