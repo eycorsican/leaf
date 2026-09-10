@@ -674,25 +674,76 @@ impl OutboundManager {
                                 .map_err(|e| {
                                     anyhow!("invalid [{}] outbound settings: {}", &tag, e)
                                 })?;
+                        if settings.path.is_empty() {
+                            return Err(anyhow!(
+                                "invalid [{}] outbound settings: plugin path is empty",
+                                &tag
+                            ));
+                        }
                         unsafe {
                             external_handlers
-                                .new_handler(settings.path, &tag, &settings.args)
-                                .unwrap()
+                                .new_handler(
+                                    settings.path,
+                                    &tag,
+                                    super::plugin::PluginOutboundConfig {
+                                        host: if settings.host.is_empty() {
+                                            None
+                                        } else {
+                                            Some(settings.host.clone())
+                                        },
+                                        port: if settings.port == 0 {
+                                            None
+                                        } else {
+                                            Some(settings.port as u16)
+                                        },
+                                        args: settings.args.clone(),
+                                        sha256: if settings.sha256.is_empty() {
+                                            None
+                                        } else {
+                                            Some(settings.sha256.clone())
+                                        },
+                                    },
+                                )
+                                .map_err(|e| {
+                                    anyhow!("failed to load plugin outbound [{}]: {}", &tag, e)
+                                })?
                         };
-                        let stream = Arc::new(super::plugin::ExternalOutboundStreamHandlerProxy(
-                            external_handlers.get_stream_handler(&tag).unwrap(),
-                        ));
-                        let datagram =
-                            Arc::new(super::plugin::ExternalOutboundDatagramHandlerProxy(
-                                external_handlers.get_datagram_handler(&tag).unwrap(),
+                        // A plugin exports a stream engine, a datagram engine
+                        // or both, and the handler carries whichever it has:
+                        // the UDP path never asks for a stream, so a UDP-only
+                        // protocol needs no stream engine to stand in an
+                        // outbound. `new_handler` has already refused a
+                        // descriptor that exports neither.
+                        let mut builder = HandlerBuilder::default().tag(tag.clone());
+                        if let Some(stream_handler) = external_handlers.get_stream_handler(&tag) {
+                            builder = builder.stream_handler(Arc::new(
+                                super::plugin::ExternalOutboundStreamHandlerProxy(stream_handler),
                             ));
-                        let handler = HandlerBuilder::default()
-                            .tag(tag.clone())
-                            .stream_handler(stream)
-                            .datagram_handler(datagram)
-                            .build();
+                        }
+                        if let Some(datagram_handler) = external_handlers.get_datagram_handler(&tag)
+                        {
+                            builder = builder.datagram_handler(Arc::new(
+                                super::plugin::ExternalOutboundDatagramHandlerProxy(
+                                    datagram_handler,
+                                ),
+                            ));
+                        }
+                        let handler = builder.build();
                         handlers.insert(tag.clone(), handler);
                         trace!("added handler [{}]", &tag,);
+                    }
+                    // Said out loud rather than skipped. Every other protocol
+                    // this build lacks is one the config could route around;
+                    // a plugin outbound that quietly disappears takes its
+                    // layer of a chain with it, and the operator asked for
+                    // that layer.
+                    #[cfg(not(feature = "plugin"))]
+                    "plugin" => {
+                        return Err(anyhow!(
+                            "outbound [{}] is a plugin outbound, but this build has no plugin \
+                             support compiled in",
+                            &tag
+                        ));
                     }
                     _ => continue,
                 }

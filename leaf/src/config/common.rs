@@ -325,6 +325,9 @@ pub struct SelectOutboundSettings {
 pub struct PluginOutboundSettings {
     pub path: Option<String>,
     pub args: Option<String>,
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub sha256: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1417,6 +1420,15 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                         }
                         if let Some(ext_args) = &ext_settings.args {
                             settings.args = ext_args.clone();
+                        }
+                        if let Some(ext_host) = &ext_settings.host {
+                            settings.host = ext_host.clone();
+                        }
+                        if let Some(ext_port) = ext_settings.port {
+                            settings.port = ext_port as u32;
+                        }
+                        if let Some(ext_sha256) = &ext_settings.sha256 {
+                            settings.sha256 = ext_sha256.clone();
                         }
                         let settings = settings.write_to_bytes().unwrap();
                         outbound.settings = settings;

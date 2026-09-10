@@ -380,6 +380,35 @@ pub fn test_config(config_path: &str) -> Result<(), Error> {
         .map_err(Error::Config)
 }
 
+/// Checks a plugin library and renders what it declares, for an operator to
+/// read before the plugin is in the path of any traffic.
+///
+/// `sha256`, when given, is checked the way an outbound's pin is checked. The
+/// report carries the digest either way, so the first run on a new build is
+/// how you find the value to pin.
+///
+/// # Safety
+///
+/// This opens the library, which runs its initialisers here. See
+/// [`app::outbound::plugin::inspect_plugin`].
+#[cfg(feature = "plugin")]
+pub fn verify_plugin(path: &str, sha256: Option<&str>) -> Result<String, Error> {
+    use std::ffi::OsStr;
+    // Safety: the caller asked for this specific file to be inspected, which
+    // is the same trust decision as configuring it as an outbound.
+    let report = unsafe { app::outbound::plugin::inspect_plugin(OsStr::new(path), sha256) }?;
+    Ok(report.to_string())
+}
+
+/// The same entry point in a build without plugin support, so that the CLI can
+/// say what is missing rather than not having the option at all.
+#[cfg(not(feature = "plugin"))]
+pub fn verify_plugin(_path: &str, _sha256: Option<&str>) -> Result<String, Error> {
+    Err(Error::Io(std::io::Error::other(
+        "this build has no plugin support; rebuild with `--features leaf/plugin`",
+    )))
+}
+
 fn new_runtime(opt: &RuntimeOption) -> Result<tokio::runtime::Runtime, Error> {
     match opt {
         RuntimeOption::SingleThread => tokio::runtime::Builder::new_current_thread()

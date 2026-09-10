@@ -279,6 +279,11 @@ message SelectOutboundSettings {
 message PluginOutboundSettings {
 	string path = 1;
 	string args = 2;
+	string host = 3;
+	uint32 port = 4;
+	// Lowercase hex sha256 of the library file. When set, the plugin is loaded
+	// only if the file on disk matches it.
+	string sha256 = 5;
 }
 
 message Outbound {

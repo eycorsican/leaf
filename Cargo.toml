@@ -4,7 +4,6 @@ members = [
     "leaf-plugin-abi",
     "leaf-cli",
     "leaf-ffi",
-    "leaf-plugins/shadowsocks",
 ]
 default-members = ["leaf-cli"]
 resolver = "2"

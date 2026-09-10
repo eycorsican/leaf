@@ -49,6 +49,14 @@ struct Args {
     #[argh(switch, short = 'T')]
     test: bool,
 
+    /// checks a plugin library and prints what it declares, then exits
+    #[argh(option)]
+    verify_plugin: Option<String>,
+
+    /// the sha256 the verified plugin must have, as hex
+    #[argh(option)]
+    verify_plugin_sha256: Option<String>,
+
     /// tests the connectivity of the specified outbound
     #[argh(option, short = 't')]
     test_outbound: Option<String>,
@@ -82,6 +90,19 @@ fn main() {
         } else {
             println!("ok");
             exit(0);
+        }
+    }
+
+    if let Some(path) = args.verify_plugin {
+        match leaf::verify_plugin(&path, args.verify_plugin_sha256.as_deref()) {
+            Ok(report) => {
+                print!("{}", report);
+                exit(0);
+            }
+            Err(e) => {
+                println!("{}", e);
+                exit(1);
+            }
         }
     }
 

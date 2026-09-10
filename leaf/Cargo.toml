@@ -145,7 +145,7 @@ inbound-chain = []
 inbound-cat = ["tokio/io-std"]
 inbound-nf = ["libloading"]
 
-plugin = ["async-ffi", "libloading"]
+plugin = ["async-ffi", "libloading", "leaf-plugin-abi", "sha2", "hex"]
 api = ["axum"]
 auto-reload = ["notify"]
 ctrlc = ["tokio/signal"]
@@ -188,6 +188,7 @@ directories = { version = "4.0", optional = true }
 # plugin
 async-ffi = { version = "0.2", optional = true }
 libloading = { version = "0.7", optional = true }
+leaf-plugin-abi = { path = "../leaf-plugin-abi", optional = true }
 
 # config-json
 serde_json = { version = "1.0", features = ["raw_value"], optional = true }
