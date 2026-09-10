@@ -1,6 +1,10 @@
 name: ci
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  # For the Windows lane below, which is not part of the automatic run.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -24,6 +28,198 @@ jobs:
 
       - name: test leaf
         run: cargo test -p leaf
+
+  plugin-e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    env:
+      # CI runners are several times slower than a developer machine, and the
+      # per-case deadlines are tuned for the latter.
+      LEAF_E2E_TIMEOUT_SCALE: 4
+      # The loads run here, at a quarter of their concurrency and duration.
+      # Enough to put many connections through the host at once, which is where
+      # the defects a single connection cannot reach live; not enough to turn a
+      # pull request into a ten-minute wait.
+      LEAF_E2E_STRESS_SCALE: 0.25
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
+
+      - name: install go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      # The C compiler comes with the runner; Zig does not. Both are required
+      # rather than optional, because `--strict` treats a missing one as a
+      # failure and a plugin nobody builds is a plugin nobody tests.
+      - name: install zig toolchain
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      # `--strict` fails the job if a case is skipped, so a missing toolchain
+      # cannot turn into a green run that tested nothing.
+      - name: plugin end-to-end tests
+        run: cargo test -p leaf-e2e --test e2e -- --strict --no-tag soak
+
+      # What an end-to-end run cannot reach: the host's own tests for the
+      # loader and the stream and datagram wrappers, and each plugin's tests --
+      # a descriptor that lies about its size, a handshake arriving a byte at a
+      # time, every way a peer can refuse.
+      - name: plugin and host unit tests
+        run: make plugin-test
+
+      # Nothing else builds the CLI with plugin support, so nothing else would
+      # notice if it stopped compiling. A check rather than an artifact: the
+      # released Linux binaries are statically linked against musl, which has
+      # no dynamic loader to call, so shipping them with this feature on would
+      # promise something they cannot do.
+      - name: cli builds with plugin support
+        run: cargo check -p leaf-cli --features leaf/plugin
+
+      - name: upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-${{ matrix.os }}
+          path: target/debug/e2e-artifacts/
+          if-no-files-found: ignore
+
+  # The hostile lane deliberately loads plugins that lie to the host about how
+  # much they consumed, produced and can be asked for. The host's answer to
+  # that is bounds checks and clamps, which is exactly the kind of code a
+  # sanitizer is for. Go is left out: cgo under ASan is its own project.
+  plugin-e2e-asan:
+    runs-on: ubuntu-latest
+    env:
+      LEAF_E2E_TIMEOUT_SCALE: 8
+      # Instrumented and slower still, so the loads run smaller here. The
+      # hostile lane includes the two loads that drive a misbehaving plugin
+      # across connections that keep being created and destroyed, which is
+      # where a context released too early becomes a use-after-free.
+      LEAF_E2E_STRESS_SCALE: 0.25
+      # `--export-dynamic` is not optional here. rustc links the sanitizer
+      # runtime statically into the executable and, unlike clang's driver,
+      # passes nothing to export it, so the `__asan_*` symbols end up in the
+      # binary but not in its dynamic symbol table. A plugin is a `dlopen`ed
+      # shared object built with the same instrumentation and no runtime of its
+      # own: without this it fails to load with `undefined symbol:
+      # __asan_option_detect_stack_use_after_return`, and every case in the
+      # lane fails for a reason that sounds like the plugin's fault.
+      RUSTFLAGS: -Zsanitizer=address -C link-arg=-Wl,--export-dynamic
+      # Memory errors are the point here. Leaks are not: a proxy holds plenty
+      # of process-lifetime state on purpose, and a plugin host keeps libraries
+      # mapped for as long as it runs.
+      ASAN_OPTIONS: detect_leaks=0
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: install rust nightly
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: nightly
+
+      # An explicit --target keeps build scripts and proc macros out of the
+      # instrumented build. The harness notices the nested layout that produces
+      # and builds its plugins the same way.
+      - name: hostile plugins under address sanitizer
+        run: |
+          cargo test -p leaf-e2e --test e2e \
+            --target x86_64-unknown-linux-gnu \
+            -- --strict --tag hostile
+
+      - name: upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-asan
+          path: target/x86_64-unknown-linux-gnu/debug/e2e-artifacts/
+          if-no-files-found: ignore
+
+  # Windows is not in the automatic run, but it is not unknown either: the
+  # suite has been through it green on `aarch64-pc-windows-msvc`. What has not
+  # been tried is this runner -- `windows-latest` is x86-64, and the toolchain
+  # notes in leaf-e2e/README.md are written from the ARM64 run, where the C and
+  # cgo compilers are not the ones cargo's own dependencies want. Start it by
+  # hand from the Actions tab -- "Run workflow" on this file -- and move it into
+  # the matrix above once it is green here too.
+  #
+  # The two black-box cases that interrupt a running leaf are not registered on
+  # Windows; everything else in the suite is.
+  plugin-e2e-windows:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    env:
+      LEAF_E2E_TIMEOUT_SCALE: 4
+      LEAF_E2E_STRESS_SCALE: 0.25
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
+
+      - name: install go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: install zig toolchain
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      # The runner ships MSYS2 but does not put its GCC on PATH. The C plugin
+      # is built with GCC-style flags and cgo needs a C compiler, so both want
+      # this one. Adjust the path if the runner image moves it.
+      - name: put mingw-w64 gcc on PATH
+        run: echo "C:\msys64\mingw64\bin" >> $env:GITHUB_PATH
+
+      - name: show the toolchains
+        run: |
+          gcc --version
+          go version
+          zig version
+
+      - name: plugin end-to-end tests
+        run: cargo test -p leaf-e2e --test e2e -- --strict --no-tag soak
+
+      - name: plugin and host unit tests
+        run: |
+          cargo test -p leaf --features plugin --lib
+          cargo test -p leaf-plugin-abi
+          cargo test -p tls-cabi-rs -p shadowsocks-cabi-rs
+
+      - name: cli builds with plugin support
+        run: cargo check -p leaf-cli --features leaf/plugin
+
+      - name: upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-windows
+          path: target/debug/e2e-artifacts/
+          if-no-files-found: ignore
 
   build-cli-cross:
     runs-on: ubuntu-latest

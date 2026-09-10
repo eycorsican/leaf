@@ -5,6 +5,23 @@
 # will have compiled files and executables
 /target/
 
+# Local working notes and references, never part of the repository
+/.scratch/
+
+# Generated plugin artifacts
+/leaf-plugins/tls-cabi-go/*.dll
+/leaf-plugins/tls-cabi-go/*.dylib
+/leaf-plugins/tls-cabi-go/*_cabi_go.h
+/leaf-plugins/trojan-cabi-go/*.dll
+/leaf-plugins/trojan-cabi-go/*.dylib
+/leaf-plugins/trojan-cabi-go/*_cabi_go.h
+/leaf-plugins/socks5-cabi-c/*.dll
+/leaf-plugins/socks5-cabi-c/*.dylib
+/leaf-plugins/socks5-cabi-c/*.so
+/leaf-plugins/socks5-cabi-c/socks5_test
+/leaf-plugins/socks5-cabi-zig/zig-out/
+/leaf-plugins/socks5-cabi-zig/.zig-cache/
+
 # Remove Cargo.lock from gitignore if creating an executable, leave it for libraries
 # More information here https://doc.rust-lang.org/cargo/guide/cargo-toml-vs-cargo-lock.html
 Cargo.lock

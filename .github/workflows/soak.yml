@@ -1,0 +1,56 @@
+name: soak
+
+# The long lane. Everything here takes minutes per case to answer a question
+# about the long run -- does the process grow, does the boundary still cost
+# what it cost -- so none of it belongs in a pull request.
+on:
+  schedule:
+    # Nightly, well outside anyone's working hours.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    env:
+      LEAF_E2E_TIMEOUT_SCALE: 4
+      # More repetitions than a pull request takes: this lane exists to produce
+      # numbers worth comparing between nights.
+      LEAF_E2E_METER_REPS: 5
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
+
+      - name: install go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: install zig toolchain
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      # Soaks and every cost meter, including the two -- latency under load and
+      # cost in processor time -- that are too slow for the pull request lane.
+      - name: soaks and cost meters
+        run: cargo test -p leaf-e2e --test e2e -- --strict --tag soak --tag perf
+
+      # Always: the point of this lane is the numbers, and a green run has them
+      # too. Each `meters.json` holds both sides, every repetition, the ratio
+      # and the budget, so a night where both sides halved is visible even
+      # though no ratio moved.
+      - name: upload measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-soak
+          path: target/debug/e2e-artifacts/
+          if-no-files-found: ignore
