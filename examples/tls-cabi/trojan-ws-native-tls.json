@@ -1,0 +1,65 @@
+{
+  "log": {
+    "level": "debug",
+    "output": "console"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "address": "127.0.0.1",
+      "port": 1080,
+      "protocol": "socks",
+      "settings": {}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "trojan-over-native-tls",
+      "protocol": "chain",
+      "settings": {
+        "actors": [
+          "tls",
+          "ws",
+          "trojan"
+        ]
+      }
+    },
+    {
+      "tag": "tls",
+      "protocol": "tls",
+      "settings": {
+        "serverName": "www.shocktraffic.org",
+        "alpn": [
+          "http/1.1"
+        ]
+      }
+    },
+    {
+      "tag": "ws",
+      "protocol": "ws",
+      "settings": {
+        "path": "/assignment",
+        "headers": {
+          "Host": "www.shocktraffic.org"
+        }
+      }
+    },
+    {
+      "tag": "trojan",
+      "protocol": "trojan",
+      "settings": {
+        "address": "www.shocktraffic.org",
+        "port": 443,
+        "password": "humanity"
+      }
+    }
+  ],
+  "router": {
+    "rules": [
+      {
+        "type": "FINAL",
+        "target": "trojan-over-native-tls"
+      }
+    ]
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "log": {
+    "level": "trace",
+    "output": "console"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "address": "127.0.0.1",
+      "port": 1080,
+      "protocol": "socks",
+      "settings": {}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "trojan-over-go-plugins",
+      "protocol": "chain",
+      "settings": {
+        "actors": [
+          "tls-cabi-go",
+          "ws",
+          "trojan-cabi-go"
+        ]
+      }
+    },
+    {
+      "tag": "tls-cabi-go",
+      "protocol": "plugin",
+      "settings": {
+        "path": "./leaf-plugins/tls-cabi-go/tls_cabi_go.dll",
+        "args": "{\"server_name\":\"www.shocktraffic.org\",\"alpn\":[\"http/1.1\"]}"
+      }
+    },
+    {
+      "tag": "ws",
+      "protocol": "ws",
+      "settings": {
+        "path": "/assignment",
+        "headers": {
+          "Host": "www.shocktraffic.org"
+        }
+      }
+    },
+    {
+      "tag": "trojan-cabi-go",
+      "protocol": "plugin",
+      "settings": {
+        "path": "./leaf-plugins/trojan-cabi-go/trojan_cabi_go.dll",
+        "host": "www.shocktraffic.org",
+        "port": 443,
+        "args": "humanity"
+      }
+    }
+  ],
+  "router": {
+    "rules": [
+      {
+        "type": "FINAL",
+        "target": "trojan-over-go-plugins"
+      }
+    ]
+  }
+}

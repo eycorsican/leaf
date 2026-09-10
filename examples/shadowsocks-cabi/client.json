@@ -1,0 +1,35 @@
+{
+  "log": {
+    "level": "debug",
+    "output": "console"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "address": "127.0.0.1",
+      "port": 1080,
+      "protocol": "socks",
+      "settings": {}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "ss-cabi",
+      "protocol": "plugin",
+      "settings": {
+        "path": "./target/debug/libshadowsocks_cabi_rs.dylib",
+        "host": "51.15.225.65",
+        "port": 5667,
+        "args": "chacha20-ietf-poly1305;d5d701eb8283"
+      }
+    }
+  ],
+  "router": {
+    "rules": [
+      {
+        "type": "FINAL",
+        "target": "ss-cabi"
+      }
+    ]
+  }
+}
