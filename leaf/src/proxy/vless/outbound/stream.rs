@@ -11,6 +11,8 @@ pub struct Handler {
     pub address: String,
     pub port: u16,
     pub uuid: String,
+    /// VLESS flow. Empty means no flow (required for ws/grpc transports).
+    pub flow: String,
 }
 
 #[async_trait]
@@ -43,15 +45,21 @@ impl OutboundStreamHandler for Handler {
         let host = sess.destination.host();
         let port = sess.destination.port();
 
-        let header = build_vless_tcp_header(&uuid_bytes, &host, port, addr_type);
+        let header = build_vless_tcp_header(&uuid_bytes, &host, port, addr_type, &self.flow);
 
         let mut stream = stream.ok_or_else(|| io::Error::other("invalid input"))?;
         stream.write_all(&header).await?;
 
+        let vision = self.flow == "xtls-rprx-vision";
         Ok(Box::new(VlessStream::new(
             stream,
             uuid_bytes,
-            Some(sess.vision_read_raw.clone()),
+            if vision {
+                Some(sess.vision_read_raw.clone())
+            } else {
+                None
+            },
+            vision,
         )))
     }
 }

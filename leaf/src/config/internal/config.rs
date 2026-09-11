@@ -3725,6 +3725,8 @@ pub struct VlessOutboundSettings {
     pub port: u32,
     // @@protoc_insertion_point(field:VlessOutboundSettings.uuid)
     pub uuid: ::std::string::String,
+    // @@protoc_insertion_point(field:VlessOutboundSettings.flow)
+    pub flow: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:VlessOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -3761,6 +3763,9 @@ impl ::protobuf::Message for VlessOutboundSettings {
                 26 => {
                     self.uuid = is.read_string()?;
                 },
+                34 => {
+                    self.flow = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -3782,6 +3787,9 @@ impl ::protobuf::Message for VlessOutboundSettings {
         if !self.uuid.is_empty() {
             my_size += ::protobuf::rt::string_size(3, &self.uuid);
         }
+        if !self.flow.is_empty() {
+            my_size += ::protobuf::rt::string_size(4, &self.flow);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -3796,6 +3804,9 @@ impl ::protobuf::Message for VlessOutboundSettings {
         }
         if !self.uuid.is_empty() {
             os.write_string(3, &self.uuid)?;
+        }
+        if !self.flow.is_empty() {
+            os.write_string(4, &self.flow)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -3817,6 +3828,7 @@ impl ::protobuf::Message for VlessOutboundSettings {
         self.address.clear();
         self.port = 0;
         self.uuid.clear();
+        self.flow.clear();
         self.special_fields.clear();
     }
 
@@ -3825,6 +3837,7 @@ impl ::protobuf::Message for VlessOutboundSettings {
             address: ::std::string::String::new(),
             port: 0,
             uuid: ::std::string::String::new(),
+            flow: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
