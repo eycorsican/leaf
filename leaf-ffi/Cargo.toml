@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["eycorsican <eric.y.corsican@gmail.com>"]
 edition = "2021"
 
+build = "build.rs"
+
 [lib]
 name = "leaf"
 path = "src/lib.rs"
@@ -33,11 +35,22 @@ plugin = ["leaf/plugin"]
 # Adds downloading plugins by url to the start, and leaf_prefetch_plugins.
 plugin-fetch = ["plugin", "leaf/plugin-fetch"]
 
+# Plugins linked into the library, for platforms that will not load one from
+# a file. Each registers itself as a builtin under the name in the comment,
+# which is what a config's `builtin=` refers to. Only plugins written in other
+# languages are offered: a protocol written in Rust belongs in leaf as an
+# outbound of its own, not linked in through the plugin ABI.
+# builtin=socks5-c
+plugin-socks5-c = ["plugin", "dep:cc"]
+
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 tokio = { version = "1", features = ["rt"] }
 anyhow = "1.0"
 futures = "0.3"
+
+[build-dependencies]
+cc = { version = "1.2", optional = true }
 
 [dev-dependencies]
 sha2 = "0.10"

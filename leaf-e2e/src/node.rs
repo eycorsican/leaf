@@ -137,7 +137,8 @@ impl Node {
     /// Starts the node and waits until it accepts connections.
     pub async fn start(self) -> Result<LeafNode> {
         let config = self.internal_config()?;
-        self.start_with(leaf::Config::Internal(config), None).await
+        self.start_with(leaf::Config::Internal(config), None, START_TIMEOUT)
+            .await
     }
 
     /// Starts the node from a config file, so that it can be reloaded.
@@ -154,7 +155,7 @@ impl Node {
         std::fs::write(&path, self.config_string())
             .with_context(|| format!("writing {}", path.display()))?;
         let config = leaf::Config::File(path.display().to_string());
-        self.start_with(config, Some(path)).await
+        self.start_with(config, Some(path), START_TIMEOUT).await
     }
 
     fn config_file_path(&self) -> Result<PathBuf> {
@@ -182,6 +183,7 @@ impl Node {
         self,
         config: leaf::Config,
         config_path: Option<PathBuf>,
+        within: Duration,
     ) -> Result<LeafNode> {
         let name = self.name.clone();
         let socks = self.socks;
@@ -213,9 +215,9 @@ impl Node {
             },
             ready = async {
                 if datagram_probe {
-                    net::wait_udp_bound(probe.port(), START_TIMEOUT).await
+                    net::wait_udp_bound(probe.port(), within).await
                 } else {
-                    net::wait_tcp_ready(probe, START_TIMEOUT).await
+                    net::wait_tcp_ready(probe, within).await
                 }
             } => {
                 ready.with_context(|| format!("node [{}] never started listening", name))?;
@@ -250,8 +252,21 @@ impl Node {
     /// socks inbound is on `socks_port`. Everything else about the node --
     /// outbounds, rules -- is whatever the text says.
     pub async fn start_conf(name: &str, conf: &str, socks_port: u16) -> Result<LeafNode> {
+        Self::start_conf_within(name, conf, socks_port, START_TIMEOUT).await
+    }
+
+    /// [`Self::start_conf`], allowing the start `within` to begin listening,
+    /// for a start that does real work first -- downloading a plugin, which
+    /// on a debug build is a file of a hundred megabytes or more, hashed
+    /// twice before it is loaded.
+    pub async fn start_conf_within(
+        name: &str,
+        conf: &str,
+        socks_port: u16,
+        within: Duration,
+    ) -> Result<LeafNode> {
         let node = Self::conf_node(name, socks_port);
-        node.start_with(leaf::Config::Str(conf.to_string()), None)
+        node.start_with(leaf::Config::Str(conf.to_string()), None, within)
             .await
     }
 

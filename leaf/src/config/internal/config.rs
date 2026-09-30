@@ -4561,6 +4561,8 @@ pub struct PluginOutboundSettings {
     pub size: u64,
     // @@protoc_insertion_point(field:PluginOutboundSettings.name)
     pub name: ::std::string::String,
+    // @@protoc_insertion_point(field:PluginOutboundSettings.builtin)
+    pub builtin: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:PluginOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -4612,6 +4614,9 @@ impl ::protobuf::Message for PluginOutboundSettings {
                 66 => {
                     self.name = is.read_string()?;
                 },
+                74 => {
+                    self.builtin = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -4648,6 +4653,9 @@ impl ::protobuf::Message for PluginOutboundSettings {
         if !self.name.is_empty() {
             my_size += ::protobuf::rt::string_size(8, &self.name);
         }
+        if !self.builtin.is_empty() {
+            my_size += ::protobuf::rt::string_size(9, &self.builtin);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -4678,6 +4686,9 @@ impl ::protobuf::Message for PluginOutboundSettings {
         if !self.name.is_empty() {
             os.write_string(8, &self.name)?;
         }
+        if !self.builtin.is_empty() {
+            os.write_string(9, &self.builtin)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -4703,6 +4714,7 @@ impl ::protobuf::Message for PluginOutboundSettings {
         self.url.clear();
         self.size = 0;
         self.name.clear();
+        self.builtin.clear();
         self.special_fields.clear();
     }
 
@@ -4716,6 +4728,7 @@ impl ::protobuf::Message for PluginOutboundSettings {
             url: ::std::string::String::new(),
             size: 0,
             name: ::std::string::String::new(),
+            builtin: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

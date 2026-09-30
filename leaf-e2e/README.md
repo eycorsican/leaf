@@ -381,6 +381,21 @@ callback thread -- is tested in `leaf-ffi`'s own unit tests
 (`cargo test -p leaf-ffi --lib --features plugin-fetch`) rather than here: the
 FFI library is a Rust `dylib`, which does not link in a Windows debug build.
 
+## Builtin plugins
+
+`builtin/` covers plugins compiled into the client and named by `builtin=`.
+The cases stand in for the static link by taking `leaf_plugin_get_descriptor`
+out of a fixture library and registering that function; all the host is ever
+given is the function, so what they exercise is everything on its side: real
+traffic against a stock leaf server, a builtin winning over `path` and over
+`url` (with no cache directory to fall back on, so that a download attempt
+fails the case), the fallback for a client without it, and the same descriptor
+validation a library gets.
+
+The static link itself is tested in `leaf-ffi`, the binary that does the
+linking:
+`cargo test -p leaf-ffi --lib --features plugin-socks5-c`.
+
 ## Known defects
 
 A case that hits a defect nobody has fixed yet is marked with

@@ -9,6 +9,7 @@ use crate::scenario::{Scenario, Tag};
 
 pub mod abi;
 pub mod blackbox;
+pub mod builtin;
 pub mod coexist;
 pub mod datagram;
 pub mod differential;
@@ -36,6 +37,7 @@ pub fn all() -> Vec<Scenario> {
         .chain(halfclose::scenarios())
         .chain(protocols::scenarios())
         .chain(fetch::scenarios())
+        .chain(builtin::scenarios())
         .collect();
 
     let mut seen = std::collections::BTreeSet::new();

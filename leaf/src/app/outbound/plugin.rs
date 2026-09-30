@@ -245,7 +245,8 @@ struct LoadedPluginMetadata {
 
 #[derive(Clone)]
 struct LoadedPlugin {
-    lib: Arc<Library>,
+    /// `None` for a builtin plugin, whose code is part of this binary.
+    lib: Option<Arc<Library>>,
     metadata: Arc<LoadedPluginMetadata>,
     stream_engine: Option<Arc<StreamEnginePlugin>>,
     datagram_engine: Option<Arc<DatagramEnginePlugin>>,
@@ -282,6 +283,100 @@ pub struct PluginOutboundConfig {
     /// The digest the operator pinned this library to, as lowercase hex. The
     /// plugin is loaded only if the file on disk matches.
     pub sha256: Option<String>,
+}
+
+/// Plugins compiled into this binary, by the name a config refers to them by.
+///
+/// Where a platform will not load code from a file -- iOS will not, and
+/// Android will not from anywhere an app can write -- a plugin is linked in at
+/// build time instead, and registered here under a name. A config then names
+/// it with `builtin`, and the host takes its descriptor from here rather than
+/// from a library. Everything after that is the same: the descriptor is
+/// validated the same way, and the engines it exports become the same
+/// handlers.
+static BUILTIN_PLUGINS: LazyLock<RwLock<HashMap<String, PluginDescriptorFn>>> =
+    LazyLock::new(Default::default);
+
+/// Registers a plugin compiled into this binary under `name`.
+///
+/// Registering the same function under the same name again is a no-op, so an
+/// embedder can call this from every entry point that might start leaf.
+/// Registering a different one under a name already taken is an error rather
+/// than a replacement: which code a config's `builtin` runs should not depend
+/// on which registration came last.
+///
+/// # Safety
+///
+/// `get_descriptor` is trusted exactly as a plugin library's exported
+/// `leaf_plugin_get_descriptor` is: it must return a descriptor that stays
+/// valid for the life of the process, and every function the descriptor points
+/// to must honour the ABI. The host validates the descriptor itself when an
+/// outbound first uses it, as it does for a library.
+pub unsafe fn register_builtin_plugin(
+    name: &str,
+    get_descriptor: PluginDescriptorFn,
+) -> io::Result<()> {
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+    {
+        return Err(io::Error::other(format!(
+            "builtin plugin name [{}] must be letters, digits, '-', '_' or '.'",
+            name
+        )));
+    }
+    let mut plugins = BUILTIN_PLUGINS
+        .write()
+        .unwrap_or_else(|err| err.into_inner());
+    match plugins.get(name) {
+        Some(existing) if std::ptr::fn_addr_eq(*existing, get_descriptor) => Ok(()),
+        Some(_) => Err(io::Error::other(format!(
+            "builtin plugin [{}] is already registered to a different plugin",
+            name
+        ))),
+        None => {
+            plugins.insert(name.to_string(), get_descriptor);
+            debug!(plugin = %name, "registered builtin plugin");
+            Ok(())
+        }
+    }
+}
+
+/// Whether a plugin is registered under `name`.
+pub fn is_builtin_plugin(name: &str) -> bool {
+    builtin_plugin(name).is_some()
+}
+
+/// The names plugins are registered under, sorted.
+pub fn builtin_plugin_names() -> Vec<String> {
+    let mut names: Vec<String> = BUILTIN_PLUGINS
+        .read()
+        .unwrap_or_else(|err| err.into_inner())
+        .keys()
+        .cloned()
+        .collect();
+    names.sort();
+    names
+}
+
+fn builtin_plugin(name: &str) -> Option<PluginDescriptorFn> {
+    BUILTIN_PLUGINS
+        .read()
+        .unwrap_or_else(|err| err.into_inner())
+        .get(name)
+        .copied()
+}
+
+/// Where a loaded plugin came from, which is what makes two outbounds share
+/// one: the same file, or the same registered name.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum PluginSource {
+    /// Keyed by the resolved path rather than by its lossy string form, under
+    /// which two different files whose names are not valid UTF-8 could
+    /// collapse onto the same entry and silently share one library.
+    File(PathBuf),
+    Builtin(String),
 }
 
 struct EngineOutboundStreamHandler {
@@ -547,7 +642,7 @@ impl ExternalOutboundStreamHandler for EngineOutboundStreamHandler {
                 Arc::clone(&self.engine),
                 instance,
                 log_context,
-                Some(Arc::clone(&self.plugin.lib)),
+                self.plugin.lib.clone(),
             )) as AnyStream)
         })
     }
@@ -614,7 +709,7 @@ impl ExternalOutboundDatagramHandler for EngineOutboundDatagramHandler {
                 engine: Arc::clone(&self.engine),
                 instance,
                 _log_context: log_context,
-                _lib: Some(Arc::clone(&self.plugin.lib)),
+                _lib: self.plugin.lib.clone(),
             }));
             match engine_datagram_transport_type(self.engine.as_ref()) {
                 DatagramTransportType::Reliable => {
@@ -656,7 +751,7 @@ impl ExternalOutboundDatagramHandler for EngineOutboundDatagramHandler {
 
 pub struct OutboundStreamHandlerProxy {
     handler: AnyExternalOutboundStreamHandler,
-    _lib: Arc<Library>,
+    _lib: Option<Arc<Library>>,
 }
 
 impl OutboundStreamHandlerProxy {
@@ -1606,7 +1701,7 @@ impl ExternalOutboundStreamHandler for OutboundStreamHandlerProxy {
 
 pub struct OutboundDatagramHandlerProxy {
     handler: AnyExternalOutboundDatagramHandler,
-    _lib: Arc<Library>,
+    _lib: Option<Arc<Library>>,
 }
 
 impl OutboundDatagramHandlerProxy {
@@ -1639,10 +1734,7 @@ pub type AnyExternalOutboundDatagramHandler = Arc<dyn ExternalOutboundDatagramHa
 pub struct ExternalHandlers {
     stream_handlers: HashMap<String, OutboundStreamHandlerProxy>,
     datagram_handlers: HashMap<String, OutboundDatagramHandlerProxy>,
-    /// Keyed by the resolved path rather than by its lossy string form, under
-    /// which two different files whose names are not valid UTF-8 could collapse
-    /// onto the same entry and silently share one library.
-    libraries: HashMap<PathBuf, LoadedPlugin>,
+    libraries: HashMap<PluginSource, LoadedPlugin>,
 }
 
 impl ExternalHandlers {
@@ -1667,7 +1759,8 @@ impl ExternalHandlers {
         if let Some(expected) = settings.sha256.as_deref() {
             verify_plugin_digest(&resolved, expected)?;
         }
-        let plugin = if let Some(plugin) = self.libraries.get(&resolved) {
+        let source = PluginSource::File(resolved.clone());
+        let plugin = if let Some(plugin) = self.libraries.get(&source) {
             debug!(
                 plugin_path = %plugin_path,
                 plugin = %plugin.metadata.name,
@@ -1729,15 +1822,83 @@ impl ExternalHandlers {
                 }
             }
             let plugin = LoadedPlugin {
-                lib: lib.clone(),
+                lib: Some(lib.clone()),
                 metadata: Arc::new(metadata),
                 stream_engine,
                 datagram_engine,
             };
-            self.libraries.insert(resolved.clone(), plugin.clone());
+            self.libraries.insert(source, plugin.clone());
             plugin
         };
+        self.register_engines(&plugin, tag, &settings, &plugin_path)
+    }
 
+    /// The same as [`Self::new_handler`], for a plugin compiled into this
+    /// binary and registered with [`register_builtin_plugin`].
+    ///
+    /// There is no file, so none of the file's checks apply -- the path, its
+    /// permissions, a digest pin. The code was vouched for when it was linked
+    /// in. The descriptor is checked exactly as a library's is.
+    ///
+    /// # Safety
+    ///
+    /// Calls the registered descriptor function; see
+    /// [`register_builtin_plugin`].
+    pub unsafe fn new_builtin_handler(
+        &mut self,
+        name: &str,
+        tag: &str,
+        settings: PluginOutboundConfig,
+    ) -> io::Result<()> {
+        let get_descriptor = builtin_plugin(name).ok_or_else(|| {
+            io::Error::other(format!("no builtin plugin is registered as [{}]", name))
+        })?;
+        let label = format!("builtin:{}", name);
+        if settings.sha256.is_some() {
+            debug!(
+                plugin = %label,
+                tag = %tag,
+                "sha256 pins a file, and a builtin plugin has none; ignoring it"
+            );
+        }
+        let source = PluginSource::Builtin(name.to_string());
+        let plugin = if let Some(plugin) = self.libraries.get(&source) {
+            plugin.clone()
+        } else {
+            let (metadata, stream_engine, datagram_engine) =
+                read_descriptor_from(get_descriptor, &label)?;
+            info!(
+                plugin_path = %label,
+                plugin = %metadata.name,
+                plugin_version = %metadata.version,
+                abi_major = metadata.abi_major,
+                abi_minor = metadata.abi_minor,
+                has_stream = stream_engine.is_some(),
+                has_datagram = datagram_engine.is_some(),
+                "loaded builtin plugin descriptor"
+            );
+            let plugin = LoadedPlugin {
+                lib: None,
+                metadata: Arc::new(metadata),
+                stream_engine,
+                datagram_engine,
+            };
+            self.libraries.insert(source, plugin.clone());
+            plugin
+        };
+        self.register_engines(&plugin, tag, &settings, &label)
+    }
+
+    /// Turns the engines a loaded plugin exports into handlers under `tag`,
+    /// checking the outbound's endpoint against what each engine declares.
+    /// `plugin_path` names the plugin in logs and errors.
+    fn register_engines(
+        &mut self,
+        plugin: &LoadedPlugin,
+        tag: &str,
+        settings: &PluginOutboundConfig,
+        plugin_path: &str,
+    ) -> io::Result<()> {
         let mut registered = false;
         if let Some(engine) = plugin.stream_engine.as_ref() {
             let (connect_addr, engine_args) = match engine_stream_connect_type(engine.as_ref()) {
@@ -1785,7 +1946,7 @@ impl ExternalHandlers {
                         connect_addr,
                         engine_args: engine_args.clone(),
                     }),
-                    _lib: Arc::clone(&plugin.lib),
+                    _lib: plugin.lib.clone(),
                 },
             );
             info!(
@@ -1830,7 +1991,7 @@ impl ExternalHandlers {
                         server_addr,
                         engine_args: engine_args.clone(),
                     }),
-                    _lib: Arc::clone(&plugin.lib),
+                    _lib: plugin.lib.clone(),
                 },
             );
             info!(
@@ -2138,7 +2299,19 @@ unsafe fn read_plugin_descriptor(
                 ),
             )
         })?;
+    read_descriptor_from(*descriptor_fn, plugin_path)
+}
 
+/// Reads and validates what a descriptor function returns, whether it came
+/// out of a library or was registered as a builtin.
+unsafe fn read_descriptor_from(
+    descriptor_fn: PluginDescriptorFn,
+    plugin_path: &str,
+) -> io::Result<(
+    LoadedPluginMetadata,
+    Option<Arc<StreamEnginePlugin>>,
+    Option<Arc<DatagramEnginePlugin>>,
+)> {
     let descriptor = descriptor_fn();
     let descriptor = read_abi_struct(descriptor, plugin_path)?;
     let metadata = validate_plugin_descriptor(&descriptor, plugin_path)?;
@@ -3980,5 +4153,141 @@ mod tests {
         assert!(rendered.contains("must set host and port"), "{rendered}");
         assert!(rendered.contains("transport_type=unreliable"), "{rendered}");
         assert!(rendered.contains("runtime:   embedded"), "{rendered}");
+    }
+
+    // Builtin plugins: a descriptor that comes from a registered function
+    // rather than a library. The registry is process-wide, so every test uses
+    // names of its own.
+
+    unsafe extern "C" fn mock_create(_args: *const EngineCreateArgs) -> *mut std::ffi::c_void {
+        std::ptr::null_mut()
+    }
+
+    static BUILTIN_STREAM: StreamEnginePlugin = StreamEnginePlugin {
+        size: std::mem::size_of::<StreamEnginePlugin>(),
+        connect_type: STREAM_CONNECT_TYPE_NEXT,
+        create_instance: Some(mock_create),
+        destroy_instance: Some(mock_destroy),
+        poll_state: Some(mock_poll_state),
+        push: Some(mock_push),
+        pull: Some(mock_pull),
+        close: Some(mock_close),
+        get_last_error: Some(mock_get_last_error),
+        suggest_output_size: Some(mock_suggest_output_size),
+        suggest_output_batch: Some(mock_suggest_output_batch),
+    };
+
+    static BUILTIN_DESCRIPTOR: PluginDescriptor = PluginDescriptor {
+        size: std::mem::size_of::<PluginDescriptor>(),
+        abi_major: PLUGIN_ABI_MAJOR,
+        abi_minor: PLUGIN_ABI_MINOR,
+        name: c"builtin-test".as_ptr(),
+        version: c"1.0".as_ptr(),
+        stream: &BUILTIN_STREAM,
+        datagram: std::ptr::null(),
+        flags: 0,
+    };
+
+    static WRONG_MAJOR_DESCRIPTOR: PluginDescriptor = PluginDescriptor {
+        size: std::mem::size_of::<PluginDescriptor>(),
+        abi_major: PLUGIN_ABI_MAJOR + 1,
+        abi_minor: PLUGIN_ABI_MINOR,
+        name: c"builtin-test-wrong-major".as_ptr(),
+        version: c"1.0".as_ptr(),
+        stream: &BUILTIN_STREAM,
+        datagram: std::ptr::null(),
+        flags: 0,
+    };
+
+    unsafe extern "C" fn builtin_descriptor() -> *const PluginDescriptor {
+        &BUILTIN_DESCRIPTOR
+    }
+
+    // Returns something different, so that no linker can fold it into the one
+    // above and make the two compare equal.
+    unsafe extern "C" fn wrong_major_descriptor() -> *const PluginDescriptor {
+        &WRONG_MAJOR_DESCRIPTOR
+    }
+
+    #[test]
+    fn a_builtin_registers_once_and_refuses_a_different_plugin_under_its_name() {
+        unsafe {
+            register_builtin_plugin("t-register", builtin_descriptor).unwrap();
+            // Again, from another entry point: fine.
+            register_builtin_plugin("t-register", builtin_descriptor).unwrap();
+            let err = register_builtin_plugin("t-register", wrong_major_descriptor).unwrap_err();
+            assert!(err.to_string().contains("already registered"), "{err}");
+            for bad in ["", "has space", "a/b", "ü"] {
+                let err = register_builtin_plugin(bad, builtin_descriptor).unwrap_err();
+                assert!(
+                    err.to_string().contains("must be letters"),
+                    "[{bad}]: {err}"
+                );
+            }
+        }
+        assert!(is_builtin_plugin("t-register"));
+        assert!(!is_builtin_plugin("t-never-registered"));
+        assert!(builtin_plugin_names().contains(&"t-register".to_string()));
+    }
+
+    /// No file means none of a file's checks: no path to resolve, and a sha256
+    /// pin is ignored rather than failing for want of something to hash. Two
+    /// outbounds on one builtin share one loaded plugin, as two on one file do.
+    #[test]
+    fn a_builtin_loads_without_a_file_and_is_shared() {
+        unsafe { register_builtin_plugin("t-load", builtin_descriptor).unwrap() };
+        let mut handlers = ExternalHandlers::new();
+        let pinned = PluginOutboundConfig {
+            sha256: Some("00".repeat(32)),
+            ..Default::default()
+        };
+        unsafe {
+            handlers
+                .new_builtin_handler("t-load", "first", pinned.clone())
+                .unwrap();
+            handlers
+                .new_builtin_handler("t-load", "second", pinned)
+                .unwrap();
+        }
+        assert!(handlers.get_stream_handler("first").is_some());
+        assert!(handlers.get_stream_handler("second").is_some());
+        assert!(handlers.get_datagram_handler("first").is_none());
+        assert_eq!(handlers.libraries.len(), 1);
+        let plugin = handlers
+            .libraries
+            .get(&PluginSource::Builtin("t-load".to_string()))
+            .unwrap();
+        assert!(plugin.lib.is_none());
+        assert_eq!(plugin.metadata.name, "builtin-test");
+    }
+
+    /// Being compiled in buys a plugin nothing at validation: a descriptor that
+    /// a library would be refused for is refused here too, in the same words.
+    #[test]
+    fn a_builtin_descriptor_is_validated_like_a_library() {
+        unsafe { register_builtin_plugin("t-wrong-major", wrong_major_descriptor).unwrap() };
+        let mut handlers = ExternalHandlers::new();
+        let err = unsafe {
+            handlers.new_builtin_handler("t-wrong-major", "tag", PluginOutboundConfig::default())
+        }
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("builtin:t-wrong-major"), "{err}");
+        assert!(err.contains("ABI major version"), "{err}");
+        assert!(handlers.get_stream_handler("tag").is_none());
+    }
+
+    #[test]
+    fn an_unregistered_builtin_is_an_error() {
+        let mut handlers = ExternalHandlers::new();
+        let err = unsafe {
+            handlers.new_builtin_handler("t-missing", "tag", PluginOutboundConfig::default())
+        }
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("no builtin plugin is registered as [t-missing]"),
+            "{err}"
+        );
     }
 }

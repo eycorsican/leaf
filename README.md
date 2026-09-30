@@ -200,6 +200,55 @@ The callback returns `false` to cancel. The call returns `ERR_OK`,
 `ERR_PLUGIN_FETCH` (some failed; the others are in the cache), `ERR_CANCELLED`,
 or `ERR_CONFIG`.
 
+### Plugins compiled into the client
+
+iOS will not load code from a file, and Android will not load it from anywhere
+an app can write. On those platforms a plugin is linked into the app at build
+time and registered under a name, and a config refers to it with `builtin`:
+
+```ini
+[Plugin]
+; A mobile client with the builtin uses it; a desktop client without it
+; downloads the url instead. One config serves both.
+socks = builtin=socks5-c, url=https://cdn.example.com/plugins/1.2.0/socks5_cabi_c.dll, sha256=9f86d0...
+```
+
+A registered builtin wins: `path` and `url` are then not looked at, nothing is
+downloaded, and no cache directory is needed. A client without it falls back to
+`path`, then `url`; one with neither fails to start and lists the builtins it
+does have. A builtin's descriptor is validated exactly as a loaded library's
+is.
+
+`leaf-ffi` links the in-tree plugins through cargo features, and registers each
+one on the first call that reads a config:
+
+```sh
+cargo build -p leaf-ffi --release --target aarch64-apple-ios \
+    --features plugin-socks5-c
+```
+
+| Feature | `builtin=` |
+|---|---|
+| `plugin-socks5-c` | `socks5-c` |
+
+A plugin the app links itself is registered with
+`leaf_register_plugin(name, get_descriptor)` before `leaf_run_*`. How it gets
+linked depends on the language:
+
+- **Rust** plugins are not linked in. Plugins exist for protocols written in
+  other languages; one written in Rust belongs in leaf as an outbound of its
+  own. Linking one in would also merge its dependencies' features with leaf's
+  -- two rustls crypto providers, for one, which leaves rustls unable to pick
+  a default. The in-tree Rust plugins stay loadable libraries, for tests and
+  as examples of the ABI.
+- **C**: compile with `-DLEAF_PLUGIN_STATIC_NAME=<name>`, and
+  `leaf_plugin_abi.h` renames the descriptor function to
+  `leaf_plugin_<name>_get_descriptor`, unexported. The source does not change;
+  everything else in it should already be `static`.
+- **Zig and Go** plugins cannot be linked in yet. A Go one in particular brings
+  a runtime of its own, and one binary can hold only one, so Go plugins would
+  have to be built together as a single archive.
+
 ### Checking a plugin before you deploy it
 
 `--verify-plugin` runs the loader's own checks -- the path, the file's

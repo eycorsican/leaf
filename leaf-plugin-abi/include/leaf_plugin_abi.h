@@ -378,6 +378,29 @@ typedef struct DatagramEnginePlugin {
 #define LEAF_DATAGRAM_ENGINE_PLUGIN_REQUIRED_SIZE \
     LEAF_REQUIRED_SIZE(DatagramEnginePlugin, get_last_error)
 
+/*
+ * Linking a plugin into the host instead of loading it.
+ *
+ * Where a platform will not load code from a file -- iOS, and Android from
+ * anywhere an app can write -- a plugin is compiled into the host binary and
+ * registered there under a name (leaf_register_plugin, or
+ * register_builtin_plugin from Rust). Build it with LEAF_PLUGIN_STATIC_NAME
+ * defined to an identifier, e.g. -DLEAF_PLUGIN_STATIC_NAME=socks5_c, and its
+ * descriptor function becomes leaf_plugin_socks5_c_get_descriptor, unexported,
+ * so that any number of plugins can be linked into one binary. The plugin's
+ * source does not change: it still defines leaf_plugin_get_descriptor, which
+ * this renames. Every other function and variable a plugin defines should be
+ * static, which is what keeps the rest of it out of the way.
+ */
+#if defined(LEAF_PLUGIN_STATIC_NAME)
+#undef LEAF_PLUGIN_EXPORT
+#define LEAF_PLUGIN_EXPORT
+#define LEAF_PLUGIN_CONCAT3_(a, b, c) a##b##c
+#define LEAF_PLUGIN_CONCAT3(a, b, c) LEAF_PLUGIN_CONCAT3_(a, b, c)
+#define leaf_plugin_get_descriptor \
+    LEAF_PLUGIN_CONCAT3(leaf_plugin_, LEAF_PLUGIN_STATIC_NAME, _get_descriptor)
+#endif
+
 LEAF_PLUGIN_EXPORT const PluginDescriptor* leaf_plugin_get_descriptor(void);
 
 #endif /* LEAF_PLUGIN_ABI_H */

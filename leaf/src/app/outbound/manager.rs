@@ -674,7 +674,47 @@ impl OutboundManager {
                                 .map_err(|e| {
                                     anyhow!("invalid [{}] outbound settings: {}", &tag, e)
                                 })?;
-                        if settings.path.is_empty() && !settings.url.is_empty() {
+                        let plugin_config = super::plugin::PluginOutboundConfig {
+                            host: if settings.host.is_empty() {
+                                None
+                            } else {
+                                Some(settings.host.clone())
+                            },
+                            port: if settings.port == 0 {
+                                None
+                            } else {
+                                Some(settings.port as u16)
+                            },
+                            args: settings.args.clone(),
+                            sha256: if settings.sha256.is_empty() {
+                                None
+                            } else {
+                                Some(settings.sha256.clone())
+                            },
+                        };
+                        // A builtin the client has wins; `path` and `url` are
+                        // for the client that does not have it. That is what
+                        // lets one config serve a desktop client that loads
+                        // files and a mobile one that cannot.
+                        let loaded = if !settings.builtin.is_empty()
+                            && super::plugin::is_builtin_plugin(&settings.builtin)
+                        {
+                            unsafe {
+                                external_handlers.new_builtin_handler(
+                                    &settings.builtin,
+                                    &tag,
+                                    plugin_config,
+                                )
+                            }
+                        } else if !settings.path.is_empty() {
+                            unsafe {
+                                external_handlers.new_handler(
+                                    settings.path.clone(),
+                                    &tag,
+                                    plugin_config,
+                                )
+                            }
+                        } else if !settings.url.is_empty() {
                             // With plugin-fetch the start fills the path in
                             // before this runs, so this is a build without it.
                             return Err(anyhow!(
@@ -683,41 +723,29 @@ impl OutboundManager {
                                  or give the plugin a path",
                                 &tag
                             ));
-                        }
-                        if settings.path.is_empty() {
+                        } else if !settings.builtin.is_empty() {
+                            let built_in = super::plugin::builtin_plugin_names();
+                            return Err(anyhow!(
+                                "outbound [{}] uses builtin plugin [{}], which this client was \
+                                 not built with (it has: {}); give the plugin a path or a url \
+                                 to fall back on",
+                                &tag,
+                                settings.builtin,
+                                if built_in.is_empty() {
+                                    "none".to_string()
+                                } else {
+                                    built_in.join(", ")
+                                }
+                            ));
+                        } else {
                             return Err(anyhow!(
                                 "invalid [{}] outbound settings: plugin path is empty",
                                 &tag
                             ));
-                        }
-                        unsafe {
-                            external_handlers
-                                .new_handler(
-                                    settings.path,
-                                    &tag,
-                                    super::plugin::PluginOutboundConfig {
-                                        host: if settings.host.is_empty() {
-                                            None
-                                        } else {
-                                            Some(settings.host.clone())
-                                        },
-                                        port: if settings.port == 0 {
-                                            None
-                                        } else {
-                                            Some(settings.port as u16)
-                                        },
-                                        args: settings.args.clone(),
-                                        sha256: if settings.sha256.is_empty() {
-                                            None
-                                        } else {
-                                            Some(settings.sha256.clone())
-                                        },
-                                    },
-                                )
-                                .map_err(|e| {
-                                    anyhow!("failed to load plugin outbound [{}]: {}", &tag, e)
-                                })?
                         };
+                        loaded.map_err(|e| {
+                            anyhow!("failed to load plugin outbound [{}]: {}", &tag, e)
+                        })?;
                         // A plugin exports a stream engine, a datagram engine
                         // or both, and the handler carries whichever it has:
                         // the UDP path never asks for a stream, so a UDP-only

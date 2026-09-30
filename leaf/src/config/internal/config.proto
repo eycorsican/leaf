@@ -295,6 +295,10 @@ message PluginOutboundSettings {
 	// The name the config gave the plugin, for progress and error reports.
 	// Empty means the outbound's tag.
 	string name = 8;
+	// The name of a plugin compiled into this binary. When one is registered
+	// under it, it is used and `path` and `url` are not; when none is, they are
+	// the fallback.
+	string builtin = 9;
 }
 
 message Outbound {

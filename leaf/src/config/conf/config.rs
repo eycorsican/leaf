@@ -157,6 +157,10 @@ impl Default for Proxy {
 /// this section says how a given client gets hold of the code.
 #[derive(Debug, Default, Clone)]
 pub struct PluginDecl {
+    /// A plugin compiled into this client. When one is registered under this
+    /// name it is used, and `path` and `url` are only the fallback for a
+    /// client that does not have it.
+    pub builtin: Option<String>,
     /// A library already on disk. Wins over `url` when both are given.
     pub path: Option<String>,
     /// Where to download the library from; https only, and only with `sha256`.
@@ -505,6 +509,7 @@ fn parse_plugin_section(lines: Vec<String>) -> Result<HashMap<String, PluginDecl
                 bail!("plugin [{}]: [{}] has no value", name, key);
             }
             match key {
+                "builtin" => decl.builtin = Some(value.to_string()),
                 "path" => decl.path = Some(value.to_string()),
                 "url" => decl.url = Some(value.to_string()),
                 "sha256" => decl.sha256 = Some(value.to_string()),
@@ -514,15 +519,16 @@ fn parse_plugin_section(lines: Vec<String>) -> Result<HashMap<String, PluginDecl
                     })?)
                 }
                 _ => bail!(
-                    "plugin [{}]: unknown key [{}]; expected path, url, sha256 or size",
+                    "plugin [{}]: unknown key [{}]; expected builtin, path, url, sha256 or size",
                     name,
                     key
                 ),
             }
         }
-        if decl.path.is_none() && decl.url.is_none() {
+        if decl.builtin.is_none() && decl.path.is_none() && decl.url.is_none() {
             bail!(
-                "plugin [{}] says neither where it is (path) nor where to get it (url)",
+                "plugin [{}] says neither which builtin it is (builtin), where it is (path) \
+                 nor where to get it (url)",
                 name
             );
         }
@@ -1315,6 +1321,7 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                                 url: decl.url.clone(),
                                 size: decl.size,
                                 name: Some(name.clone()),
+                                builtin: decl.builtin.clone(),
                             }),
                         },
                     });
@@ -1975,6 +1982,27 @@ SS = plugin, 1.2.3.4, 8388, plugin=ss, args=aes-128-gcm;password
         assert_eq!((ss.host.as_str(), ss.port), ("1.2.3.4", 8388));
     }
 
+    /// A builtin on its own is a whole declaration -- a mobile config needs
+    /// nothing else -- and one with fallbacks carries all of them through, for
+    /// the host to choose between.
+    #[test]
+    fn a_plugin_can_be_a_builtin_with_or_without_fallbacks() {
+        let conf = format!(
+            "[Plugin]\nmobile = builtin=tls-rs\nboth = builtin=tls-rs, url=https://x/tls.dll, sha256={SHA}\n\
+             [Proxy]\nM = plugin, plugin=mobile\nB = plugin, plugin=both\n"
+        );
+        let config = from_string(&conf).unwrap();
+
+        let mobile = plugin_settings_of(&config, "M");
+        assert_eq!(mobile.builtin, "tls-rs");
+        assert_eq!((mobile.path.as_str(), mobile.url.as_str()), ("", ""));
+
+        let both = plugin_settings_of(&config, "B");
+        assert_eq!(both.builtin, "tls-rs");
+        assert_eq!(both.url, "https://x/tls.dll");
+        assert_eq!(both.sha256, SHA);
+    }
+
     /// Whatever produced the config picked one of the base64 alphabets, with or
     /// without padding; all four decode to the same arguments.
     #[test]
@@ -2014,7 +2042,10 @@ SS = plugin, 1.2.3.4, 8388, plugin=ss, args=aes-128-gcm;password
                 format!("p = url=https://x/p.dll, sha-256={SHA}"),
                 "unknown key [sha-256]",
             ),
-            ("p = size=12".to_string(), "neither where it is"),
+            (
+                "p = size=12".to_string(),
+                "says neither which builtin it is",
+            ),
             (
                 "p = path=./a.dll\np = path=./b.dll".to_string(),
                 "declared twice",

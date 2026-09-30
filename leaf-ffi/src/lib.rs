@@ -43,6 +43,88 @@ fn to_errno(e: leaf::Error) -> i32 {
     }
 }
 
+#[cfg(feature = "plugin-socks5-c")]
+extern "C" {
+    // `socks5.c` compiled by build.rs with LEAF_PLUGIN_STATIC_NAME=socks5_c.
+    fn leaf_plugin_socks5_c_get_descriptor() -> *const leaf::app::outbound::plugin::PluginDescriptor;
+}
+
+/// Registers the plugins this library was built with -- the `plugin-*`
+/// features -- as builtins, once. Every entry point that reads a config calls
+/// it, so an app never has to.
+fn register_compiled_in_plugins() {
+    #[cfg(feature = "plugin")]
+    {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            #[allow(unused_variables)]
+            let register =
+                |name: &str, get_descriptor: leaf::app::outbound::plugin::PluginDescriptorFn| {
+                    // Safety: each of these is a plugin linked into this library,
+                    // whose descriptor function is the one it exports when built
+                    // as a library of its own.
+                    if let Err(e) = unsafe {
+                        leaf::app::outbound::plugin::register_builtin_plugin(name, get_descriptor)
+                    } {
+                        eprintln!("leaf: registering builtin plugin [{}] failed: {}", name, e);
+                    }
+                };
+            #[cfg(feature = "plugin-socks5-c")]
+            register("socks5-c", leaf_plugin_socks5_c_get_descriptor);
+        });
+    }
+}
+
+/// Registers a plugin linked into the app as a builtin, under the name a
+/// config's `builtin=` refers to.
+///
+/// For plugins the app links itself; the ones this library was built with
+/// (its `plugin-*` features) are registered already. Call it before
+/// `leaf_run_*`. Registering the same function under the same name again is
+/// allowed; a different function under a name already taken is not.
+///
+/// @param name Letters, digits, '-', '_' and '.'.
+/// @param get_descriptor The plugin's descriptor function: its
+///                       `leaf_plugin_get_descriptor`, or, for a C plugin
+///                       built with LEAF_PLUGIN_STATIC_NAME=x,
+///                       `leaf_plugin_x_get_descriptor`. It is trusted as a
+///                       loaded plugin library is; the descriptor it returns
+///                       is validated when an outbound first uses it.
+/// @return ERR_OK; ERR_CONFIG for a bad name, a NULL function, or a name
+///         registered to a different function; ERR_UNSUPPORTED for a build
+///         without plugin support.
+#[no_mangle]
+#[allow(unused_variables)]
+pub unsafe extern "C" fn leaf_register_plugin(
+    name: *const c_char,
+    get_descriptor: Option<unsafe extern "C" fn() -> *const std::ffi::c_void>,
+) -> i32 {
+    #[cfg(not(feature = "plugin"))]
+    {
+        ERR_UNSUPPORTED
+    }
+    #[cfg(feature = "plugin")]
+    {
+        let (Some(get_descriptor), false) = (get_descriptor, name.is_null()) else {
+            return ERR_CONFIG;
+        };
+        let Ok(name) = (unsafe { CStr::from_ptr(name).to_str() }) else {
+            return ERR_CONFIG;
+        };
+        register_compiled_in_plugins();
+        // Safety: the same function type with the descriptor pointer spelled
+        // `void *` for the C header's sake; the pointee is only read through
+        // the host's validation.
+        let get_descriptor: leaf::app::outbound::plugin::PluginDescriptorFn =
+            unsafe { std::mem::transmute(get_descriptor) };
+        match unsafe { leaf::app::outbound::plugin::register_builtin_plugin(name, get_descriptor) }
+        {
+            Ok(()) => ERR_OK,
+            Err(_) => ERR_CONFIG,
+        }
+    }
+}
+
 /// The plugin is not in the cache and will be downloaded.
 pub const LEAF_FETCH_QUEUED: i32 = 0;
 /// The plugin is already in the cache. Terminal.
@@ -125,6 +207,7 @@ pub unsafe extern "C" fn leaf_prefetch_plugins(
     context: *mut std::ffi::c_void,
     callback: Option<LeafFetchCallback>,
 ) -> i32 {
+    register_compiled_in_plugins();
     #[cfg(not(feature = "plugin-fetch"))]
     {
         ERR_UNSUPPORTED
@@ -222,6 +305,7 @@ pub unsafe extern "C" fn leaf_run_with_options(
     threads: i32,
     stack_size: i32,
 ) -> i32 {
+    register_compiled_in_plugins();
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
         if let Err(e) = leaf::util::run_with_options(
             rt_id,
@@ -251,6 +335,7 @@ pub unsafe extern "C" fn leaf_run_with_options(
 /// @return ERR_OK on finish running, any other errors means a startup failure.
 #[no_mangle]
 pub unsafe extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32 {
+    register_compiled_in_plugins();
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
         let opts = leaf::StartOptions {
             config: leaf::Config::File(config_path.to_string()),
@@ -269,6 +354,7 @@ pub unsafe extern "C" fn leaf_run(rt_id: u16, config_path: *const c_char) -> i32
 
 #[no_mangle]
 pub unsafe extern "C" fn leaf_run_with_config_string(rt_id: u16, config: *const c_char) -> i32 {
+    register_compiled_in_plugins();
     if let Ok(config) = unsafe { CStr::from_ptr(config).to_str() } {
         let opts = leaf::StartOptions {
             config: leaf::Config::Str(config.to_string()),
@@ -315,6 +401,7 @@ pub extern "C" fn leaf_shutdown(rt_id: u16) -> bool {
 /// @return Returns ERR_OK on success, i.e no syntax error.
 #[no_mangle]
 pub unsafe extern "C" fn leaf_test_config(config_path: *const c_char) -> i32 {
+    register_compiled_in_plugins();
     if let Ok(config_path) = unsafe { CStr::from_ptr(config_path).to_str() } {
         if let Err(e) = leaf::test_config(config_path) {
             return to_errno(e);
@@ -342,6 +429,7 @@ pub unsafe extern "C" fn leaf_test_outbounds(
     context: *mut std::ffi::c_void,
     callback: extern "C" fn(*const c_char, i32, i32, *mut std::ffi::c_void),
 ) -> i32 {
+    register_compiled_in_plugins();
     if let Ok(config_str) = unsafe { CStr::from_ptr(config).to_str() } {
         // Send context safely to the other thread?
         // raw pointers are not Send.
@@ -712,5 +800,88 @@ mod prefetch_tests {
 
     fn hex_of(bytes: &[u8]) -> String {
         bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+}
+
+/// Plugins linked into the library: that each one this build includes is
+/// registered, and that its descriptor -- reached through the static link
+/// rather than a library -- passes the host's validation and makes handlers.
+#[cfg(all(test, feature = "plugin"))]
+mod builtin_tests {
+    use super::*;
+    use leaf::app::outbound::plugin::{
+        builtin_plugin_names, is_builtin_plugin, ExternalHandlers, PluginOutboundConfig,
+    };
+    use std::ffi::{c_void, CString};
+
+    unsafe extern "C" fn no_descriptor() -> *const c_void {
+        std::ptr::null()
+    }
+
+    unsafe extern "C" fn another_no_descriptor() -> *const c_void {
+        // Different from the one above, so that the two cannot be folded into
+        // one function and compare equal.
+        std::ptr::dangling::<c_void>()
+    }
+
+    fn register(name: &str, f: Option<unsafe extern "C" fn() -> *const c_void>) -> i32 {
+        let name = CString::new(name).unwrap();
+        unsafe { leaf_register_plugin(name.as_ptr(), f) }
+    }
+
+    #[test]
+    fn leaf_register_plugin_codes() {
+        assert_eq!(register("app-plugin", Some(no_descriptor)), ERR_OK);
+        assert_eq!(register("app-plugin", Some(no_descriptor)), ERR_OK);
+        assert_eq!(
+            register("app-plugin", Some(another_no_descriptor)),
+            ERR_CONFIG
+        );
+        assert_eq!(register("not a name", Some(no_descriptor)), ERR_CONFIG);
+        assert_eq!(register("app-null", None), ERR_CONFIG);
+        assert_eq!(
+            unsafe { leaf_register_plugin(std::ptr::null(), Some(no_descriptor)) },
+            ERR_CONFIG
+        );
+        assert!(is_builtin_plugin("app-plugin"));
+    }
+
+    fn endpoint() -> PluginOutboundConfig {
+        PluginOutboundConfig {
+            host: Some("127.0.0.1".to_string()),
+            port: Some(1080),
+            ..Default::default()
+        }
+    }
+
+    fn loads(name: &str, config: PluginOutboundConfig, stream: bool, datagram: bool) {
+        register_compiled_in_plugins();
+        assert!(
+            is_builtin_plugin(name),
+            "[{}] is not registered; registered: {:?}",
+            name,
+            builtin_plugin_names()
+        );
+        let mut handlers = ExternalHandlers::new();
+        unsafe { handlers.new_builtin_handler(name, "tag", config) }
+            .unwrap_or_else(|e| panic!("builtin [{}] did not load: {}", name, e));
+        assert_eq!(
+            handlers.get_stream_handler("tag").is_some(),
+            stream,
+            "{}",
+            name
+        );
+        assert_eq!(
+            handlers.get_datagram_handler("tag").is_some(),
+            datagram,
+            "{}",
+            name
+        );
+    }
+
+    #[cfg(feature = "plugin-socks5-c")]
+    #[test]
+    fn socks5_c_is_built_in() {
+        loads("socks5-c", endpoint(), true, false);
     }
 }

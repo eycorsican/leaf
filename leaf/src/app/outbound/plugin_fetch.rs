@@ -263,6 +263,11 @@ fn url_plugins(config: &internal::Config) -> anyhow::Result<Vec<UrlPlugin>> {
         if settings.url.is_empty() || !settings.path.is_empty() {
             continue;
         }
+        // A builtin this client has is what the outbound will use; the url is
+        // there for clients that do not have it.
+        if !settings.builtin.is_empty() && super::plugin::is_builtin_plugin(&settings.builtin) {
+            continue;
+        }
         let name = if settings.name.is_empty() {
             outbound.tag.clone()
         } else {
@@ -1260,6 +1265,31 @@ mod tests {
         });
         assert!(matches!(result, Err(FetchError::Cancelled)), "{:?}", result);
         assert_eq!(seen, vec![FetchEventKind::Queued]);
+    }
+
+    /// A builtin the client has is what the outbound will run, so its url is
+    /// not fetched -- and a config whose every plugin is built in needs no
+    /// cache directory. One the client lacks falls back to its url.
+    #[test]
+    fn a_builtin_the_client_has_is_not_downloaded() {
+        unsafe extern "C" fn descriptor() -> *const leaf_plugin_abi::PluginDescriptor {
+            std::ptr::null()
+        }
+        unsafe {
+            super::super::plugin::register_builtin_plugin("fetch-test-builtin", descriptor)
+                .unwrap();
+        }
+        let built_in = config(
+            &format!("p = builtin=fetch-test-builtin, url=https://example.com/p.dll, sha256={SHA}"),
+            "P = plugin, plugin=p",
+        );
+        assert!(!has_url_plugins(&built_in).unwrap());
+
+        let missing = config(
+            &format!("p = builtin=not-in-this-client, url=https://example.com/p.dll, sha256={SHA}"),
+            "P = plugin, plugin=p",
+        );
+        assert!(has_url_plugins(&missing).unwrap());
     }
 
     #[test]
