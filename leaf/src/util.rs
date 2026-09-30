@@ -141,12 +141,31 @@ async fn test_healthcheck_udp(
     crate::app::healthcheck::udp(dns_client, handler).await
 }
 
+/// The config an outbound test builds from: plugins named by url pointed at
+/// the cache, which a test reads but never fills.
+#[cfg(feature = "plugin-fetch")]
+fn config_for_test(config: &Config) -> Result<std::borrow::Cow<'_, Config>> {
+    use crate::app::outbound::plugin_fetch;
+    if !plugin_fetch::has_url_plugins(config)? {
+        return Ok(std::borrow::Cow::Borrowed(config));
+    }
+    let mut config = config.clone();
+    plugin_fetch::prepare_for_test(&mut config)?;
+    Ok(std::borrow::Cow::Owned(config))
+}
+
+#[cfg(not(feature = "plugin-fetch"))]
+fn config_for_test(config: &Config) -> Result<std::borrow::Cow<'_, Config>> {
+    Ok(std::borrow::Cow::Borrowed(config))
+}
+
 pub async fn test_outbound(
     tag: &str,
     config: &Config,
     to: Option<Duration>,
 ) -> Result<(Result<Duration>, Result<Duration>)> {
     let to = to.unwrap_or(Duration::from_secs(4));
+    let config = config_for_test(config)?;
     let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns)?));
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
     let handler = outbound_manager
@@ -180,6 +199,7 @@ pub async fn test_outbounds(
     concurrency: usize,
 ) -> Result<HashMap<String, (Result<Duration>, Result<Duration>)>> {
     let to = to.unwrap_or(Duration::from_secs(4));
+    let config = config_for_test(config)?;
     let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns)?));
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
 
@@ -225,6 +245,7 @@ pub async fn stream_outbounds_tests(
     concurrency: usize,
 ) -> Result<impl futures::Stream<Item = (String, (Result<Duration>, Result<Duration>))>> {
     let to = to.unwrap_or(Duration::from_secs(4));
+    let config = config_for_test(config)?;
     let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns)?));
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
 
@@ -261,6 +282,7 @@ pub async fn health_check_outbound(
     to: Option<Duration>,
 ) -> Result<(Result<Duration>, Result<Duration>)> {
     let to = to.unwrap_or(Duration::from_secs(4));
+    let config = config_for_test(config)?;
     let dns_client = Arc::new(RwLock::new(DnsClient::new(&config.dns)?));
     let outbound_manager = OutboundManager::new(&config.outbounds, dns_client.clone())?;
     let handler = outbound_manager

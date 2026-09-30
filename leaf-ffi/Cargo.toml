@@ -29,8 +29,15 @@ default-openssl = [
 
 auto-reload = ["leaf/auto-reload"]
 
+plugin = ["leaf/plugin"]
+# Adds downloading plugins by url to the start, and leaf_prefetch_plugins.
+plugin-fetch = ["plugin", "leaf/plugin-fetch"]
+
 [dependencies]
 leaf = { path = "../leaf", default-features = false, optional = true }
 tokio = { version = "1", features = ["rt"] }
 anyhow = "1.0"
 futures = "0.3"
+
+[dev-dependencies]
+sha2 = "0.10"

@@ -20,10 +20,13 @@ futures = "0.3"
 # our own: it changes the shape of `StartOptions`, and cargo unifies features
 # across a workspace build, so leaf-cli asking for it would otherwise leave this
 # crate compiling against a struct it cannot see. Every node passes `false`.
-leaf = { path = "../leaf", features = ["auto-reload", "plugin"] }
+leaf = { path = "../leaf", features = ["auto-reload", "plugin", "plugin-fetch"] }
 libloading = "0.7"
 libtest-mimic = "0.8"
 rcgen = "0.13"
+# The https server the plugin-download cases fetch from.
+rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["tls12", "aws_lc_rs"] }
 rand = "0.8"
 serde_json = "1"
 sha2 = "0.10"

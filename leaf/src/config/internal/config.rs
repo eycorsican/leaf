@@ -4555,6 +4555,12 @@ pub struct PluginOutboundSettings {
     pub port: u32,
     // @@protoc_insertion_point(field:PluginOutboundSettings.sha256)
     pub sha256: ::std::string::String,
+    // @@protoc_insertion_point(field:PluginOutboundSettings.url)
+    pub url: ::std::string::String,
+    // @@protoc_insertion_point(field:PluginOutboundSettings.size)
+    pub size: u64,
+    // @@protoc_insertion_point(field:PluginOutboundSettings.name)
+    pub name: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:PluginOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -4597,6 +4603,15 @@ impl ::protobuf::Message for PluginOutboundSettings {
                 42 => {
                     self.sha256 = is.read_string()?;
                 },
+                50 => {
+                    self.url = is.read_string()?;
+                },
+                56 => {
+                    self.size = is.read_uint64()?;
+                },
+                66 => {
+                    self.name = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -4624,6 +4639,15 @@ impl ::protobuf::Message for PluginOutboundSettings {
         if !self.sha256.is_empty() {
             my_size += ::protobuf::rt::string_size(5, &self.sha256);
         }
+        if !self.url.is_empty() {
+            my_size += ::protobuf::rt::string_size(6, &self.url);
+        }
+        if self.size != 0 {
+            my_size += ::protobuf::rt::uint64_size(7, self.size);
+        }
+        if !self.name.is_empty() {
+            my_size += ::protobuf::rt::string_size(8, &self.name);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -4644,6 +4668,15 @@ impl ::protobuf::Message for PluginOutboundSettings {
         }
         if !self.sha256.is_empty() {
             os.write_string(5, &self.sha256)?;
+        }
+        if !self.url.is_empty() {
+            os.write_string(6, &self.url)?;
+        }
+        if self.size != 0 {
+            os.write_uint64(7, self.size)?;
+        }
+        if !self.name.is_empty() {
+            os.write_string(8, &self.name)?;
         }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -4667,6 +4700,9 @@ impl ::protobuf::Message for PluginOutboundSettings {
         self.host.clear();
         self.port = 0;
         self.sha256.clear();
+        self.url.clear();
+        self.size = 0;
+        self.name.clear();
         self.special_fields.clear();
     }
 
@@ -4677,6 +4713,9 @@ impl ::protobuf::Message for PluginOutboundSettings {
             host: ::std::string::String::new(),
             port: 0,
             sha256: ::std::string::String::new(),
+            url: ::std::string::String::new(),
+            size: 0,
+            name: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

@@ -4,7 +4,8 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
+use base64::Engine;
 use regex::Regex;
 
 use crate::config::{common, internal};
@@ -100,6 +101,12 @@ pub struct Proxy {
     pub reality: Option<bool>,
     pub reality_public_key: Option<String>,
     pub reality_short_id: Option<String>,
+
+    // plugin
+    /// The `[Plugin]` entry this proxy runs.
+    pub plugin: Option<String>,
+    /// Handed to the plugin verbatim. Its shape is the plugin's business.
+    pub plugin_args: Option<String>,
 }
 
 impl Default for Proxy {
@@ -137,8 +144,26 @@ impl Default for Proxy {
             reality: Some(false),
             reality_public_key: None,
             reality_short_id: None,
+            plugin: None,
+            plugin_args: None,
         }
     }
+}
+
+/// A `[Plugin]` entry: where one plugin library comes from.
+///
+/// Declared once and referenced by name from `[Proxy]` lines, so that the
+/// lines that say what a proxy does stay the same on every platform, and only
+/// this section says how a given client gets hold of the code.
+#[derive(Debug, Default, Clone)]
+pub struct PluginDecl {
+    /// A library already on disk. Wins over `url` when both are given.
+    pub path: Option<String>,
+    /// Where to download the library from; https only, and only with `sha256`.
+    pub url: Option<String>,
+    pub sha256: Option<String>,
+    /// The size of the file at `url`, in bytes.
+    pub size: Option<u64>,
 }
 #[derive(Debug)]
 pub struct ProxyGroup {
@@ -221,6 +246,7 @@ pub struct Config {
     pub host: Option<HashMap<String, Vec<String>>>,
     pub certificates: Option<HashMap<String, String>>,
     pub ech_configs: Option<HashMap<String, String>>,
+    pub plugin: Option<HashMap<String, PluginDecl>>,
 }
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -453,6 +479,77 @@ where
     None
 }
 
+/// Parses `[Plugin]`: `name = key=value, key=value, ...`.
+///
+/// Stricter than the other sections, which skip what they do not understand.
+/// This one says where executable code comes from, and a misspelt key there
+/// -- `sha-256` for `sha256` -- would otherwise quietly remove the check the
+/// operator meant to add.
+fn parse_plugin_section(lines: Vec<String>) -> Result<HashMap<String, PluginDecl>> {
+    let mut plugins = HashMap::new();
+    for line in lines {
+        let Some((name, rest)) = line.split_once('=') else {
+            bail!("[Plugin] line [{}] is not `name = key=value, ...`", line);
+        };
+        let name = name.trim();
+        if name.is_empty() {
+            bail!("[Plugin] line [{}] has no name", line);
+        }
+        let mut decl = PluginDecl::default();
+        for param in rest.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+            let Some((key, value)) = param.split_once('=') else {
+                bail!("plugin [{}]: [{}] is not key=value", name, param);
+            };
+            let (key, value) = (key.trim(), value.trim());
+            if value.is_empty() {
+                bail!("plugin [{}]: [{}] has no value", name, key);
+            }
+            match key {
+                "path" => decl.path = Some(value.to_string()),
+                "url" => decl.url = Some(value.to_string()),
+                "sha256" => decl.sha256 = Some(value.to_string()),
+                "size" => {
+                    decl.size = Some(value.parse::<u64>().map_err(|_| {
+                        anyhow!("plugin [{}]: size [{}] is not a byte count", name, value)
+                    })?)
+                }
+                _ => bail!(
+                    "plugin [{}]: unknown key [{}]; expected path, url, sha256 or size",
+                    name,
+                    key
+                ),
+            }
+        }
+        if decl.path.is_none() && decl.url.is_none() {
+            bail!(
+                "plugin [{}] says neither where it is (path) nor where to get it (url)",
+                name
+            );
+        }
+        if plugins.insert(name.to_string(), decl).is_some() {
+            bail!("plugin [{}] is declared twice", name);
+        }
+    }
+    Ok(plugins)
+}
+
+/// Decodes `args-b64`, which is how arguments that contain a comma -- JSON,
+/// most often -- get through a format that splits on commas.
+///
+/// Both alphabets are accepted, padded or not: the value is usually produced
+/// by whatever generates the config, and which base64 it happened to use is
+/// not worth failing over.
+fn decode_plugin_args(tag: &str, value: &str) -> Result<String> {
+    use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
+    let trimmed = value.trim().trim_end_matches('=');
+    let bytes = URL_SAFE_NO_PAD
+        .decode(trimmed)
+        .or_else(|_| STANDARD_NO_PAD.decode(trimmed))
+        .map_err(|e| anyhow!("proxy [{}]: args-b64 is not base64: {}", tag, e))?;
+    String::from_utf8(bytes)
+        .map_err(|_| anyhow!("proxy [{}]: args-b64 does not decode to UTF-8", tag))
+}
+
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
     let certificates = get_certificate_sections(lines.iter());
     let ech_configs = get_ech_sections(lines.iter());
@@ -573,6 +670,8 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         }
     }
 
+    let plugins = parse_plugin_section(get_lines_by_section("Plugin", lines.iter()))?;
+
     let mut proxies = Vec::new();
     let proxy_lines = get_lines_by_section("Proxy", lines.iter());
     for line in proxy_lines {
@@ -601,7 +700,10 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         // extract key-value params
         // let params = &params[2..];
         for param in &params {
-            let parts: Vec<&str> = param.split('=').map(str::trim).collect();
+            // Split at the first `=` only: a value may carry its own, as base64
+            // padding does, and splitting on every one of them used to drop the
+            // whole parameter without a word.
+            let parts: Vec<&str> = param.splitn(2, '=').map(str::trim).collect();
             if parts.len() != 2 {
                 continue;
             }
@@ -688,8 +790,41 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
                 "interface" => {
                     proxy.interface = v.to_string();
                 }
+                "plugin" => {
+                    proxy.plugin = Some(v.to_string());
+                }
+                "args" => {
+                    proxy.plugin_args = Some(v.to_string());
+                }
+                "args-b64" => {
+                    proxy.plugin_args = Some(decode_plugin_args(&proxy.tag, v)?);
+                }
                 _ => {}
             }
+        }
+
+        // A plugin is either the last layer of a chain, which connects to its
+        // own server and so takes an address and a port, or a layer inside one,
+        // which must not. Which of the two it is, the plugin itself declares;
+        // the host checks the config against that when it loads it.
+        if proxy.protocol == "plugin" {
+            let endpoint: Vec<&String> = params[1..].iter().filter(|p| !p.contains('=')).collect();
+            match endpoint.as_slice() {
+                [] => {}
+                [address, port] => {
+                    proxy.address = Some(address.to_string());
+                    proxy.port =
+                        Some(port.parse::<u16>().map_err(|_| {
+                            anyhow!("proxy [{}]: [{}] is not a port", proxy.tag, port)
+                        })?);
+                }
+                _ => bail!(
+                    "proxy [{}]: a plugin proxy takes an address and a port, or neither",
+                    proxy.tag
+                ),
+            }
+            proxies.push(proxy);
+            continue;
         }
 
         // built-in protocols have no address port, password
@@ -985,6 +1120,11 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         } else {
             Some(ech_configs)
         },
+        plugin: if plugins.is_empty() {
+            None
+        } else {
+            Some(plugins)
+        },
     })
 }
 
@@ -1142,6 +1282,41 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                     outbounds.push(common::Outbound {
                         tag: Some(ext_proxy.tag.clone()),
                         settings: common::OutboundSettings::Drop,
+                    });
+                }
+                "plugin" => {
+                    let name = ext_proxy.plugin.as_ref().ok_or_else(|| {
+                        anyhow!(
+                            "proxy [{}] is a plugin proxy but names no plugin; add \
+                             plugin=<a name from [Plugin]>",
+                            ext_proxy.tag
+                        )
+                    })?;
+                    let decl = conf
+                        .plugin
+                        .as_ref()
+                        .and_then(|plugins| plugins.get(name))
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "proxy [{}] uses plugin [{}], which no [Plugin] entry declares",
+                                ext_proxy.tag,
+                                name
+                            )
+                        })?;
+                    outbounds.push(common::Outbound {
+                        tag: Some(ext_proxy.tag.clone()),
+                        settings: common::OutboundSettings::Plugin {
+                            settings: Some(common::PluginOutboundSettings {
+                                path: decl.path.clone(),
+                                args: ext_proxy.plugin_args.clone(),
+                                host: ext_proxy.address.clone(),
+                                port: ext_proxy.port,
+                                sha256: decl.sha256.clone(),
+                                url: decl.url.clone(),
+                                size: decl.size,
+                                name: Some(name.clone()),
+                            }),
+                        },
                     });
                 }
                 "redirect" => {
@@ -1747,10 +1922,145 @@ AQI=
             host: None,
             certificates: None,
             ech_configs: None,
+            plugin: None,
         };
 
         let err = to_internal(&config).unwrap_err();
         assert!(err.to_string().contains("echConfigList cannot be empty"));
+    }
+
+    fn plugin_settings_of(
+        config: &internal::Config,
+        tag: &str,
+    ) -> internal::PluginOutboundSettings {
+        let outbound = config
+            .outbounds
+            .iter()
+            .find(|o| o.tag == tag)
+            .unwrap_or_else(|| panic!("no outbound [{}]", tag));
+        assert_eq!(outbound.protocol, "plugin");
+        internal::PluginOutboundSettings::parse_from_bytes(&outbound.settings).unwrap()
+    }
+
+    const SHA: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+
+    #[test]
+    fn plugin_proxies_take_their_source_from_the_plugin_section() {
+        let conf = format!(
+            r#"
+[Plugin]
+tls-go = url=https://cdn.example.com/p/tls.dll?v=1, sha256={SHA}, size=3145728
+ss = path=./plugins/ss.dll
+
+[Proxy]
+TLS = plugin, plugin=tls-go, args-b64=eyJzZXJ2ZXJfbmFtZSI6ImV4YW1wbGUuY29tIn0
+SS = plugin, 1.2.3.4, 8388, plugin=ss, args=aes-128-gcm;password
+"#
+        );
+        let config = from_string(&conf).unwrap();
+
+        let tls = plugin_settings_of(&config, "TLS");
+        assert_eq!(tls.url, "https://cdn.example.com/p/tls.dll?v=1");
+        assert_eq!(tls.sha256, SHA);
+        assert_eq!(tls.size, 3145728);
+        assert_eq!(tls.name, "tls-go");
+        assert_eq!(tls.path, "");
+        assert_eq!(tls.args, r#"{"server_name":"example.com"}"#);
+        assert_eq!((tls.host.as_str(), tls.port), ("", 0));
+
+        let ss = plugin_settings_of(&config, "SS");
+        assert_eq!(ss.path, "./plugins/ss.dll");
+        assert_eq!(ss.url, "");
+        assert_eq!(ss.args, "aes-128-gcm;password");
+        assert_eq!((ss.host.as_str(), ss.port), ("1.2.3.4", 8388));
+    }
+
+    /// Whatever produced the config picked one of the base64 alphabets, with or
+    /// without padding; all four decode to the same arguments.
+    #[test]
+    fn args_b64_accepts_either_alphabet_padded_or_not() {
+        // `{"a":"??>"}` encodes differently in the two alphabets.
+        for encoded in [
+            "eyJhIjoiPz8+In0=",
+            "eyJhIjoiPz8+In0",
+            "eyJhIjoiPz8-In0=",
+            "eyJhIjoiPz8-In0",
+        ] {
+            let conf = format!(
+                "[Plugin]\np = path=./p.dll\n[Proxy]\nP = plugin, plugin=p, args-b64={}\n",
+                encoded
+            );
+            let config = from_string(&conf).unwrap();
+            assert_eq!(
+                plugin_settings_of(&config, "P").args,
+                r#"{"a":"??>"}"#,
+                "{}",
+                encoded
+            );
+        }
+    }
+
+    #[test]
+    fn args_b64_that_is_not_base64_is_an_error() {
+        let conf = "[Plugin]\np = path=./p.dll\n[Proxy]\nP = plugin, plugin=p, args-b64=!!!\n";
+        let err = from_string(conf).unwrap_err().to_string();
+        assert!(err.contains("args-b64"), "{}", err);
+    }
+
+    #[test]
+    fn plugin_section_rejects_what_it_does_not_understand() {
+        for (section, expected) in [
+            (
+                format!("p = url=https://x/p.dll, sha-256={SHA}"),
+                "unknown key [sha-256]",
+            ),
+            ("p = size=12".to_string(), "neither where it is"),
+            (
+                "p = path=./a.dll\np = path=./b.dll".to_string(),
+                "declared twice",
+            ),
+            ("p = path=./a.dll, size=big".to_string(), "not a byte count"),
+            ("p = path".to_string(), "not key=value"),
+        ] {
+            let conf = format!("[Plugin]\n{}\n", section);
+            let err = from_string(&conf).unwrap_err().to_string();
+            assert!(err.contains(expected), "[{}]: {}", section, err);
+        }
+    }
+
+    #[test]
+    fn a_plugin_proxy_must_name_a_declared_plugin() {
+        let err = from_string("[Proxy]\nP = plugin, args=x\n")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("names no plugin"), "{}", err);
+
+        let err = from_string("[Proxy]\nP = plugin, plugin=nope\n")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("no [Plugin] entry declares"), "{}", err);
+    }
+
+    #[test]
+    fn a_plugin_proxy_takes_a_whole_endpoint_or_none() {
+        let conf = "[Plugin]\np = path=./p.dll\n[Proxy]\nP = plugin, 1.2.3.4, plugin=p\n";
+        let err = from_string(conf).unwrap_err().to_string();
+        assert!(err.contains("an address and a port, or neither"), "{}", err);
+
+        let conf = "[Plugin]\np = path=./p.dll\n[Proxy]\nP = plugin, 1.2.3.4, http, plugin=p\n";
+        let err = from_string(conf).unwrap_err().to_string();
+        assert!(err.contains("is not a port"), "{}", err);
+    }
+
+    /// Values used to be split on every `=`, which dropped any parameter whose
+    /// value had one -- a password ending in base64 padding, for one.
+    #[test]
+    fn a_value_may_contain_an_equals_sign() {
+        let conf = "[Proxy]\nT = trojan, 1.2.3.4, 443, password=abc==\n";
+        let lines: Vec<io::Result<String>> = conf.lines().map(|s| Ok(s.to_string())).collect();
+        let config = from_lines(lines).unwrap();
+        let proxy = &config.proxy.unwrap()[0];
+        assert_eq!(proxy.password.as_deref(), Some("abc=="));
     }
 
     #[test]

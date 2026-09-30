@@ -63,6 +63,12 @@ pub enum Error {
     SyncChannelRecv(#[from] std::sync::mpsc::RecvError),
     #[error("runtime manager error")]
     RuntimeManager,
+    /// A plugin the config names by url could not be downloaded.
+    #[error("{0}")]
+    PluginFetch(String),
+    /// The caller asked for the operation to stop.
+    #[error("cancelled")]
+    Cancelled,
 }
 
 pub type Runner = futures::future::BoxFuture<'static, ()>;
@@ -226,6 +232,8 @@ impl RuntimeManager {
         };
         info!("reloading from config file: {}", config_path);
         let mut config = config::from_file(config_path).map_err(Error::Config)?;
+        #[cfg(feature = "plugin-fetch")]
+        app::outbound::plugin_fetch::prepare_for_reload(&mut config)?;
         app::logger::setup_logger(&config.log)?;
         self.router.write().await.reload(&mut config.router)?;
         self.dns_client.write().await.reload(&config.dns)?;
@@ -478,6 +486,12 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     };
 
     app::logger::setup_logger(&config.log)?;
+
+    // Before the runtime exists, and so before any listener or TUN route does:
+    // the download runs on a runtime of its own, and whatever it fetches goes
+    // over the network as it is, not through the proxy this is about to start.
+    #[cfg(feature = "plugin-fetch")]
+    app::outbound::plugin_fetch::prepare_for_start(&mut config)?;
 
     let rt = new_runtime(&opts.runtime_opt)?;
     let _g = rt.enter();

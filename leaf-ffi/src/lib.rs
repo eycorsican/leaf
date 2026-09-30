@@ -21,6 +21,12 @@ pub const ERR_RUNTIME_MANAGER: i32 = 7;
 pub const ERR_NO_CONFIG_FILE: i32 = 8;
 /// No data found.
 pub const ERR_NO_DATA: i32 = 9;
+/// At least one plugin the config names by url could not be downloaded.
+pub const ERR_PLUGIN_FETCH: i32 = 10;
+/// The caller cancelled the operation.
+pub const ERR_CANCELLED: i32 = 11;
+/// This build does not include what the call needs.
+pub const ERR_UNSUPPORTED: i32 = 12;
 
 fn to_errno(e: leaf::Error) -> i32 {
     match e {
@@ -32,6 +38,157 @@ fn to_errno(e: leaf::Error) -> i32 {
         leaf::Error::AsyncChannelSend(..) => ERR_ASYNC_CHANNEL_SEND,
         leaf::Error::SyncChannelRecv(..) => ERR_SYNC_CHANNEL_RECV,
         leaf::Error::RuntimeManager => ERR_RUNTIME_MANAGER,
+        leaf::Error::PluginFetch(..) => ERR_PLUGIN_FETCH,
+        leaf::Error::Cancelled => ERR_CANCELLED,
+    }
+}
+
+/// The plugin is not in the cache and will be downloaded.
+pub const LEAF_FETCH_QUEUED: i32 = 0;
+/// The plugin is already in the cache. Terminal.
+pub const LEAF_FETCH_CACHED: i32 = 1;
+/// The server answered; `total` is known from here on if the server said.
+pub const LEAF_FETCH_STARTED: i32 = 2;
+/// Bytes arrived, or a download is still waiting for them; may come before
+/// STARTED while the connection is being made.
+pub const LEAF_FETCH_PROGRESS: i32 = 3;
+/// Downloaded, and the sha256 matched. Terminal.
+pub const LEAF_FETCH_DONE: i32 = 4;
+/// Could not be fetched; `error` says why. Terminal.
+pub const LEAF_FETCH_FAILED: i32 = 5;
+
+/// One event of a `leaf_prefetch_plugins` call.
+///
+/// Fields may be added at the end in later versions; `size` is
+/// `sizeof(LeafFetchEvent)` as this library knows it, so a caller built against
+/// an older header can tell which fields are there.
+#[repr(C)]
+pub struct LeafFetchEvent {
+    pub size: u32,
+    /// One of the `LEAF_FETCH_*` values.
+    pub event: i32,
+    /// `0 .. count - 1`, stable for the whole call.
+    pub index: u32,
+    /// How many distinct plugins the call covers.
+    pub count: u32,
+    /// The name the config gave the plugin. Valid only during the callback.
+    pub plugin: *const c_char,
+    pub downloaded: i64,
+    /// -1 while unknown.
+    pub total: i64,
+    /// Summed over the plugins being downloaded; cached ones do not count.
+    pub all_downloaded: i64,
+    /// -1 while any download's size is unknown.
+    pub all_total: i64,
+    /// Set only for `LEAF_FETCH_FAILED`. Valid only during the callback.
+    pub error: *const c_char,
+}
+
+/// Returns false to cancel the whole call.
+pub type LeafFetchCallback =
+    extern "C" fn(event: *const LeafFetchEvent, context: *mut std::ffi::c_void) -> bool;
+
+/// Downloads the plugins a config names by url and the cache does not yet
+/// hold, without starting anything. A later `leaf_run_*` with the same config
+/// then finds them in the cache and starts at once.
+///
+/// The cache directory comes from the `PLUGIN_CACHE_DIR` environment variable,
+/// read when this is called. It must be a directory only this app can write
+/// to; there is no default.
+///
+/// Blocks until every plugin is in the cache, has failed, or the callback
+/// cancelled. Each plugin first gets a QUEUED or CACHED event, all of them
+/// before any download starts; each downloaded one then gets STARTED, some
+/// PROGRESS, and exactly one DONE or FAILED. A download that has not finished
+/// is reported with PROGRESS about once a second even when nothing has
+/// arrived -- including before STARTED, while it is still connecting -- so
+/// that the callback can cancel it. After a cancel there are no further events.
+///
+/// The callback runs on the thread that called this function, never
+/// concurrently, and never after it returns.
+///
+/// @param config The content of the config file.
+/// @param timeout_sec Limit for the whole call; 0 for the default of 30 seconds,
+///                    or `PLUGIN_FETCH_TIMEOUT` when that is set.
+/// @param context Passed back to the callback.
+/// @param callback May be NULL.
+/// @return ERR_OK when every plugin is in the cache; ERR_PLUGIN_FETCH when at
+///         least one could not be fetched, the rest having been; ERR_CANCELLED;
+///         ERR_CONFIG for a config that cannot be fetched from as it is, or a
+///         missing cache directory; ERR_UNSUPPORTED for a build without
+///         plugin downloads.
+#[no_mangle]
+#[allow(unused_variables)]
+pub unsafe extern "C" fn leaf_prefetch_plugins(
+    config: *const c_char,
+    timeout_sec: u32,
+    context: *mut std::ffi::c_void,
+    callback: Option<LeafFetchCallback>,
+) -> i32 {
+    #[cfg(not(feature = "plugin-fetch"))]
+    {
+        ERR_UNSUPPORTED
+    }
+    #[cfg(feature = "plugin-fetch")]
+    {
+        use leaf::app::outbound::plugin_fetch::{self, FetchEventKind, FetchOptions};
+        use std::ffi::CString;
+
+        let Ok(config) = (unsafe { CStr::from_ptr(config).to_str() }) else {
+            return ERR_CONFIG;
+        };
+        let config = match leaf::config::from_string(config) {
+            Ok(config) => config,
+            Err(e) => return to_errno(leaf::Error::Config(e)),
+        };
+        let mut options = match FetchOptions::from_env() {
+            Ok(options) => options,
+            // Only an error when there is something to download.
+            Err(e) => match plugin_fetch::has_url_plugins(&config) {
+                Ok(false) => return ERR_OK,
+                Ok(true) => return to_errno(leaf::Error::Config(e)),
+                Err(e) => return to_errno(leaf::Error::Config(e)),
+            },
+        };
+        if timeout_sec > 0 {
+            options.timeout = Some(std::time::Duration::from_secs(timeout_sec as u64));
+        }
+
+        let mut on_event = |event: &plugin_fetch::FetchEvent<'_>| -> bool {
+            let Some(callback) = callback else {
+                return true;
+            };
+            // Interior NULs cannot come from a conf name or from an error this
+            // library wrote, but a C string cannot carry one either way.
+            let plugin = CString::new(event.plugin.replace('\0', "")).unwrap_or_default();
+            let error = event
+                .error
+                .map(|e| CString::new(e.replace('\0', "")).unwrap_or_default());
+            let raw = LeafFetchEvent {
+                size: std::mem::size_of::<LeafFetchEvent>() as u32,
+                event: match event.kind {
+                    FetchEventKind::Queued => LEAF_FETCH_QUEUED,
+                    FetchEventKind::Cached => LEAF_FETCH_CACHED,
+                    FetchEventKind::Started => LEAF_FETCH_STARTED,
+                    FetchEventKind::Progress => LEAF_FETCH_PROGRESS,
+                    FetchEventKind::Done => LEAF_FETCH_DONE,
+                    FetchEventKind::Failed => LEAF_FETCH_FAILED,
+                },
+                index: event.index as u32,
+                count: event.count as u32,
+                plugin: plugin.as_ptr(),
+                downloaded: event.downloaded as i64,
+                total: event.total.map_or(-1, |t| t as i64),
+                all_downloaded: event.all_downloaded as i64,
+                all_total: event.all_total.map_or(-1, |t| t as i64),
+                error: error.as_ref().map_or(std::ptr::null(), |e| e.as_ptr()),
+            };
+            callback(&raw, context)
+        };
+        match plugin_fetch::prefetch(&config, &options, &mut on_event) {
+            Ok(()) => ERR_OK,
+            Err(e) => to_errno(e.into()),
+        }
     }
 }
 
@@ -380,5 +537,180 @@ pub unsafe extern "C" fn leaf_get_since_last_active(
         }
         Ok(None) => ERR_NO_DATA,
         Err(e) => to_errno(e),
+    }
+}
+
+/// The C side of `leaf_prefetch_plugins`: what reaches a callback, which codes
+/// come back, and on which thread. What a download does is the fetch module's
+/// business and is tested there and end to end; this is about the translation.
+#[cfg(all(test, feature = "plugin-fetch"))]
+mod prefetch_tests {
+    use super::*;
+    use sha2::Digest;
+    use std::ffi::{c_void, CString};
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct Seen {
+        size: u32,
+        event: i32,
+        index: u32,
+        count: u32,
+        plugin: String,
+        downloaded: i64,
+        total: i64,
+        all_downloaded: i64,
+        all_total: i64,
+        error: Option<String>,
+    }
+
+    #[derive(Default)]
+    struct Recorder {
+        seen: Vec<Seen>,
+        threads: Vec<std::thread::ThreadId>,
+        /// Answer `false` to the first event of this kind.
+        cancel_on: Option<i32>,
+    }
+
+    extern "C" fn record(event: *const LeafFetchEvent, context: *mut c_void) -> bool {
+        let recorder = unsafe { &mut *(context as *mut Recorder) };
+        let event = unsafe { &*event };
+        let text = |p: *const c_char| unsafe { CStr::from_ptr(p) }.to_str().unwrap().to_string();
+        recorder.seen.push(Seen {
+            size: event.size,
+            event: event.event,
+            index: event.index,
+            count: event.count,
+            plugin: text(event.plugin),
+            downloaded: event.downloaded,
+            total: event.total,
+            all_downloaded: event.all_downloaded,
+            all_total: event.all_total,
+            error: (!event.error.is_null()).then(|| text(event.error)),
+        });
+        recorder.threads.push(std::thread::current().id());
+        recorder.cancel_on != Some(event.event)
+    }
+
+    fn prefetch(config: &str, recorder: &mut Recorder) -> i32 {
+        let config = CString::new(config).unwrap();
+        unsafe {
+            leaf_prefetch_plugins(
+                config.as_ptr(),
+                5,
+                recorder as *mut Recorder as *mut c_void,
+                Some(record),
+            )
+        }
+    }
+
+    fn conf(plugins: &str) -> String {
+        format!("[Plugin]\n{}\n[Proxy]\nP = plugin, plugin=p\n", plugins)
+    }
+
+    /// One test, because the cache directory comes from the environment, which
+    /// every test in the process shares.
+    #[test]
+    fn translates_events_codes_and_threads() {
+        let dir = std::env::temp_dir().join(format!("leaf-ffi-prefetch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Without a cache directory: fine when there is nothing to download,
+        // a config error when there is.
+        std::env::remove_var("PLUGIN_CACHE_DIR");
+        let mut recorder = Recorder::default();
+        assert_eq!(prefetch(&conf("p = path=./p.dll"), &mut recorder), ERR_OK);
+        let sha = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        // A closed port on loopback: refused at once, never anything else.
+        let refused = {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.local_addr().unwrap().port()
+        };
+        let unreachable = conf(&format!(
+            "p = url=https://127.0.0.1:{}/p.dll, sha256={}, size=1234",
+            refused, sha
+        ));
+        assert_eq!(prefetch(&unreachable, &mut recorder), ERR_CONFIG);
+        assert!(recorder.seen.is_empty());
+
+        std::env::set_var("PLUGIN_CACHE_DIR", &dir);
+
+        // A config it will not download from is a config error, with no event.
+        let http = conf(&format!("p = url=http://127.0.0.1/p.dll, sha256={}", sha));
+        assert_eq!(prefetch(&http, &mut recorder), ERR_CONFIG);
+        assert!(recorder.seen.is_empty());
+
+        // Everything cached: one CACHED event, and ERR_OK.
+        let body = b"cached plugin";
+        let cached_sha = hex_of(&sha2::Sha256::digest(body));
+        std::fs::create_dir_all(dir.join(&cached_sha)).unwrap();
+        std::fs::write(dir.join(&cached_sha).join("c.dll"), body).unwrap();
+        let cached = conf(&format!(
+            "p = url=https://127.0.0.1:{}/c.dll, sha256={}",
+            refused, cached_sha
+        ));
+        let mut recorder = Recorder::default();
+        assert_eq!(prefetch(&cached, &mut recorder), ERR_OK);
+        assert_eq!(
+            recorder.seen,
+            vec![Seen {
+                size: std::mem::size_of::<LeafFetchEvent>() as u32,
+                event: LEAF_FETCH_CACHED,
+                index: 0,
+                count: 1,
+                plugin: "p".to_string(),
+                downloaded: 0,
+                total: -1,
+                all_downloaded: 0,
+                all_total: 0,
+                error: None,
+            }]
+        );
+
+        // A download that fails: QUEUED with the declared size, then FAILED
+        // with a reason, ERR_PLUGIN_FETCH, all on this thread. Windows takes a
+        // couple of seconds to give up on a refused port, and the heartbeat
+        // reports the wait as PROGRESS; that is left out here.
+        let mut recorder = Recorder::default();
+        assert_eq!(prefetch(&unreachable, &mut recorder), ERR_PLUGIN_FETCH);
+        let kinds: Vec<i32> = recorder
+            .seen
+            .iter()
+            .map(|s| s.event)
+            .filter(|&e| e != LEAF_FETCH_PROGRESS)
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![LEAF_FETCH_QUEUED, LEAF_FETCH_FAILED],
+            "{:?}",
+            recorder.seen
+        );
+        assert_eq!(recorder.seen[0].total, 1234);
+        assert_eq!(recorder.seen[0].all_total, 1234);
+        assert!(recorder.seen[0].error.is_none());
+        let reason = recorder.seen.last().unwrap().error.as_deref().unwrap();
+        assert!(reason.contains("connecting to 127.0.0.1"), "{}", reason);
+        let me = std::thread::current().id();
+        assert!(recorder.threads.iter().all(|t| *t == me));
+
+        // A callback that answers false: ERR_CANCELLED, and no further events.
+        let mut recorder = Recorder {
+            cancel_on: Some(LEAF_FETCH_QUEUED),
+            ..Default::default()
+        };
+        assert_eq!(prefetch(&unreachable, &mut recorder), ERR_CANCELLED);
+        assert_eq!(recorder.seen.len(), 1);
+
+        // A NULL callback is allowed.
+        let config = CString::new(unreachable).unwrap();
+        let code = unsafe { leaf_prefetch_plugins(config.as_ptr(), 5, std::ptr::null_mut(), None) };
+        assert_eq!(code, ERR_PLUGIN_FETCH);
+
+        std::env::remove_var("PLUGIN_CACHE_DIR");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn hex_of(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
     }
 }

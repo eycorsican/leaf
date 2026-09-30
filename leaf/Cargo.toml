@@ -101,7 +101,7 @@ openssl-aead = ["openssl"]
 openssl-tls = ["openssl", "tokio-openssl", "openssl-probe"]
 
 # Config formats
-config-conf = ["regex"]
+config-conf = ["regex", "base64"]
 config-json = ["serde", "serde_derive", "serde_json"]
 
 # Router rules
@@ -146,6 +146,9 @@ inbound-cat = ["tokio/io-std"]
 inbound-nf = ["libloading"]
 
 plugin = ["async-ffi", "libloading", "leaf-plugin-abi", "sha2", "hex"]
+# Downloads the plugins a config names by url, into a cache keyed by digest,
+# before the outbounds are built. Needs rustls for the https client.
+plugin-fetch = ["plugin", "rustls-tls", "url", "hyper", "hyper-util", "http-body-util", "http", "tokio/fs", "tokio/macros"]
 api = ["axum"]
 auto-reload = ["notify"]
 ctrlc = ["tokio/signal"]
@@ -263,6 +266,11 @@ rustls = { version = "0.23", default-features = false, features = ["std"], optio
 # Reality
 reality = { git = "https://github.com/eycorsican/reality-rs.git", optional = true }
 reality-rustls = { package = "rustls", git = "https://github.com/eycorsican/reality-rustls.git", branch = "reality-rebase-0.23.36", optional = true, default-features = false, features = ["ring", "std", "tls12", "logging"] }
+
+# plugin-fetch
+hyper = { version = "1", default-features = false, features = ["client", "http1"], optional = true }
+hyper-util = { version = "0.1", default-features = false, features = ["tokio"], optional = true }
+http-body-util = { version = "0.1", optional = true }
 
 # API
 axum = { version = "0.7", default-features = false, features = ["http1", "tokio", "json"], optional = true }

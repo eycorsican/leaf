@@ -2062,7 +2062,7 @@ fn verify_plugin_digest(path: &Path, expected: &str) -> io::Result<()> {
 /// This is the value an operator puts in `sha256`, which is why
 /// [`inspect_plugin`] prints it whether or not one was pinned: the digest of a
 /// build you have in front of you is exactly what you need to pin it to.
-fn plugin_file_digest(path: &Path) -> io::Result<String> {
+pub(crate) fn plugin_file_digest(path: &Path) -> io::Result<String> {
     let mut file = std::fs::File::open(path).map_err(|err| {
         io::Error::other(format!(
             "failed to open plugin [{}] to digest it: {}",

@@ -14,5 +14,8 @@ pub mod selector_cache;
 #[cfg(feature = "plugin")]
 pub mod plugin;
 
+#[cfg(feature = "plugin-fetch")]
+pub mod plugin_fetch;
+
 #[cfg(feature = "outbound-select")]
 pub type Selectors = HashMap<String, Arc<RwLock<selector::OutboundSelector>>>;

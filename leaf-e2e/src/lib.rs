@@ -33,6 +33,7 @@ pub mod meters;
 pub mod net;
 pub mod node;
 pub mod paths;
+pub mod plugin_server;
 pub mod process;
 pub mod report;
 pub mod runner;

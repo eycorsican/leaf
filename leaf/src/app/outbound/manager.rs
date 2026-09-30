@@ -674,6 +674,16 @@ impl OutboundManager {
                                 .map_err(|e| {
                                     anyhow!("invalid [{}] outbound settings: {}", &tag, e)
                                 })?;
+                        if settings.path.is_empty() && !settings.url.is_empty() {
+                            // With plugin-fetch the start fills the path in
+                            // before this runs, so this is a build without it.
+                            return Err(anyhow!(
+                                "outbound [{}] names its plugin by url, and this build cannot \
+                                 download plugins; rebuild with `--features leaf/plugin-fetch`, \
+                                 or give the plugin a path",
+                                &tag
+                            ));
+                        }
                         if settings.path.is_empty() {
                             return Err(anyhow!(
                                 "invalid [{}] outbound settings: plugin path is empty",

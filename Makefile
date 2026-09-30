@@ -38,6 +38,8 @@ ABI_INCLUDE := leaf-plugin-abi/include
 
 plugin-test:
 	cargo test -p leaf --features plugin --lib
+	cargo test -p leaf --features plugin-fetch --lib
+	cargo test -p leaf-ffi --lib --features plugin-fetch
 	cargo test -p leaf-plugin-abi
 	cargo test -p tls-cabi-rs -p shadowsocks-cabi-rs
 	cd leaf-plugins/leaf-abi-go && go test -race ./...

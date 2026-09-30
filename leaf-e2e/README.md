@@ -18,6 +18,7 @@ cargo test -p leaf-e2e -- --tag go          # only the Go plugin cases
 cargo test -p leaf-e2e -- --tag hostile     # only the misbehaving-plugin lane
 cargo test -p leaf-e2e -- --tag cli         # only the cases that run the real binary
 cargo test -p leaf-e2e -- --tag stress      # only the loads
+cargo test -p leaf-e2e -- --tag fetch       # only the plugin downloads
 cargo test -p leaf-e2e -- --no-tag perf     # skip the cost meters
 cargo test -p leaf-e2e -- --no-tag slow     # skip the bulk transfers and the loads
 cargo test -p leaf-e2e -- --tag soak        # the nightly lane, minutes per case
@@ -151,7 +152,7 @@ output.
 | Flag | Environment | Meaning |
 | --- | --- | --- |
 | `--strict` | `LEAF_E2E_STRICT=1` | A case skipped for a missing fixture fails instead |
-| `--tag <t>` / `--no-tag <t>` | -- | Select by label: `native`, `plugin`, `go`, `cc`, `zig`, `differential`, `perf`, `hostile`, `cli`, `stress`, `soak`, `slow` |
+| `--tag <t>` / `--no-tag <t>` | -- | Select by label: `native`, `plugin`, `go`, `cc`, `zig`, `differential`, `perf`, `hostile`, `cli`, `stress`, `soak`, `fetch`, `slow` |
 | -- | `TCP_INBOUND_ABORT_ON_CLOSE` | leaf's own option, inherited by the nodes a case starts. Turning it on runs the suite against inbound sockets that are reset rather than closed |
 | -- | `LEAF_CONFORMANCE_DESCRIPTOR` | Which descriptor the conformance plugin publishes; set per case, not by hand |
 | `--timeout-scale <f>` | `LEAF_E2E_TIMEOUT_SCALE` | Multiplies every deadline; for slow or sanitized runs |
@@ -352,6 +353,33 @@ instead, for the things that live only there:
 - whether the process exits after a plugin has pulled a language runtime of its
   own into it. The ABI warns about this one, and no in-process test can observe
   it.
+
+## Plugin downloads
+
+`fetch/` covers plugins a config names by url. The cases download from
+`src/plugin_server.rs`, an https server started per case whose routes are
+scripted: a length that is announced, omitted or wrong, an error status, a
+redirect, or a body held at a gate until the case opens it. Gates, not sleeps,
+are how a case gets a download that is provably in flight, or a server that
+provably never answers.
+
+The server's certificate comes from a CA generated for it, which the client
+trusts only because the case passes it in `FetchOptions::extra_roots` -- a
+field neither a config file nor the C API can reach. `refuses-an-untrusted-
+server` leaves it out, and must fail.
+
+Every case that downloads runs its events through one checker,
+`check_contract`, which is the promise an app builds its progress UI on: every
+plugin announced before any download starts, each plugin's events in order,
+exactly one terminal event each, byte counts that only grow and add up, and
+every callback on the calling thread. After a failure, a cancel or a timeout,
+the cases also check that the cache holds nothing at all -- no temporary file,
+no unverified one.
+
+The C API's side of the same thing -- the event struct, the error codes, the
+callback thread -- is tested in `leaf-ffi`'s own unit tests
+(`cargo test -p leaf-ffi --lib --features plugin-fetch`) rather than here: the
+FFI library is a Rust `dylib`, which does not link in a Windows debug build.
 
 ## Known defects
 

@@ -246,6 +246,42 @@ impl Node {
         }
     }
 
+    /// Starts a node from conf text, the format the clients download, whose
+    /// socks inbound is on `socks_port`. Everything else about the node --
+    /// outbounds, rules -- is whatever the text says.
+    pub async fn start_conf(name: &str, conf: &str, socks_port: u16) -> Result<LeafNode> {
+        let node = Self::conf_node(name, socks_port);
+        node.start_with(leaf::Config::Str(conf.to_string()), None)
+            .await
+    }
+
+    /// The same, expecting leaf to refuse the conf; returns what it said.
+    pub async fn start_conf_expecting_failure(name: &str, conf: &str) -> Result<String> {
+        let node = Self::new(name);
+        let (rt_id, failure) = node.spawn(leaf::Config::Str(conf.to_string()))?;
+        match tokio::time::timeout(START_TIMEOUT, failure).await {
+            Ok(Ok(err)) => Ok(err),
+            Ok(Err(_)) => bail!("node [{}] start task vanished", name),
+            Err(_) => {
+                shutdown_detached(rt_id);
+                bail!(
+                    "node [{}] started successfully but was expected to fail",
+                    name
+                )
+            }
+        }
+    }
+
+    /// A node that stands for a conf started elsewhere: it carries only the
+    /// socks inbound, so that readiness is probed where the conf listens.
+    fn conf_node(name: &str, socks_port: u16) -> Self {
+        let mut node = Self::new(name);
+        node.inbounds
+            .push(cfg::socks_inbound("socks-in", socks_port));
+        node.socks = Some(net::loopback(socks_port));
+        node
+    }
+
     fn spawn(&self, config: leaf::Config) -> Result<(u16, tokio::sync::oneshot::Receiver<String>)> {
         let rt_id = NEXT_RUNTIME_ID.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = tokio::sync::oneshot::channel();

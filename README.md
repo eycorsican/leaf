@@ -133,6 +133,73 @@ surviving a plugin that is merely wrong.
   cooperative and deliberately hostile plugins; `make e2e` runs it, and
   `make plugin-test` runs each plugin's own unit tests.
 
+### Plugins in a conf file, and downloading them
+
+A conf file declares each plugin once, in `[Plugin]`, and refers to it by name
+from `[Proxy]`. The proxy lines say what a proxy does and are the same on every
+platform; only `[Plugin]` says how this client gets hold of the code.
+
+```ini
+[Plugin]
+tls = url=https://cdn.example.com/plugins/1.2.0/tls_cabi_rs.dll, sha256=9f86d0..., size=3145728
+ss  = path=./plugins/shadowsocks_cabi_rs.dll
+
+[Proxy]
+; A layer inside a chain: no address or port.
+TLS = plugin, plugin=tls, args-b64=eyJzZXJ2ZXJfbmFtZSI6ImV4YW1wbGUuY29tIn0
+; A plugin with a server of its own: address and port, as for any proxy.
+SS  = plugin, 1.2.3.4, 8388, plugin=ss, args=chacha20-ietf-poly1305;password
+```
+
+A `[Plugin]` entry takes `path`, `url`, `sha256` and `size`, and anything else
+is an error rather than being skipped: this is the section that says where
+executable code comes from. `args` is passed to the plugin as it is written;
+`args-b64` is for arguments that contain a comma -- JSON, usually -- and accepts
+either base64 alphabet, padded or not. The JSON config takes the same `url`,
+`size` and `name` in a plugin outbound's settings.
+
+With the `plugin-fetch` feature, a plugin given by `url` is downloaded before
+any outbound is built, into a cache keyed by its digest:
+`<cache>/<sha256>/<file>`. The digest is the version -- the same one is never
+fetched twice, and a start whose cache already holds everything needs no
+network. What makes that safe:
+
+- `https` only, redirects included, and only with `sha256`. The config vouches
+  for the file, so it has to say which file.
+- The download goes to a temporary file, hashed as it arrives, and is renamed
+  into place only once the digest matches; nothing partial or unverified is ever
+  where the loader looks. A download that runs past `size` -- or past 64 MiB
+  when no size is given -- is stopped there.
+- There is no default cache directory. Whether a directory is safe to load code
+  from depends on who can write to it, which only the app embedding leaf knows:
+  set `PLUGIN_CACHE_DIR` (and optionally `PLUGIN_FETCH_TIMEOUT`, in seconds;
+  30 by default). A service running as SYSTEM wants a directory only
+  administrators can write to, such as one under `%ProgramData%` set up by the
+  installer.
+- A reload uses the cache and never the network. A reload that needs a plugin
+  the cache does not have is refused, and asks for a restart.
+
+The download happens on the way into a start, before any listener or TUN route
+exists, so it goes over the network directly rather than through the proxy
+being started. To keep that start instant, an app can fetch ahead of time with
+`leaf_prefetch_plugins` (in `leaf-ffi`, built with `--features plugin-fetch`)
+as soon as it has the config, and show progress while it does. Its callback
+runs on the calling thread, never concurrently and never after the call
+returns, and gets:
+
+- one `QUEUED` or `CACHED` event per plugin, all of them before any download
+  starts, so the whole list -- and, with `size` in the config, the total -- is
+  known from the first events;
+- for each download, `STARTED`, some `PROGRESS` (repeated about once a second
+  while a download waits on the server -- before `STARTED` too, while it is
+  still connecting -- so that a stalled one can still be cancelled), and
+  exactly one `DONE` or `FAILED`;
+- per-plugin and overall byte counts, with -1 for a size not yet known.
+
+The callback returns `false` to cancel. The call returns `ERR_OK`,
+`ERR_PLUGIN_FETCH` (some failed; the others are in the cache), `ERR_CANCELLED`,
+or `ERR_CONFIG`.
+
 ### Checking a plugin before you deploy it
 
 `--verify-plugin` runs the loader's own checks -- the path, the file's
@@ -182,6 +249,10 @@ has no dynamic loader to call, so `dlopen` fails whatever the config says. Build
 for a dynamically linked target instead -- `x86_64-unknown-linux-gnu` or
 `aarch64-unknown-linux-gnu` -- with cargo on the host, or with `cross` and the
 matching toolchain image.
+
+To download plugins named by `url`, add `leaf/plugin-fetch`, which implies
+`leaf/plugin` and needs the rustls TLS backend the default features already
+select.
 
 `leaf --verify-plugin <path>` on the result is the quickest way to tell a build
 that can load plugins from one that cannot: a build without the feature says so

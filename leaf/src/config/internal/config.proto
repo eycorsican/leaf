@@ -284,6 +284,17 @@ message PluginOutboundSettings {
 	// Lowercase hex sha256 of the library file. When set, the plugin is loaded
 	// only if the file on disk matches it.
 	string sha256 = 5;
+	// Where to download the library from when `path` is empty. https only, and
+	// only together with `sha256`: the file is cached under its digest and
+	// `path` is filled in before the outbound is built.
+	string url = 6;
+	// The size of the file at `url` in bytes, when the config knows it. It
+	// makes progress reportable before the download starts, and a download
+	// that runs past it is stopped.
+	uint64 size = 7;
+	// The name the config gave the plugin, for progress and error reports.
+	// Empty means the outbound's tag.
+	string name = 8;
 }
 
 message Outbound {

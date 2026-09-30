@@ -12,6 +12,7 @@ pub mod blackbox;
 pub mod coexist;
 pub mod datagram;
 pub mod differential;
+pub mod fetch;
 pub mod halfclose;
 pub mod hostile;
 pub mod loader;
@@ -34,6 +35,7 @@ pub fn all() -> Vec<Scenario> {
         .chain(teardown::scenarios())
         .chain(halfclose::scenarios())
         .chain(protocols::scenarios())
+        .chain(fetch::scenarios())
         .collect();
 
     let mut seen = std::collections::BTreeSet::new();

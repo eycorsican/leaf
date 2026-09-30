@@ -57,6 +57,9 @@ pub enum Tag {
     /// Runs for minutes rather than seconds. Excluded from the default lane;
     /// a nightly job runs it on its own.
     Soak,
+    /// Downloads plugins from the suite's own https server, the way a client
+    /// fetches the ones its config names by url.
+    Fetch,
     /// Noticeably slower than the rest; excluded from the quick lane.
     Slow,
 }
@@ -74,6 +77,7 @@ impl Tag {
         Tag::Cli,
         Tag::Stress,
         Tag::Soak,
+        Tag::Fetch,
         Tag::Slow,
     ];
 
@@ -90,6 +94,7 @@ impl Tag {
             Tag::Cli => "cli",
             Tag::Stress => "stress",
             Tag::Soak => "soak",
+            Tag::Fetch => "fetch",
             Tag::Slow => "slow",
         }
     }
