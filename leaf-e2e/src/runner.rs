@@ -369,7 +369,20 @@ fn run_single_case(id: &str) -> ! {
         eprintln!("leaf-e2e: no such case [{}]", id);
         std::process::exit(2);
     };
-    let outcome = runtime().and_then(|rt| rt.block_on((scenario.run)()));
+    // The runtime is never dropped: `process::exit` below ends the process
+    // with it still alive. Dropping it waits for every blocking task, and a
+    // case that fails can leave a node's `leaf::start` running on one -- a
+    // node whose start outlasted the readiness wait, say, and so was not yet
+    // registered when the failure shut it down. The drop would then hang
+    // until the parent's timeout, and the case's own error would be lost.
+    let runtime = match runtime() {
+        Ok(runtime) => runtime,
+        Err(err) => {
+            eprintln!("leaf-e2e: case [{}] failed: {:#}", id, err);
+            std::process::exit(1);
+        }
+    };
+    let outcome = runtime.block_on((scenario.run)());
     match outcome {
         Ok(()) => std::process::exit(0),
         Err(err) => {
