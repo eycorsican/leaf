@@ -70,6 +70,9 @@ pub struct Route {
     length: Length,
     location: Option<String>,
     gate: Option<Gate>,
+    /// A pause after every chunk of the body, so that a download takes long
+    /// enough to watch.
+    pace: Option<std::time::Duration>,
 }
 
 impl Route {
@@ -80,6 +83,7 @@ impl Route {
             length: Length::Exact,
             location: None,
             gate: None,
+            pace: None,
         }
     }
 
@@ -90,6 +94,7 @@ impl Route {
             length: Length::Exact,
             location: None,
             gate: None,
+            pace: None,
         }
     }
 
@@ -109,6 +114,11 @@ impl Route {
         self.gate = Some(gate);
         self
     }
+
+    pub fn pace(mut self, pause: std::time::Duration) -> Self {
+        self.pace = Some(pause);
+        self
+    }
 }
 
 #[derive(Default)]
@@ -118,6 +128,8 @@ struct State {
     /// Requests whose response is still being written.
     active: AtomicUsize,
     max_active: AtomicUsize,
+    /// Print every request and its outcome; for the manual verification tool.
+    verbose: std::sync::atomic::AtomicBool,
 }
 
 /// Counts a request as active for as long as it is alive.
@@ -146,6 +158,13 @@ pub struct PluginServer {
 
 impl PluginServer {
     pub async fn start() -> Result<Self> {
+        Self::start_on(0).await
+    }
+
+    /// The same, on a port of the caller's choosing -- for the manual
+    /// verification tool, whose configs name the port. `0` lets the system
+    /// pick, which is what every case does.
+    pub async fn start_on(port: u16) -> Result<Self> {
         let (ca, chain, key) = issue_certificate()?;
         let provider = Arc::new(rustls::crypto::aws_lc_rs::default_provider());
         let mut config = rustls::ServerConfig::builder_with_provider(provider)
@@ -157,7 +176,9 @@ impl PluginServer {
         config.alpn_protocols = vec![b"http/1.1".to_vec()];
         let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
 
-        let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+        let listener = TcpListener::bind(("127.0.0.1", port))
+            .await
+            .with_context(|| format!("binding 127.0.0.1:{}", port))?;
         let addr = listener.local_addr()?;
         let state = Arc::new(State::default());
         let serving = state.clone();
@@ -187,6 +208,24 @@ impl PluginServer {
     /// The CA to hand the client as its extra trusted root.
     pub fn ca(&self) -> CertificateDer<'static> {
         self.ca.clone()
+    }
+
+    /// The same CA as PEM, for a client in another process.
+    pub fn ca_pem(&self) -> String {
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(self.ca.as_ref());
+        let mut pem = String::from("-----BEGIN CERTIFICATE-----\n");
+        for line in encoded.as_bytes().chunks(64) {
+            pem.push_str(std::str::from_utf8(line).expect("base64 is ASCII"));
+            pem.push('\n');
+        }
+        pem.push_str("-----END CERTIFICATE-----\n");
+        pem
+    }
+
+    /// Prints every request and how it was answered.
+    pub fn verbose(&self) {
+        self.state.verbose.store(true, Ordering::SeqCst);
     }
 
     pub fn url(&self, path: &str) -> String {
@@ -243,11 +282,29 @@ where
         .or_default() += 1;
     let _active = Active::enter(&state);
     let route = state.routes.lock().unwrap().get(&path).cloned();
+    let status = route.as_ref().map_or(404, |route| route.status);
+    let result = respond(&mut stream, route).await;
+    if state.verbose.load(Ordering::SeqCst) {
+        match &result {
+            Ok(sent) => println!("GET {} -> {} ({} bytes)", path, status, sent),
+            Err(err) => println!("GET {} -> {} (stopped: {})", path, status, err),
+        }
+    }
+    result.map(|_| ())
+}
+
+/// Writes the response `route` scripts, returning how much of the body went
+/// out.
+async fn respond<S>(stream: &mut S, route: Option<Route>) -> Result<usize>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let Some(route) = route else {
         stream
             .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
             .await?;
-        return Ok(stream.shutdown().await?);
+        stream.shutdown().await?;
+        return Ok(0);
     };
 
     if route.status != 200 {
@@ -257,7 +314,8 @@ where
         }
         head.push_str("Content-Length: 0\r\nConnection: close\r\n\r\n");
         stream.write_all(head.as_bytes()).await?;
-        return Ok(stream.shutdown().await?);
+        stream.shutdown().await?;
+        return Ok(0);
     }
 
     let mut head = String::from("HTTP/1.1 200 OK\r\nConnection: close\r\n");
@@ -278,15 +336,19 @@ where
             // are out before it holds.
             if sent <= gate.after && gate.after < sent + chunk.len() {
                 let (before, after) = chunk.split_at(gate.after - sent);
-                write_body(&mut stream, before, chunked).await?;
+                write_body(stream, before, chunked).await?;
                 stream.flush().await?;
                 gate.wait().await;
-                write_body(&mut stream, after, chunked).await?;
+                write_body(stream, after, chunked).await?;
                 sent += chunk.len();
                 continue;
             }
         }
-        write_body(&mut stream, chunk, chunked).await?;
+        write_body(stream, chunk, chunked).await?;
+        if let Some(pause) = route.pace {
+            stream.flush().await?;
+            tokio::time::sleep(pause).await;
+        }
         sent += chunk.len();
     }
     if let Some(gate) = &route.gate {
@@ -299,7 +361,8 @@ where
         stream.write_all(b"0\r\n\r\n").await?;
     }
     stream.flush().await?;
-    Ok(stream.shutdown().await?)
+    stream.shutdown().await?;
+    Ok(sent)
 }
 
 async fn write_body<S>(stream: &mut S, bytes: &[u8], chunked: bool) -> Result<()>

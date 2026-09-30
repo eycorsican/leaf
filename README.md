@@ -249,6 +249,10 @@ linked depends on the language:
   a runtime of its own, and one binary can hold only one, so Go plugins would
   have to be built together as a single archive.
 
+[`docs/plugin-verification.md`](docs/plugin-verification.md) walks through
+both -- downloads with their progress and failure modes, and builtins with
+their fallback -- step by step, with the `leaf-plugin-verify` tool.
+
 ### Checking a plugin before you deploy it
 
 `--verify-plugin` runs the loader's own checks -- the path, the file's

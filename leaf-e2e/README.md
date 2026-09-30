@@ -396,6 +396,14 @@ The static link itself is tested in `leaf-ffi`, the binary that does the
 linking:
 `cargo test -p leaf-ffi --lib --features plugin-socks5-c`.
 
+## Checking by hand
+
+`src/bin/leaf-plugin-verify.rs` puts the same pieces in a person's hands:
+the scripted plugin server (`serve`, with `slow`, `corrupt`, `stall` and
+`missing` modes), a prefetch that prints the events an app's callback gets,
+and a start that can trust the server's CA or register a library as a
+builtin. `docs/plugin-verification.md` is the walkthrough.
+
 ## Known defects
 
 A case that hits a defect nobody has fixed yet is marked with

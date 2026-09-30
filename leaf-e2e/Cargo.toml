@@ -23,6 +23,9 @@ futures = "0.3"
 leaf = { path = "../leaf", features = ["auto-reload", "plugin", "plugin-fetch"] }
 libloading = "0.7"
 libtest-mimic = "0.8"
+# For the leaf-plugin-verify tool.
+argh = "0.1"
+base64 = "0.22"
 rcgen = "0.13"
 # The https server the plugin-download cases fetch from.
 rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "aws_lc_rs"] }
@@ -37,6 +40,7 @@ tokio = { version = "1", features = [
     "rt-multi-thread",
     "sync",
     "time",
+    "signal",
 ] }
 
 # Raising the descriptor limit and reading process CPU time: both are what a

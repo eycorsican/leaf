@@ -1,0 +1,13 @@
+{
+  "log": { "level": "info", "output": "console" },
+  "inbounds": [
+    {
+      "tag": "ss-in",
+      "protocol": "shadowsocks",
+      "address": "127.0.0.1",
+      "port": 8388,
+      "settings": { "method": "aes-128-gcm", "password": "verify-password" }
+    }
+  ],
+  "outbounds": [{ "tag": "direct", "protocol": "direct" }]
+}
