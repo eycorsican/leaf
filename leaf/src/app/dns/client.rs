@@ -205,7 +205,34 @@ impl DnsClient {
         Ok(Box::new(stream))
     }
 
-    #[cfg(not(any(feature = "rustls-tls", feature = "openssl-tls")))]
+    #[cfg(all(
+        not(feature = "rustls-tls"),
+        not(feature = "openssl-tls"),
+        feature = "boring-tls"
+    ))]
+    async fn wrap_doh_tls_stream(stream: AnyStream, server_name: &str) -> Result<AnyStream> {
+        // System roots, as the rustls (webpki roots) and openssl backends. One
+        // context for all queries: building one parses the CA bundle.
+        static CONNECTOR: std::sync::OnceLock<boring::ssl::SslConnector> =
+            std::sync::OnceLock::new();
+        let connector = match CONNECTOR.get() {
+            Some(connector) => connector,
+            None => {
+                let connector = crate::common::boring_tls::connector(&[], None, false)?;
+                CONNECTOR.get_or_init(|| connector)
+            }
+        };
+        let stream = crate::common::boring_tls::connect(connector, server_name, false, stream)
+            .await
+            .map_err(|e| anyhow!("{}", e))?;
+        Ok(Box::new(stream))
+    }
+
+    #[cfg(not(any(
+        feature = "rustls-tls",
+        feature = "openssl-tls",
+        feature = "boring-tls"
+    )))]
     async fn wrap_doh_tls_stream(_stream: AnyStream, _server_name: &str) -> Result<AnyStream> {
         Err(anyhow!("no tls backend available"))
     }
@@ -1639,3 +1666,48 @@ impl DnsClient {
 
 impl UdpConnector for DnsClient {}
 include!("client/tests.rs");
+
+#[cfg(all(
+    test,
+    feature = "boring-tls",
+    not(feature = "rustls-tls"),
+    not(feature = "openssl-tls")
+))]
+mod boring_doh_tests {
+    use crate::common::boring_tls::tests::{ping, pki, server};
+
+    use super::DnsClient;
+
+    /// DNS over HTTPS on the boring backend verifies the server against the
+    /// system roots, found through `SSL_CERT_FILE` as with the openssl
+    /// backend (how an iOS app hands its bundled `cacert.pem` over), and
+    /// sends the DoH domain as SNI. The only test of this binary that sets
+    /// the variable or uses the DoH context.
+    #[tokio::test]
+    async fn doh_tls_uses_the_system_roots() {
+        let trusted = pki(&["dns.test"]);
+        let untrusted = pki(&["dns.test"]);
+        let dir = std::env::temp_dir().join(format!("leaf-boring-doh-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let bundle = dir.join("cacert.pem");
+        std::fs::write(&bundle, &trusted.ca_pem).unwrap();
+        std::env::set_var("SSL_CERT_FILE", &bundle);
+
+        let (addr, seen) = server(&trusted).await;
+        let tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let mut tls = DnsClient::wrap_doh_tls_stream(Box::new(tcp), "dns.test")
+            .await
+            .unwrap();
+        ping(&mut tls).await;
+        let seen = seen.await.unwrap().unwrap();
+        assert_eq!(seen.sni.as_deref(), Some("dns.test"));
+
+        let (addr, seen) = server(&untrusted).await;
+        let tcp = tokio::net::TcpStream::connect(addr).await.unwrap();
+        assert!(DnsClient::wrap_doh_tls_stream(Box::new(tcp), "dns.test")
+            .await
+            .is_err());
+        assert!(seen.await.unwrap().is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}

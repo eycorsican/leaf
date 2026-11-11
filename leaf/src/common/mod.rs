@@ -1,3 +1,5 @@
+#[cfg(feature = "boring-tls")]
+pub mod boring_tls;
 pub mod crypto;
 pub mod dns_sniff;
 pub mod io;

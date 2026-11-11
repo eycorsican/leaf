@@ -194,21 +194,49 @@ mod tests {
         assert_eq!((k.paths, k.egress_id.as_str()), (3, "eu1"));
         assert_eq!(k.bootstrap, vec!["kiri://boot/AbC-_9", "kiri://boot/x"]);
         let o = outbound(&c, "Own");
-        assert_eq!(o.root_pubkeys, vec![vec![0xa2u8; 32]], "its own keys replace the section's");
-        assert_eq!((o.signed_config.as_slice(), o.state_dir.as_str(), o.paths), (&[1u8][..], "/own", 2));
+        assert_eq!(
+            o.root_pubkeys,
+            vec![vec![0xa2u8; 32]],
+            "its own keys replace the section's"
+        );
+        assert_eq!(
+            (o.signed_config.as_slice(), o.state_dir.as_str(), o.paths),
+            (&[1u8][..], "/own", 2)
+        );
         let d = o.dev.as_ref().unwrap();
-        assert_eq!((d.transports.clone(), d.udp_bind.clone()), (vec!["tcp-dev".to_string()], vec!["127.0.0.1:0".to_string()]));
+        assert_eq!(
+            (d.transports.clone(), d.udp_bind.clone()),
+            (vec!["tcp-dev".to_string()], vec!["127.0.0.1:0".to_string()])
+        );
         assert!(d.webrtc_all_host_candidates);
         assert_eq!(d.config_fallback_urls, vec!["http://127.0.0.1:1"]);
         let s = c.kiri.as_ref().unwrap();
         assert!(s.bridge);
-        assert_eq!((s.bridge_max_kbps, s.bridge_max_circuits, s.bridge_circuit_kbps), (512, 8, 256));
-        assert_eq!((s.root_pubkeys.len(), s.signed_config.len(), s.state_dir.as_str()), (2, 5, "/var/kiri"));
+        assert_eq!(
+            (
+                s.bridge_max_kbps,
+                s.bridge_max_circuits,
+                s.bridge_circuit_kbps
+            ),
+            (512, 8, 256)
+        );
+        assert_eq!(
+            (
+                s.root_pubkeys.len(),
+                s.signed_config.len(),
+                s.state_dir.as_str()
+            ),
+            (2, 5, "/var/kiri")
+        );
     }
 
     #[test]
     fn conf_bridge_alone_and_no_section() {
-        let c = conf(&format!("root-pubkey = {K1}\nconfig = {CFG}\nbridge = true"), "Direct = direct").unwrap();
+        let c = conf(
+            &format!("root-pubkey = {K1}\nconfig = {CFG}\nbridge = true"),
+            "Direct = direct",
+        )
+        .unwrap();
         assert!(c.kiri.as_ref().unwrap().bridge);
         assert_eq!(c.outbounds.len(), 1);
         let c = crate::config::conf::from_string("[Proxy]\nDirect = direct\n").unwrap();
@@ -219,28 +247,70 @@ mod tests {
     fn conf_bad_settings_are_refused() {
         let ok = format!("root-pubkey = {K1}\nconfig = {CFG}");
         let cases: Vec<(String, String, &str)> = vec![
-            (format!("root-pubkey = {}\nconfig = {CFG}", &K1[..62]), "K = kiri".into(), "64 hex"),
-            (format!("root-pubkey = {}zz\nconfig = {CFG}", &K1[..62]), "K = kiri".into(), "64 hex"),
-            (format!("root-pubkey = {K1}\nconfig = not*base64"), "K = kiri".into(), "base64"),
+            (
+                format!("root-pubkey = {}\nconfig = {CFG}", &K1[..62]),
+                "K = kiri".into(),
+                "64 hex",
+            ),
+            (
+                format!("root-pubkey = {}zz\nconfig = {CFG}", &K1[..62]),
+                "K = kiri".into(),
+                "64 hex",
+            ),
+            (
+                format!("root-pubkey = {K1}\nconfig = not*base64"),
+                "K = kiri".into(),
+                "base64",
+            ),
             (ok.clone(), "K = kiri, paths=0".into(), "paths"),
             (ok.clone(), "K = kiri, paths=9".into(), "paths"),
             (ok.clone(), "K = kiri, paths=two".into(), "number"),
-            (ok.clone(), "K = kiri, colour=red".into(), "unknown setting colour"),
+            (
+                ok.clone(),
+                "K = kiri, colour=red".into(),
+                "unknown setting colour",
+            ),
             (ok.clone(), "K = kiri, bootstrap".into(), "key=value"),
-            (ok.clone(), "K = kiri, bootstrap=https://x".into(), "kiri://boot/"),
+            (
+                ok.clone(),
+                "K = kiri, bootstrap=https://x".into(),
+                "kiri://boot/",
+            ),
             (format!("config = {CFG}"), "K = kiri".into(), "root-pubkey"),
             (format!("root-pubkey = {K1}"), "K = kiri".into(), "config"),
-            (format!("{ok}\nbridge = yes"), "D = direct".into(), "true or false"),
-            (format!("{ok}\nbridge-max-kbps = -1"), "D = direct".into(), "number"),
-            (format!("{ok}\nbridges = true"), "D = direct".into(), "unknown setting bridges"),
-            (format!("root-pubkey = {K1}\nbridge = true"), "D = direct".into(), "bridge needs"),
+            (
+                format!("{ok}\nbridge = yes"),
+                "D = direct".into(),
+                "true or false",
+            ),
+            (
+                format!("{ok}\nbridge-max-kbps = -1"),
+                "D = direct".into(),
+                "number",
+            ),
+            (
+                format!("{ok}\nbridges = true"),
+                "D = direct".into(),
+                "unknown setting bridges",
+            ),
+            (
+                format!("root-pubkey = {K1}\nbridge = true"),
+                "D = direct".into(),
+                "bridge needs",
+            ),
         ];
         for (kiri, proxy, want) in cases {
-            let e = conf(&kiri, &proxy).map(|_| ()).expect_err(&format!("{kiri} / {proxy}"));
+            let e = conf(&kiri, &proxy)
+                .map(|_| ())
+                .expect_err(&format!("{kiri} / {proxy}"));
             assert!(e.to_string().contains(want), "{kiri} / {proxy}: {e}");
         }
         // A bootstrap link alone is enough for an outbound (it carries a config).
-        let c = conf(&format!("root-pubkey = {K1}"), "K = kiri, bootstrap=kiri://boot/x").unwrap();
+        let c = conf(
+            &format!("root-pubkey = {K1}"),
+            "K = kiri, bootstrap=kiri://boot/x",
+        )
+        .unwrap();
         assert!(outbound(&c, "K").signed_config.is_empty());
     }
 
@@ -258,13 +328,29 @@ mod tests {
         )
         .unwrap();
         let k = outbound(&c, "kiri");
-        assert_eq!((k.root_pubkeys.len(), k.signed_config.len(), k.paths, k.egress_id.as_str()), (1, 5, 1, "eu2"));
-        assert_eq!(k.dev.as_ref().unwrap().udp_bind, vec!["127.0.0.1:0"], "dev settings inherited");
+        assert_eq!(
+            (
+                k.root_pubkeys.len(),
+                k.signed_config.len(),
+                k.paths,
+                k.egress_id.as_str()
+            ),
+            (1, 5, 1, "eu2")
+        );
+        assert_eq!(
+            k.dev.as_ref().unwrap().udp_bind,
+            vec!["127.0.0.1:0"],
+            "dev settings inherited"
+        );
         let s = c.kiri.as_ref().unwrap();
         assert!(s.bridge && s.dev.as_ref().unwrap().webrtc_all_host_candidates);
         assert_eq!((s.bridge_max_kbps, s.bridge_max_circuits), (100, 4));
         // Everything on the outbound, no section.
-        let c = json("", &format!(r#""rootPubkeys": ["{K2}"], "config": "{CFG}""#)).unwrap();
+        let c = json(
+            "",
+            &format!(r#""rootPubkeys": ["{K2}"], "config": "{CFG}""#),
+        )
+        .unwrap();
         assert_eq!(outbound(&c, "kiri").paths, 2);
         assert!(c.kiri.is_none());
     }
@@ -272,12 +358,32 @@ mod tests {
     #[test]
     fn json_bad_settings_are_refused() {
         for (kiri, settings, want) in [
-            ("", format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "colour": 1"#), "unknown field"),
-            ("", format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "paths": 0"#), "paths"),
-            ("", format!(r#""rootPubkeys": ["nothex"], "config": "{CFG}""#), "64 hex"),
+            (
+                "",
+                format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "colour": 1"#),
+                "unknown field",
+            ),
+            (
+                "",
+                format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "paths": 0"#),
+                "paths",
+            ),
+            (
+                "",
+                format!(r#""rootPubkeys": ["nothex"], "config": "{CFG}""#),
+                "64 hex",
+            ),
             ("", format!(r#""rootPubkeys": ["{K1}"]"#), "config"),
-            (r#""kiri": { "bridge": true, "colour": 1 },"#, format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}""#), "unknown field"),
-            (r#""kiri": { "bridge": true },"#, format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}""#), "bridge needs"),
+            (
+                r#""kiri": { "bridge": true, "colour": 1 },"#,
+                format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}""#),
+                "unknown field",
+            ),
+            (
+                r#""kiri": { "bridge": true },"#,
+                format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}""#),
+                "bridge needs",
+            ),
         ] {
             let e = json(kiri, &settings).map(|_| ()).expect_err(&settings);
             assert!(e.to_string().contains(want), "{kiri} {settings}: {e}");
@@ -292,7 +398,8 @@ mod without_kiri {
     fn kiri_settings_name_the_missing_feature() {
         let e = crate::config::conf::from_string("[Proxy]\nK = kiri, paths=2\n").unwrap_err();
         assert!(e.to_string().contains("feature `outbound-kiri`"), "{e}");
-        let e = crate::config::conf::from_string("[Kiri]\nbridge = true\n[Proxy]\nD = direct\n").unwrap_err();
+        let e = crate::config::conf::from_string("[Kiri]\nbridge = true\n[Proxy]\nD = direct\n")
+            .unwrap_err();
         assert!(e.to_string().contains("feature `kiri-bridge`"), "{e}");
         // A section that asks for no bridge is harmless.
         crate::config::conf::from_string("[Kiri]\nbridge = false\n[Proxy]\nD = direct\n").unwrap();

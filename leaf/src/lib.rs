@@ -27,6 +27,29 @@ use crate::app::{stat_manager::StatManager, SyncStatManager};
 #[cfg(feature = "api")]
 use crate::app::api::api_server::ApiServer;
 
+#[cfg(all(
+    any(feature = "boring-tls", feature = "boring-aead"),
+    any(feature = "openssl-tls", feature = "openssl-aead")
+))]
+compile_error!(
+    "leaf: the BoringSSL features (`boring-tls`, `boring-aead`, `default-boring`) and the OpenSSL \
+     features (`openssl-tls`, `openssl-aead`, `default-openssl`) cannot be combined: both libraries \
+     export the same unprefixed symbols"
+);
+#[cfg(all(feature = "boring-tls", feature = "rustls-tls"))]
+compile_error!(
+    "leaf: choose one TLS backend, `boring-tls` (`default-boring`) or `rustls-tls` \
+     (`default-aws-lc`, `default-ring`): build with `--no-default-features --features default-boring`"
+);
+#[cfg(all(
+    feature = "kiri-host",
+    any(feature = "openssl-tls", feature = "openssl-aead")
+))]
+compile_error!(
+    "leaf: `kiri` links BoringSSL, which clashes with OpenSSL (`openssl-tls`, `openssl-aead`, \
+     `default-openssl`): use `default-boring` (or the rustls default) with `kiri`"
+);
+
 pub mod app;
 pub mod common;
 pub mod config;

@@ -1,5 +1,8 @@
 #[cfg(feature = "rustls-tls")]
-use {std::fs::File, std::io, std::io::BufReader, std::path::Path};
+use {std::fs::File, std::io::BufReader, std::path::Path};
+
+#[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
+use std::io;
 
 use anyhow::Result;
 
@@ -18,6 +21,8 @@ use crate::{proxy::*, session::Session};
 pub struct Handler {
     #[cfg(feature = "rustls-tls")]
     acceptor: TlsAcceptor,
+    #[cfg(all(feature = "boring-tls", not(feature = "rustls-tls")))]
+    acceptor: boring::ssl::SslAcceptor,
 }
 
 #[cfg(feature = "rustls-tls")]
@@ -102,12 +107,30 @@ impl Handler {
             let acceptor = TlsAcceptor::from(Arc::new(config));
             Ok(Self { acceptor })
         }
-        #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
+        #[cfg(all(not(feature = "rustls-tls"), feature = "boring-tls"))]
+        {
+            if load_ech(ech_config.as_deref(), ech_key.as_deref())?.is_some() {
+                return Err(anyhow::anyhow!(
+                    "tls inbound ech is not supported yet; remove echConfig and echKey"
+                ));
+            }
+            let acceptor = crate::common::boring_tls::acceptor(&certificate, &certificate_key)?;
+            Ok(Self { acceptor })
+        }
+        #[cfg(all(
+            not(feature = "rustls-tls"),
+            not(feature = "boring-tls"),
+            feature = "openssl-tls"
+        ))]
         {
             let _ = (certificate, certificate_key, ech_config, ech_key);
             unimplemented!();
         }
-        #[cfg(all(not(feature = "rustls-tls"), not(feature = "openssl-tls")))]
+        #[cfg(all(
+            not(feature = "rustls-tls"),
+            not(feature = "boring-tls"),
+            not(feature = "openssl-tls")
+        ))]
         {
             let _ = (certificate, certificate_key, ech_config, ech_key);
             Err(anyhow::anyhow!("no tls feature enabled"))
@@ -115,7 +138,7 @@ impl Handler {
     }
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
 fn load_ech(
     ech_config: Option<&str>,
     ech_key: Option<&str>,
@@ -140,7 +163,7 @@ fn load_ech(
     }
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
 fn decode_ech_blob(input: &str) -> io::Result<Vec<u8>> {
     let value = input.trim();
     if value.starts_with("-----BEGIN") {
@@ -163,7 +186,7 @@ fn decode_ech_blob(input: &str) -> io::Result<Vec<u8>> {
     decode_base64(value)
 }
 
-#[cfg(feature = "rustls-tls")]
+#[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
 fn decode_base64(data: &str) -> io::Result<Vec<u8>> {
     fn value(byte: u8) -> Option<u8> {
         match byte {
@@ -272,12 +295,27 @@ impl InboundStreamHandler for Handler {
             ))
         }
 
-        #[cfg(all(not(feature = "rustls-tls"), feature = "openssl-tls"))]
+        #[cfg(all(not(feature = "rustls-tls"), feature = "boring-tls"))]
+        {
+            Ok(InboundTransport::Stream(
+                Box::new(crate::common::boring_tls::accept(&self.acceptor, stream).await?),
+                sess,
+            ))
+        }
+        #[cfg(all(
+            not(feature = "rustls-tls"),
+            not(feature = "boring-tls"),
+            feature = "openssl-tls"
+        ))]
         {
             let _ = (sess, stream);
             unimplemented!();
         }
-        #[cfg(all(not(feature = "rustls-tls"), not(feature = "openssl-tls")))]
+        #[cfg(all(
+            not(feature = "rustls-tls"),
+            not(feature = "boring-tls"),
+            not(feature = "openssl-tls")
+        ))]
         {
             let _ = (sess, stream);
             Err(std::io::Error::new(
@@ -288,7 +326,7 @@ impl InboundStreamHandler for Handler {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "rustls-tls", feature = "boring-tls")))]
 mod tests {
     use super::{decode_base64, decode_ech_blob, load_ech};
 
@@ -320,7 +358,6 @@ mod tests {
         assert!(load_ech(Some("AQID"), None).is_err());
     }
 
-    #[cfg(feature = "rustls-tls")]
     #[test]
     fn test_new_with_ech_rejected() {
         let rcgen::CertifiedKey { cert, key_pair } =

@@ -42,6 +42,16 @@ default-openssl = [
     "quinn-ring",
 ]
 
+# BoringSSL for TLS and AEAD (the `boring` crate kiri uses, so a leaf with
+# `kiri` links one BoringSSL); QUIC stays on rustls/ring as in default-openssl.
+default-boring = [
+    "all-configs",
+    "all-endpoints",
+    "boring-aead",
+    "boring-tls",
+    "quinn-ring",
+]
+
 rustls-tls-aws-lc = ["tokio-rustls/aws_lc_rs", "rustls/aws_lc_rs"]
 rustls-tls-ring = ["tokio-rustls/ring", "rustls/ring"]
 
@@ -100,6 +110,11 @@ rustls-tls = ["tokio-rustls", "webpki-roots", "rustls-pemfile", "rustls"]
 openssl-aead = ["openssl"]
 openssl-tls = ["openssl", "tokio-openssl", "openssl-probe"]
 
+# BoringSSL-related (`boring`/`tokio-boring`). Not with the openssl features
+# (same unprefixed symbols) nor with `rustls-tls` (one TLS backend).
+boring-aead = ["boring"]
+boring-tls = ["boring", "tokio-boring", "openssl-probe"]
+
 # Config formats
 config-conf = ["regex"]
 config-json = ["serde", "serde_derive", "serde_json"]
@@ -148,7 +163,8 @@ inbound-nf = ["libloading"]
 # kiri (P2P censorship circumvention; the kiri repository this leaf is a
 # submodule of): `outbound-kiri` is the `kiri` outbound (a kiri client),
 # `kiri-bridge` the volunteer bridge service of the [Kiri] section. kiri uses
-# BoringSSL (`boring`): do not combine with `openssl-tls`/`openssl-aead`.
+# BoringSSL (`boring`): do not combine with `openssl-tls`/`openssl-aead`; use
+# `default-boring` to have leaf's TLS and AEAD on that same BoringSSL.
 kiri = ["outbound-kiri", "kiri-bridge"]
 outbound-kiri = ["kiri-host"]
 kiri-bridge = ["kiri-host"]
@@ -221,6 +237,10 @@ rustls-pemfile-old = { package = "rustls-pemfile", version = "1.0", optional = t
 # TLS/openssl
 openssl-probe = { version = "0.1", optional = true }
 tokio-openssl = { version = "0.6", optional = true }
+
+# TLS/AEAD boring (same major versions as the kiri workspace)
+boring = { version = "5", optional = true }
+tokio-boring = { version = "5", optional = true }
 
 # WebSocket
 tungstenite = { version = "0.24", default-features = false, optional = true }

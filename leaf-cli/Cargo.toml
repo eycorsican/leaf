@@ -9,6 +9,14 @@ name = "leaf"
 path = "src/main.rs"
 
 [features]
+# TLS/crypto backend: one of these (for another than the default, build with
+# `--no-default-features --features default-boring`, say).
+default = ["default-aws-lc"]
+default-aws-lc = ["leaf/default-aws-lc"]
+default-ring = ["leaf/default-ring"]
+default-openssl = ["leaf/default-openssl"]
+default-boring = ["leaf/default-boring"]
+
 # The kiri outbound and bridge service (leaf feature `kiri`).
 kiri = ["leaf/kiri"]
 
@@ -20,7 +28,6 @@ argh = "0.1"
 path = "../leaf"
 default-features = false
 features = [
-  "default-aws-lc",
   "ctrlc",
   "auto-reload"
 ]
@@ -29,7 +36,6 @@ features = [
 path = "../leaf"
 default-features = false
 features = [
-  "default-aws-lc",
   "ctrlc",
   "auto-reload",
   "inbound-nf",

@@ -132,6 +132,7 @@ fn new_socks_outbound(
         outbounds: Some(outbounds),
         router: None,
         dns: None,
+        kiri: None,
     };
     let config = leaf::config::json::to_internal(config).map_err(|e| anyhow::anyhow!(e))?;
     let dns_client = Arc::new(RwLock::new(

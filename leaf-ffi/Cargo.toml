@@ -27,10 +27,15 @@ default-openssl = [
     "leaf/default-openssl",
 ]
 
+# BoringSSL for TLS and AEAD: with `kiri`, one BoringSSL shared with kiri.
+default-boring = [
+    "leaf/default-boring",
+]
+
 auto-reload = ["leaf/auto-reload"]
 
 # The kiri outbound and bridge service (leaf feature `kiri`; not with
-# default-openssl: kiri links BoringSSL).
+# default-openssl: kiri links BoringSSL; default-boring shares it).
 kiri = ["leaf/kiri"]
 
 [dependencies]

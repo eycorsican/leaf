@@ -2,6 +2,7 @@ use std::io;
 
 use anyhow::Result;
 use async_trait::async_trait;
+#[cfg(any(feature = "rustls-tls", feature = "openssl-tls"))]
 use futures::TryFutureExt;
 use tracing::trace;
 
@@ -27,6 +28,9 @@ use {
     std::sync::Once,
     tokio_openssl::SslStream,
 };
+
+#[cfg(feature = "boring-tls")]
+use boring::ssl::SslConnector as BoringSslConnector;
 
 use crate::{app::SyncDnsClient, proxy::*, session::Session};
 
@@ -102,7 +106,7 @@ pub struct Handler {
     certificate: Option<String>,
     #[cfg(feature = "rustls-tls")]
     certificate_key: Option<String>,
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
     insecure: bool,
     #[cfg(feature = "rustls-tls")]
     fixed_ech_config_list: Option<String>,
@@ -115,6 +119,8 @@ pub struct Handler {
     tls_config: Option<Arc<ClientConfig>>,
     #[cfg(feature = "openssl-tls")]
     ssl_connector: Option<SslConnector>,
+    #[cfg(feature = "boring-tls")]
+    boring_connector: Option<BoringSslConnector>,
 }
 
 impl Handler {
@@ -304,7 +310,7 @@ impl Handler {
             certificate: certificate.clone(),
             #[cfg(feature = "rustls-tls")]
             certificate_key: certificate_key.clone(),
-            #[cfg(feature = "rustls-tls")]
+            #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
             insecure,
             #[cfg(feature = "rustls-tls")]
             fixed_ech_config_list: ech_config_list.clone(),
@@ -317,6 +323,8 @@ impl Handler {
             tls_config: None,
             #[cfg(feature = "openssl-tls")]
             ssl_connector: None,
+            #[cfg(feature = "boring-tls")]
+            boring_connector: None,
         };
         #[cfg(not(feature = "rustls-tls"))]
         let _ = (
@@ -374,6 +382,17 @@ impl Handler {
                 builder.set_verify(openssl::ssl::SslVerifyMode::NONE);
             }
             handler.ssl_connector = Some(builder.build());
+        }
+
+        #[cfg(feature = "boring-tls")]
+        {
+            // `certificate_key` is unused, as in the rustls backend (no client
+            // authentication).
+            handler.boring_connector = Some(crate::common::boring_tls::connector(
+                &alpns,
+                certificate.as_deref(),
+                insecure,
+            )?);
         }
         Ok(handler)
     }
@@ -636,6 +655,19 @@ impl OutboundStreamHandler for Handler {
                         )
                     })
                     .await?;
+                return Ok(Box::new(stream));
+            }
+            #[cfg(feature = "boring-tls")]
+            if let Some(connector) = self.boring_connector.as_ref() {
+                if self.ech_enabled {
+                    return Err(io::Error::other(
+                        "tls outbound ech is not supported with the boring backend",
+                    ));
+                }
+                trace!("handling TLS {} with boring", &name);
+                let stream =
+                    crate::common::boring_tls::connect(connector, &name, self.insecure, stream)
+                        .await?;
                 return Ok(Box::new(stream));
             }
             Err(io::Error::other("no tls backend available"))
