@@ -327,6 +327,57 @@ pub struct PluginOutboundSettings {
     pub args: Option<String>,
 }
 
+/// Development and lab settings of kiri (outbound and bridge).
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct KiriDevSettings {
+    /// Transports to enable instead of the signed config's (e.g. `tcp-dev`).
+    pub transports: Option<Vec<String>>,
+    /// Local UDP bind addresses for WebRTC.
+    pub udp_bind: Option<Vec<String>>,
+    /// Announce every host candidate, loopback and private included.
+    pub webrtc_all_host_candidates: Option<bool>,
+    /// Extra fallback config URLs.
+    pub config_fallback_urls: Option<Vec<String>>,
+}
+
+/// The `kiri` top-level object (conf: the `[Kiri]` section): settings the
+/// kiri outbounds inherit, and the bridge service.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct KiriSettings {
+    /// ROOT public keys (64 hex characters each).
+    pub root_pubkeys: Option<Vec<String>>,
+    /// The signed runtime config, base64.
+    pub config: Option<String>,
+    pub state_dir: Option<String>,
+    /// Run a kiri WebRTC bridge (volunteer) alongside leaf.
+    pub bridge: Option<bool>,
+    /// Whole-bridge rate limit in KiB/s (0 or none: unlimited).
+    pub bridge_max_kbps: Option<u64>,
+    /// Circuits at once (default 64).
+    pub bridge_max_circuits: Option<u32>,
+    /// Per-circuit rate limit in KiB/s (default 2048).
+    pub bridge_circuit_kbps: Option<u64>,
+    pub dev: Option<KiriDevSettings>,
+}
+
+/// Settings of a `kiri` outbound; what is left out comes from [`KiriSettings`].
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct KiriOutboundSettings {
+    pub root_pubkeys: Option<Vec<String>>,
+    pub config: Option<String>,
+    /// Bootstrap links (`kiri://boot/...`).
+    pub bootstrap: Option<Vec<String>>,
+    pub state_dir: Option<String>,
+    /// Simultaneous paths per session (default 2).
+    pub paths: Option<u32>,
+    /// The signed config's egress to use first.
+    pub egress_id: Option<String>,
+    pub dev: Option<KiriDevSettings>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Inbound {
     pub tag: Option<String>,
@@ -482,6 +533,10 @@ pub enum OutboundSettings {
         #[serde(default)]
         settings: Option<PluginOutboundSettings>,
     },
+    Kiri {
+        #[serde(default)]
+        settings: Option<KiriOutboundSettings>,
+    },
     Direct,
     Drop,
 }
@@ -523,6 +578,7 @@ pub struct Config {
     pub outbounds: Option<Vec<Outbound>>,
     pub router: Option<Router>,
     pub dns: Option<Dns>,
+    pub kiri: Option<KiriSettings>,
 }
 
 fn is_inline_certificate(certificate: &str) -> bool {
@@ -967,6 +1023,17 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                 outbound.tag = ext_tag.clone();
             }
             match &ext_outbound.settings {
+                OutboundSettings::Kiri {
+                    settings: ext_settings,
+                } => {
+                    outbound.protocol = "kiri".to_string();
+                    outbound.settings = super::kiri::outbound(
+                        &outbound.tag,
+                        ext_settings.as_ref(),
+                        config.kiri.as_ref(),
+                    )?;
+                    outbounds.push(outbound);
+                }
                 OutboundSettings::Direct => {
                     outbound.protocol = "direct".to_string();
                     outbounds.push(outbound);
@@ -1569,12 +1636,16 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
         dns.hosts = hosts;
     }
 
+    let kiri_section = config.kiri.take();
     let mut config = internal::Config::new();
     config.log = protobuf::MessageField::some(log);
     config.inbounds = inbounds;
     config.outbounds = outbounds;
     config.router = router;
     config.dns = protobuf::MessageField::some(dns);
+    if let Some(k) = super::kiri::section(kiri_section.as_ref())? {
+        config.kiri = protobuf::MessageField::some(k);
+    }
     Ok(config)
 }
 

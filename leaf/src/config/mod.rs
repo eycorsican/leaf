@@ -7,6 +7,7 @@ pub mod common;
 pub mod external_rule;
 pub mod geosite;
 pub mod internal;
+mod kiri;
 
 #[cfg(feature = "config-json")]
 pub mod json;

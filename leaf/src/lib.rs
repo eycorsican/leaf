@@ -81,6 +81,8 @@ pub struct RuntimeManager {
     stat_manager: SyncStatManager,
     #[cfg(feature = "auto-reload")]
     watcher: Mutex<Option<RecommendedWatcher>>,
+    #[cfg(feature = "kiri-bridge")]
+    kiri_bridge: Arc<app::kiri_bridge::BridgeService>,
 }
 
 impl RuntimeManager {
@@ -95,6 +97,7 @@ impl RuntimeManager {
         dns_client: Arc<RwLock<DnsClient>>,
         outbound_manager: Arc<RwLock<OutboundManager>>,
         stat_manager: SyncStatManager,
+        #[cfg(feature = "kiri-bridge")] kiri_bridge: Arc<app::kiri_bridge::BridgeService>,
     ) -> Arc<Self> {
         Arc::new(Self {
             #[cfg(feature = "auto-reload")]
@@ -110,7 +113,22 @@ impl RuntimeManager {
             stat_manager,
             #[cfg(feature = "auto-reload")]
             watcher: Mutex::new(None),
+            #[cfg(feature = "kiri-bridge")]
+            kiri_bridge,
         })
+    }
+
+    /// Pauses (stops) or resumes the kiri bridge the config asks for
+    /// (`[Kiri] bridge = true`), e.g. when the device leaves Wi-Fi or power.
+    #[cfg(feature = "kiri-bridge")]
+    pub fn set_kiri_bridge_paused(&self, paused: bool) {
+        self.kiri_bridge.set_paused(paused);
+    }
+
+    /// True while a kiri bridge runs.
+    #[cfg(feature = "kiri-bridge")]
+    pub fn kiri_bridge_running(&self) -> bool {
+        self.kiri_bridge.is_running()
     }
 
     pub fn stat_manager(&self) -> SyncStatManager {
@@ -234,6 +252,8 @@ impl RuntimeManager {
             .await
             .reload(&config.outbounds, self.dns_client.clone())
             .await?;
+        #[cfg(feature = "kiri-bridge")]
+        self.kiri_bridge.apply(config.kiri.as_ref());
         info!("reloaded from config file: {}", config_path);
         Ok(())
     }
@@ -370,6 +390,29 @@ pub fn shutdown(key: RuntimeId) -> bool {
     false
 }
 
+/// Pauses (stops) or resumes the kiri bridge of runtime `key`. False if no
+/// such runtime runs.
+#[cfg(feature = "kiri-bridge")]
+pub fn set_kiri_bridge_paused(key: RuntimeId, paused: bool) -> bool {
+    if let Ok(g) = RUNTIME_MANAGER.lock() {
+        if let Some(m) = g.get(&key) {
+            m.set_kiri_bridge_paused(paused);
+            return true;
+        }
+    }
+    false
+}
+
+/// True while runtime `key` runs a kiri bridge.
+#[cfg(feature = "kiri-bridge")]
+pub fn kiri_bridge_running(key: RuntimeId) -> bool {
+    RUNTIME_MANAGER
+        .lock()
+        .ok()
+        .and_then(|g| g.get(&key).map(|m| m.kiri_bridge_running()))
+        .unwrap_or(false)
+}
+
 pub fn is_running(key: RuntimeId) -> bool {
     RUNTIME_MANAGER.lock().unwrap().contains_key(&key)
 }
@@ -484,6 +527,13 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
             .replace_dispatcher(dispatcher_weak);
     });
 
+    #[cfg(feature = "kiri-bridge")]
+    let kiri_bridge = {
+        let b = Arc::new(app::kiri_bridge::BridgeService::new());
+        b.apply(config.kiri.as_ref());
+        b
+    };
+
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
         InboundManager::new(&config.inbounds, dispatcher, nat_manager).map_err(Error::Config)?;
@@ -551,6 +601,8 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         dns_client,
         outbound_manager,
         stat_manager,
+        #[cfg(feature = "kiri-bridge")]
+        kiri_bridge.clone(),
     );
 
     // Monitor config file changes.
@@ -625,6 +677,10 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     sys::post_tun_completion_setup(&net_info);
 
     drop(inbound_manager);
+
+    // Unlinks from the registrars before the runtime's tasks are dropped.
+    #[cfg(feature = "kiri-bridge")]
+    kiri_bridge.stop();
 
     RUNTIME_MANAGER
         .lock()

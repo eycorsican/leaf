@@ -8,6 +8,10 @@ edition = "2021"
 name = "leaf"
 path = "src/main.rs"
 
+[features]
+# The kiri outbound and bridge service (leaf feature `kiri`).
+kiri = ["leaf/kiri"]
+
 [dependencies]
 tokio = { version = "1", features = ["rt"] }
 argh = "0.1"

@@ -31,6 +31,8 @@ use crate::proxy::amux;
 use crate::proxy::direct;
 #[cfg(feature = "outbound-drop")]
 use crate::proxy::drop;
+#[cfg(feature = "outbound-kiri")]
+use crate::proxy::kiri;
 #[cfg(feature = "outbound-obfs")]
 use crate::proxy::obfs;
 #[cfg(feature = "outbound-quic")]
@@ -383,6 +385,15 @@ impl OutboundManager {
                     HandlerBuilder::default()
                         .tag(tag.clone())
                         .stream_handler(stream)
+                        .build()
+                }
+                #[cfg(feature = "outbound-kiri")]
+                "kiri" => {
+                    let shared = kiri::outbound::Shared::get(&tag, &outbound.settings)?;
+                    HandlerBuilder::default()
+                        .tag(tag.clone())
+                        .stream_handler(Arc::new(kiri::outbound::StreamHandler(shared.clone())))
+                        .datagram_handler(Arc::new(kiri::outbound::DatagramHandler(shared)))
                         .build()
                 }
                 _ => continue,

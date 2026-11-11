@@ -281,6 +281,38 @@ message PluginOutboundSettings {
 	string args = 2;
 }
 
+// The `kiri` outbound: a kiri client (feature `outbound-kiri`).
+message KiriOutboundSettings {
+	repeated bytes root_pubkeys = 1; // 32 bytes each
+	bytes signed_config = 2;
+	repeated string bootstrap = 3; // kiri://boot/... links
+	string state_dir = 4; // empty: <[Kiri] state-dir or ASSET_LOCATION/kiri>/client-<tag>
+	uint32 paths = 5;
+	string egress_id = 6;
+	KiriDev dev = 7;
+}
+
+// Development and lab settings shared by the kiri outbound and bridge.
+message KiriDev {
+	repeated string transports = 1;
+	repeated string udp_bind = 2;
+	bool webrtc_all_host_candidates = 3;
+	repeated string config_fallback_urls = 4;
+}
+
+// The [Kiri] section: shared kiri settings and the bridge service (feature
+// `kiri-bridge`).
+message Kiri {
+	repeated bytes root_pubkeys = 1;
+	bytes signed_config = 2;
+	string state_dir = 3;
+	bool bridge = 4;
+	uint64 bridge_max_kbps = 5; // 0: unlimited
+	uint32 bridge_max_circuits = 6; // 0: default (64)
+	uint64 bridge_circuit_kbps = 7; // 0: default (2048)
+	KiriDev dev = 8;
+}
+
 message Outbound {
 	string tag = 1;
 	string protocol = 2; // TODO use enum
@@ -325,4 +357,5 @@ message Config {
 	repeated Outbound outbounds = 3;
 	Router router = 4;
 	Dns dns = 5;
+	Kiri kiri = 6;
 }

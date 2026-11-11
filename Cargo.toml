@@ -18,3 +18,14 @@ strip = "symbols"
 [profile.dev]
 opt-level = 0
 debug = true
+
+# kiri (leaf feature `kiri`, see ../README.md "leaf with kiri"): the kiri crates
+# use forks of five webrtc-rs crates for the Chrome wire image. [patch] only
+# applies from the workspace root, so it is repeated here (same entries as the
+# kiri workspace Cargo.toml). Without the feature cargo notes them as unused.
+[patch.crates-io]
+rtc-crypto = { path = "../rtc-crypto" }
+rtc-dtls = { path = "../rtc-dtls" }
+rtc-ice = { path = "../rtc-ice" }
+rtc-stun = { path = "../rtc-stun" }
+rtc-sctp = { path = "../rtc-sctp" }

@@ -54,6 +54,8 @@ pub mod failover;
 pub mod hc;
 #[cfg(feature = "inbound-http")]
 pub mod http;
+#[cfg(feature = "kiri-host")]
+pub mod kiri;
 #[cfg(feature = "outbound-mptp")]
 pub mod mptp;
 #[cfg(all(feature = "inbound-nf", windows))]

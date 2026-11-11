@@ -15,6 +15,9 @@ pub mod stat_manager;
 #[cfg(feature = "api")]
 pub mod api;
 
+#[cfg(feature = "kiri-bridge")]
+pub mod kiri_bridge;
+
 pub mod fake_dns;
 
 pub mod dns_client {

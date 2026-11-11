@@ -100,6 +100,9 @@ pub struct Proxy {
     pub reality: Option<bool>,
     pub reality_public_key: Option<String>,
     pub reality_short_id: Option<String>,
+
+    // kiri
+    pub kiri: Option<common::KiriOutboundSettings>,
 }
 
 impl Default for Proxy {
@@ -137,6 +140,7 @@ impl Default for Proxy {
             reality: Some(false),
             reality_public_key: None,
             reality_short_id: None,
+            kiri: None,
         }
     }
 }
@@ -221,6 +225,7 @@ pub struct Config {
     pub host: Option<HashMap<String, Vec<String>>>,
     pub certificates: Option<HashMap<String, String>>,
     pub ech_configs: Option<HashMap<String, String>>,
+    pub kiri: Option<common::KiriSettings>,
 }
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -453,6 +458,110 @@ where
     None
 }
 
+fn kiri_bool(k: &str, v: &str) -> Result<bool> {
+    match v {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err(anyhow::anyhow!("kiri {k} must be true or false")),
+    }
+}
+
+fn kiri_num<T: std::str::FromStr>(k: &str, v: &str) -> Result<T> {
+    v.parse::<T>()
+        .map_err(|_| anyhow::anyhow!("kiri {k} must be a number"))
+}
+
+fn push_all(to: &mut Option<Vec<String>>, v: impl IntoIterator<Item = String>) {
+    to.get_or_insert_with(Vec::new).extend(v);
+}
+
+/// A dev setting shared by `[Kiri]` and the `kiri` proxy line. False: not one.
+fn kiri_dev(
+    dev: &mut Option<common::KiriDevSettings>,
+    k: &str,
+    values: Vec<String>,
+) -> Result<bool> {
+    if !matches!(
+        k,
+        "transport"
+            | "transports"
+            | "udp-bind"
+            | "config-fallback-url"
+            | "webrtc-all-host-candidates"
+    ) {
+        return Ok(false);
+    }
+    let d = dev.get_or_insert_with(Default::default);
+    match k {
+        "transport" | "transports" => push_all(&mut d.transports, values),
+        "udp-bind" => push_all(&mut d.udp_bind, values),
+        "config-fallback-url" => push_all(&mut d.config_fallback_urls, values),
+        "webrtc-all-host-candidates" => {
+            let v = values.first().map(String::as_str).unwrap_or("");
+            d.webrtc_all_host_candidates = Some(kiri_bool(k, v)?);
+        }
+        _ => return Ok(false),
+    }
+    Ok(true)
+}
+
+/// The `[Kiri]` section: `key = value` lines; list keys take comma-separated
+/// values and may repeat. Values may contain `=` (base64).
+fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>> {
+    if lines.is_empty() {
+        return Ok(None);
+    }
+    let mut k = common::KiriSettings::default();
+    for line in lines {
+        let Some((key, v)) = line.split_once('=') else {
+            return Err(anyhow::anyhow!("[Kiri]: expected key = value"));
+        };
+        let (key, v) = (key.trim(), v.trim());
+        let list = || get_char_sep_slice(v, ',').unwrap_or_default();
+        match key {
+            "root-pubkey" => push_all(&mut k.root_pubkeys, list()),
+            "config" => k.config = Some(v.to_string()),
+            "state-dir" => k.state_dir = Some(v.to_string()),
+            "bridge" => k.bridge = Some(kiri_bool(key, v)?),
+            "bridge-max-kbps" => k.bridge_max_kbps = Some(kiri_num(key, v)?),
+            "bridge-max-circuits" => k.bridge_max_circuits = Some(kiri_num(key, v)?),
+            "bridge-circuit-kbps" => k.bridge_circuit_kbps = Some(kiri_num(key, v)?),
+            _ => {
+                if !kiri_dev(&mut k.dev, key, list())? {
+                    return Err(anyhow::anyhow!("[Kiri]: unknown setting {key}"));
+                }
+            }
+        }
+    }
+    Ok(Some(k))
+}
+
+/// The parameters of a `NAME = kiri, key=value, ...` proxy line. List keys
+/// repeat (`bootstrap=...`, `root-pubkey=...`). Values may contain `=`.
+fn parse_kiri_proxy(params: &[String]) -> Result<common::KiriOutboundSettings> {
+    let mut o = common::KiriOutboundSettings::default();
+    for p in params {
+        let Some((key, v)) = p.split_once('=') else {
+            return Err(anyhow::anyhow!("kiri proxy: expected key=value, got {p:?}"));
+        };
+        let (key, v) = (key.trim(), v.trim().to_string());
+        match key {
+            "root-pubkey" => push_all(&mut o.root_pubkeys, [v]),
+            "config" => o.config = Some(v),
+            "bootstrap" => push_all(&mut o.bootstrap, [v]),
+            "state-dir" => o.state_dir = Some(v),
+            "paths" => o.paths = Some(kiri_num(key, &v)?),
+            "egress-id" => o.egress_id = Some(v),
+            _ => {
+                if !kiri_dev(&mut o.dev, key, vec![v])? {
+                    return Err(anyhow::anyhow!("kiri proxy: unknown setting {key}"));
+                }
+            }
+        }
+    }
+    Ok(o)
+}
+
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
     let certificates = get_certificate_sections(lines.iter());
     let ech_configs = get_ech_sections(lines.iter());
@@ -597,6 +706,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             continue;
         }
         proxy.protocol = params[0].clone();
+
+        if proxy.protocol == "kiri" {
+            proxy.kiri = Some(parse_kiri_proxy(&params[1..])?);
+            proxies.push(proxy);
+            continue;
+        }
 
         // extract key-value params
         // let params = &params[2..];
@@ -985,11 +1100,15 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         } else {
             Some(ech_configs)
         },
+        kiri: parse_kiri_section(get_lines_by_section("Kiri", lines.iter()))?,
     })
 }
 
 pub fn to_common(conf: &Config) -> Result<common::Config> {
-    let mut common_config = common::Config::default();
+    let mut common_config = common::Config {
+        kiri: conf.kiri.clone(),
+        ..Default::default()
+    };
 
     if let Some(ext_general) = &conf.general {
         let log = common::Log {
@@ -1132,6 +1251,14 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
             };
 
             match protocol {
+                "kiri" => {
+                    outbounds.push(common::Outbound {
+                        tag: Some(ext_proxy.tag.clone()),
+                        settings: common::OutboundSettings::Kiri {
+                            settings: ext_proxy.kiri.clone(),
+                        },
+                    });
+                }
                 "direct" => {
                     outbounds.push(common::Outbound {
                         tag: Some(ext_proxy.tag.clone()),
@@ -1747,6 +1874,7 @@ AQI=
             host: None,
             certificates: None,
             ech_configs: None,
+            kiri: None,
         };
 
         let err = to_internal(&config).unwrap_err();

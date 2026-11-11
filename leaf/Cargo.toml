@@ -145,6 +145,15 @@ inbound-chain = []
 inbound-cat = ["tokio/io-std"]
 inbound-nf = ["libloading"]
 
+# kiri (P2P censorship circumvention; the kiri repository this leaf is a
+# submodule of): `outbound-kiri` is the `kiri` outbound (a kiri client),
+# `kiri-bridge` the volunteer bridge service of the [Kiri] section. kiri uses
+# BoringSSL (`boring`): do not combine with `openssl-tls`/`openssl-aead`.
+kiri = ["outbound-kiri", "kiri-bridge"]
+outbound-kiri = ["kiri-host"]
+kiri-bridge = ["kiri-host"]
+kiri-host = ["dep:kiri", "dep:kiri-core", "dep:kiri-transport-webrtc", "base64"]
+
 plugin = ["async-ffi", "libloading"]
 api = ["axum"]
 auto-reload = ["notify"]
@@ -273,6 +282,11 @@ notify = { version = "6", optional = true }
 tun = { version = "0.7", features = ["async"], optional = true  }
 netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip", rev = "4943435", optional = true }
 netstack-smoltcp = { git = "https://github.com/eycorsican/netstack-smoltcp", branch = "pr-16-initialize-unfilled", optional = true }
+
+# kiri (features `outbound-kiri`, `kiri-bridge`)
+kiri = { path = "../../../bins/kiri", default-features = false, optional = true }
+kiri-core = { path = "../../../crates/kiri-core", optional = true }
+kiri-transport-webrtc = { path = "../../../crates/kiri-transport-webrtc", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 ipconfig = "0.3"
