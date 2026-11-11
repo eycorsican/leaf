@@ -339,6 +339,9 @@ pub struct KiriDevSettings {
     pub webrtc_all_host_candidates: Option<bool>,
     /// Extra fallback config URLs.
     pub config_fallback_urls: Option<Vec<String>>,
+    /// Accept a TLS egress by the SPKI pin of the signed config alone (kiri
+    /// `--tls-pin-only`): needed for a self-signed egress, as in the pilot.
+    pub tls_pin_only: Option<bool>,
 }
 
 /// The `kiri` top-level object (conf: the `[Kiri]` section): settings the

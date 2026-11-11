@@ -318,6 +318,16 @@ jni = "0.21"
 pnet_datalink = { version = "0.34", package = "pnet_datalink", optional = true }
 libc = "0.2"
 
+# iOS with kiri: kiri's WebRTC stack (rtc-shared) uses nix 0.31.3 with "net",
+# whose `UtunIfname` / `KextControl` need `libc::SYSPROTO_CONTROL` and
+# `UTUN_OPT_IFNAME` on every Apple target, and libc 0.2.190 made those
+# macOS-only. nix fixed it after 0.31.3 (nix-rust/nix#2821, unreleased); until
+# a nix release has it, keep libc below 0.2.190. Only a version bound on the
+# libc the iOS build already links (cargo picks one 0.2.x for the whole graph;
+# it also applies without `kiri`). Remove once nix > 0.31.3 is in the tree.
+[target.'cfg(target_os = "ios")'.dependencies]
+libc = ">=0.2.186, <0.2.190"
+
 # Used in mobile logger
 [target.'cfg(any(target_os = "ios", target_os = "macos", target_os = "android"))'.dependencies]
 memchr = { version = "2" }

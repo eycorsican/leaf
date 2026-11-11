@@ -60,6 +60,7 @@ fn dev(d: Option<&KiriDevSettings>) -> internal::KiriDev {
         out.transports = d.transports.clone().unwrap_or_default();
         out.udp_bind = d.udp_bind.clone().unwrap_or_default();
         out.webrtc_all_host_candidates = d.webrtc_all_host_candidates.unwrap_or(false);
+        out.tls_pin_only = d.tls_pin_only.unwrap_or(false);
         out.config_fallback_urls = d.config_fallback_urls.clone().unwrap_or_default();
     }
     out
@@ -230,6 +231,41 @@ mod tests {
         );
     }
 
+    /// The Apple apps' conf: a tun inbound from the packet tunnel's fd, the
+    /// kiri state in the App Group container (a path with a space:
+    /// `~/Library/Group Containers/...` on macOS), a bridge and an outbound,
+    /// both trusting a self-signed egress by its pin (`tls-pin-only`).
+    #[test]
+    fn conf_apple_tunnel_with_app_group_state_dir() {
+        let dir = "/Users/u/Library/Group Containers/group.io.example.demo/kiri";
+        let c = crate::config::conf::from_string(&format!(
+            "[General]\nloglevel = debug\ndns-server = 1.1.1.1\ntun-fd = 7\n\n\
+             [Kiri]\nroot-pubkey = {K1}\nconfig = {CFG}\nstate-dir = {dir}\nbridge = true\ntls-pin-only = true\n\n\
+             [Proxy]\nKiri = kiri\n\n[Rule]\nFINAL, Kiri\n"
+        ))
+        .unwrap();
+        let o = outbound(&c, "Kiri");
+        assert_eq!(o.state_dir, dir);
+        assert!(
+            o.dev.as_ref().unwrap().tls_pin_only,
+            "outbound inherits tls-pin-only"
+        );
+        let s = c.kiri.as_ref().unwrap();
+        assert_eq!((s.state_dir.as_str(), s.bridge), (dir, true));
+        assert!(
+            s.dev.as_ref().unwrap().tls_pin_only,
+            "bridge has tls-pin-only"
+        );
+        let tun = c
+            .inbounds
+            .iter()
+            .find(|i| i.protocol == "tun")
+            .expect("tun inbound");
+        let t =
+            crate::config::internal::TunInboundSettings::parse_from_bytes(&tun.settings).unwrap();
+        assert_eq!(t.fd, 7);
+    }
+
     #[test]
     fn conf_bridge_alone_and_no_section() {
         let c = conf(
@@ -284,6 +320,11 @@ mod tests {
                 "true or false",
             ),
             (
+                format!("{ok}\ntls-pin-only = 1"),
+                "K = kiri".into(),
+                "true or false",
+            ),
+            (
                 format!("{ok}\nbridge-max-kbps = -1"),
                 "D = direct".into(),
                 "number",
@@ -323,7 +364,7 @@ mod tests {
     #[test]
     fn json_outbound_and_section() {
         let c = json(
-            &format!(r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "stateDir": "/s", "bridge": true, "bridgeMaxKbps": 100, "bridgeMaxCircuits": 4, "dev": {{ "udpBind": ["127.0.0.1:0"], "webrtcAllHostCandidates": true }} }},"#),
+            &format!(r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "stateDir": "/s", "bridge": true, "bridgeMaxKbps": 100, "bridgeMaxCircuits": 4, "dev": {{ "udpBind": ["127.0.0.1:0"], "webrtcAllHostCandidates": true, "tlsPinOnly": true }} }},"#),
             r#""bootstrap": ["kiri://boot/x"], "paths": 1, "egressId": "eu2""#,
         )
         .unwrap();
@@ -344,6 +385,7 @@ mod tests {
         );
         let s = c.kiri.as_ref().unwrap();
         assert!(s.bridge && s.dev.as_ref().unwrap().webrtc_all_host_candidates);
+        assert!(s.dev.as_ref().unwrap().tls_pin_only);
         assert_eq!((s.bridge_max_kbps, s.bridge_max_circuits), (100, 4));
         // Everything on the outbound, no section.
         let c = json(

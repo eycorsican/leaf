@@ -67,6 +67,7 @@ pub fn settings(
             s.webrtc.candidates = kiri_transport_webrtc::CandidatePolicy::permissive();
         }
         s.config_fallback_urls = d.config_fallback_urls.clone();
+        s.trust.pin_only = d.tls_pin_only;
     }
     s
 }

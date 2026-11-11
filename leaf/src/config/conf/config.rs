@@ -488,6 +488,7 @@ fn kiri_dev(
             | "udp-bind"
             | "config-fallback-url"
             | "webrtc-all-host-candidates"
+            | "tls-pin-only"
     ) {
         return Ok(false);
     }
@@ -499,6 +500,10 @@ fn kiri_dev(
         "webrtc-all-host-candidates" => {
             let v = values.first().map(String::as_str).unwrap_or("");
             d.webrtc_all_host_candidates = Some(kiri_bool(k, v)?);
+        }
+        "tls-pin-only" => {
+            let v = values.first().map(String::as_str).unwrap_or("");
+            d.tls_pin_only = Some(kiri_bool(k, v)?);
         }
         _ => return Ok(false),
     }

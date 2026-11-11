@@ -151,6 +151,55 @@ pub extern "C" fn leaf_shutdown(rt_id: u16) -> bool {
     leaf::shutdown(rt_id)
 }
 
+/// Pauses the kiri bridge the config asks for (`[Kiri] bridge = true`): it
+/// unlinks from the registrars and stops serving until resumed. When to
+/// pause (e.g. off Wi-Fi or off charge) is the app's decision.
+///
+/// @param rt_id The ID of the leaf instance.
+///
+/// @return Returns true if the leaf instance runs (also when its config has
+///         no bridge: the pause then holds for a bridge a reload adds), false
+///         otherwise, and always false without the `kiri` feature.
+#[no_mangle]
+pub extern "C" fn leaf_kiri_bridge_pause(rt_id: u16) -> bool {
+    set_kiri_bridge_paused(rt_id, true)
+}
+
+/// Resumes the kiri bridge paused by `leaf_kiri_bridge_pause`.
+///
+/// @param rt_id The ID of the leaf instance.
+///
+/// @return Returns true if the leaf instance runs, false otherwise, and
+///         always false without the `kiri` feature.
+#[no_mangle]
+pub extern "C" fn leaf_kiri_bridge_resume(rt_id: u16) -> bool {
+    set_kiri_bridge_paused(rt_id, false)
+}
+
+/// Whether a kiri bridge runs (configured, started and not paused).
+///
+/// @param rt_id The ID of the leaf instance.
+///
+/// @return Returns true while the leaf instance runs a kiri bridge; always
+///         false without the `kiri` feature.
+#[no_mangle]
+pub extern "C" fn leaf_kiri_bridge_running(rt_id: u16) -> bool {
+    kiri_bridge_running(rt_id)
+}
+
+#[cfg(feature = "kiri")]
+use leaf::{kiri_bridge_running, set_kiri_bridge_paused};
+
+#[cfg(not(feature = "kiri"))]
+fn set_kiri_bridge_paused(_rt_id: u16, _paused: bool) -> bool {
+    false
+}
+
+#[cfg(not(feature = "kiri"))]
+fn kiri_bridge_running(_rt_id: u16) -> bool {
+    false
+}
+
 /// Tests the configuration.
 ///
 /// @param config_path The path of the config file, must be a file with suffix .conf
@@ -380,5 +429,43 @@ pub unsafe extern "C" fn leaf_get_since_last_active(
         }
         Ok(None) => ERR_NO_DATA,
         Err(e) => to_errno(e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CString;
+    use std::time::Duration;
+
+    /// The kiri bridge controls reach the runtime the C API started; the
+    /// bridge itself (pause unlinks, resume relinks) is tested end to end in
+    /// kiri's `leaf-e2e/tests/bridge.rs` through the same leaf functions.
+    #[test]
+    fn kiri_bridge_controls_follow_the_runtime() {
+        const ID: u16 = 4711;
+        assert!(!leaf_kiri_bridge_pause(ID), "no runtime yet");
+        assert!(!leaf_kiri_bridge_running(ID));
+
+        let conf =
+            CString::new("[General]\nloglevel = error\n\n[Proxy]\nDirect = direct\n").unwrap();
+        let t =
+            std::thread::spawn(move || unsafe { leaf_run_with_config_string(ID, conf.as_ptr()) });
+        for _ in 0..200 {
+            if leaf::is_running(ID) {
+                break;
+            }
+            assert!(!t.is_finished(), "leaf exited at start");
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert!(leaf::is_running(ID), "leaf did not start");
+
+        assert_eq!(leaf_kiri_bridge_pause(ID), cfg!(feature = "kiri"));
+        assert_eq!(leaf_kiri_bridge_resume(ID), cfg!(feature = "kiri"));
+        assert!(!leaf_kiri_bridge_running(ID), "no bridge in this config");
+
+        assert!(leaf_shutdown(ID));
+        assert_eq!(t.join().unwrap(), ERR_OK);
+        assert!(!leaf_kiri_bridge_resume(ID), "no runtime after shutdown");
     }
 }

@@ -298,6 +298,7 @@ message KiriDev {
 	repeated string udp_bind = 2;
 	bool webrtc_all_host_candidates = 3;
 	repeated string config_fallback_urls = 4;
+	bool tls_pin_only = 5; // kiri --tls-pin-only (self-signed egress)
 }
 
 // The [Kiri] section: shared kiri settings and the bridge service (feature
