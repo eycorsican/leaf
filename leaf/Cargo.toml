@@ -113,7 +113,7 @@ openssl-tls = ["openssl", "tokio-openssl", "openssl-probe"]
 # BoringSSL-related (`boring`/`tokio-boring`). Not with the openssl features
 # (same unprefixed symbols) nor with `rustls-tls` (one TLS backend).
 boring-aead = ["boring"]
-boring-tls = ["boring", "tokio-boring", "openssl-probe"]
+boring-tls = ["boring", "boring-sys", "foreign-types", "tokio-boring", "openssl-probe"]
 
 # Config formats
 config-conf = ["regex"]
@@ -241,6 +241,10 @@ tokio-openssl = { version = "0.6", optional = true }
 # TLS/AEAD boring (same major versions as the kiri workspace)
 boring = { version = "5", optional = true }
 tokio-boring = { version = "5", optional = true }
+# Only for what `boring` does not wrap (client ECH: rejecting an unusable
+# ECHConfigList; tests: making ECH keys). Both are already `boring`'s deps.
+boring-sys = { version = "5", optional = true }
+foreign-types = { version = "0.5", optional = true }
 
 # WebSocket
 tungstenite = { version = "0.24", default-features = false, optional = true }

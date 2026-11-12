@@ -60,10 +60,16 @@ fn dev(d: Option<&KiriDevSettings>) -> internal::KiriDev {
         out.transports = d.transports.clone().unwrap_or_default();
         out.udp_bind = d.udp_bind.clone().unwrap_or_default();
         out.webrtc_all_host_candidates = d.webrtc_all_host_candidates.unwrap_or(false);
-        out.tls_pin_only = d.tls_pin_only.unwrap_or(false);
         out.config_fallback_urls = d.config_fallback_urls.clone().unwrap_or_default();
     }
     out
+}
+
+/// `tls-pin-only` of a section or outbound: the top-level setting, else the
+/// old `dev.tlsPinOnly` of JSON (unset: inherit).
+#[cfg(feature = "kiri-host")]
+fn pin_only(top: Option<bool>, dev: Option<&KiriDevSettings>) -> Option<bool> {
+    top.or(dev.and_then(|d| d.tls_pin_only))
 }
 
 /// The internal settings of the `kiri` outbound `tag`.
@@ -105,6 +111,10 @@ pub fn outbound(
     }
     s.egress_id = o.egress_id.clone().unwrap_or_default();
     s.dev = protobuf::MessageField::some(dev(o.dev.as_ref().or(sec.dev.as_ref())));
+    // Merged per key like the others, not with the dev set.
+    s.tls_pin_only = pin_only(o.tls_pin_only, o.dev.as_ref())
+        .or(pin_only(sec.tls_pin_only, sec.dev.as_ref()))
+        .unwrap_or(false);
     Ok(s.write_to_bytes().unwrap())
 }
 
@@ -134,6 +144,7 @@ pub fn section(k: Option<&KiriSettings>) -> Result<Option<internal::Kiri>> {
     s.bridge_max_circuits = k.bridge_max_circuits.unwrap_or(0);
     s.bridge_circuit_kbps = k.bridge_circuit_kbps.unwrap_or(0);
     s.dev = protobuf::MessageField::some(dev(k.dev.as_ref()));
+    s.tls_pin_only = pin_only(k.tls_pin_only, k.dev.as_ref()).unwrap_or(false);
     if s.bridge {
         if !cfg!(feature = "kiri-bridge") {
             bail!("[Kiri] bridge: not built in (leaf feature `kiri-bridge`)");
@@ -234,28 +245,24 @@ mod tests {
     /// The Apple apps' conf: a tun inbound from the packet tunnel's fd, the
     /// kiri state in the App Group container (a path with a space:
     /// `~/Library/Group Containers/...` on macOS), a bridge and an outbound,
-    /// both trusting a self-signed egress by its pin (`tls-pin-only`).
+    /// both trusting a self-signed egress by its pin (`tls-pin-only`), and
+    /// leaf's fake DNS for every name (`always-fake-ip = *`), so TCP to names
+    /// reaches the outbound as domain targets (the macOS demo's conf).
     #[test]
     fn conf_apple_tunnel_with_app_group_state_dir() {
         let dir = "/Users/u/Library/Group Containers/group.io.example.demo/kiri";
         let c = crate::config::conf::from_string(&format!(
-            "[General]\nloglevel = debug\ndns-server = 1.1.1.1\ntun-fd = 7\n\n\
+            "[General]\nloglevel = debug\ndns-server = 1.1.1.1\ntun-fd = 7\nalways-fake-ip = *\n\n\
              [Kiri]\nroot-pubkey = {K1}\nconfig = {CFG}\nstate-dir = {dir}\nbridge = true\ntls-pin-only = true\n\n\
              [Proxy]\nKiri = kiri\n\n[Rule]\nFINAL, Kiri\n"
         ))
         .unwrap();
         let o = outbound(&c, "Kiri");
         assert_eq!(o.state_dir, dir);
-        assert!(
-            o.dev.as_ref().unwrap().tls_pin_only,
-            "outbound inherits tls-pin-only"
-        );
+        assert!(o.tls_pin_only, "outbound inherits tls-pin-only");
         let s = c.kiri.as_ref().unwrap();
         assert_eq!((s.state_dir.as_str(), s.bridge), (dir, true));
-        assert!(
-            s.dev.as_ref().unwrap().tls_pin_only,
-            "bridge has tls-pin-only"
-        );
+        assert!(s.tls_pin_only, "bridge has tls-pin-only");
         let tun = c
             .inbounds
             .iter()
@@ -264,6 +271,137 @@ mod tests {
         let t =
             crate::config::internal::TunInboundSettings::parse_from_bytes(&tun.settings).unwrap();
         assert_eq!(t.fd, 7);
+        assert_eq!(t.fake_dns_include, vec!["*"]);
+        assert!(t.fake_dns_exclude.is_empty());
+    }
+
+    /// What the tun does with `always-fake-ip = *` (leaf's `FakeDns` in
+    /// include mode, as `proxy::tun::inbound` builds it): an A query for
+    /// any name gets a 198.18/16 address that maps back to the name, which
+    /// the tun then hands on as the session's domain destination.
+    #[tokio::test]
+    async fn fake_dns_include_all_maps_names_to_fake_ips_and_back() {
+        use crate::app::fake_dns::{FakeDns, FakeDnsMode};
+        use hickory_proto::op::{Message, Query};
+        use hickory_proto::rr::{Name, RData, RecordType};
+        use std::str::FromStr;
+
+        let dns = FakeDns::new(FakeDnsMode::Include, vec!["*".to_string()]);
+        let query = |name: &str, t: RecordType| {
+            let mut m = Message::new();
+            m.set_id(7)
+                .add_query(Query::query(Name::from_str(name).unwrap(), t));
+            m.to_vec().unwrap()
+        };
+        let resp = dns
+            .generate_fake_response(&query("www.example.org.", RecordType::A))
+            .await
+            .unwrap();
+        let resp = Message::from_vec(&resp).unwrap();
+        let Some(RData::A(a)) = resp.answers()[0].data() else {
+            panic!("no A answer");
+        };
+        let ip = std::net::IpAddr::V4(a.0);
+        assert_eq!(a.0.octets()[..2], [198, 18]);
+        assert!(dns.is_fake_ip(&ip).await);
+        assert_eq!(
+            dns.query_domain(&ip).await.as_deref(),
+            Some("www.example.org")
+        );
+        // AAAA: an empty answer (IPv4 only), not passed on.
+        let resp = dns
+            .generate_fake_response(&query("www.example.org.", RecordType::AAAA))
+            .await
+            .unwrap();
+        assert!(Message::from_vec(&resp).unwrap().answers().is_empty());
+        // Other types are not answered: the tun passes them on.
+        assert!(dns
+            .generate_fake_response(&query("example.org.", RecordType::MX))
+            .await
+            .is_err());
+    }
+
+    /// `tls-pin-only` is merged per key: an outbound line with a dev setting
+    /// (which replaces the section's dev set) keeps the section's pin-only,
+    /// and an outbound can turn it off or on for itself.
+    #[test]
+    fn conf_tls_pin_only_is_merged_per_key() {
+        let c = conf(
+            &format!(
+                "root-pubkey = {K1}
+config = {CFG}
+bridge = true
+tls-pin-only = true
+udp-bind = 127.0.0.1:0"
+            ),
+            "Dev = kiri, transport=tcp-dev
+Off = kiri, tls-pin-only=false
+Plain = kiri",
+        )
+        .unwrap();
+        let d = outbound(&c, "Dev");
+        assert_eq!(d.dev.as_ref().unwrap().transports, vec!["tcp-dev"]);
+        assert!(
+            d.dev.as_ref().unwrap().udp_bind.is_empty(),
+            "the outbound's dev set replaces the section's"
+        );
+        assert!(d.tls_pin_only, "pin-only from [Kiri] survives");
+        assert!(!outbound(&c, "Off").tls_pin_only);
+        assert!(outbound(&c, "Plain").tls_pin_only);
+        assert!(c.kiri.as_ref().unwrap().tls_pin_only);
+        // Off in the section, on for one outbound only.
+        let c = conf(
+            &format!(
+                "root-pubkey = {K1}
+config = {CFG}"
+            ),
+            "On = kiri, tls-pin-only=true, udp-bind=127.0.0.1:0
+Plain = kiri",
+        )
+        .unwrap();
+        assert!(outbound(&c, "On").tls_pin_only);
+        assert!(!outbound(&c, "Plain").tls_pin_only);
+        assert!(!c.kiri.as_ref().unwrap().tls_pin_only);
+        let e = conf(
+            &format!(
+                "root-pubkey = {K1}
+config = {CFG}"
+            ),
+            "K = kiri, tls-pin-only=yes",
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("true or false"), "{e}");
+    }
+
+    #[test]
+    fn json_tls_pin_only_is_top_level_and_merged_per_key() {
+        let c = json(
+            &format!(r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "tlsPinOnly": true, "dev": {{ "udpBind": ["127.0.0.1:0"] }} }},"#),
+            r#""dev": { "transports": ["tcp-dev"] }"#,
+        )
+        .unwrap();
+        let k = outbound(&c, "kiri");
+        assert_eq!(k.dev.as_ref().unwrap().transports, vec!["tcp-dev"]);
+        assert!(k.tls_pin_only, "pin-only from the section survives");
+        assert!(c.kiri.as_ref().unwrap().tls_pin_only);
+        // The outbound's own setting wins, top-level over the old dev place.
+        let c = json(
+            &format!(
+                r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "tlsPinOnly": true }},"#
+            ),
+            r#""tlsPinOnly": false, "dev": { "tlsPinOnly": true }"#,
+        )
+        .unwrap();
+        assert!(!outbound(&c, "kiri").tls_pin_only);
+        // The old place on an outbound alone.
+        let c = json(
+            "",
+            &format!(
+                r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "dev": {{ "tlsPinOnly": true }}"#
+            ),
+        )
+        .unwrap();
+        assert!(outbound(&c, "kiri").tls_pin_only);
     }
 
     #[test]
@@ -385,7 +523,8 @@ mod tests {
         );
         let s = c.kiri.as_ref().unwrap();
         assert!(s.bridge && s.dev.as_ref().unwrap().webrtc_all_host_candidates);
-        assert!(s.dev.as_ref().unwrap().tls_pin_only);
+        assert!(s.tls_pin_only, "old dev.tlsPinOnly still accepted");
+        assert!(k.tls_pin_only, "and inherited");
         assert_eq!((s.bridge_max_kbps, s.bridge_max_circuits), (100, 4));
         // Everything on the outbound, no section.
         let c = json(

@@ -290,6 +290,7 @@ message KiriOutboundSettings {
 	uint32 paths = 5;
 	string egress_id = 6;
 	KiriDev dev = 7;
+	bool tls_pin_only = 8; // kiri --tls-pin-only (self-signed egress)
 }
 
 // Development and lab settings shared by the kiri outbound and bridge.
@@ -298,7 +299,7 @@ message KiriDev {
 	repeated string udp_bind = 2;
 	bool webrtc_all_host_candidates = 3;
 	repeated string config_fallback_urls = 4;
-	bool tls_pin_only = 5; // kiri --tls-pin-only (self-signed egress)
+	reserved 5; // was tls_pin_only: now top-level in KiriOutboundSettings / Kiri
 }
 
 // The [Kiri] section: shared kiri settings and the bridge service (feature
@@ -312,6 +313,7 @@ message Kiri {
 	uint32 bridge_max_circuits = 6; // 0: default (64)
 	uint64 bridge_circuit_kbps = 7; // 0: default (2048)
 	KiriDev dev = 8;
+	bool tls_pin_only = 9; // kiri --tls-pin-only (self-signed egress)
 }
 
 message Outbound {

@@ -4662,6 +4662,8 @@ pub struct KiriOutboundSettings {
     pub egress_id: ::std::string::String,
     // @@protoc_insertion_point(field:KiriOutboundSettings.dev)
     pub dev: ::protobuf::MessageField<KiriDev>,
+    // @@protoc_insertion_point(field:KiriOutboundSettings.tls_pin_only)
+    pub tls_pin_only: bool,
     // special fields
     // @@protoc_insertion_point(special_field:KiriOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -4710,6 +4712,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
                 58 => {
                     ::protobuf::rt::read_singular_message_into_field(is, &mut self.dev)?;
                 },
+                64 => {
+                    self.tls_pin_only = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -4744,6 +4749,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
         }
+        if self.tls_pin_only != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -4771,6 +4779,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if let Some(v) = self.dev.as_ref() {
             ::protobuf::rt::write_message_field_with_cached_size(7, v, os)?;
         }
+        if self.tls_pin_only != false {
+            os.write_bool(8, self.tls_pin_only)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -4795,6 +4806,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
         self.paths = 0;
         self.egress_id.clear();
         self.dev.clear();
+        self.tls_pin_only = false;
         self.special_fields.clear();
     }
 
@@ -4807,6 +4819,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
             paths: 0,
             egress_id: ::std::string::String::new(),
             dev: ::protobuf::MessageField::none(),
+            tls_pin_only: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -4825,8 +4838,6 @@ pub struct KiriDev {
     pub webrtc_all_host_candidates: bool,
     // @@protoc_insertion_point(field:KiriDev.config_fallback_urls)
     pub config_fallback_urls: ::std::vec::Vec<::std::string::String>,
-    // @@protoc_insertion_point(field:KiriDev.tls_pin_only)
-    pub tls_pin_only: bool,
     // special fields
     // @@protoc_insertion_point(special_field:KiriDev.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -4866,9 +4877,6 @@ impl ::protobuf::Message for KiriDev {
                 34 => {
                     self.config_fallback_urls.push(is.read_string()?);
                 },
-                40 => {
-                    self.tls_pin_only = is.read_bool()?;
-                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -4893,9 +4901,6 @@ impl ::protobuf::Message for KiriDev {
         for value in &self.config_fallback_urls {
             my_size += ::protobuf::rt::string_size(4, &value);
         };
-        if self.tls_pin_only != false {
-            my_size += 1 + 1;
-        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -4914,9 +4919,6 @@ impl ::protobuf::Message for KiriDev {
         for v in &self.config_fallback_urls {
             os.write_string(4, &v)?;
         };
-        if self.tls_pin_only != false {
-            os.write_bool(5, self.tls_pin_only)?;
-        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -4938,7 +4940,6 @@ impl ::protobuf::Message for KiriDev {
         self.udp_bind.clear();
         self.webrtc_all_host_candidates = false;
         self.config_fallback_urls.clear();
-        self.tls_pin_only = false;
         self.special_fields.clear();
     }
 
@@ -4948,7 +4949,6 @@ impl ::protobuf::Message for KiriDev {
             udp_bind: ::std::vec::Vec::new(),
             webrtc_all_host_candidates: false,
             config_fallback_urls: ::std::vec::Vec::new(),
-            tls_pin_only: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -4975,6 +4975,8 @@ pub struct Kiri {
     pub bridge_circuit_kbps: u64,
     // @@protoc_insertion_point(field:Kiri.dev)
     pub dev: ::protobuf::MessageField<KiriDev>,
+    // @@protoc_insertion_point(field:Kiri.tls_pin_only)
+    pub tls_pin_only: bool,
     // special fields
     // @@protoc_insertion_point(special_field:Kiri.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -5026,6 +5028,9 @@ impl ::protobuf::Message for Kiri {
                 66 => {
                     ::protobuf::rt::read_singular_message_into_field(is, &mut self.dev)?;
                 },
+                72 => {
+                    self.tls_pin_only = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -5063,6 +5068,9 @@ impl ::protobuf::Message for Kiri {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
         }
+        if self.tls_pin_only != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -5093,6 +5101,9 @@ impl ::protobuf::Message for Kiri {
         if let Some(v) = self.dev.as_ref() {
             ::protobuf::rt::write_message_field_with_cached_size(8, v, os)?;
         }
+        if self.tls_pin_only != false {
+            os.write_bool(9, self.tls_pin_only)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -5118,6 +5129,7 @@ impl ::protobuf::Message for Kiri {
         self.bridge_max_circuits = 0;
         self.bridge_circuit_kbps = 0;
         self.dev.clear();
+        self.tls_pin_only = false;
         self.special_fields.clear();
     }
 
@@ -5131,6 +5143,7 @@ impl ::protobuf::Message for Kiri {
             bridge_max_circuits: 0,
             bridge_circuit_kbps: 0,
             dev: ::protobuf::MessageField::none(),
+            tls_pin_only: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

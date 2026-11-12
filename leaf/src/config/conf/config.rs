@@ -488,7 +488,6 @@ fn kiri_dev(
             | "udp-bind"
             | "config-fallback-url"
             | "webrtc-all-host-candidates"
-            | "tls-pin-only"
     ) {
         return Ok(false);
     }
@@ -500,10 +499,6 @@ fn kiri_dev(
         "webrtc-all-host-candidates" => {
             let v = values.first().map(String::as_str).unwrap_or("");
             d.webrtc_all_host_candidates = Some(kiri_bool(k, v)?);
-        }
-        "tls-pin-only" => {
-            let v = values.first().map(String::as_str).unwrap_or("");
-            d.tls_pin_only = Some(kiri_bool(k, v)?);
         }
         _ => return Ok(false),
     }
@@ -531,6 +526,7 @@ fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>
             "bridge-max-kbps" => k.bridge_max_kbps = Some(kiri_num(key, v)?),
             "bridge-max-circuits" => k.bridge_max_circuits = Some(kiri_num(key, v)?),
             "bridge-circuit-kbps" => k.bridge_circuit_kbps = Some(kiri_num(key, v)?),
+            "tls-pin-only" => k.tls_pin_only = Some(kiri_bool(key, v)?),
             _ => {
                 if !kiri_dev(&mut k.dev, key, list())? {
                     return Err(anyhow::anyhow!("[Kiri]: unknown setting {key}"));
@@ -557,6 +553,7 @@ fn parse_kiri_proxy(params: &[String]) -> Result<common::KiriOutboundSettings> {
             "state-dir" => o.state_dir = Some(v),
             "paths" => o.paths = Some(kiri_num(key, &v)?),
             "egress-id" => o.egress_id = Some(v),
+            "tls-pin-only" => o.tls_pin_only = Some(kiri_bool(key, &v)?),
             _ => {
                 if !kiri_dev(&mut o.dev, key, vec![v])? {
                     return Err(anyhow::anyhow!("kiri proxy: unknown setting {key}"));

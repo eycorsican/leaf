@@ -339,8 +339,8 @@ pub struct KiriDevSettings {
     pub webrtc_all_host_candidates: Option<bool>,
     /// Extra fallback config URLs.
     pub config_fallback_urls: Option<Vec<String>>,
-    /// Accept a TLS egress by the SPKI pin of the signed config alone (kiri
-    /// `--tls-pin-only`): needed for a self-signed egress, as in the pilot.
+    /// Old place of [`KiriSettings::tls_pin_only`], still accepted; the
+    /// top-level setting wins.
     pub tls_pin_only: Option<bool>,
 }
 
@@ -362,6 +362,9 @@ pub struct KiriSettings {
     pub bridge_max_circuits: Option<u32>,
     /// Per-circuit rate limit in KiB/s (default 2048).
     pub bridge_circuit_kbps: Option<u64>,
+    /// Accept a TLS egress by the SPKI pin of the signed config alone (kiri
+    /// `--tls-pin-only`): needed for a self-signed egress, as in the pilot.
+    pub tls_pin_only: Option<bool>,
     pub dev: Option<KiriDevSettings>,
 }
 
@@ -378,6 +381,8 @@ pub struct KiriOutboundSettings {
     pub paths: Option<u32>,
     /// The signed config's egress to use first.
     pub egress_id: Option<String>,
+    /// As [`KiriSettings::tls_pin_only`].
+    pub tls_pin_only: Option<bool>,
     pub dev: Option<KiriDevSettings>,
 }
 

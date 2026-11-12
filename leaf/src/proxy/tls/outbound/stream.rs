@@ -108,11 +108,11 @@ pub struct Handler {
     certificate_key: Option<String>,
     #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
     insecure: bool,
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
     fixed_ech_config_list: Option<String>,
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
     ech_disable_dns_lookup: bool,
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
     dns_client: SyncDnsClient,
     ech_enabled: bool,
     #[cfg(feature = "rustls-tls")]
@@ -209,7 +209,7 @@ impl Handler {
         Ok(Arc::new(config))
     }
 
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
     fn resolve_selected_ech_config_list(
         name: &str,
         fixed_ech_config_list: Option<&str>,
@@ -251,12 +251,15 @@ impl Handler {
         }
     }
 
-    #[cfg(all(feature = "rustls-tls", feature = "rustls-tls-aws-lc"))]
+    #[cfg(any(
+        all(feature = "rustls-tls", feature = "rustls-tls-aws-lc"),
+        feature = "boring-tls"
+    ))]
     fn should_skip_ech_dns_lookup_for_session(sess: &Session) -> bool {
         sess.inbound_tag == "dnsclient"
     }
 
-    #[cfg(feature = "rustls-tls")]
+    #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
     async fn select_ech_config_list(
         &self,
         name: &str,
@@ -312,11 +315,11 @@ impl Handler {
             certificate_key: certificate_key.clone(),
             #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
             insecure,
-            #[cfg(feature = "rustls-tls")]
+            #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
             fixed_ech_config_list: ech_config_list.clone(),
-            #[cfg(feature = "rustls-tls")]
+            #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
             ech_disable_dns_lookup,
-            #[cfg(feature = "rustls-tls")]
+            #[cfg(any(feature = "rustls-tls", feature = "boring-tls"))]
             dns_client,
             ech_enabled: ech,
             #[cfg(feature = "rustls-tls")]
@@ -326,7 +329,7 @@ impl Handler {
             #[cfg(feature = "boring-tls")]
             boring_connector: None,
         };
-        #[cfg(not(feature = "rustls-tls"))]
+        #[cfg(not(any(feature = "rustls-tls", feature = "boring-tls")))]
         let _ = (
             &certificate,
             &certificate_key,
@@ -334,6 +337,8 @@ impl Handler {
             &ech_config_list,
             &dns_client,
         );
+        #[cfg(all(not(feature = "rustls-tls"), feature = "boring-tls"))]
+        let _ = &certificate_key;
 
         #[cfg(feature = "rustls-tls")]
         {
@@ -388,11 +393,18 @@ impl Handler {
         {
             // `certificate_key` is unused, as in the rustls backend (no client
             // authentication).
-            handler.boring_connector = Some(crate::common::boring_tls::connector(
-                &alpns,
-                certificate.as_deref(),
-                insecure,
-            )?);
+            let connector =
+                crate::common::boring_tls::connector(&alpns, certificate.as_deref(), insecure)?;
+            // A bad fixed ECH config fails the load, as in the rustls backend.
+            if handler.ech_enabled {
+                if let Some(list) = ech_config_list.as_deref() {
+                    crate::common::boring_tls::check_ech_config_list(
+                        &connector,
+                        &decode_ech_config_list_der(list)?,
+                    )?;
+                }
+            }
+            handler.boring_connector = Some(connector);
         }
         Ok(handler)
     }
@@ -411,7 +423,46 @@ fn decode_ech_config_list(ech_config_list: &str) -> io::Result<EchConfigListByte
     Ok(EchConfigListBytes::from(decoded))
 }
 
-#[cfg(all(feature = "rustls-tls", any(feature = "rustls-tls-aws-lc", test)))]
+/// An ECHConfigList for BoringSSL from the same forms the rustls backend
+/// takes: PEM (`-----BEGIN ECHCONFIG-----`), else base64 (standard or
+/// URL-safe) of an ECHConfigList or of a single ECHConfig.
+#[cfg(feature = "boring-tls")]
+fn decode_ech_config_list_der(ech_config_list: &str) -> io::Result<Vec<u8>> {
+    let ech_config_list = ech_config_list.trim();
+    let b64 = if ech_config_list.starts_with("-----BEGIN") {
+        let mut lines = ech_config_list.lines().map(str::trim);
+        let begin = lines.next().unwrap_or_default();
+        if begin != "-----BEGIN ECHCONFIG-----" {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "ech config list: expected a PEM ECHCONFIG section",
+            ));
+        }
+        let body: Vec<&str> = lines
+            .by_ref()
+            .take_while(|l| *l != "-----END ECHCONFIG-----")
+            .collect();
+        body.concat()
+    } else {
+        ech_config_list.to_string()
+    };
+    let (decoded, _) = ensure_ech_config_list_bytes(decode_base64(&b64)?);
+    let declared = decoded
+        .get(..2)
+        .map(|n| u16::from_be_bytes([n[0], n[1]]) as usize);
+    if declared.is_none() || declared != Some(decoded.len() - 2) || decoded.len() == 2 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid ech config list",
+        ));
+    }
+    Ok(decoded)
+}
+
+#[cfg(any(
+    feature = "boring-tls",
+    all(feature = "rustls-tls", any(feature = "rustls-tls-aws-lc", test))
+))]
 fn ensure_ech_config_list_bytes(mut decoded: Vec<u8>) -> (Vec<u8>, bool) {
     if decoded.len() >= 2 {
         let declared = u16::from_be_bytes([decoded[0], decoded[1]]) as usize;
@@ -433,7 +484,10 @@ fn ensure_ech_config_list_bytes(mut decoded: Vec<u8>) -> (Vec<u8>, bool) {
     (decoded, false)
 }
 
-#[cfg(all(feature = "rustls-tls", any(feature = "rustls-tls-aws-lc", test)))]
+#[cfg(any(
+    feature = "boring-tls",
+    all(feature = "rustls-tls", any(feature = "rustls-tls-aws-lc", test))
+))]
 fn decode_base64(data: &str) -> io::Result<Vec<u8>> {
     fn value(byte: u8) -> Option<u8> {
         match byte {
@@ -659,15 +713,33 @@ impl OutboundStreamHandler for Handler {
             }
             #[cfg(feature = "boring-tls")]
             if let Some(connector) = self.boring_connector.as_ref() {
-                if self.ech_enabled {
-                    return Err(io::Error::other(
-                        "tls outbound ech is not supported with the boring backend",
-                    ));
-                }
-                trace!("handling TLS {} with boring", &name);
-                let stream =
-                    crate::common::boring_tls::connect(connector, &name, self.insecure, stream)
-                        .await?;
+                // ECH config selection as in the rustls backend: DNS
+                // HTTPS/SVCB record, else the fixed config, else none.
+                let mut ech_dns_lookup_skipped = false;
+                let ech = if self.ech_enabled {
+                    ech_dns_lookup_skipped = Self::should_skip_ech_dns_lookup_for_session(sess);
+                    self.select_ech_config_list(&name, !ech_dns_lookup_skipped)
+                        .await?
+                        .map(|list| decode_ech_config_list_der(&list))
+                        .transpose()?
+                } else {
+                    None
+                };
+                trace!(
+                    "handling TLS {} with boring, ech_enabled={}, ech_config_selected={}, ech_dns_lookup_skipped={}",
+                    &name,
+                    self.ech_enabled,
+                    ech.is_some(),
+                    ech_dns_lookup_skipped
+                );
+                let stream = crate::common::boring_tls::connect(
+                    connector,
+                    &name,
+                    self.insecure,
+                    ech.as_deref(),
+                    stream,
+                )
+                .await?;
                 return Ok(Box::new(stream));
             }
             Err(io::Error::other("no tls backend available"))

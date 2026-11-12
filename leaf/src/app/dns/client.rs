@@ -222,9 +222,10 @@ impl DnsClient {
                 CONNECTOR.get_or_init(|| connector)
             }
         };
-        let stream = crate::common::boring_tls::connect(connector, server_name, false, stream)
-            .await
-            .map_err(|e| anyhow!("{}", e))?;
+        let stream =
+            crate::common::boring_tls::connect(connector, server_name, false, None, stream)
+                .await
+                .map_err(|e| anyhow!("{}", e))?;
         Ok(Box::new(stream))
     }
 

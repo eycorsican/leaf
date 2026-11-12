@@ -49,6 +49,7 @@ pub fn settings(
     signed: &[u8],
     state_dir: PathBuf,
     dev: Option<&internal::KiriDev>,
+    tls_pin_only: bool,
 ) -> ::kiri::embed::Settings {
     let mut s = ::kiri::embed::Settings {
         roots: roots
@@ -59,6 +60,7 @@ pub fn settings(
         state_dir: Some(state_dir),
         ..Default::default()
     };
+    s.trust.pin_only = tls_pin_only;
     if let Some(d) = dev {
         if !d.udp_bind.is_empty() {
             s.webrtc.udp_bind = d.udp_bind.clone();
@@ -67,7 +69,6 @@ pub fn settings(
             s.webrtc.candidates = kiri_transport_webrtc::CandidatePolicy::permissive();
         }
         s.config_fallback_urls = d.config_fallback_urls.clone();
-        s.trust.pin_only = d.tls_pin_only;
     }
     s
 }

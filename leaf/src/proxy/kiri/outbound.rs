@@ -85,7 +85,13 @@ impl Shared {
         let dir = super::base_state_dir(&o.state_dir)
             .join(format!("client-{}", super::safe_name(&self.tag)));
         ClientSettings {
-            common: super::settings(&o.root_pubkeys, &o.signed_config, dir, o.dev.as_ref()),
+            common: super::settings(
+                &o.root_pubkeys,
+                &o.signed_config,
+                dir,
+                o.dev.as_ref(),
+                o.tls_pin_only,
+            ),
             bootstrap: o.bootstrap.clone(),
             paths: o.paths.max(1) as usize,
             egress_id: (!o.egress_id.is_empty()).then(|| o.egress_id.clone()),
