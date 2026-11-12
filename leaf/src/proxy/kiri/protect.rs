@@ -22,8 +22,13 @@
 //!   local socket.
 //! - Neither: no protector, kiri's sockets are made as before.
 //!
-//! Name lookups by kiri (host names in its URLs and STUN servers) use the
-//! system resolver and are not covered.
+//! With a protector, kiri resolves host names (its URLs, STUN servers)
+//! itself over sockets shown to it (`kiri_core::resolve`), not with the
+//! system resolver, which would answer through leaf's own tun (fake IPs).
+//!
+//! A refused socket is logged at WARN, the same message at most once a
+//! minute (with the number left out since), so a permanently failing
+//! interface does not log once per socket per retry.
 
 use std::io;
 use std::mem::ManuallyDrop;
@@ -44,6 +49,15 @@ pub fn protector() -> Option<Arc<dyn SocketProtector>> {
         return None;
     }
     Some(Arc::new(LeafProtector { binds }))
+}
+
+/// The first interface name among `OUTBOUND_INTERFACE`'s entries, for
+/// kiri's WebRTC sockets (`udp_interface`).
+pub fn bind_interface() -> Option<String> {
+    crate::option::OUTBOUND_BINDS.iter().find_map(|b| match b {
+        OutboundBind::Interface(name) => Some(name.clone()),
+        OutboundBind::Ip(_) => None,
+    })
 }
 
 /// The local addresses among `OUTBOUND_INTERFACE`'s entries (port 0), for
@@ -85,10 +99,64 @@ impl SocketProtector for LeafProtector {
         match self.apply(socket) {
             Ok(()) => true,
             Err(e) => {
-                tracing::warn!("kiri: socket not protected, not used: {}", e);
+                let msg = e.to_string();
+                match WARNINGS.check(&msg, std::time::Instant::now()) {
+                    Some(0) => tracing::warn!("kiri: socket not protected, not used: {}", msg),
+                    Some(n) => tracing::warn!(
+                        "kiri: socket not protected, not used: {} ({} more since the last warning)",
+                        msg,
+                        n
+                    ),
+                    None => {}
+                }
                 false
             }
         }
+    }
+}
+
+/// Refused-socket warnings of this process (module docs).
+static WARNINGS: WarnLimit = WarnLimit::new(std::time::Duration::from_secs(60));
+
+/// Lets the same message through at most once per `every`, counting the
+/// ones held back.
+pub struct WarnLimit {
+    every: std::time::Duration,
+    /// Message → when it was last let through, how many held back since.
+    seen: std::sync::Mutex<Option<std::collections::HashMap<String, (std::time::Instant, u64)>>>,
+}
+
+impl WarnLimit {
+    /// Distinct messages remembered (a flood of distinct ones resets it).
+    const CAP: usize = 64;
+
+    pub const fn new(every: std::time::Duration) -> Self {
+        Self {
+            every,
+            seen: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// `Some(held back since the last one let through)` if `msg` is to be
+    /// logged at `now`, `None` if it is held back.
+    pub fn check(&self, msg: &str, now: std::time::Instant) -> Option<u64> {
+        let mut g = self.seen.lock().unwrap();
+        let seen = g.get_or_insert_with(Default::default);
+        if let Some((last, held)) = seen.get_mut(msg) {
+            if now.duration_since(*last) < self.every {
+                *held += 1;
+                return None;
+            }
+            let n = *held;
+            *last = now;
+            *held = 0;
+            return Some(n);
+        }
+        if seen.len() >= Self::CAP {
+            seen.clear();
+        }
+        seen.insert(msg.to_string(), (now, 0));
+        Some(0)
     }
 }
 
@@ -228,5 +296,39 @@ mod tests {
         assert!(p.protect(raw(&u)), "bound to the listed address");
         let other = tokio::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
         assert!(!p.protect(raw(&other)), "bound elsewhere");
+    }
+}
+
+#[cfg(test)]
+mod warn_tests {
+    use super::WarnLimit;
+    use std::time::{Duration, Instant};
+
+    /// The same message once a minute with the count held back; another
+    /// message is not held back by it. Before, every refused socket logged.
+    #[test]
+    fn same_warning_at_most_once_a_minute_with_a_count() {
+        let w = WarnLimit::new(Duration::from_secs(60));
+        let t0 = Instant::now();
+        assert_eq!(w.check("Device not configured", t0), Some(0));
+        for i in 1..=5 {
+            assert_eq!(
+                w.check("Device not configured", t0 + Duration::from_secs(i)),
+                None
+            );
+        }
+        assert_eq!(w.check("other", t0 + Duration::from_secs(2)), Some(0));
+        assert_eq!(
+            w.check("Device not configured", t0 + Duration::from_secs(61)),
+            Some(5)
+        );
+        assert_eq!(
+            w.check("Device not configured", t0 + Duration::from_secs(62)),
+            None
+        );
+        assert_eq!(
+            w.check("Device not configured", t0 + Duration::from_secs(200)),
+            Some(1)
+        );
     }
 }

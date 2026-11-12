@@ -104,10 +104,16 @@ pub fn settings(
         // `OUTBOUND_INTERFACE` names addresses: kiri's WebRTC sockets bind
         // them (they come bound, past the protector's own bind).
         s.webrtc.udp_bind = addrs;
+    } else if let Some(name) = protect::bind_interface() {
+        // An interface name: kiri's WebRTC sockets bind only its addresses
+        // (looked up per connection), not one per local address of every
+        // interface (a VPN's would only be a dead ICE candidate).
+        s.webrtc.udp_interface = Some(name);
     }
     if let Some(d) = dev {
         if !d.udp_bind.is_empty() {
             s.webrtc.udp_bind = d.udp_bind.clone();
+            s.webrtc.udp_interface = None;
         }
         if d.webrtc_all_host_candidates {
             s.webrtc.candidates = kiri_transport_webrtc::CandidatePolicy::permissive();
