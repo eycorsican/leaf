@@ -74,6 +74,8 @@ pub mod select;
 pub mod shadowsocks;
 #[cfg(any(feature = "inbound-socks", feature = "outbound-socks"))]
 pub mod socks;
+#[cfg(feature = "outbound-standby")]
+pub mod standby;
 #[cfg(feature = "outbound-static")]
 pub mod r#static;
 #[cfg(feature = "outbound-tls")]
@@ -602,6 +604,11 @@ pub trait OutboundStreamHandler: Send + Sync + Unpin {
         lhs: Option<&mut AnyStream>,
         stream: Option<AnyStream>,
     ) -> io::Result<AnyStream>;
+
+    /// Gets ready for connections soon without making one, if the handler
+    /// can (the `kiri` outbound starts its client); the `standby` group's
+    /// `prewarm`. Default: nothing.
+    fn prewarm(&self) {}
 }
 
 pub type AnyOutboundStreamHandler = Arc<dyn OutboundStreamHandler>;

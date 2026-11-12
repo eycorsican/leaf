@@ -31,6 +31,7 @@ fn apply_env(config: &common::Config) {
 }
 
 pub fn json_from_string(config: &str) -> Result<common::Config> {
+    crate::config::compat::begin();
     let config: common::Config = serde_json::from_str(config)
         .map_err(|e| anyhow!("deserialize json config failed: {}", e))?;
     apply_env(&config);

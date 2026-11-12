@@ -272,6 +272,51 @@ message FailOverOutboundSettings {
 	uint32 health_check_success_percentage = 17;
 }
 
+// The `standby` group (feature `outbound-standby`): the first healthy actor in
+// order, health from real connections only (no health-check requests).
+// The kiri and standby messages: never reuse a field number of a removed
+// field; mark it `reserved` (as KiriDev 5).
+message StandbyOutboundSettings {
+	repeated string actors = 1;
+	// Start the next actor if the current attempts have not connected within
+	// this, in milliseconds.
+	uint32 stagger_ms = 2;
+	// Overall connect budget, in milliseconds.
+	uint32 timeout_ms = 3;
+	// Consecutive failures that mark an actor down.
+	uint32 down_after = 4;
+	// Retry backoff of a down actor, in seconds: min, doubling up to max.
+	uint32 retry_min = 5;
+	uint32 retry_max = 6;
+	// Start the last actor early (if it supports that) when the others fail
+	// often.
+	bool prewarm = 7;
+	// From the first client write to the first response byte, milliseconds.
+	uint32 response_timeout_ms = 8;
+	// An answered connection that dies abnormally within this is a failure,
+	// milliseconds.
+	uint32 early_death_ms = 9;
+	// Flap damping: the penalty's half-life, milliseconds.
+	uint32 half_life_ms = 10;
+	// Good service this long relaxes the penalty and ends probation,
+	// milliseconds.
+	uint32 stable_ms = 11;
+	// Discovery: the next actor after this, milliseconds.
+	uint32 discover_stagger_ms = 12;
+	// Attempts on different actors in flight at once.
+	uint32 max_parallel = 13;
+	// Random order of the actors before the last, once per device.
+	bool shuffle = 14;
+	// Where the state file goes (empty: CACHE_LOCATION, KIRI_STATE_DIR,
+	// ASSET_LOCATION).
+	string state_dir = 15;
+	// In a retry race, a retry connecting this soon after the current actor
+	// still wins, milliseconds (0: none).
+	uint32 retry_grace_ms = 16;
+	// An actor on probation gets 1 in this many new connections (at least 1).
+	uint32 probation_share = 17;
+}
+
 message SelectOutboundSettings {
 	repeated string actors = 1;
 }
@@ -292,6 +337,7 @@ message KiriOutboundSettings {
 	KiriDev dev = 7;
 	bool tls_pin_only = 8; // kiri --tls-pin-only (self-signed egress)
 	bool system_resolver = 9; // [Kiri] resolver = system (default: kiri's own resolver)
+	uint32 idle_stop = 10; // seconds without a stream or flow before the client stops; 0: never
 }
 
 // Development and lab settings shared by the kiri outbound and bridge.
@@ -363,4 +409,13 @@ message Config {
 	Router router = 4;
 	Dns dns = 5;
 	Kiri kiri = 6;
+	// kiri/standby settings ignored, defaulted or retired while loading
+	// (config::compat), logged once the logger is set up.
+	repeated ConfigNote notes = 7;
+}
+
+message ConfigNote {
+	string key = 1; // e.g. "[Kiri] colour"
+	string message = 2;
+	bool retired = 3; // a retired key: logged at debug only
 }

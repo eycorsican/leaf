@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 
 pub mod common;
+pub mod compat;
 pub mod external_rule;
 pub mod geosite;
 pub mod internal;

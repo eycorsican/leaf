@@ -5,12 +5,20 @@
 //! An outbound takes what it leaves out (ROOT keys, signed config, state
 //! directory, dev settings) from the section. Without the leaf features the
 //! settings are refused with a message naming the feature.
+//!
+//! Only what kiri cannot work without fails here (a missing or invalid ROOT
+//! key, no config and no bootstrap link, a config that is not base64, a
+//! bootstrap that is not a `kiri://boot/` link, a bridge without key and
+//! config); other bad values are defaulted or clamped with a note
+//! ([`compat`]).
 
 use anyhow::{anyhow, bail, Result};
 
 #[cfg(feature = "kiri-host")]
 use crate::config::common::KiriDevSettings;
 use crate::config::common::{KiriOutboundSettings, KiriSettings};
+#[cfg(feature = "kiri-host")]
+use crate::config::compat;
 
 #[cfg(feature = "outbound-kiri")]
 use protobuf::Message;
@@ -65,20 +73,22 @@ fn dev(d: Option<&KiriDevSettings>) -> internal::KiriDev {
     out
 }
 
-/// `tls-pin-only` of a section or outbound: the top-level setting, else the
-/// old `dev.tlsPinOnly` of JSON (unset: inherit).
+/// `[Kiri] resolver`: true for `system`, false for `kiri`, unset or
+/// anything else (noted, see [`compat`]).
 #[cfg(feature = "kiri-host")]
-fn pin_only(top: Option<bool>, dev: Option<&KiriDevSettings>) -> Option<bool> {
-    top.or(dev.and_then(|d| d.tls_pin_only))
-}
-
-/// `[Kiri] resolver`: true for `system`, false for `kiri` or unset.
-#[cfg(feature = "kiri-host")]
-fn system_resolver(sec: &KiriSettings) -> Result<bool> {
+fn system_resolver(sec: &KiriSettings) -> bool {
     match sec.resolver.as_deref() {
-        None | Some("kiri") => Ok(false),
-        Some("system") => Ok(true),
-        Some(v) => bail!("[Kiri] resolver must be kiri or system, got {v:?}"),
+        None | Some("kiri") => false,
+        Some("system") => true,
+        Some(v) => {
+            compat::bad(
+                "[Kiri]",
+                "resolver",
+                &format!("{v:?}"),
+                "kiri (want kiri or system)",
+            );
+            false
+        }
     }
 }
 
@@ -115,17 +125,13 @@ pub fn outbound(
         .clone()
         .or(sec.state_dir.clone())
         .unwrap_or_default();
-    s.paths = o.paths.unwrap_or(2);
-    if s.paths == 0 || s.paths > MAX_PATHS {
-        bail!("kiri paths must be 1 to {MAX_PATHS}");
-    }
+    s.paths = compat::clamp(&format!("kiri [{tag}]"), "paths", o.paths, 2, 1, MAX_PATHS);
     s.egress_id = o.egress_id.clone().unwrap_or_default();
     s.dev = protobuf::MessageField::some(dev(o.dev.as_ref().or(sec.dev.as_ref())));
     // Merged per key like the others, not with the dev set.
-    s.tls_pin_only = pin_only(o.tls_pin_only, o.dev.as_ref())
-        .or(pin_only(sec.tls_pin_only, sec.dev.as_ref()))
-        .unwrap_or(false);
-    s.system_resolver = system_resolver(&sec)?;
+    s.tls_pin_only = o.tls_pin_only.or(sec.tls_pin_only).unwrap_or(false);
+    s.system_resolver = system_resolver(&sec);
+    s.idle_stop = o.idle_stop.or(sec.idle_stop).unwrap_or(0);
     Ok(s.write_to_bytes().unwrap())
 }
 
@@ -155,8 +161,8 @@ pub fn section(k: Option<&KiriSettings>) -> Result<Option<internal::Kiri>> {
     s.bridge_max_circuits = k.bridge_max_circuits.unwrap_or(0);
     s.bridge_circuit_kbps = k.bridge_circuit_kbps.unwrap_or(0);
     s.dev = protobuf::MessageField::some(dev(k.dev.as_ref()));
-    s.tls_pin_only = pin_only(k.tls_pin_only, k.dev.as_ref()).unwrap_or(false);
-    s.system_resolver = system_resolver(k)?;
+    s.tls_pin_only = k.tls_pin_only.unwrap_or(false);
+    s.system_resolver = system_resolver(k);
     if s.bridge {
         if !cfg!(feature = "kiri-bridge") {
             bail!("[Kiri] bridge: not built in (leaf feature `kiri-bridge`)");
@@ -192,6 +198,16 @@ mod tests {
         crate::config::conf::from_string(&format!(
             "[General]\nsocks-interface = 127.0.0.1\nsocks-port = 1086\n\n[Kiri]\n{kiri}\n\n[Proxy]\n{proxy}\n"
         ))
+    }
+
+    /// The message of the config note on `key` (panics without one).
+    fn note(c: &Config, key: &str) -> String {
+        c.notes
+            .iter()
+            .find(|n| n.key == key)
+            .unwrap_or_else(|| panic!("no note on {key}: {:?}", c.notes))
+            .message
+            .clone()
     }
 
     fn outbound(c: &Config, tag: &str) -> KiriOutboundSettings {
@@ -374,15 +390,18 @@ Plain = kiri",
         assert!(outbound(&c, "On").tls_pin_only);
         assert!(!outbound(&c, "Plain").tls_pin_only);
         assert!(!c.kiri.as_ref().unwrap().tls_pin_only);
-        let e = conf(
+        // A bad value: the default (inherit), with a note.
+        let c = conf(
             &format!(
                 "root-pubkey = {K1}
-config = {CFG}"
+config = {CFG}
+tls-pin-only = true"
             ),
             "K = kiri, tls-pin-only=yes",
         )
-        .unwrap_err();
-        assert!(e.to_string().contains("true or false"), "{e}");
+        .unwrap();
+        assert!(outbound(&c, "K").tls_pin_only, "inherited from [Kiri]");
+        assert!(note(&c, "kiri [K] tls-pin-only").contains("true or false"));
     }
 
     /// `[Kiri] resolver`: unset or `kiri` uses kiri's own resolver, `system`
@@ -432,6 +451,45 @@ config = {CFG}"
         assert!(outbound(&c, "kiri").tls_pin_only);
     }
 
+    /// `idle-stop`: default 0 (never), from `[Kiri]` or the outbound line
+    /// (which wins), and the same in JSON.
+    #[test]
+    fn idle_stop_is_inherited_per_key() {
+        let base = format!("root-pubkey = {K1}\nconfig = {CFG}");
+        let c = conf(&base, "K = kiri").unwrap();
+        assert_eq!(outbound(&c, "K").idle_stop, 0);
+        let c = conf(
+            &format!("{base}\nidle-stop = 600"),
+            "K = kiri, transport=tcp-dev\nOwn = kiri, idle-stop=5",
+        )
+        .unwrap();
+        assert_eq!(outbound(&c, "K").idle_stop, 600);
+        assert_eq!(outbound(&c, "Own").idle_stop, 5);
+        let c = conf(&base, "K = kiri, idle-stop=soon").unwrap();
+        assert_eq!(outbound(&c, "K").idle_stop, 0, "bad value: the default");
+        assert!(note(&c, "kiri [K] idle-stop").contains("\"soon\" not valid"));
+        let c = json(
+            &format!(
+                r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "idleStop": 600 }},"#
+            ),
+            "",
+        )
+        .unwrap();
+        assert_eq!(outbound(&c, "kiri").idle_stop, 600);
+        let c = json(
+            &format!(
+                r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "idleStop": 600 }},"#
+            ),
+            r#""idleStop": 0"#,
+        )
+        .unwrap();
+        assert_eq!(
+            outbound(&c, "kiri").idle_stop,
+            0,
+            "the outbound's own 0 wins"
+        );
+    }
+
     #[test]
     fn conf_bridge_alone_and_no_section() {
         let c = conf(
@@ -445,9 +503,11 @@ config = {CFG}"
         assert!(c.kiri.is_none());
     }
 
+    /// What kiri cannot work without still fails the load, with a clear
+    /// message. Before: also every bad tunable and unknown key (now
+    /// `conf_unknown_keys_and_bad_tunables_load`).
     #[test]
-    fn conf_bad_settings_are_refused() {
-        let ok = format!("root-pubkey = {K1}\nconfig = {CFG}");
+    fn conf_essential_settings_are_refused() {
         let cases: Vec<(String, String, &str)> = vec![
             (
                 format!("root-pubkey = {}\nconfig = {CFG}", &K1[..62]),
@@ -464,47 +524,13 @@ config = {CFG}"
                 "K = kiri".into(),
                 "base64",
             ),
-            (ok.clone(), "K = kiri, paths=0".into(), "paths"),
-            (ok.clone(), "K = kiri, paths=9".into(), "paths"),
-            (ok.clone(), "K = kiri, paths=two".into(), "number"),
             (
-                ok.clone(),
-                "K = kiri, colour=red".into(),
-                "unknown setting colour",
-            ),
-            (ok.clone(), "K = kiri, bootstrap".into(), "key=value"),
-            (
-                ok.clone(),
+                format!("root-pubkey = {K1}\nconfig = {CFG}"),
                 "K = kiri, bootstrap=https://x".into(),
                 "kiri://boot/",
             ),
             (format!("config = {CFG}"), "K = kiri".into(), "root-pubkey"),
             (format!("root-pubkey = {K1}"), "K = kiri".into(), "config"),
-            (
-                format!("{ok}\nbridge = yes"),
-                "D = direct".into(),
-                "true or false",
-            ),
-            (
-                format!("{ok}\nresolver = dns"),
-                "K = kiri".into(),
-                "kiri or system",
-            ),
-            (
-                format!("{ok}\ntls-pin-only = 1"),
-                "K = kiri".into(),
-                "true or false",
-            ),
-            (
-                format!("{ok}\nbridge-max-kbps = -1"),
-                "D = direct".into(),
-                "number",
-            ),
-            (
-                format!("{ok}\nbridges = true"),
-                "D = direct".into(),
-                "unknown setting bridges",
-            ),
             (
                 format!("root-pubkey = {K1}\nbridge = true"),
                 "D = direct".into(),
@@ -524,6 +550,64 @@ config = {CFG}"
         )
         .unwrap();
         assert!(outbound(&c, "K").signed_config.is_empty());
+    }
+
+    /// A conf from a newer (or older) app version: unknown keys and lines in
+    /// `[Kiri]` and on the `kiri` line are ignored, bad tunables take their
+    /// defaults, out-of-range numbers are clamped, each with a note, and the
+    /// outbound still works. Before: every one of these failed the load
+    /// ("unknown setting", "true or false", "a number", "paths must be 1 to
+    /// 8", "kiri or system", "key=value").
+    #[test]
+    fn conf_unknown_keys_and_bad_tunables_load() {
+        let c = conf(
+            &format!(
+                "root-pubkey = {K1}\nconfig = {CFG}\nfuture-knob = 7\nlonely-flag\nbridge = yes\n\
+                 resolver = dns\ntls-pin-only = 1\nbridge-max-kbps = -1\nidle-stop = 600\n\
+                 webrtc-all-host-candidates = maybe"
+            ),
+            "K = kiri, colour=red, paths=0, bootstrap\nNine = kiri, paths=9\nTwo = kiri, paths=two",
+        )
+        .unwrap();
+        let k = outbound(&c, "K");
+        assert_eq!(k.paths, 1, "0 clamped to 1");
+        assert_eq!(outbound(&c, "Nine").paths, 8, "9 clamped to 8");
+        assert_eq!(outbound(&c, "Two").paths, 2, "bad: the default");
+        assert_eq!(k.idle_stop, 600, "good settings next to bad ones kept");
+        assert!(!k.tls_pin_only && !k.system_resolver);
+        let s = c.kiri.as_ref().unwrap();
+        assert!(!s.bridge && s.bridge_max_kbps == 0 && !s.system_resolver);
+        assert!(!s.dev.as_ref().unwrap().webrtc_all_host_candidates);
+        for (key, want) in [
+            (
+                "[Kiri] future-knob",
+                "unknown setting, ignored (a newer option or a typo)",
+            ),
+            ("[Kiri] lonely-flag", "unknown setting"),
+            ("[Kiri] bridge", "\"yes\" not valid, the default"),
+            ("[Kiri] resolver", "kiri (want kiri or system)"),
+            ("[Kiri] tls-pin-only", "true or false"),
+            ("[Kiri] bridge-max-kbps", "want a number"),
+            ("[Kiri] webrtc-all-host-candidates", "true or false"),
+            ("kiri [K] colour", "unknown setting"),
+            ("kiri [K] bootstrap", "unknown setting"),
+            ("kiri [K] paths", "0 out of range, 1 used"),
+            ("kiri [Nine] paths", "9 out of range, 8 used"),
+            ("kiri [Two] paths", "want a number"),
+        ] {
+            assert!(note(&c, key).contains(want), "{key}: {}", note(&c, key));
+        }
+        assert!(c.notes.iter().all(|n| !n.retired));
+        // Once per key: a repeated unknown key is one note.
+        let c = conf(
+            &format!("root-pubkey = {K1}\nconfig = {CFG}\nx = 1\nx = 2"),
+            "K = kiri",
+        )
+        .unwrap();
+        assert_eq!(c.notes.len(), 1, "{:?}", c.notes);
+        // A clean conf has no notes.
+        let c = conf(&format!("root-pubkey = {K1}\nconfig = {CFG}"), "K = kiri").unwrap();
+        assert!(c.notes.is_empty(), "{:?}", c.notes);
     }
 
     fn json(kiri: &str, settings: &str) -> anyhow::Result<Config> {
@@ -569,30 +653,28 @@ config = {CFG}"
         assert!(c.kiri.is_none());
     }
 
+    /// JSON: essentials fail (also with the wrong type), everything else
+    /// loads. Before: an unknown field ("unknown field") or a bad tunable
+    /// failed the load, as did `paths: 0`.
     #[test]
-    fn json_bad_settings_are_refused() {
+    fn json_essentials_fail_and_the_rest_loads() {
         for (kiri, settings, want) in [
-            (
-                "",
-                format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "colour": 1"#),
-                "unknown field",
-            ),
-            (
-                "",
-                format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "paths": 0"#),
-                "paths",
-            ),
             (
                 "",
                 format!(r#""rootPubkeys": ["nothex"], "config": "{CFG}""#),
                 "64 hex",
             ),
-            ("", format!(r#""rootPubkeys": ["{K1}"]"#), "config"),
             (
-                r#""kiri": { "bridge": true, "colour": 1 },"#,
-                format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}""#),
-                "unknown field",
+                "",
+                format!(r#""rootPubkeys": "{K1}", "config": "{CFG}""#),
+                "kiri outbound rootPubkeys",
             ),
+            (
+                "",
+                format!(r#""rootPubkeys": ["{K1}"], "config": 5"#),
+                "kiri outbound config",
+            ),
+            ("", format!(r#""rootPubkeys": ["{K1}"]"#), "config"),
             (
                 r#""kiri": { "bridge": true },"#,
                 format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}""#),
@@ -602,6 +684,62 @@ config = {CFG}"
             let e = json(kiri, &settings).map(|_| ()).expect_err(&settings);
             assert!(e.to_string().contains(want), "{kiri} {settings}: {e}");
         }
+        let c = json(
+            r#""kiri": { "bridge": "yes", "colour": 1, "bridgeMaxCircuits": -3, "dev": { "newDev": 1, "udpBind": 5 } },"#,
+            &format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "colour": 1, "paths": 0, "idleStop": "x", "egressId": "eu1""#),
+        )
+        .unwrap();
+        let k = outbound(&c, "kiri");
+        assert_eq!((k.paths, k.idle_stop, k.egress_id.as_str()), (1, 0, "eu1"));
+        let s = c.kiri.as_ref().unwrap();
+        assert!(!s.bridge && s.bridge_max_circuits == 0);
+        for (key, want) in [
+            ("kiri colour", "unknown setting"),
+            ("kiri bridge", "\"yes\" not valid, the default used"),
+            ("kiri bridgeMaxCircuits", "-3 not valid"),
+            ("kiri dev newDev", "unknown setting"),
+            ("kiri dev udpBind", "5 not valid"),
+            ("kiri outbound colour", "unknown setting"),
+            ("kiri outbound idleStop", "not valid"),
+            ("kiri [kiri] paths", "0 out of range, 1 used"),
+        ] {
+            assert!(note(&c, key).contains(want), "{key}: {}", note(&c, key));
+        }
+    }
+
+    /// Retired keys are read under their new name with a debug-only note;
+    /// the new name wins if both are set. Seeded with JSON `dev.tlsPinOnly`.
+    #[test]
+    fn json_retired_key_is_read_under_its_new_name() {
+        let c = json(
+            "",
+            &format!(
+                r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "dev": {{ "tlsPinOnly": true }}"#
+            ),
+        )
+        .unwrap();
+        assert!(outbound(&c, "kiri").tls_pin_only);
+        let n = c
+            .notes
+            .iter()
+            .find(|n| n.key == "kiri outbound dev.tlsPinOnly")
+            .unwrap();
+        assert!(
+            n.retired && n.message.contains("read as tlsPinOnly"),
+            "{n:?}"
+        );
+        assert_eq!(
+            c.notes.len(),
+            1,
+            "not also an unknown dev key: {:?}",
+            c.notes
+        );
+        let c = json(
+            "",
+            &format!(r#""rootPubkeys": ["{K1}"], "config": "{CFG}", "tlsPinOnly": false, "dev": {{ "tlsPinOnly": true }}"#),
+        )
+        .unwrap();
+        assert!(!outbound(&c, "kiri").tls_pin_only, "the new name wins");
     }
 }
 

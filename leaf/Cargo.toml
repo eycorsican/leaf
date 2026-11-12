@@ -92,6 +92,7 @@ all-endpoints = [
     "outbound-vmess",
     "outbound-quic",
     "outbound-failover",
+    "outbound-standby",
     "outbound-static",
     "outbound-tryall",
     "outbound-chain",
@@ -133,6 +134,7 @@ outbound-trojan = ["sha2", "hex"]
 outbound-tls = []
 outbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 outbound-failover = ["lru_time_cache"]
+outbound-standby = ["sha2"]
 outbound-static= []
 outbound-tryall = []
 outbound-chain = []

@@ -106,6 +106,8 @@ pub struct RuntimeManager {
     watcher: Mutex<Option<RecommendedWatcher>>,
     #[cfg(feature = "kiri-bridge")]
     kiri_bridge: Arc<app::kiri_bridge::BridgeService>,
+    #[cfg(feature = "outbound-standby")]
+    standby_groups: app::outbound::manager::StandbyGroups,
 }
 
 impl RuntimeManager {
@@ -121,6 +123,7 @@ impl RuntimeManager {
         outbound_manager: Arc<RwLock<OutboundManager>>,
         stat_manager: SyncStatManager,
         #[cfg(feature = "kiri-bridge")] kiri_bridge: Arc<app::kiri_bridge::BridgeService>,
+        #[cfg(feature = "outbound-standby")] standby_groups: app::outbound::manager::StandbyGroups,
     ) -> Arc<Self> {
         Arc::new(Self {
             #[cfg(feature = "auto-reload")]
@@ -138,7 +141,22 @@ impl RuntimeManager {
             watcher: Mutex::new(None),
             #[cfg(feature = "kiri-bridge")]
             kiri_bridge,
+            #[cfg(feature = "outbound-standby")]
+            standby_groups,
         })
+    }
+
+    /// The device's network changed to `network_id` (an identity such as
+    /// the Wi-Fi SSID or the carrier, kept only as its SHA-256; empty:
+    /// unknown).
+    /// Every `standby` group switches to its state for that network (fresh
+    /// for a new or unknown one).
+    #[allow(unused_variables)]
+    pub fn network_changed(&self, network_id: &str) {
+        #[cfg(feature = "outbound-standby")]
+        for g in self.standby_groups.lock().unwrap().iter() {
+            g.switch_network(network_id);
+        }
     }
 
     /// Pauses (stops) or resumes the kiri bridge the config asks for
@@ -268,6 +286,7 @@ impl RuntimeManager {
         info!("reloading from config file: {}", config_path);
         let mut config = config::from_file(config_path).map_err(Error::Config)?;
         app::logger::setup_logger(&config.log)?;
+        config::compat::log(&config.notes);
         self.router.write().await.reload(&mut config.router)?;
         self.dns_client.write().await.reload(&config.dns)?;
         self.outbound_manager
@@ -436,6 +455,26 @@ pub fn kiri_bridge_running(key: RuntimeId) -> bool {
         .unwrap_or(false)
 }
 
+/// Tells runtime `key` that the device's network changed to `network_id`
+/// (an app calls this on a path change: `NWPathMonitor`,
+/// `ConnectivityManager`; the id is opaque, e.g. the SSID or the carrier,
+/// kept only as its SHA-256, empty if unknown): every `standby` group switches to that
+/// network's remembered state (fresh for a new or unknown network). False if
+/// no such runtime runs.
+pub fn network_changed(key: RuntimeId, network_id: &str) -> bool {
+    let m = RUNTIME_MANAGER
+        .lock()
+        .ok()
+        .and_then(|g| g.get(&key).cloned());
+    match m {
+        Some(m) => {
+            m.network_changed(network_id);
+            true
+        }
+        None => false,
+    }
+}
+
 pub fn is_running(key: RuntimeId) -> bool {
     RUNTIME_MANAGER.lock().unwrap().contains_key(&key)
 }
@@ -515,6 +554,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     };
 
     app::logger::setup_logger(&config.log)?;
+    config::compat::log(&config.notes);
 
     let rt = new_runtime(&opts.runtime_opt)?;
     let _g = rt.enter();
@@ -525,9 +565,11 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     let dns_client = Arc::new(RwLock::new(
         DnsClient::new(&config.dns).map_err(Error::Config)?,
     ));
-    let outbound_manager = Arc::new(RwLock::new(
-        OutboundManager::new(&config.outbounds, dns_client.clone()).map_err(Error::Config)?,
-    ));
+    let outbound_manager =
+        OutboundManager::new(&config.outbounds, dns_client.clone()).map_err(Error::Config)?;
+    #[cfg(feature = "outbound-standby")]
+    let standby_groups = outbound_manager.standby_groups();
+    let outbound_manager = Arc::new(RwLock::new(outbound_manager));
     let router = Arc::new(RwLock::new(Router::new(
         &mut config.router,
         dns_client.clone(),
@@ -629,6 +671,8 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         stat_manager,
         #[cfg(feature = "kiri-bridge")]
         kiri_bridge.clone(),
+        #[cfg(feature = "outbound-standby")]
+        standby_groups,
     );
 
     // Monitor config file changes.

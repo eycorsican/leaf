@@ -151,6 +151,29 @@ pub extern "C" fn leaf_shutdown(rt_id: u16) -> bool {
     leaf::shutdown(rt_id)
 }
 
+/// Tells leaf that the device's network changed (call it on every path
+/// change: `NWPathMonitor` on Apple, `ConnectivityManager.NetworkCallback` on
+/// Android). Every `standby` group switches to the state it remembers for
+/// `network_id` (up to 16 networks), so the last actor that worked there is
+/// tried first; a new or unknown network starts fresh (discovery).
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param network_id An identity of the network (e.g. the Wi-Fi SSID or the
+///                   cellular carrier), or NULL / empty if unknown. leaf
+///                   keeps only its SHA-256, never the id itself (in memory
+///                   and in the state file).
+///
+/// @return Returns true if the leaf instance runs, false otherwise.
+#[no_mangle]
+pub unsafe extern "C" fn leaf_network_changed(rt_id: u16, network_id: *const c_char) -> bool {
+    let id = if network_id.is_null() {
+        ""
+    } else {
+        unsafe { CStr::from_ptr(network_id) }.to_str().unwrap_or("")
+    };
+    leaf::network_changed(rt_id, id)
+}
+
 /// Pauses the kiri bridge the config asks for (`[Kiri] bridge = true`): it
 /// unlinks from the registrars and stops serving until resumed. When to
 /// pause (e.g. off Wi-Fi or off charge) is the app's decision.

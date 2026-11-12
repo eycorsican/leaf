@@ -22,6 +22,8 @@ use crate::proxy::mptp;
 use crate::proxy::r#static;
 #[cfg(feature = "outbound-select")]
 use crate::proxy::select;
+#[cfg(feature = "outbound-standby")]
+use crate::proxy::standby;
 #[cfg(feature = "outbound-tryall")]
 use crate::proxy::tryall;
 
@@ -65,8 +67,15 @@ use crate::{
 #[cfg(feature = "outbound-select")]
 use super::selector::OutboundSelector;
 
+/// The health state of every `standby` group of a runtime, for
+/// `network_changed`; the same list across reloads, its groups replaced.
+#[cfg(feature = "outbound-standby")]
+pub type StandbyGroups = Arc<std::sync::Mutex<Vec<Arc<standby::Group>>>>;
+
 pub struct OutboundManager {
     handlers: HashMap<String, AnyOutboundHandler>,
+    #[cfg(feature = "outbound-standby")]
+    standby_groups: StandbyGroups,
     #[cfg(feature = "plugin")]
     external_handlers: super::plugin::ExternalHandlers,
     #[cfg(feature = "outbound-select")]
@@ -91,6 +100,7 @@ impl OutboundManager {
         #[cfg(feature = "plugin")] external_handlers: &mut super::plugin::ExternalHandlers,
         default_handler: &mut Option<String>,
         abort_handles: &mut Vec<AbortHandle>,
+        #[cfg(feature = "outbound-standby")] standby_groups: &mut Vec<Arc<standby::Group>>,
     ) -> Result<()> {
         // If there are multiple outbounds with the same setting, we would want
         // a shared one to reduce memory usage. This vector is used as a cache for
@@ -569,6 +579,72 @@ impl OutboundManager {
                             settings.actors.join(",")
                         );
                     }
+                    #[cfg(feature = "outbound-standby")]
+                    "standby" => {
+                        let settings = config::StandbyOutboundSettings::parse_from_bytes(
+                            &outbound.settings,
+                        )
+                        .map_err(|e| anyhow!("invalid [{}] outbound settings: {}", &tag, e))?;
+                        let mut actors = Vec::new();
+                        for actor in settings.actors.iter() {
+                            if let Some(a) = handlers.get(actor) {
+                                actors.push(a.clone());
+                            } else {
+                                continue 'outbounds;
+                            }
+                        }
+                        if actors.is_empty() {
+                            continue;
+                        }
+                        let ms = |v: u32| std::time::Duration::from_millis(v as u64);
+                        let secs = |v: u32| std::time::Duration::from_secs(v as u64);
+                        let params = standby::Params {
+                            stagger: ms(settings.stagger_ms),
+                            timeout: ms(settings.timeout_ms),
+                            down_after: settings.down_after.max(1),
+                            retry_min: secs(settings.retry_min.max(1)),
+                            retry_max: secs(settings.retry_max.max(settings.retry_min.max(1))),
+                            prewarm: settings.prewarm,
+                            response_timeout: ms(settings.response_timeout_ms),
+                            early_death: ms(settings.early_death_ms),
+                            half_life: ms(settings.half_life_ms),
+                            stable: ms(settings.stable_ms),
+                            discover_stagger: ms(settings.discover_stagger_ms),
+                            max_parallel: settings.max_parallel.max(1) as usize,
+                            shuffle: settings.shuffle,
+                            state_dir: settings.state_dir.clone(),
+                            retry_grace: ms(settings.retry_grace_ms),
+                            probation_share: settings.probation_share.max(1),
+                            ..Default::default()
+                        };
+                        let file = standby::state_file(&tag, &settings.state_dir);
+                        let group = Arc::new(standby::Group::new(
+                            tag.clone(),
+                            settings.actors.clone(),
+                            params,
+                            Some(file),
+                        ));
+                        standby_groups.push(group.clone());
+                        let handler = HandlerBuilder::default()
+                            .tag(tag.clone())
+                            .stream_handler(Arc::new(standby::StreamHandler::new(
+                                actors.clone(),
+                                group.clone(),
+                                dns_client.clone(),
+                            )))
+                            .datagram_handler(Arc::new(standby::DatagramHandler::new(
+                                actors,
+                                group,
+                                dns_client.clone(),
+                            )))
+                            .build();
+                        handlers.insert(tag.clone(), handler);
+                        trace!(
+                            "added handler [{}] with actors: {}",
+                            &tag,
+                            settings.actors.join(",")
+                        );
+                    }
                     #[cfg(feature = "outbound-amux")]
                     "amux" => {
                         let settings =
@@ -826,6 +902,8 @@ impl OutboundManager {
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles: Vec<AbortHandle> = Vec::new();
+        #[cfg(feature = "outbound-standby")]
+        let mut standby_groups = Vec::new();
 
         #[cfg(feature = "outbound-select")]
         let mut selectors: super::Selectors = HashMap::new();
@@ -839,6 +917,8 @@ impl OutboundManager {
                 &mut external_handlers,
                 &mut default_handler,
                 &mut abort_handles,
+                #[cfg(feature = "outbound-standby")]
+                &mut standby_groups,
             )?;
             Self::load_selectors(
                 outbounds,
@@ -880,6 +960,10 @@ impl OutboundManager {
 
         self.default_handler = default_handler;
         self.abort_handles = abort_handles;
+        #[cfg(feature = "outbound-standby")]
+        {
+            *self.standby_groups.lock().unwrap() = standby_groups;
+        }
         Ok(())
     }
 
@@ -889,6 +973,8 @@ impl OutboundManager {
         let mut external_handlers = super::plugin::ExternalHandlers::new();
         let mut default_handler: Option<String> = None;
         let mut abort_handles: Vec<AbortHandle> = Vec::new();
+        #[cfg(feature = "outbound-standby")]
+        let mut standby_groups = Vec::new();
         #[cfg(feature = "outbound-select")]
         let mut selectors: super::Selectors = HashMap::new();
         for _i in 0..4 {
@@ -900,6 +986,8 @@ impl OutboundManager {
                 &mut external_handlers,
                 &mut default_handler,
                 &mut abort_handles,
+                #[cfg(feature = "outbound-standby")]
+                &mut standby_groups,
             )?;
             Self::load_selectors(
                 outbounds,
@@ -913,6 +1001,8 @@ impl OutboundManager {
 
         Ok(OutboundManager {
             handlers,
+            #[cfg(feature = "outbound-standby")]
+            standby_groups: Arc::new(std::sync::Mutex::new(standby_groups)),
             #[cfg(feature = "plugin")]
             external_handlers,
 
@@ -939,6 +1029,12 @@ impl OutboundManager {
         Handlers {
             inner: self.handlers.values(),
         }
+    }
+
+    /// The runtime's `standby` groups (the same list across reloads).
+    #[cfg(feature = "outbound-standby")]
+    pub fn standby_groups(&self) -> StandbyGroups {
+        self.standby_groups.clone()
     }
 
     #[cfg(feature = "outbound-select")]

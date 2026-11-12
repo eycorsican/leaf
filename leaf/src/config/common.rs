@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use protobuf::Message;
+use serde::de::Deserializer;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::config::{external_rule, internal};
+use crate::config::{compat, external_rule, internal};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Dns {
@@ -316,6 +317,49 @@ pub struct FailOverOutboundSettings {
     pub cache_timeout: Option<u32>,
 }
 
+/// The `standby` group (conf: `NAME = standby, A, B, stagger=2.5, ...`).
+/// Lenient (see [`compat`]): unknown keys ignored, bad tunables defaulted.
+#[derive(Serialize, Debug, Clone, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StandbyOutboundSettings {
+    pub actors: Option<Vec<String>>,
+    /// Seconds before the next actor starts in parallel (default 2.5).
+    pub stagger: Option<f64>,
+    /// Overall connect budget in seconds (default 10).
+    pub timeout: Option<f64>,
+    /// Consecutive failures that mark an actor down (default 3).
+    pub down_after: Option<u32>,
+    /// Retry backoff of a down actor in seconds (default 60 to 1800).
+    pub retry_min: Option<u32>,
+    pub retry_max: Option<u32>,
+    /// Pre-warm the last actor when the others fail often (default false).
+    pub prewarm: Option<bool>,
+    /// Seconds from the first write to the first response byte (default 5).
+    pub response_timeout: Option<f64>,
+    /// Seconds within which an answered connection that dies counts as a
+    /// failure (default 30).
+    pub early_death: Option<f64>,
+    /// Flap damping half-life in seconds (default 900).
+    pub half_life: Option<f64>,
+    /// Seconds of good service that end probation and relax the penalty
+    /// (default 600).
+    pub stable: Option<f64>,
+    /// Seconds between discovery attempts (default 0.4).
+    pub discover_stagger: Option<f64>,
+    /// Attempts in flight at once (default 3).
+    pub max_parallel: Option<u32>,
+    /// Shuffle the actors before the last, once per device (default false).
+    pub shuffle: Option<bool>,
+    /// Directory of the state file (default: CACHE_LOCATION, KIRI_STATE_DIR,
+    /// ASSET_LOCATION).
+    pub state_dir: Option<String>,
+    /// In a retry race, a retry connecting this many milliseconds after the
+    /// current actor still wins (default 100).
+    pub retry_grace: Option<u32>,
+    /// An actor on probation gets 1 in this many new connections (default 4).
+    pub probation_share: Option<u32>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SelectOutboundSettings {
     pub actors: Option<Vec<String>>,
@@ -328,8 +372,8 @@ pub struct PluginOutboundSettings {
 }
 
 /// Development and lab settings of kiri (outbound and bridge).
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[derive(Serialize, Debug, Clone, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct KiriDevSettings {
     /// Transports to enable instead of the signed config's (e.g. `tcp-dev`).
     pub transports: Option<Vec<String>>,
@@ -339,15 +383,12 @@ pub struct KiriDevSettings {
     pub webrtc_all_host_candidates: Option<bool>,
     /// Extra fallback config URLs.
     pub config_fallback_urls: Option<Vec<String>>,
-    /// Old place of [`KiriSettings::tls_pin_only`], still accepted; the
-    /// top-level setting wins.
-    pub tls_pin_only: Option<bool>,
 }
 
 /// The `kiri` top-level object (conf: the `[Kiri]` section): settings the
 /// kiri outbounds inherit, and the bridge service.
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[derive(Serialize, Debug, Clone, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct KiriSettings {
     /// ROOT public keys (64 hex characters each).
     pub root_pubkeys: Option<Vec<String>>,
@@ -369,12 +410,15 @@ pub struct KiriSettings {
     /// (default: kiri's own resolver, DoH then plain DNS to resolvers by IP,
     /// never through leaf's tun / fake DNS) or `"system"`.
     pub resolver: Option<String>,
+    /// Seconds without a stream or flow after which an outbound's client
+    /// stops (0 or none: never); outbounds inherit it.
+    pub idle_stop: Option<u32>,
     pub dev: Option<KiriDevSettings>,
 }
 
 /// Settings of a `kiri` outbound; what is left out comes from [`KiriSettings`].
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[derive(Serialize, Debug, Clone, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct KiriOutboundSettings {
     pub root_pubkeys: Option<Vec<String>>,
     pub config: Option<String>,
@@ -387,7 +431,94 @@ pub struct KiriOutboundSettings {
     pub egress_id: Option<String>,
     /// As [`KiriSettings::tls_pin_only`].
     pub tls_pin_only: Option<bool>,
+    /// As [`KiriSettings::idle_stop`].
+    pub idle_stop: Option<u32>,
     pub dev: Option<KiriDevSettings>,
+}
+
+/// JSON `dev.tlsPinOnly` (until 2026-11-12) is the top-level `tlsPinOnly`.
+const KIRI_JSON_RETIRED: compat::RetiredKeys =
+    &[("dev.tlsPinOnly", compat::Retired::Renamed("tlsPinOnly"))];
+
+impl<'de> serde::Deserialize<'de> for KiriDevSettings {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let mut f = compat::Fields::new(d, "kiri dev", &[])?;
+        let s = Self {
+            transports: f.opt("transports"),
+            udp_bind: f.opt("udpBind"),
+            webrtc_all_host_candidates: f.opt("webrtcAllHostCandidates"),
+            config_fallback_urls: f.opt("configFallbackUrls"),
+        };
+        f.finish();
+        Ok(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for KiriSettings {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let mut f = compat::Fields::new(d, "kiri", KIRI_JSON_RETIRED)?;
+        let s = Self {
+            root_pubkeys: f.need("rootPubkeys")?,
+            config: f.need("config")?,
+            state_dir: f.opt("stateDir"),
+            bridge: f.opt("bridge"),
+            bridge_max_kbps: f.opt("bridgeMaxKbps"),
+            bridge_max_circuits: f.opt("bridgeMaxCircuits"),
+            bridge_circuit_kbps: f.opt("bridgeCircuitKbps"),
+            tls_pin_only: f.opt("tlsPinOnly"),
+            resolver: f.opt("resolver"),
+            idle_stop: f.opt("idleStop"),
+            dev: f.opt("dev"),
+        };
+        f.finish();
+        Ok(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for KiriOutboundSettings {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let mut f = compat::Fields::new(d, "kiri outbound", KIRI_JSON_RETIRED)?;
+        let s = Self {
+            root_pubkeys: f.need("rootPubkeys")?,
+            config: f.need("config")?,
+            bootstrap: f.need("bootstrap")?,
+            state_dir: f.opt("stateDir"),
+            paths: f.opt("paths"),
+            egress_id: f.opt("egressId"),
+            tls_pin_only: f.opt("tlsPinOnly"),
+            idle_stop: f.opt("idleStop"),
+            dev: f.opt("dev"),
+        };
+        f.finish();
+        Ok(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for StandbyOutboundSettings {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let mut f = compat::Fields::new(d, "standby", &[])?;
+        let s = Self {
+            actors: f.need("actors")?,
+            stagger: f.opt("stagger"),
+            timeout: f.opt("timeout"),
+            down_after: f.opt("downAfter"),
+            retry_min: f.opt("retryMin"),
+            retry_max: f.opt("retryMax"),
+            prewarm: f.opt("prewarm"),
+            response_timeout: f.opt("responseTimeout"),
+            early_death: f.opt("earlyDeath"),
+            half_life: f.opt("halfLife"),
+            stable: f.opt("stable"),
+            discover_stagger: f.opt("discoverStagger"),
+            max_parallel: f.opt("maxParallel"),
+            shuffle: f.opt("shuffle"),
+            state_dir: f.opt("stateDir"),
+            retry_grace: f.opt("retryGrace"),
+            probation_share: f.opt("probationShare"),
+        };
+        f.finish();
+        Ok(s)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -537,6 +668,10 @@ pub enum OutboundSettings {
         #[serde(default)]
         settings: Option<FailOverOutboundSettings>,
     },
+    Standby {
+        #[serde(default)]
+        settings: Option<StandbyOutboundSettings>,
+    },
     Select {
         #[serde(default)]
         settings: Option<SelectOutboundSettings>,
@@ -591,6 +726,50 @@ pub struct Config {
     pub router: Option<Router>,
     pub dns: Option<Dns>,
     pub kiri: Option<KiriSettings>,
+}
+
+/// Seconds (fractions allowed) as whole milliseconds, 1 ms to a day.
+fn standby_ms(ctx: &str, key: &str, v: Option<f64>, default: f64) -> u32 {
+    let v = match v {
+        Some(v) if !v.is_finite() => {
+            compat::bad(ctx, key, &v.to_string(), &format!("{default}"));
+            default
+        }
+        v => compat::clamp(ctx, key, v, default, 0.001, 86400.0),
+    };
+    ((v * 1000.0).round() as u32).max(1)
+}
+
+/// The internal settings of the `standby` group `tag`: unset or bad
+/// tunables take their defaults, out-of-range ones are clamped (noted, see
+/// [`compat`]); only a group without actors fails.
+fn standby_settings(tag: &str, s: Option<&StandbyOutboundSettings>) -> Result<Vec<u8>> {
+    let ctx = &format!("standby [{tag}]");
+    let empty = StandbyOutboundSettings::default();
+    let s = s.unwrap_or(&empty);
+    let mut out = internal::StandbyOutboundSettings::new();
+    out.actors = s.actors.clone().unwrap_or_default();
+    if out.actors.is_empty() {
+        return Err(anyhow!("standby [{tag}]: needs at least one actor"));
+    }
+    out.stagger_ms = standby_ms(ctx, "stagger", s.stagger, 2.5);
+    out.timeout_ms = standby_ms(ctx, "timeout", s.timeout, 10.0);
+    out.down_after = compat::clamp(ctx, "down-after", s.down_after, 3, 1, 1000);
+    out.retry_min = compat::clamp(ctx, "retry", s.retry_min, 60, 1, u32::MAX);
+    let max = s.retry_max.unwrap_or(1800.max(out.retry_min));
+    out.retry_max = compat::clamp(ctx, "retry", Some(max), max, out.retry_min, u32::MAX);
+    out.prewarm = s.prewarm.unwrap_or(false);
+    out.response_timeout_ms = standby_ms(ctx, "response-timeout", s.response_timeout, 5.0);
+    out.early_death_ms = standby_ms(ctx, "early-death", s.early_death, 30.0);
+    out.half_life_ms = standby_ms(ctx, "half-life", s.half_life, 900.0);
+    out.stable_ms = standby_ms(ctx, "stable", s.stable, 600.0);
+    out.discover_stagger_ms = standby_ms(ctx, "discover-stagger", s.discover_stagger, 0.4);
+    out.max_parallel = compat::clamp(ctx, "max-parallel", s.max_parallel, 3, 1, 64);
+    out.shuffle = s.shuffle.unwrap_or(false);
+    out.state_dir = s.state_dir.clone().unwrap_or_default();
+    out.retry_grace_ms = compat::clamp(ctx, "retry-grace", s.retry_grace, 100, 0, 10_000);
+    out.probation_share = compat::clamp(ctx, "probation-share", s.probation_share, 4, 1, 1000);
+    Ok(out.write_to_bytes().unwrap())
 }
 
 fn is_inline_certificate(certificate: &str) -> bool {
@@ -1372,6 +1551,13 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
                     }
                     outbounds.push(outbound);
                 }
+                OutboundSettings::Standby {
+                    settings: ext_settings,
+                } => {
+                    outbound.protocol = "standby".to_string();
+                    outbound.settings = standby_settings(&outbound.tag, ext_settings.as_ref())?;
+                    outbounds.push(outbound);
+                }
                 OutboundSettings::AMux {
                     settings: ext_settings,
                 } => {
@@ -1658,6 +1844,7 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
     if let Some(k) = super::kiri::section(kiri_section.as_ref())? {
         config.kiri = protobuf::MessageField::some(k);
     }
+    config.notes = compat::take();
     Ok(config)
 }
 
@@ -1703,5 +1890,257 @@ mod tests {
             "expected a path under the asset directory, got {}",
             resolved
         );
+    }
+}
+
+/// The `standby` group from conf and JSON: defaults, every setting, and bad
+/// values refused.
+#[cfg(all(test, feature = "config-conf", feature = "config-json"))]
+mod standby_tests {
+    use protobuf::Message;
+
+    use crate::config::internal::{Config, StandbyOutboundSettings};
+
+    fn conf(group: &str) -> anyhow::Result<Config> {
+        crate::config::conf::from_string(&format!(
+            "[Proxy]\nA = direct\nB = direct\nC = drop\n\n[Proxy Group]\n{group}\n"
+        ))
+    }
+
+    fn json(settings: &str) -> anyhow::Result<Config> {
+        crate::config::json::from_string(&format!(
+            r#"{{ "outbounds": [{{ "protocol": "direct", "tag": "A" }}, {{ "protocol": "direct", "tag": "B" }},
+                {{ "protocol": "standby", "tag": "Auto", "settings": {{ {settings} }} }}] }}"#
+        ))
+    }
+
+    fn standby(c: &Config) -> StandbyOutboundSettings {
+        let o = c.outbounds.iter().find(|o| o.tag == "Auto").expect("Auto");
+        assert_eq!(o.protocol, "standby");
+        StandbyOutboundSettings::parse_from_bytes(&o.settings).unwrap()
+    }
+
+    #[test]
+    fn conf_defaults_and_every_setting() {
+        let s = standby(&conf("Auto = standby, A, B, C").unwrap());
+        assert_eq!(s.actors, vec!["A", "B", "C"]);
+        assert_eq!(
+            (
+                s.stagger_ms,
+                s.timeout_ms,
+                s.down_after,
+                s.retry_min,
+                s.retry_max,
+                s.prewarm
+            ),
+            (2500, 10000, 3, 60, 1800, false)
+        );
+        let s = standby(
+            &conf("Auto = standby, A, C, stagger=0.3, timeout=4, down-after=2, retry=1-4, prewarm=true")
+                .unwrap(),
+        );
+        assert_eq!(s.actors, vec!["A", "C"]);
+        assert_eq!(
+            (
+                s.stagger_ms,
+                s.timeout_ms,
+                s.down_after,
+                s.retry_min,
+                s.retry_max,
+                s.prewarm
+            ),
+            (300, 4000, 2, 1, 4, true)
+        );
+        let s = standby(
+            &conf("Auto = standby, A, B, response-timeout=1.5, early-death=2, half-life=60, stable=3, \
+                   discover-stagger=0.1, max-parallel=2, shuffle=true, state-dir=/tmp/x")
+            .unwrap(),
+        );
+        assert_eq!(
+            (
+                s.response_timeout_ms,
+                s.early_death_ms,
+                s.half_life_ms,
+                s.stable_ms,
+                s.discover_stagger_ms
+            ),
+            (1500, 2000, 60000, 3000, 100)
+        );
+        assert_eq!(
+            (s.max_parallel, s.shuffle, s.state_dir.as_str()),
+            (2, true, "/tmp/x")
+        );
+        let d = standby(&conf("Auto = standby, A").unwrap());
+        assert_eq!(
+            (
+                d.response_timeout_ms,
+                d.early_death_ms,
+                d.half_life_ms,
+                d.stable_ms,
+                d.discover_stagger_ms
+            ),
+            (5000, 30000, 900000, 600000, 400)
+        );
+        assert_eq!(
+            (d.max_parallel, d.shuffle, d.state_dir.as_str()),
+            (3, false, "")
+        );
+        // One number: a fixed retry interval.
+        let s = standby(&conf("Auto = standby, A, retry=30").unwrap());
+        assert_eq!((s.retry_min, s.retry_max), (30, 30));
+        // A minimum above the default maximum raises the maximum with it.
+        let s = json(r#""actors": ["A"], "retryMin": 3600"#).unwrap();
+        assert_eq!((standby(&s).retry_min, standby(&s).retry_max), (3600, 3600));
+    }
+
+    #[test]
+    fn json_every_setting() {
+        let s = standby(
+            &json(r#""actors": ["A", "B"], "stagger": 0.5, "timeout": 3, "downAfter": 4, "retryMin": 2, "retryMax": 8, "prewarm": true, "responseTimeout": 1, "earlyDeath": 2, "halfLife": 3, "stable": 4, "discoverStagger": 0.2, "maxParallel": 5, "shuffle": true, "stateDir": "/s""#)
+                .unwrap(),
+        );
+        assert_eq!(s.actors, vec!["A", "B"]);
+        assert_eq!(
+            (
+                s.stagger_ms,
+                s.timeout_ms,
+                s.down_after,
+                s.retry_min,
+                s.retry_max,
+                s.prewarm
+            ),
+            (500, 3000, 4, 2, 8, true)
+        );
+        assert_eq!(
+            (
+                s.response_timeout_ms,
+                s.early_death_ms,
+                s.half_life_ms,
+                s.stable_ms,
+                s.discover_stagger_ms,
+                s.max_parallel
+            ),
+            (1000, 2000, 3000, 4000, 200, 5)
+        );
+        assert!(s.shuffle && s.state_dir == "/s");
+    }
+
+    fn note(c: &Config, key: &str) -> String {
+        c.notes
+            .iter()
+            .find(|n| n.key == key)
+            .unwrap_or_else(|| panic!("no note on {key}: {:?}", c.notes))
+            .message
+            .clone()
+    }
+
+    /// Bad values fall back to the default, out-of-range ones are clamped,
+    /// unknown keys are ignored, each with a note; good settings next to
+    /// them are kept. Before: each of these failed the load ("must be a
+    /// number", "must be at least 1", "retry must be MIN-MAX", "unknown
+    /// setting health-check", ...).
+    #[test]
+    fn conf_bad_values_default_clamp_and_unknown_keys_load() {
+        let d = standby(&conf("Auto = standby, A").unwrap());
+        for (line, key, want) in [
+            ("stagger=fast", "stagger", "the default (want seconds)"),
+            ("stagger=0", "stagger", "0 out of range, 0.001 used"),
+            ("timeout=-1", "timeout", "-1 out of range, 0.001 used"),
+            ("half-life=999999", "half-life", "out of range, 86400 used"),
+            ("down-after=0", "down-after", "0 out of range, 1 used"),
+            ("down-after=x", "down-after", "want a number"),
+            ("retry=10-5", "retry", "5 out of range, 10 used"),
+            ("retry=0-5", "retry", "0 out of range, 1 used"),
+            ("retry=a-b", "retry", "want MIN-MAX seconds"),
+            ("prewarm=yes", "prewarm", "true or false"),
+            (
+                "health-check=true",
+                "health-check",
+                "unknown setting, ignored",
+            ),
+            ("response-timeout=0", "response-timeout", "out of range"),
+            ("max-parallel=0", "max-parallel", "0 out of range, 1 used"),
+            ("shuffle=1", "shuffle", "true or false"),
+            ("early-death=x", "early-death", "want seconds"),
+            ("retry-grace=soon", "retry-grace", "want a number"),
+            (
+                "retry-grace=60000",
+                "retry-grace",
+                "60000 out of range, 10000 used",
+            ),
+            (
+                "probation-share=0",
+                "probation-share",
+                "0 out of range, 1 used",
+            ),
+        ] {
+            let c = conf(&format!("Auto = standby, A, B, {line}, stable=3"))
+                .unwrap_or_else(|e| panic!("{line}: {e}"));
+            let n = note(&c, &format!("standby [Auto] {key}"));
+            assert!(n.contains(want), "{line}: {n}");
+            assert_eq!(standby(&c).stable_ms, 3000, "{line}: good setting lost");
+        }
+        let s = |line: &str| standby(&conf(&format!("Auto = standby, A, {line}")).unwrap());
+        assert_eq!(s("stagger=fast").stagger_ms, d.stagger_ms);
+        assert_eq!(s("stagger=0").stagger_ms, 1);
+        assert_eq!(s("down-after=0").down_after, 1);
+        assert_eq!(s("down-after=x").down_after, 3);
+        let r = s("retry=10-5");
+        assert_eq!((r.retry_min, r.retry_max), (10, 10));
+        let r = s("retry=a-b");
+        assert_eq!((r.retry_min, r.retry_max), (60, 1800));
+        assert_eq!(s("max-parallel=0").max_parallel, 1);
+        assert_eq!(s("prewarm=yes").prewarm, false);
+        assert_eq!(s("retry-grace=soon").retry_grace_ms, 100);
+        assert_eq!(s("retry-grace=60000").retry_grace_ms, 10000);
+        assert_eq!(s("probation-share=0").probation_share, 1);
+        assert_eq!(s("health-check=true"), d, "an unknown key changes nothing");
+    }
+
+    /// `retry-grace` (ms, default 100) and `probation-share` (1 in N,
+    /// default 4), conf and JSON.
+    #[test]
+    fn retry_grace_and_probation_share() {
+        let d = standby(&conf("Auto = standby, A").unwrap());
+        assert_eq!((d.retry_grace_ms, d.probation_share), (100, 4));
+        let s = standby(&conf("Auto = standby, A, retry-grace=0, probation-share=10").unwrap());
+        assert_eq!((s.retry_grace_ms, s.probation_share), (0, 10));
+        let s =
+            standby(&json(r#""actors": ["A"], "retryGrace": 250, "probationShare": 2"#).unwrap());
+        assert_eq!((s.retry_grace_ms, s.probation_share), (250, 2));
+    }
+
+    /// JSON: only a group without actors (or with actors that are not a
+    /// list) fails; unknown fields and bad values load with notes. Before:
+    /// "unknown field" and each bad value failed the load.
+    #[test]
+    fn json_only_actors_are_essential() {
+        for (settings, want) in [
+            (r#""actors": []"#, "at least one actor"),
+            (r#""stagger": 1"#, "at least one actor"),
+            (r#""actors": "A""#, "standby actors"),
+        ] {
+            let e = json(settings).map(|_| ()).expect_err(settings);
+            assert!(e.to_string().contains(want), "{settings}: {e}");
+        }
+        let c = json(
+            r#""actors": ["A"], "colour": 1, "stagger": 0, "retryMin": 9, "retryMax": 3, "maxParallel": "x", "stable": 3"#,
+        )
+        .unwrap();
+        let s = standby(&c);
+        assert_eq!(
+            (
+                s.stagger_ms,
+                s.retry_min,
+                s.retry_max,
+                s.max_parallel,
+                s.stable_ms
+            ),
+            (1, 9, 9, 3, 3000)
+        );
+        assert!(note(&c, "standby colour").contains("unknown setting"));
+        assert!(note(&c, "standby maxParallel").contains("\"x\" not valid"));
+        assert!(note(&c, "standby [Auto] stagger").contains("out of range"));
+        assert!(note(&c, "standby [Auto] retry").contains("3 out of range, 9 used"));
     }
 }

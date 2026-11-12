@@ -4451,6 +4451,304 @@ impl ::protobuf::Message for FailOverOutboundSettings {
     }
 }
 
+// @@protoc_insertion_point(message:StandbyOutboundSettings)
+#[derive(PartialEq,Clone,Default,Debug)]
+pub struct StandbyOutboundSettings {
+    // message fields
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.actors)
+    pub actors: ::std::vec::Vec<::std::string::String>,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.stagger_ms)
+    pub stagger_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.timeout_ms)
+    pub timeout_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.down_after)
+    pub down_after: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.retry_min)
+    pub retry_min: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.retry_max)
+    pub retry_max: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.prewarm)
+    pub prewarm: bool,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.response_timeout_ms)
+    pub response_timeout_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.early_death_ms)
+    pub early_death_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.half_life_ms)
+    pub half_life_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.stable_ms)
+    pub stable_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.discover_stagger_ms)
+    pub discover_stagger_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.max_parallel)
+    pub max_parallel: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.shuffle)
+    pub shuffle: bool,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.state_dir)
+    pub state_dir: ::std::string::String,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.retry_grace_ms)
+    pub retry_grace_ms: u32,
+    // @@protoc_insertion_point(field:StandbyOutboundSettings.probation_share)
+    pub probation_share: u32,
+    // special fields
+    // @@protoc_insertion_point(special_field:StandbyOutboundSettings.special_fields)
+    pub special_fields: ::protobuf::SpecialFields,
+}
+
+impl<'a> ::std::default::Default for &'a StandbyOutboundSettings {
+    fn default() -> &'a StandbyOutboundSettings {
+        <StandbyOutboundSettings as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl StandbyOutboundSettings {
+    pub fn new() -> StandbyOutboundSettings {
+        ::std::default::Default::default()
+    }
+}
+
+impl ::protobuf::Message for StandbyOutboundSettings {
+    const NAME: &'static str = "StandbyOutboundSettings";
+
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+        while let Some(tag) = is.read_raw_tag_or_eof()? {
+            match tag {
+                10 => {
+                    self.actors.push(is.read_string()?);
+                },
+                16 => {
+                    self.stagger_ms = is.read_uint32()?;
+                },
+                24 => {
+                    self.timeout_ms = is.read_uint32()?;
+                },
+                32 => {
+                    self.down_after = is.read_uint32()?;
+                },
+                40 => {
+                    self.retry_min = is.read_uint32()?;
+                },
+                48 => {
+                    self.retry_max = is.read_uint32()?;
+                },
+                56 => {
+                    self.prewarm = is.read_bool()?;
+                },
+                64 => {
+                    self.response_timeout_ms = is.read_uint32()?;
+                },
+                72 => {
+                    self.early_death_ms = is.read_uint32()?;
+                },
+                80 => {
+                    self.half_life_ms = is.read_uint32()?;
+                },
+                88 => {
+                    self.stable_ms = is.read_uint32()?;
+                },
+                96 => {
+                    self.discover_stagger_ms = is.read_uint32()?;
+                },
+                104 => {
+                    self.max_parallel = is.read_uint32()?;
+                },
+                112 => {
+                    self.shuffle = is.read_bool()?;
+                },
+                122 => {
+                    self.state_dir = is.read_string()?;
+                },
+                128 => {
+                    self.retry_grace_ms = is.read_uint32()?;
+                },
+                136 => {
+                    self.probation_share = is.read_uint32()?;
+                },
+                tag => {
+                    ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u64 {
+        let mut my_size = 0;
+        for value in &self.actors {
+            my_size += ::protobuf::rt::string_size(1, &value);
+        };
+        if self.stagger_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(2, self.stagger_ms);
+        }
+        if self.timeout_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(3, self.timeout_ms);
+        }
+        if self.down_after != 0 {
+            my_size += ::protobuf::rt::uint32_size(4, self.down_after);
+        }
+        if self.retry_min != 0 {
+            my_size += ::protobuf::rt::uint32_size(5, self.retry_min);
+        }
+        if self.retry_max != 0 {
+            my_size += ::protobuf::rt::uint32_size(6, self.retry_max);
+        }
+        if self.prewarm != false {
+            my_size += 1 + 1;
+        }
+        if self.response_timeout_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(8, self.response_timeout_ms);
+        }
+        if self.early_death_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(9, self.early_death_ms);
+        }
+        if self.half_life_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(10, self.half_life_ms);
+        }
+        if self.stable_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(11, self.stable_ms);
+        }
+        if self.discover_stagger_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(12, self.discover_stagger_ms);
+        }
+        if self.max_parallel != 0 {
+            my_size += ::protobuf::rt::uint32_size(13, self.max_parallel);
+        }
+        if self.shuffle != false {
+            my_size += 1 + 1;
+        }
+        if !self.state_dir.is_empty() {
+            my_size += ::protobuf::rt::string_size(15, &self.state_dir);
+        }
+        if self.retry_grace_ms != 0 {
+            my_size += ::protobuf::rt::uint32_size(16, self.retry_grace_ms);
+        }
+        if self.probation_share != 0 {
+            my_size += ::protobuf::rt::uint32_size(17, self.probation_share);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+        self.special_fields.cached_size().set(my_size as u32);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+        for v in &self.actors {
+            os.write_string(1, &v)?;
+        };
+        if self.stagger_ms != 0 {
+            os.write_uint32(2, self.stagger_ms)?;
+        }
+        if self.timeout_ms != 0 {
+            os.write_uint32(3, self.timeout_ms)?;
+        }
+        if self.down_after != 0 {
+            os.write_uint32(4, self.down_after)?;
+        }
+        if self.retry_min != 0 {
+            os.write_uint32(5, self.retry_min)?;
+        }
+        if self.retry_max != 0 {
+            os.write_uint32(6, self.retry_max)?;
+        }
+        if self.prewarm != false {
+            os.write_bool(7, self.prewarm)?;
+        }
+        if self.response_timeout_ms != 0 {
+            os.write_uint32(8, self.response_timeout_ms)?;
+        }
+        if self.early_death_ms != 0 {
+            os.write_uint32(9, self.early_death_ms)?;
+        }
+        if self.half_life_ms != 0 {
+            os.write_uint32(10, self.half_life_ms)?;
+        }
+        if self.stable_ms != 0 {
+            os.write_uint32(11, self.stable_ms)?;
+        }
+        if self.discover_stagger_ms != 0 {
+            os.write_uint32(12, self.discover_stagger_ms)?;
+        }
+        if self.max_parallel != 0 {
+            os.write_uint32(13, self.max_parallel)?;
+        }
+        if self.shuffle != false {
+            os.write_bool(14, self.shuffle)?;
+        }
+        if !self.state_dir.is_empty() {
+            os.write_string(15, &self.state_dir)?;
+        }
+        if self.retry_grace_ms != 0 {
+            os.write_uint32(16, self.retry_grace_ms)?;
+        }
+        if self.probation_share != 0 {
+            os.write_uint32(17, self.probation_share)?;
+        }
+        os.write_unknown_fields(self.special_fields.unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn special_fields(&self) -> &::protobuf::SpecialFields {
+        &self.special_fields
+    }
+
+    fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+        &mut self.special_fields
+    }
+
+    fn new() -> StandbyOutboundSettings {
+        StandbyOutboundSettings::new()
+    }
+
+    fn clear(&mut self) {
+        self.actors.clear();
+        self.stagger_ms = 0;
+        self.timeout_ms = 0;
+        self.down_after = 0;
+        self.retry_min = 0;
+        self.retry_max = 0;
+        self.prewarm = false;
+        self.response_timeout_ms = 0;
+        self.early_death_ms = 0;
+        self.half_life_ms = 0;
+        self.stable_ms = 0;
+        self.discover_stagger_ms = 0;
+        self.max_parallel = 0;
+        self.shuffle = false;
+        self.state_dir.clear();
+        self.retry_grace_ms = 0;
+        self.probation_share = 0;
+        self.special_fields.clear();
+    }
+
+    fn default_instance() -> &'static StandbyOutboundSettings {
+        static instance: StandbyOutboundSettings = StandbyOutboundSettings {
+            actors: ::std::vec::Vec::new(),
+            stagger_ms: 0,
+            timeout_ms: 0,
+            down_after: 0,
+            retry_min: 0,
+            retry_max: 0,
+            prewarm: false,
+            response_timeout_ms: 0,
+            early_death_ms: 0,
+            half_life_ms: 0,
+            stable_ms: 0,
+            discover_stagger_ms: 0,
+            max_parallel: 0,
+            shuffle: false,
+            state_dir: ::std::string::String::new(),
+            retry_grace_ms: 0,
+            probation_share: 0,
+            special_fields: ::protobuf::SpecialFields::new(),
+        };
+        &instance
+    }
+}
+
 // @@protoc_insertion_point(message:SelectOutboundSettings)
 #[derive(PartialEq,Clone,Default,Debug)]
 pub struct SelectOutboundSettings {
@@ -4666,6 +4964,8 @@ pub struct KiriOutboundSettings {
     pub tls_pin_only: bool,
     // @@protoc_insertion_point(field:KiriOutboundSettings.system_resolver)
     pub system_resolver: bool,
+    // @@protoc_insertion_point(field:KiriOutboundSettings.idle_stop)
+    pub idle_stop: u32,
     // special fields
     // @@protoc_insertion_point(special_field:KiriOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -4720,6 +5020,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
                 72 => {
                     self.system_resolver = is.read_bool()?;
                 },
+                80 => {
+                    self.idle_stop = is.read_uint32()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -4760,6 +5063,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.system_resolver != false {
             my_size += 1 + 1;
         }
+        if self.idle_stop != 0 {
+            my_size += ::protobuf::rt::uint32_size(10, self.idle_stop);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -4793,6 +5099,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.system_resolver != false {
             os.write_bool(9, self.system_resolver)?;
         }
+        if self.idle_stop != 0 {
+            os.write_uint32(10, self.idle_stop)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -4819,6 +5128,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
         self.dev.clear();
         self.tls_pin_only = false;
         self.system_resolver = false;
+        self.idle_stop = 0;
         self.special_fields.clear();
     }
 
@@ -4833,6 +5143,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
             dev: ::protobuf::MessageField::none(),
             tls_pin_only: false,
             system_resolver: false,
+            idle_stop: 0,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -5860,6 +6171,8 @@ pub struct Config {
     pub dns: ::protobuf::MessageField<Dns>,
     // @@protoc_insertion_point(field:Config.kiri)
     pub kiri: ::protobuf::MessageField<Kiri>,
+    // @@protoc_insertion_point(field:Config.notes)
+    pub notes: ::std::vec::Vec<ConfigNote>,
     // special fields
     // @@protoc_insertion_point(special_field:Config.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -5905,6 +6218,9 @@ impl ::protobuf::Message for Config {
                 50 => {
                     ::protobuf::rt::read_singular_message_into_field(is, &mut self.kiri)?;
                 },
+                58 => {
+                    self.notes.push(is.read_message()?);
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -5941,6 +6257,10 @@ impl ::protobuf::Message for Config {
             let len = v.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
         }
+        for value in &self.notes {
+            let len = value.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint64_size(len) + len;
+        };
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -5965,6 +6285,9 @@ impl ::protobuf::Message for Config {
         if let Some(v) = self.kiri.as_ref() {
             ::protobuf::rt::write_message_field_with_cached_size(6, v, os)?;
         }
+        for v in &self.notes {
+            ::protobuf::rt::write_message_field_with_cached_size(7, v, os)?;
+        };
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -5988,6 +6311,7 @@ impl ::protobuf::Message for Config {
         self.router.clear();
         self.dns.clear();
         self.kiri.clear();
+        self.notes.clear();
         self.special_fields.clear();
     }
 
@@ -5999,6 +6323,123 @@ impl ::protobuf::Message for Config {
             router: ::protobuf::MessageField::none(),
             dns: ::protobuf::MessageField::none(),
             kiri: ::protobuf::MessageField::none(),
+            notes: ::std::vec::Vec::new(),
+            special_fields: ::protobuf::SpecialFields::new(),
+        };
+        &instance
+    }
+}
+
+// @@protoc_insertion_point(message:ConfigNote)
+#[derive(PartialEq,Clone,Default,Debug)]
+pub struct ConfigNote {
+    // message fields
+    // @@protoc_insertion_point(field:ConfigNote.key)
+    pub key: ::std::string::String,
+    // @@protoc_insertion_point(field:ConfigNote.message)
+    pub message: ::std::string::String,
+    // @@protoc_insertion_point(field:ConfigNote.retired)
+    pub retired: bool,
+    // special fields
+    // @@protoc_insertion_point(special_field:ConfigNote.special_fields)
+    pub special_fields: ::protobuf::SpecialFields,
+}
+
+impl<'a> ::std::default::Default for &'a ConfigNote {
+    fn default() -> &'a ConfigNote {
+        <ConfigNote as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl ConfigNote {
+    pub fn new() -> ConfigNote {
+        ::std::default::Default::default()
+    }
+}
+
+impl ::protobuf::Message for ConfigNote {
+    const NAME: &'static str = "ConfigNote";
+
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::Result<()> {
+        while let Some(tag) = is.read_raw_tag_or_eof()? {
+            match tag {
+                10 => {
+                    self.key = is.read_string()?;
+                },
+                18 => {
+                    self.message = is.read_string()?;
+                },
+                24 => {
+                    self.retired = is.read_bool()?;
+                },
+                tag => {
+                    ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u64 {
+        let mut my_size = 0;
+        if !self.key.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.key);
+        }
+        if !self.message.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.message);
+        }
+        if self.retired != false {
+            my_size += 1 + 1;
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
+        self.special_fields.cached_size().set(my_size as u32);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::Result<()> {
+        if !self.key.is_empty() {
+            os.write_string(1, &self.key)?;
+        }
+        if !self.message.is_empty() {
+            os.write_string(2, &self.message)?;
+        }
+        if self.retired != false {
+            os.write_bool(3, self.retired)?;
+        }
+        os.write_unknown_fields(self.special_fields.unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn special_fields(&self) -> &::protobuf::SpecialFields {
+        &self.special_fields
+    }
+
+    fn mut_special_fields(&mut self) -> &mut ::protobuf::SpecialFields {
+        &mut self.special_fields
+    }
+
+    fn new() -> ConfigNote {
+        ConfigNote::new()
+    }
+
+    fn clear(&mut self) {
+        self.key.clear();
+        self.message.clear();
+        self.retired = false;
+        self.special_fields.clear();
+    }
+
+    fn default_instance() -> &'static ConfigNote {
+        static instance: ConfigNote = ConfigNote {
+            key: ::std::string::String::new(),
+            message: ::std::string::String::new(),
+            retired: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

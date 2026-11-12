@@ -8,10 +8,17 @@
 //! keeps the client (and its sessions); one that changes or removes it stops
 //! the old client once nothing holds it (its tasks end on drop). A client
 //! stopped by a revocation is replaced at the next reload.
+//!
+//! `idle-stop=SECONDS` (default 0, never): that long after the last stream
+//! or flow through the outbound ended, its client (session, directory
+//! refresh, telemetry) is stopped; the next stream or flow starts it again,
+//! as the first one does. For a mobile device that would otherwise keep
+//! kiri's session alive behind a `standby` group that rarely needs it.
 
 use std::collections::HashMap;
 use std::io;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
@@ -36,6 +43,24 @@ type ClientKey = (String, Vec<u8>);
 
 lazy_static::lazy_static! {
     static ref CLIENTS: Mutex<HashMap<ClientKey, Weak<Shared>>> = Mutex::new(HashMap::new());
+    /// Client starts per outbound tag in this process.
+    static ref STARTS: Mutex<HashMap<String, u64>> = Mutex::new(HashMap::new());
+}
+
+/// True while a client of the `kiri` outbound `tag` runs (with any settings).
+pub fn client_running(tag: &str) -> bool {
+    let m = CLIENTS.lock().unwrap_or_else(|e| e.into_inner());
+    m.iter()
+        .filter(|(k, _)| k.0 == tag)
+        .filter_map(|(_, w)| w.upgrade())
+        .any(|s| s.running.load(Ordering::SeqCst))
+}
+
+/// How many times a client of the `kiri` outbound `tag` started in this
+/// process (the lazy first start, restarts after `idle-stop`, pre-warms).
+pub fn client_starts(tag: &str) -> u64 {
+    let m = STARTS.lock().unwrap_or_else(|e| e.into_inner());
+    m.get(tag).copied().unwrap_or(0)
 }
 
 /// The client of one outbound tag and settings.
@@ -43,12 +68,39 @@ pub struct Shared {
     tag: String,
     settings: internal::KiriOutboundSettings,
     state: tokio::sync::Mutex<State>,
+    running: AtomicBool,
+    /// Streams and flows open or being opened ([`Use`]).
+    active: AtomicUsize,
+    /// When the last of them ended, or the client was (pre-)started.
+    idle_since: Mutex<Instant>,
 }
 
 #[derive(Default)]
 struct State {
     client: Option<Arc<EmbeddedClient>>,
     failed: Option<(Instant, String)>,
+    /// Counts starts: an idle watcher stops only the client it was made for.
+    generation: u64,
+}
+
+/// One stream or flow through the client (or one being opened), for
+/// `idle-stop`. Taken before the client is asked for, so that an idle stop
+/// never races a new stream.
+struct Use(Arc<Shared>);
+
+impl Use {
+    fn new(s: Arc<Shared>) -> Self {
+        s.active.fetch_add(1, Ordering::SeqCst);
+        Self(s)
+    }
+}
+
+impl Drop for Use {
+    fn drop(&mut self) {
+        if self.0.active.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.0.touch();
+        }
+    }
 }
 
 impl Shared {
@@ -75,6 +127,9 @@ impl Shared {
             tag: tag.to_string(),
             settings,
             state: Default::default(),
+            running: AtomicBool::new(false),
+            active: AtomicUsize::new(0),
+            idle_since: Mutex::new(Instant::now()),
         });
         m.insert(key, Arc::downgrade(&s));
         Ok(s)
@@ -107,8 +162,19 @@ impl Shared {
         }
     }
 
+    fn touch(&self) {
+        *self.idle_since.lock().unwrap_or_else(|e| e.into_inner()) = Instant::now();
+    }
+
+    fn idle_for(&self) -> Duration {
+        self.idle_since
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .elapsed()
+    }
+
     /// The running client, started on first use.
-    pub async fn client(&self) -> io::Result<Arc<EmbeddedClient>> {
+    pub async fn client(self: &Arc<Self>) -> io::Result<Arc<EmbeddedClient>> {
         let mut st = self.state.lock().await;
         if let Some(c) = &st.client {
             return Ok(c.clone());
@@ -125,6 +191,17 @@ impl Shared {
                 let c = Arc::new(c);
                 st.client = Some(c.clone());
                 st.failed = None;
+                st.generation += 1;
+                self.running.store(true, Ordering::SeqCst);
+                self.touch();
+                *STARTS
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .entry(self.tag.clone())
+                    .or_default() += 1;
+                if self.settings.idle_stop > 0 {
+                    self.spawn_idle_stop(st.generation);
+                }
                 Ok(c)
             }
             Err(e) => {
@@ -136,7 +213,52 @@ impl Shared {
         }
     }
 
-    async fn kiri(&self) -> io::Result<Arc<kiri_core::Kiri>> {
+    /// Stops the client of start `generation` once nothing has gone through
+    /// it for `idle-stop` seconds.
+    fn spawn_idle_stop(self: &Arc<Self>, generation: u64) {
+        let idle = Duration::from_secs(self.settings.idle_stop as u64);
+        let tick = (idle / 4).clamp(Duration::from_millis(250), Duration::from_secs(30));
+        let weak = Arc::downgrade(self);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(tick).await;
+                let Some(s) = weak.upgrade() else { return };
+                if s.active.load(Ordering::SeqCst) > 0 || s.idle_for() < idle {
+                    continue;
+                }
+                let mut st = s.state.lock().await;
+                if st.generation != generation || st.client.is_none() {
+                    return;
+                }
+                // Again under the lock: a new stream takes its `Use` first.
+                if s.active.load(Ordering::SeqCst) > 0 || s.idle_for() < idle {
+                    continue;
+                }
+                st.client = None;
+                s.running.store(false, Ordering::SeqCst);
+                tracing::info!(
+                    "kiri[{}]: stopped after {}s without use (idle-stop)",
+                    s.tag,
+                    idle.as_secs()
+                );
+                return;
+            }
+        });
+    }
+
+    /// Starts the client without a stream (the `standby` group's pre-warm).
+    fn prewarm(self: &Arc<Self>) {
+        let Ok(rt) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        self.touch();
+        let s = self.clone();
+        rt.spawn(async move {
+            let _ = s.client().await;
+        });
+    }
+
+    async fn kiri(self: &Arc<Self>) -> io::Result<Arc<kiri_core::Kiri>> {
         let c = self.client().await?;
         c.kiri()
             .map(Clone::clone)
@@ -160,7 +282,7 @@ fn socks_addr(a: TargetAddr) -> SocksAddr {
 
 /// A kiri stream as leaf's (which must be `Sync`). The mutex is never
 /// locked: every use is through `&mut` (`get_mut`).
-struct Stream(Mutex<Box<dyn AsyncStream>>);
+struct Stream(Mutex<Box<dyn AsyncStream>>, #[allow(dead_code)] Use);
 
 impl Stream {
     fn inner(self: Pin<&mut Self>) -> Pin<&mut (dyn AsyncStream + 'static)> {
@@ -216,12 +338,17 @@ impl OutboundStreamHandler for StreamHandler {
         _lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
+        let u = Use::new(self.0.clone());
         let kiri = self.0.kiri().await?;
         let s = kiri
             .dial_tcp(target(&sess.destination))
             .await
             .map_err(io::Error::other)?;
-        Ok(Box::new(Stream(Mutex::new(s))))
+        Ok(Box::new(Stream(Mutex::new(s), u)))
+    }
+
+    fn prewarm(&self) {
+        self.0.prewarm();
     }
 }
 
@@ -242,13 +369,15 @@ impl OutboundDatagramHandler for DatagramHandler {
         _sess: &'a Session,
         _transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
+        let u = Use::new(self.0.clone());
         let kiri = self.0.kiri().await?;
         let s = kiri.dial_udp().await.map_err(io::Error::other)?;
-        Ok(Box::new(Datagram(Arc::from(s))))
+        Ok(Box::new(Datagram(Arc::from(s), Arc::new(u))))
     }
 }
 
-struct Datagram(Arc<dyn DatagramSocket>);
+/// Both halves hold the flow's [`Use`]: it ends when both are gone.
+struct Datagram(Arc<dyn DatagramSocket>, #[allow(dead_code)] Arc<Use>);
 
 impl OutboundDatagram for Datagram {
     fn split(
@@ -258,8 +387,8 @@ impl OutboundDatagram for Datagram {
         Box<dyn OutboundDatagramSendHalf>,
     ) {
         (
-            Box::new(Datagram(self.0.clone())),
-            Box::new(Datagram(self.0)),
+            Box::new(Datagram(self.0.clone(), self.1.clone())),
+            Box::new(Datagram(self.0, self.1)),
         )
     }
 }

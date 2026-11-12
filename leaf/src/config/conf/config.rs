@@ -7,7 +7,7 @@ use std::path::Path;
 use anyhow::Result;
 use regex::Regex;
 
-use crate::config::{common, internal};
+use crate::config::{common, compat, internal};
 
 #[derive(Debug, Default)]
 pub struct Tun {
@@ -177,6 +177,9 @@ pub struct ProxyGroup {
 
     // static
     pub method: Option<String>,
+
+    // standby
+    pub standby: Option<common::StandbyOutboundSettings>,
 }
 
 impl Default for ProxyGroup {
@@ -205,6 +208,7 @@ impl Default for ProxyGroup {
             health_check_success_percentage: None,
             delay_base: None,
             method: None,
+            standby: None,
         }
     }
 }
@@ -458,17 +462,37 @@ where
     None
 }
 
-fn kiri_bool(k: &str, v: &str) -> Result<bool> {
+/// Retired keys of the `[Kiri]` section, the `kiri` line and the `standby`
+/// line (see [`compat`]): `("old-key", Retired::Renamed("new-key"))` or
+/// `Retired::Dropped`. None yet.
+const KIRI_SECTION_RETIRED: compat::RetiredKeys = &[];
+const KIRI_PROXY_RETIRED: compat::RetiredKeys = &[];
+const STANDBY_RETIRED: compat::RetiredKeys = &[];
+
+/// `true` or `false`; anything else is noted and left unset (the default).
+fn conf_bool(ctx: &str, k: &str, v: &str) -> Option<bool> {
     match v {
-        "true" => Ok(true),
-        "false" => Ok(false),
-        _ => Err(anyhow::anyhow!("kiri {k} must be true or false")),
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => {
+            compat::bad(
+                ctx,
+                k,
+                &format!("{v:?}"),
+                "the default (want true or false)",
+            );
+            None
+        }
     }
 }
 
-fn kiri_num<T: std::str::FromStr>(k: &str, v: &str) -> Result<T> {
-    v.parse::<T>()
-        .map_err(|_| anyhow::anyhow!("kiri {k} must be a number"))
+/// A number; anything else is noted and left unset (the default).
+fn conf_num<T: std::str::FromStr>(ctx: &str, k: &str, v: &str) -> Option<T> {
+    let n = v.parse::<T>().ok();
+    if n.is_none() {
+        compat::bad(ctx, k, &format!("{v:?}"), "the default (want a number)");
+    }
+    n
 }
 
 fn push_all(to: &mut Option<Vec<String>>, v: impl IntoIterator<Item = String>) {
@@ -477,10 +501,11 @@ fn push_all(to: &mut Option<Vec<String>>, v: impl IntoIterator<Item = String>) {
 
 /// A dev setting shared by `[Kiri]` and the `kiri` proxy line. False: not one.
 fn kiri_dev(
+    ctx: &str,
     dev: &mut Option<common::KiriDevSettings>,
     k: &str,
     values: Vec<String>,
-) -> Result<bool> {
+) -> bool {
     if !matches!(
         k,
         "transport"
@@ -489,7 +514,7 @@ fn kiri_dev(
             | "config-fallback-url"
             | "webrtc-all-host-candidates"
     ) {
-        return Ok(false);
+        return false;
     }
     let d = dev.get_or_insert_with(Default::default);
     match k {
@@ -498,39 +523,48 @@ fn kiri_dev(
         "config-fallback-url" => push_all(&mut d.config_fallback_urls, values),
         "webrtc-all-host-candidates" => {
             let v = values.first().map(String::as_str).unwrap_or("");
-            d.webrtc_all_host_candidates = Some(kiri_bool(k, v)?);
+            d.webrtc_all_host_candidates = conf_bool(ctx, k, v);
         }
-        _ => return Ok(false),
+        _ => return false,
     }
-    Ok(true)
+    true
 }
 
 /// The `[Kiri]` section: `key = value` lines; list keys take comma-separated
-/// values and may repeat. Values may contain `=` (base64).
+/// values and may repeat. Values may contain `=` (base64). Lenient (see
+/// [`compat`]): unknown keys and lines are ignored, bad tunables defaulted;
+/// the ROOT key and the config are checked later and fail.
 fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>> {
     if lines.is_empty() {
         return Ok(None);
     }
+    const CTX: &str = "[Kiri]";
     let mut k = common::KiriSettings::default();
     for line in lines {
         let Some((key, v)) = line.split_once('=') else {
-            return Err(anyhow::anyhow!("[Kiri]: expected key = value"));
+            compat::unknown(CTX, line.trim());
+            continue;
         };
-        let (key, v) = (key.trim(), v.trim());
+        let v = v.trim();
+        let Some(key) = compat::current(CTX, key.trim(), KIRI_SECTION_RETIRED) else {
+            continue;
+        };
+        let key = key.as_str();
         let list = || get_char_sep_slice(v, ',').unwrap_or_default();
         match key {
             "root-pubkey" => push_all(&mut k.root_pubkeys, list()),
             "config" => k.config = Some(v.to_string()),
             "state-dir" => k.state_dir = Some(v.to_string()),
-            "bridge" => k.bridge = Some(kiri_bool(key, v)?),
-            "bridge-max-kbps" => k.bridge_max_kbps = Some(kiri_num(key, v)?),
-            "bridge-max-circuits" => k.bridge_max_circuits = Some(kiri_num(key, v)?),
-            "bridge-circuit-kbps" => k.bridge_circuit_kbps = Some(kiri_num(key, v)?),
-            "tls-pin-only" => k.tls_pin_only = Some(kiri_bool(key, v)?),
+            "bridge" => k.bridge = conf_bool(CTX, key, v),
+            "bridge-max-kbps" => k.bridge_max_kbps = conf_num(CTX, key, v),
+            "bridge-max-circuits" => k.bridge_max_circuits = conf_num(CTX, key, v),
+            "bridge-circuit-kbps" => k.bridge_circuit_kbps = conf_num(CTX, key, v),
+            "tls-pin-only" => k.tls_pin_only = conf_bool(CTX, key, v),
             "resolver" => k.resolver = Some(v.to_string()),
+            "idle-stop" => k.idle_stop = conf_num(CTX, key, v),
             _ => {
-                if !kiri_dev(&mut k.dev, key, list())? {
-                    return Err(anyhow::anyhow!("[Kiri]: unknown setting {key}"));
+                if !kiri_dev(CTX, &mut k.dev, key, list()) {
+                    compat::unknown(CTX, key);
                 }
             }
         }
@@ -540,32 +574,100 @@ fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>
 
 /// The parameters of a `NAME = kiri, key=value, ...` proxy line. List keys
 /// repeat (`bootstrap=...`, `root-pubkey=...`). Values may contain `=`.
-fn parse_kiri_proxy(params: &[String]) -> Result<common::KiriOutboundSettings> {
+/// Lenient as the section.
+fn parse_kiri_proxy(tag: &str, params: &[String]) -> common::KiriOutboundSettings {
+    let ctx = &format!("kiri [{tag}]");
     let mut o = common::KiriOutboundSettings::default();
     for p in params {
         let Some((key, v)) = p.split_once('=') else {
-            return Err(anyhow::anyhow!("kiri proxy: expected key=value, got {p:?}"));
+            compat::unknown(ctx, p.trim());
+            continue;
         };
-        let (key, v) = (key.trim(), v.trim().to_string());
+        let v = v.trim().to_string();
+        let Some(key) = compat::current(ctx, key.trim(), KIRI_PROXY_RETIRED) else {
+            continue;
+        };
+        let key = key.as_str();
         match key {
             "root-pubkey" => push_all(&mut o.root_pubkeys, [v]),
             "config" => o.config = Some(v),
             "bootstrap" => push_all(&mut o.bootstrap, [v]),
             "state-dir" => o.state_dir = Some(v),
-            "paths" => o.paths = Some(kiri_num(key, &v)?),
+            "paths" => o.paths = conf_num(ctx, key, &v),
             "egress-id" => o.egress_id = Some(v),
-            "tls-pin-only" => o.tls_pin_only = Some(kiri_bool(key, &v)?),
+            "tls-pin-only" => o.tls_pin_only = conf_bool(ctx, key, &v),
+            "idle-stop" => o.idle_stop = conf_num(ctx, key, &v),
             _ => {
-                if !kiri_dev(&mut o.dev, key, vec![v])? {
-                    return Err(anyhow::anyhow!("kiri proxy: unknown setting {key}"));
+                if !kiri_dev(ctx, &mut o.dev, key, vec![v]) {
+                    compat::unknown(ctx, key);
                 }
             }
         }
     }
-    Ok(o)
+    o
+}
+
+/// The `key=value` parameters of a `NAME = standby, A, B, ...` group line.
+/// Lenient (see [`compat`]): unknown keys are ignored, bad values defaulted
+/// (here) and out-of-range ones clamped (`common::standby_settings`).
+fn parse_standby_group(group: &ProxyGroup, params: &[String]) -> common::StandbyOutboundSettings {
+    let ctx = &format!("standby [{}]", group.tag);
+    let mut s = common::StandbyOutboundSettings {
+        actors: group.actors.clone(),
+        ..Default::default()
+    };
+    for p in params.iter().filter(|p| p.contains('=')) {
+        let (k, v) = p.split_once('=').unwrap();
+        let v = v.trim();
+        let Some(k) = compat::current(ctx, k.trim(), STANDBY_RETIRED) else {
+            continue;
+        };
+        let k = k.as_str();
+        let secs = |v: &str| {
+            let n = v.parse::<f64>().ok().filter(|x| x.is_finite());
+            if n.is_none() {
+                compat::bad(ctx, k, &format!("{v:?}"), "the default (want seconds)");
+            }
+            n
+        };
+        match k {
+            "stagger" => s.stagger = secs(v),
+            "response-timeout" => s.response_timeout = secs(v),
+            "early-death" => s.early_death = secs(v),
+            "half-life" => s.half_life = secs(v),
+            "stable" => s.stable = secs(v),
+            "discover-stagger" => s.discover_stagger = secs(v),
+            "timeout" => s.timeout = secs(v),
+            "max-parallel" => s.max_parallel = conf_num(ctx, k, v),
+            "down-after" => s.down_after = conf_num(ctx, k, v),
+            "retry-grace" => s.retry_grace = conf_num(ctx, k, v),
+            "probation-share" => s.probation_share = conf_num(ctx, k, v),
+            "state-dir" => s.state_dir = Some(v.to_string()),
+            "retry" => {
+                let (min, max) = v.split_once('-').unwrap_or((v, v));
+                match (min.trim().parse::<u32>(), max.trim().parse::<u32>()) {
+                    (Ok(min), Ok(max)) => {
+                        s.retry_min = Some(min);
+                        s.retry_max = Some(max);
+                    }
+                    _ => compat::bad(
+                        ctx,
+                        k,
+                        &format!("{v:?}"),
+                        "the default (want MIN-MAX seconds)",
+                    ),
+                }
+            }
+            "prewarm" => s.prewarm = conf_bool(ctx, k, v),
+            "shuffle" => s.shuffle = conf_bool(ctx, k, v),
+            _ => compat::unknown(ctx, k),
+        }
+    }
+    s
 }
 
 pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
+    compat::begin();
     let certificates = get_certificate_sections(lines.iter());
     let ech_configs = get_ech_sections(lines.iter());
     let env_lines = get_lines_by_section("Env", lines.iter());
@@ -711,7 +813,7 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
         proxy.protocol = params[0].clone();
 
         if proxy.protocol == "kiri" {
-            proxy.kiri = Some(parse_kiri_proxy(&params[1..])?);
+            proxy.kiri = Some(parse_kiri_proxy(&proxy.tag, &params[1..]));
             proxies.push(proxy);
             continue;
         }
@@ -909,6 +1011,12 @@ pub fn from_lines(lines: Vec<io::Result<String>>) -> Result<Config> {
             continue;
         }
         group.actors = Some(actors);
+
+        if group.protocol == "standby" {
+            group.standby = Some(parse_standby_group(&group, params));
+            proxy_groups.push(group);
+            continue;
+        }
 
         for param in params {
             if param.contains('=') {
@@ -1618,6 +1726,14 @@ pub fn to_common(conf: &Config) -> Result<common::Config> {
                                 cache_size: ext_proxy_group.cache_size,
                                 cache_timeout: ext_proxy_group.cache_timeout,
                             }),
+                        },
+                    });
+                }
+                "standby" => {
+                    outbounds.push(common::Outbound {
+                        tag: Some(ext_proxy_group.tag.clone()),
+                        settings: common::OutboundSettings::Standby {
+                            settings: ext_proxy_group.standby.clone(),
                         },
                     });
                 }
