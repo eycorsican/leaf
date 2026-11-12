@@ -94,6 +94,7 @@ impl Shared {
                 dir,
                 o.dev.as_ref(),
                 o.tls_pin_only,
+                o.system_resolver,
             ),
             bootstrap: o.bootstrap.clone(),
             paths: o.paths.max(1) as usize,

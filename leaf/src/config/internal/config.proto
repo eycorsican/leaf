@@ -291,6 +291,7 @@ message KiriOutboundSettings {
 	string egress_id = 6;
 	KiriDev dev = 7;
 	bool tls_pin_only = 8; // kiri --tls-pin-only (self-signed egress)
+	bool system_resolver = 9; // [Kiri] resolver = system (default: kiri's own resolver)
 }
 
 // Development and lab settings shared by the kiri outbound and bridge.
@@ -314,6 +315,7 @@ message Kiri {
 	uint64 bridge_circuit_kbps = 7; // 0: default (2048)
 	KiriDev dev = 8;
 	bool tls_pin_only = 9; // kiri --tls-pin-only (self-signed egress)
+	bool system_resolver = 10; // resolver = system (default: kiri's own resolver)
 }
 
 message Outbound {

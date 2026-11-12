@@ -4664,6 +4664,8 @@ pub struct KiriOutboundSettings {
     pub dev: ::protobuf::MessageField<KiriDev>,
     // @@protoc_insertion_point(field:KiriOutboundSettings.tls_pin_only)
     pub tls_pin_only: bool,
+    // @@protoc_insertion_point(field:KiriOutboundSettings.system_resolver)
+    pub system_resolver: bool,
     // special fields
     // @@protoc_insertion_point(special_field:KiriOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -4715,6 +4717,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
                 64 => {
                     self.tls_pin_only = is.read_bool()?;
                 },
+                72 => {
+                    self.system_resolver = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -4752,6 +4757,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.tls_pin_only != false {
             my_size += 1 + 1;
         }
+        if self.system_resolver != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -4782,6 +4790,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.tls_pin_only != false {
             os.write_bool(8, self.tls_pin_only)?;
         }
+        if self.system_resolver != false {
+            os.write_bool(9, self.system_resolver)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -4807,6 +4818,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
         self.egress_id.clear();
         self.dev.clear();
         self.tls_pin_only = false;
+        self.system_resolver = false;
         self.special_fields.clear();
     }
 
@@ -4820,6 +4832,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
             egress_id: ::std::string::String::new(),
             dev: ::protobuf::MessageField::none(),
             tls_pin_only: false,
+            system_resolver: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -4977,6 +4990,8 @@ pub struct Kiri {
     pub dev: ::protobuf::MessageField<KiriDev>,
     // @@protoc_insertion_point(field:Kiri.tls_pin_only)
     pub tls_pin_only: bool,
+    // @@protoc_insertion_point(field:Kiri.system_resolver)
+    pub system_resolver: bool,
     // special fields
     // @@protoc_insertion_point(special_field:Kiri.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -5031,6 +5046,9 @@ impl ::protobuf::Message for Kiri {
                 72 => {
                     self.tls_pin_only = is.read_bool()?;
                 },
+                80 => {
+                    self.system_resolver = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -5071,6 +5089,9 @@ impl ::protobuf::Message for Kiri {
         if self.tls_pin_only != false {
             my_size += 1 + 1;
         }
+        if self.system_resolver != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -5104,6 +5125,9 @@ impl ::protobuf::Message for Kiri {
         if self.tls_pin_only != false {
             os.write_bool(9, self.tls_pin_only)?;
         }
+        if self.system_resolver != false {
+            os.write_bool(10, self.system_resolver)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -5130,6 +5154,7 @@ impl ::protobuf::Message for Kiri {
         self.bridge_circuit_kbps = 0;
         self.dev.clear();
         self.tls_pin_only = false;
+        self.system_resolver = false;
         self.special_fields.clear();
     }
 
@@ -5144,6 +5169,7 @@ impl ::protobuf::Message for Kiri {
             bridge_circuit_kbps: 0,
             dev: ::protobuf::MessageField::none(),
             tls_pin_only: false,
+            system_resolver: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

@@ -63,6 +63,7 @@ fn bridge_settings(k: &internal::Kiri) -> BridgeSettings {
             dir,
             k.dev.as_ref(),
             k.tls_pin_only,
+            k.system_resolver,
         ),
         ..Default::default()
     };

@@ -527,6 +527,7 @@ fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>
             "bridge-max-circuits" => k.bridge_max_circuits = Some(kiri_num(key, v)?),
             "bridge-circuit-kbps" => k.bridge_circuit_kbps = Some(kiri_num(key, v)?),
             "tls-pin-only" => k.tls_pin_only = Some(kiri_bool(key, v)?),
+            "resolver" => k.resolver = Some(v.to_string()),
             _ => {
                 if !kiri_dev(&mut k.dev, key, list())? {
                     return Err(anyhow::anyhow!("[Kiri]: unknown setting {key}"));

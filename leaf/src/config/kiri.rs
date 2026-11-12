@@ -72,6 +72,16 @@ fn pin_only(top: Option<bool>, dev: Option<&KiriDevSettings>) -> Option<bool> {
     top.or(dev.and_then(|d| d.tls_pin_only))
 }
 
+/// `[Kiri] resolver`: true for `system`, false for `kiri` or unset.
+#[cfg(feature = "kiri-host")]
+fn system_resolver(sec: &KiriSettings) -> Result<bool> {
+    match sec.resolver.as_deref() {
+        None | Some("kiri") => Ok(false),
+        Some("system") => Ok(true),
+        Some(v) => bail!("[Kiri] resolver must be kiri or system, got {v:?}"),
+    }
+}
+
 /// The internal settings of the `kiri` outbound `tag`.
 #[cfg(feature = "outbound-kiri")]
 pub fn outbound(
@@ -115,6 +125,7 @@ pub fn outbound(
     s.tls_pin_only = pin_only(o.tls_pin_only, o.dev.as_ref())
         .or(pin_only(sec.tls_pin_only, sec.dev.as_ref()))
         .unwrap_or(false);
+    s.system_resolver = system_resolver(&sec)?;
     Ok(s.write_to_bytes().unwrap())
 }
 
@@ -145,6 +156,7 @@ pub fn section(k: Option<&KiriSettings>) -> Result<Option<internal::Kiri>> {
     s.bridge_circuit_kbps = k.bridge_circuit_kbps.unwrap_or(0);
     s.dev = protobuf::MessageField::some(dev(k.dev.as_ref()));
     s.tls_pin_only = pin_only(k.tls_pin_only, k.dev.as_ref()).unwrap_or(false);
+    s.system_resolver = system_resolver(k)?;
     if s.bridge {
         if !cfg!(feature = "kiri-bridge") {
             bail!("[Kiri] bridge: not built in (leaf feature `kiri-bridge`)");
@@ -373,6 +385,22 @@ config = {CFG}"
         assert!(e.to_string().contains("true or false"), "{e}");
     }
 
+    /// `[Kiri] resolver`: unset or `kiri` uses kiri's own resolver, `system`
+    /// the system resolver, for the outbound and the bridge alike.
+    #[test]
+    fn conf_resolver_reaches_outbound_and_bridge() {
+        let base = format!("root-pubkey = {K1}\nconfig = {CFG}\nbridge = true");
+        for (line, system) in [
+            ("", false),
+            ("\nresolver = kiri", false),
+            ("\nresolver = system", true),
+        ] {
+            let c = conf(&format!("{base}{line}"), "K = kiri").unwrap();
+            assert_eq!(outbound(&c, "K").system_resolver, system, "{line:?}");
+            assert_eq!(c.kiri.as_ref().unwrap().system_resolver, system, "{line:?}");
+        }
+    }
+
     #[test]
     fn json_tls_pin_only_is_top_level_and_merged_per_key() {
         let c = json(
@@ -456,6 +484,11 @@ config = {CFG}"
                 format!("{ok}\nbridge = yes"),
                 "D = direct".into(),
                 "true or false",
+            ),
+            (
+                format!("{ok}\nresolver = dns"),
+                "K = kiri".into(),
+                "kiri or system",
             ),
             (
                 format!("{ok}\ntls-pin-only = 1"),

@@ -365,6 +365,10 @@ pub struct KiriSettings {
     /// Accept a TLS egress by the SPKI pin of the signed config alone (kiri
     /// `--tls-pin-only`): needed for a self-signed egress, as in the pilot.
     pub tls_pin_only: Option<bool>,
+    /// Who resolves kiri's host names (STUN servers, URLs): `"kiri"`
+    /// (default: kiri's own resolver, DoH then plain DNS to resolvers by IP,
+    /// never through leaf's tun / fake DNS) or `"system"`.
+    pub resolver: Option<String>,
     pub dev: Option<KiriDevSettings>,
 }
 

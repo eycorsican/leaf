@@ -87,6 +87,7 @@ pub fn settings(
     state_dir: Option<PathBuf>,
     dev: Option<&internal::KiriDev>,
     tls_pin_only: bool,
+    system_resolver: bool,
 ) -> ::kiri::embed::Settings {
     let mut s = ::kiri::embed::Settings {
         roots: roots
@@ -99,6 +100,15 @@ pub fn settings(
     };
     s.trust.pin_only = tls_pin_only;
     s.protector = protect::protector();
+    // kiri's own resolver whether or not there is a protector: inside an
+    // Apple NetworkExtension (no OUTBOUND_INTERFACE, no protector) the system
+    // resolver may ask the tunnel's DNS, i.e. leaf's fake DNS, and STUN names
+    // would come back as fake IPs. `[Kiri] resolver = system` opts out.
+    s.resolver = Some(if system_resolver {
+        ::kiri_core::resolve::Mode::System
+    } else {
+        ::kiri_core::resolve::Mode::Kiri
+    });
     let addrs = protect::bind_addresses();
     if !addrs.is_empty() {
         // `OUTBOUND_INTERFACE` names addresses: kiri's WebRTC sockets bind
