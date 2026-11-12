@@ -4,7 +4,8 @@
 //! Both are `kiri::embed` setups, which run the same config refresh,
 //! directory and telemetry machinery as the `kiri` binary.
 //!
-//! State: under `state-dir` (default `$ASSET_LOCATION/kiri`), one directory
+//! State: under `state-dir` (else `$KIRI_STATE_DIR`, else
+//! `$ASSET_LOCATION/kiri`; see [`state_dir`]), one directory
 //! per outbound (`client-TAG`) and one for the bridge (`bridge`), so that
 //! the roles never share a last-known-good config, directory or node key.
 //!
@@ -21,13 +22,45 @@ use crate::config::internal;
 #[cfg(feature = "outbound-kiri")]
 pub mod outbound;
 
-/// The state directory root: `explicit`, else `$ASSET_LOCATION/kiri`.
+/// The state directory root: `explicit` (the conf's `state-dir`), else the
+/// environment's `KIRI_STATE_DIR` (set by the app, so that a conf served to
+/// every platform needs no local path), else `$ASSET_LOCATION/kiri`.
 pub fn base_state_dir(explicit: &str) -> PathBuf {
-    if explicit.is_empty() {
-        Path::new(&*crate::option::ASSET_LOCATION).join("kiri")
-    } else {
-        PathBuf::from(explicit)
+    if !explicit.is_empty() {
+        return PathBuf::from(explicit);
     }
+    match std::env::var_os("KIRI_STATE_DIR") {
+        Some(d) if !d.is_empty() => PathBuf::from(d),
+        _ => Path::new(&*crate::option::ASSET_LOCATION).join("kiri"),
+    }
+}
+
+/// The state directory `sub` of the root (see [`base_state_dir`]) if it can
+/// be created and written; else `None` with a warning, and the role runs
+/// without persisted state (no last-known-good config or directory across
+/// restarts: slower starts, more first fetches) instead of failing to start,
+/// e.g. when the default lands in a read-only app bundle.
+pub fn state_dir(explicit: &str, sub: &str, prefix: &str) -> Option<PathBuf> {
+    let dir = base_state_dir(explicit).join(sub);
+    match writable(&dir) {
+        Ok(()) => Some(dir),
+        Err(e) => {
+            tracing::warn!(
+                "{}: state directory not writable ({}), running without persisted state; \
+                 set state-dir or KIRI_STATE_DIR",
+                prefix,
+                e
+            );
+            None
+        }
+    }
+}
+
+fn writable(dir: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let probe = dir.join(".write-probe");
+    std::fs::write(&probe, b"")?;
+    std::fs::remove_file(&probe)
 }
 
 /// A file name for `tag`: ASCII letters, digits, `-` and `_` kept, the rest `_`.
@@ -47,7 +80,7 @@ pub fn safe_name(tag: &str) -> String {
 pub fn settings(
     roots: &[Vec<u8>],
     signed: &[u8],
-    state_dir: PathBuf,
+    state_dir: Option<PathBuf>,
     dev: Option<&internal::KiriDev>,
     tls_pin_only: bool,
 ) -> ::kiri::embed::Settings {
@@ -57,7 +90,7 @@ pub fn settings(
             .filter_map(|r| r.as_slice().try_into().ok())
             .collect(),
         signed_config: (!signed.is_empty()).then(|| signed.to_vec()),
-        state_dir: Some(state_dir),
+        state_dir,
         ..Default::default()
     };
     s.trust.pin_only = tls_pin_only;
@@ -76,4 +109,45 @@ pub fn settings(
 /// kiri status lines to leaf's log.
 pub fn say(prefix: String) -> ::kiri::live_config::Say {
     Arc::new(move |line| tracing::info!("{}: {}", prefix, line))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fresh directory under the system temp dir (leaf has no tempfile).
+    fn tmp(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("leaf-kiri-{}-{}", name, std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn explicit_state_dir_wins_and_is_used_when_writable() {
+        let tmp = tmp("explicit");
+        let root = tmp.join("kiri root");
+        let root_s = root.to_str().unwrap();
+        assert_eq!(base_state_dir(root_s), root);
+        assert_eq!(
+            state_dir(root_s, "client-x", "t"),
+            Some(root.join("client-x"))
+        );
+        assert!(root.join("client-x").is_dir(), "created");
+        assert!(
+            !root.join("client-x").join(".write-probe").exists(),
+            "probe removed"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn unwritable_state_dir_is_none() {
+        let tmp = tmp("unwritable");
+        let file = tmp.join("file");
+        std::fs::write(&file, b"").unwrap();
+        let bad = file.join("kiri");
+        assert_eq!(state_dir(bad.to_str().unwrap(), "bridge", "t"), None);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }

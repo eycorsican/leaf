@@ -82,8 +82,11 @@ impl Shared {
 
     fn client_settings(&self) -> ClientSettings {
         let o = &self.settings;
-        let dir = super::base_state_dir(&o.state_dir)
-            .join(format!("client-{}", super::safe_name(&self.tag)));
+        let dir = super::state_dir(
+            &o.state_dir,
+            &format!("client-{}", super::safe_name(&self.tag)),
+            &format!("kiri[{}]", self.tag),
+        );
         ClientSettings {
             common: super::settings(
                 &o.root_pubkeys,

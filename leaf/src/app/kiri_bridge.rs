@@ -55,7 +55,7 @@ impl Drop for Running {
 }
 
 fn bridge_settings(k: &internal::Kiri) -> BridgeSettings {
-    let dir = crate::proxy::kiri::base_state_dir(&k.state_dir).join("bridge");
+    let dir = crate::proxy::kiri::state_dir(&k.state_dir, "bridge", PREFIX);
     let mut s = BridgeSettings {
         common: crate::proxy::kiri::settings(
             &k.root_pubkeys,
