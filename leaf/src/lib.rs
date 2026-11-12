@@ -550,13 +550,6 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
             .replace_dispatcher(dispatcher_weak);
     });
 
-    #[cfg(feature = "kiri-bridge")]
-    let kiri_bridge = {
-        let b = Arc::new(app::kiri_bridge::BridgeService::new());
-        b.apply(config.kiri.as_ref());
-        b
-    };
-
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
         InboundManager::new(&config.inbounds, dispatcher, nat_manager).map_err(Error::Config)?;
@@ -611,6 +604,16 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
     sys::post_tun_creation_setup(&net_info);
+
+    // After the tun setup above, which may set `OUTBOUND_INTERFACE`: the
+    // bridge's sockets follow it (`proxy::kiri::protect`), and it is read
+    // once per process.
+    #[cfg(feature = "kiri-bridge")]
+    let kiri_bridge = {
+        let b = Arc::new(app::kiri_bridge::BridgeService::new());
+        b.apply(config.kiri.as_ref());
+        b
+    };
 
     let runtime_manager = RuntimeManager::new(
         #[cfg(feature = "auto-reload")]

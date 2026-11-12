@@ -13,6 +13,9 @@
 //! info level, prefixed `kiri[TAG]` / `kiri bridge`. kiri compiles the `log`
 //! crate's macros out for the whole build (S1, design §19.13): leaf's own
 //! logging uses `tracing` and is unaffected.
+//!
+//! Sockets: kiri's own sockets follow `OUTBOUND_INTERFACE` and, on Android,
+//! leaf's protect callback, like leaf's outbound sockets ([`protect`]).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -21,6 +24,7 @@ use crate::config::internal;
 
 #[cfg(feature = "outbound-kiri")]
 pub mod outbound;
+pub mod protect;
 
 /// The state directory root: `explicit` (the conf's `state-dir`), else the
 /// environment's `KIRI_STATE_DIR` (set by the app, so that a conf served to
@@ -94,6 +98,13 @@ pub fn settings(
         ..Default::default()
     };
     s.trust.pin_only = tls_pin_only;
+    s.protector = protect::protector();
+    let addrs = protect::bind_addresses();
+    if !addrs.is_empty() {
+        // `OUTBOUND_INTERFACE` names addresses: kiri's WebRTC sockets bind
+        // them (they come bound, past the protector's own bind).
+        s.webrtc.udp_bind = addrs;
+    }
     if let Some(d) = dev {
         if !d.udp_bind.is_empty() {
             s.webrtc.udp_bind = d.udp_bind.clone();

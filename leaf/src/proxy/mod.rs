@@ -213,6 +213,16 @@ impl TcpListener {
 }
 
 async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::Result<()> {
+    bind_socket_to(socket, indicator, &option::OUTBOUND_BINDS)
+}
+
+// Binds `socket` for a connection to `indicator` by `binds` (an
+// `OUTBOUND_INTERFACE` list). Also used on kiri's sockets (`kiri::protect`).
+fn bind_socket_to<T: BindSocket>(
+    socket: &T,
+    indicator: &SocketAddr,
+    binds: &[OutboundBind],
+) -> io::Result<()> {
     match indicator.ip() {
         IpAddr::V4(v4) if v4.is_loopback() => {
             socket.bind(&SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 0).into())?;
@@ -226,11 +236,11 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
         }
         _ => {}
     }
-    if option::OUTBOUND_BINDS.is_empty() {
+    if binds.is_empty() {
         return Ok(());
     }
     let mut last_err = None;
-    for bind in option::OUTBOUND_BINDS.iter() {
+    for bind in binds.iter() {
         match bind {
             OutboundBind::Interface(iface) => {
                 #[cfg(target_os = "macos")]
