@@ -159,6 +159,8 @@ impl Shared {
                 .as_ref()
                 .map(|d| d.transports.clone())
                 .unwrap_or_default(),
+            // Path events (a few per session, no addresses) in leaf's log.
+            path_status: true,
         }
     }
 
