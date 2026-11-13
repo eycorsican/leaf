@@ -562,6 +562,7 @@ fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>
             "tls-pin-only" => k.tls_pin_only = conf_bool(CTX, key, v),
             "resolver" => k.resolver = Some(v.to_string()),
             "idle-stop" => k.idle_stop = conf_num(CTX, key, v),
+            "optimistic-open" => k.optimistic_open = conf_bool(CTX, key, v),
             _ => {
                 if !kiri_dev(CTX, &mut k.dev, key, list()) {
                     compat::unknown(CTX, key);
@@ -597,6 +598,7 @@ fn parse_kiri_proxy(tag: &str, params: &[String]) -> common::KiriOutboundSetting
             "egress-id" => o.egress_id = Some(v),
             "tls-pin-only" => o.tls_pin_only = conf_bool(ctx, key, &v),
             "idle-stop" => o.idle_stop = conf_num(ctx, key, &v),
+            "optimistic-open" => o.optimistic_open = conf_bool(ctx, key, &v),
             _ => {
                 if !kiri_dev(ctx, &mut o.dev, key, vec![v]) {
                     compat::unknown(ctx, key);

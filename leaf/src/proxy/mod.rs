@@ -105,6 +105,27 @@ pub enum ProxyError {
 
 pub type ProxyResult<T> = std::result::Result<T, ProxyError>;
 
+/// Inside an outbound stream's I/O error: the far end refused the
+/// connection before any of the client's bytes left the outbound (kiri: the
+/// egress could not reach, resolve or allow the destination, or refused
+/// the stream; those bytes were dropped there). A group may send the
+/// client's first flight to another actor, plaintext too.
+#[derive(Error, Debug)]
+#[error("{0} (nothing was sent)")]
+pub struct FlightNotSent(pub String);
+
+impl FlightNotSent {
+    /// `e` with this marker inside (its kind kept).
+    pub fn wrap(e: io::Error) -> io::Error {
+        io::Error::new(e.kind(), FlightNotSent(e.to_string()))
+    }
+
+    /// The error says nothing of the flight was sent.
+    pub fn is(e: &io::Error) -> bool {
+        e.get_ref().is_some_and(|i| i.is::<FlightNotSent>())
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum DatagramTransportType {
     Reliable,

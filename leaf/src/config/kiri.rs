@@ -132,6 +132,7 @@ pub fn outbound(
     s.tls_pin_only = o.tls_pin_only.or(sec.tls_pin_only).unwrap_or(false);
     s.system_resolver = system_resolver(&sec);
     s.idle_stop = o.idle_stop.or(sec.idle_stop).unwrap_or(0);
+    s.no_optimistic_open = !o.optimistic_open.or(sec.optimistic_open).unwrap_or(true);
     Ok(s.write_to_bytes().unwrap())
 }
 
@@ -449,6 +450,30 @@ tls-pin-only = true"
         )
         .unwrap();
         assert!(outbound(&c, "kiri").tls_pin_only);
+    }
+
+    /// `optimistic-open`: default on, from `[Kiri]` or the outbound line
+    /// (which wins), and the same in JSON.
+    #[test]
+    fn optimistic_open_is_inherited_per_key() {
+        let base = format!("root-pubkey = {K1}\nconfig = {CFG}");
+        let c = conf(&base, "K = kiri").unwrap();
+        assert!(!outbound(&c, "K").no_optimistic_open);
+        let c = conf(
+            &format!("{base}\noptimistic-open = false"),
+            "K = kiri\nOwn = kiri, optimistic-open=true",
+        )
+        .unwrap();
+        assert!(outbound(&c, "K").no_optimistic_open);
+        assert!(!outbound(&c, "Own").no_optimistic_open);
+        let c = json(
+            &format!(
+                r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "optimisticOpen": false }},"#
+            ),
+            "",
+        )
+        .unwrap();
+        assert!(outbound(&c, "kiri").no_optimistic_open);
     }
 
     /// `idle-stop`: default 0 (never), from `[Kiri]` or the outbound line

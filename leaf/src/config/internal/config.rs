@@ -4966,6 +4966,8 @@ pub struct KiriOutboundSettings {
     pub system_resolver: bool,
     // @@protoc_insertion_point(field:KiriOutboundSettings.idle_stop)
     pub idle_stop: u32,
+    // @@protoc_insertion_point(field:KiriOutboundSettings.no_optimistic_open)
+    pub no_optimistic_open: bool,
     // special fields
     // @@protoc_insertion_point(special_field:KiriOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -5023,6 +5025,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
                 80 => {
                     self.idle_stop = is.read_uint32()?;
                 },
+                88 => {
+                    self.no_optimistic_open = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -5066,6 +5071,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.idle_stop != 0 {
             my_size += ::protobuf::rt::uint32_size(10, self.idle_stop);
         }
+        if self.no_optimistic_open != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -5102,6 +5110,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.idle_stop != 0 {
             os.write_uint32(10, self.idle_stop)?;
         }
+        if self.no_optimistic_open != false {
+            os.write_bool(11, self.no_optimistic_open)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -5129,6 +5140,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
         self.tls_pin_only = false;
         self.system_resolver = false;
         self.idle_stop = 0;
+        self.no_optimistic_open = false;
         self.special_fields.clear();
     }
 
@@ -5144,6 +5156,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
             tls_pin_only: false,
             system_resolver: false,
             idle_stop: 0,
+            no_optimistic_open: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

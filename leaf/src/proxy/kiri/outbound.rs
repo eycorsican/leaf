@@ -161,6 +161,8 @@ impl Shared {
                 .unwrap_or_default(),
             // Path events (a few per session, no addresses) in leaf's log.
             path_status: true,
+            // Default on (§19.37 in kiri); `optimistic-open = false` waits.
+            optimistic_open: !o.no_optimistic_open,
         }
     }
 
@@ -297,13 +299,27 @@ impl Stream {
     }
 }
 
+/// A stream that failed before the destination answered, with nothing of
+/// the client's bytes past the egress (kiri §19.37: they wait at the egress
+/// until it connected, and are dropped there when it cannot), is marked
+/// [`FlightNotSent`]: a `standby` group then sends the first flight to its
+/// next actor. Not a session lost or an OPEN unanswered in time: the egress
+/// may have passed bytes on.
+fn mark(e: io::Error) -> io::Error {
+    use kiri_core::Error as K;
+    match kiri_core::api::stream_error(&e) {
+        Some(K::Denied | K::Resolve | K::ConnectFailed | K::SessionFull) => FlightNotSent::wrap(e),
+        _ => e,
+    }
+}
+
 impl AsyncRead for Stream {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        self.inner().poll_read(cx, buf)
+        self.inner().poll_read(cx, buf).map_err(mark)
     }
 }
 
@@ -313,7 +329,7 @@ impl AsyncWrite for Stream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        self.inner().poll_write(cx, buf)
+        self.inner().poll_write(cx, buf).map_err(mark)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {

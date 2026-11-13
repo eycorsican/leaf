@@ -144,6 +144,9 @@ pub(super) struct Conn {
     want_shutdown: bool,
     dead: Option<io::ErrorKind>,
     write_waker: Option<Waker>,
+    /// The flight outgrew [`MAX_FLIGHT`] and was dropped: it cannot go
+    /// to another leg any more.
+    truncated: bool,
 }
 
 impl Conn {
@@ -179,6 +182,7 @@ impl Conn {
             want_shutdown: false,
             dead: None,
             write_waker: None,
+            truncated: false,
         };
         if let Some(r) = plan.retry {
             c.start(r, false);
@@ -235,6 +239,18 @@ impl Conn {
         };
         let mut t = self.next_start.lock().unwrap();
         t.as_mut().reset(tokio::time::Instant::now() + pace);
+    }
+
+    /// A leg failed with `e` (and was dropped). An outbound that says none
+    /// of the flight left it ([`FlightNotSent`], e.g. kiri's egress could
+    /// not reach the destination) leaves the flight unsent, plaintext too:
+    /// the next leg gets it, as if that leg had failed to connect. The
+    /// failure still counts against the actor.
+    fn unbind(&mut self, e: &io::Error) {
+        if self.kind == Flight::Single && !self.won && !self.truncated && FlightNotSent::is(e) {
+            self.sent_any = self.legs.iter().any(|l| l.sent > 0);
+            debug!("standby [{}]: the flight was not sent, it may go to the next actor", self.group().tag());
+        }
     }
 
     /// The flight went to some leg and cannot be replayed.
@@ -423,6 +439,7 @@ impl Conn {
                     let r = reason("write", &e);
                     let connect = leg.sent == 0;
                     self.drop_leg(k, Some((&r, connect)));
+                    self.unbind(&e);
                     changed = true;
                     continue;
                 }
@@ -474,6 +491,8 @@ impl Conn {
         self.just_failed = false;
         if self.legs.is_empty() && self.dead.is_none() {
             self.dead = Some(io::ErrorKind::ConnectionRefused);
+            // A reader polling must see it now, not at the next timer.
+            changed = true;
         }
         if changed {
             if let Some(w) = self.write_waker.take() {
@@ -656,6 +675,7 @@ impl AsyncRead for Conn {
                         } else {
                             me.drop_leg(k, None);
                         }
+                        me.unbind(&e);
                         changed = true;
                     }
                     Poll::Pending => k += 1,
@@ -734,10 +754,29 @@ impl AsyncWrite for Conn {
                 if me.flight.len() > MAX_FLIGHT {
                     me.flight.clear();
                     leg.sent = 0;
+                    me.truncated = true;
                 }
             }
         }
         if let Poll::Ready(Err(e)) = &r {
+            // Not sent (see `unbind`): the flight, with these bytes, goes
+            // to the next leg instead of ending the connection.
+            if me.kind == Flight::Single
+                && !me.won
+                && !me.truncated
+                && FlightNotSent::is(e)
+                && me.flight.len() + buf.len() <= MAX_FLIGHT
+            {
+                let v = reason("reset without a response", e);
+                me.drop_leg(0, Some((&v, false)));
+                me.unbind(e);
+                me.flight.extend_from_slice(buf);
+                me.step(cx);
+                if me.dead.is_some() {
+                    return Poll::Ready(Err(me.dead_err()));
+                }
+                return Poll::Ready(Ok(buf.len()));
+            }
             me.io_error(e);
         }
         me.check_age();

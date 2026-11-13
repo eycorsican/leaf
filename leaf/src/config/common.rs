@@ -413,6 +413,9 @@ pub struct KiriSettings {
     /// Seconds without a stream or flow after which an outbound's client
     /// stops (0 or none: never); outbounds inherit it.
     pub idle_stop: Option<u32>,
+    /// kiri streams are used before the egress connected them (default
+    /// true; kiri §19.37); false waits for it, as before (A/B).
+    pub optimistic_open: Option<bool>,
     pub dev: Option<KiriDevSettings>,
 }
 
@@ -433,6 +436,8 @@ pub struct KiriOutboundSettings {
     pub tls_pin_only: Option<bool>,
     /// As [`KiriSettings::idle_stop`].
     pub idle_stop: Option<u32>,
+    /// As [`KiriSettings::optimistic_open`].
+    pub optimistic_open: Option<bool>,
     pub dev: Option<KiriDevSettings>,
 }
 
@@ -468,6 +473,7 @@ impl<'de> serde::Deserialize<'de> for KiriSettings {
             tls_pin_only: f.opt("tlsPinOnly"),
             resolver: f.opt("resolver"),
             idle_stop: f.opt("idleStop"),
+            optimistic_open: f.opt("optimisticOpen"),
             dev: f.opt("dev"),
         };
         f.finish();
@@ -487,6 +493,7 @@ impl<'de> serde::Deserialize<'de> for KiriOutboundSettings {
             egress_id: f.opt("egressId"),
             tls_pin_only: f.opt("tlsPinOnly"),
             idle_stop: f.opt("idleStop"),
+            optimistic_open: f.opt("optimisticOpen"),
             dev: f.opt("dev"),
         };
         f.finish();
