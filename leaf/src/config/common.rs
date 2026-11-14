@@ -395,8 +395,14 @@ pub struct KiriSettings {
     /// The signed runtime config, base64.
     pub config: Option<String>,
     pub state_dir: Option<String>,
-    /// Run a kiri WebRTC bridge (volunteer) alongside leaf.
+    /// Run a kiri WebRTC bridge (volunteer) alongside leaf: the server's
+    /// default, used while the user has not chosen (leaf
+    /// `set_kiri_user_prefs`).
     pub bridge: Option<bool>,
+    /// `"off"`: the bridge is off whatever the user chose (the server's
+    /// emergency stop). Only `off` is accepted; anything else is noted and
+    /// ignored.
+    pub bridge_override: Option<String>,
     /// Whole-bridge rate limit in KiB/s (0 or none: unlimited).
     pub bridge_max_kbps: Option<u64>,
     /// Circuits at once (default 64).
@@ -438,6 +444,9 @@ pub struct KiriOutboundSettings {
     pub idle_stop: Option<u32>,
     /// As [`KiriSettings::optimistic_open`].
     pub optimistic_open: Option<bool>,
+    /// The outbound connections go to while the user turned kiri off (leaf
+    /// `set_kiri_user_prefs`); without one they are refused.
+    pub fallback: Option<String>,
     pub dev: Option<KiriDevSettings>,
 }
 
@@ -467,6 +476,7 @@ impl<'de> serde::Deserialize<'de> for KiriSettings {
             config: f.need("config")?,
             state_dir: f.opt("stateDir"),
             bridge: f.opt("bridge"),
+            bridge_override: f.opt("bridgeOverride"),
             bridge_max_kbps: f.opt("bridgeMaxKbps"),
             bridge_max_circuits: f.opt("bridgeMaxCircuits"),
             bridge_circuit_kbps: f.opt("bridgeCircuitKbps"),
@@ -494,6 +504,7 @@ impl<'de> serde::Deserialize<'de> for KiriOutboundSettings {
             tls_pin_only: f.opt("tlsPinOnly"),
             idle_stop: f.opt("idleStop"),
             optimistic_open: f.opt("optimisticOpen"),
+            fallback: f.opt("fallback"),
             dev: f.opt("dev"),
         };
         f.finish();
@@ -1213,6 +1224,9 @@ pub fn to_internal(mut config: Config) -> Result<internal::Config> {
         }
     }
 
+    if let Some(ext_outbounds) = &config.outbounds {
+        super::kiri::check_fallbacks(ext_outbounds)?;
+    }
     let mut outbounds = Vec::new();
     if let Some(ext_outbounds) = &config.outbounds {
         for ext_outbound in ext_outbounds {

@@ -501,3 +501,44 @@ fn old_or_unknown_state_files_start_fresh_and_v2_is_tolerant() {
     assert_eq!(g.health(2).penalty, 0.0, "a bad penalty: the default");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A switched-off actor (kiri while the user turned it off) is left out of
+/// every plan, UDP order and pre-warm, and its failures while off do not
+/// count; switched on again it is planned as before, its health untouched.
+#[test]
+fn a_disabled_actor_is_skipped_and_never_judged() {
+    use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
+    let g = group(3, true);
+    let off = std::sync::Arc::new(AtomicBool::new(true));
+    let o = off.clone();
+    g.set_disabled(Box::new(move |i| i == 2 && o.load(SeqCst)));
+    let t = Instant::now();
+    // Fresh: discovery without the last (kiri).
+    let p = g.plan(t);
+    assert_eq!((p.known, p.explore, p.retry), (vec![], vec![0, 1], None));
+    assert_eq!(g.udp_order(), vec![0, 1]);
+    // Everything else down: kiri would be pre-warmed and tried; off, not.
+    all_up(&g, t);
+    for i in 0..2 {
+        g.success(i, t);
+        fail(&g, i, t, 3);
+    }
+    let p = g.plan(t);
+    assert_eq!(p.prewarm, None, "no pre-warm while off");
+    assert!(!p.known.contains(&2) && !p.explore.contains(&2), "{p:?}");
+    assert!(!g.udp_order().contains(&2));
+    let before = g.health(2);
+    g.failure(2, t, true, "cut by the user");
+    g.failure(2, t, false, "cut by the user");
+    g.lost(2, t);
+    assert_eq!(g.status(2), Status::Up, "no verdict while off");
+    assert_eq!(
+        (g.health(2).penalty, g.health(2).fails),
+        (before.penalty, before.fails)
+    );
+    // On again: current (the others are down), pre-warmed and in UDP.
+    off.store(false, SeqCst);
+    let p = g.plan(t);
+    assert_eq!(p.known, vec![2]);
+    assert_eq!(g.udp_order(), vec![2]);
+}

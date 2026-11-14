@@ -1,13 +1,18 @@
 //! The kiri bridge service (feature `kiri-bridge`; kiri design §19.31): a
 //! kiri WebRTC bridge (`kiri node --transport webrtc`) next to leaf's
-//! runtime, run when the `[Kiri]` section (JSON: `kiri`) says `bridge =
-//! true`, whether or not the config has a `kiri` outbound.
+//! runtime, whether or not the config has a `kiri` outbound.
 //!
-//! Started with the runtime, changed on reload (a changed section restarts
-//! it, an unchanged one keeps it), stopped on shutdown: the registrar links
-//! close (the registrars drop it from their next directory) and every
-//! circuit ends. The host may pause it at any time (e.g. off Wi-Fi or off
-//! charge, the app's decision): [`BridgeService::set_paused`]. Status goes to
+//! Whether it runs (§19.39, [`prefs::bridge_state`]): the `[Kiri]` section
+//! (JSON: `kiri`) `bridge-override = off` stops it whatever the user chose;
+//! else the user's choice (leaf `set_kiri_user_prefs`), else the section's
+//! `bridge` (the server's default); and not while the host pauses it (e.g.
+//! off Wi-Fi or off charge, the app's decision: [`BridgeService::set_paused`]).
+//!
+//! Started with the runtime (the user's choice is read before, so a bridge
+//! the user turned off never starts), changed on reload (a changed section
+//! restarts it, an unchanged one keeps it) and on every change of the user's
+//! choice, stopped on shutdown: the registrar links close (the registrars
+//! drop it from their next directory) and every circuit ends. Status goes to
 //! leaf's log (`kiri bridge: …`, no addresses).
 
 use std::sync::{Arc, Mutex};
@@ -18,18 +23,20 @@ use ::kiri::embed::{BridgeSettings, EmbeddedBridge};
 use kiri_core::bridge::BridgeLimits;
 
 use crate::config::internal;
+use crate::proxy::kiri::prefs::{self, BridgeState, Prefs};
 
 const PREFIX: &str = "kiri bridge";
 
 pub struct BridgeService {
     rt: tokio::runtime::Handle,
+    prefs: Arc<Prefs>,
     inner: Mutex<Inner>,
 }
 
 #[derive(Default)]
 struct Inner {
-    /// The section in force (bridge on).
-    want: Option<internal::Kiri>,
+    /// The config's `[Kiri]` section.
+    section: Option<internal::Kiri>,
     paused: bool,
     running: Option<Running>,
 }
@@ -80,19 +87,36 @@ fn bridge_settings(k: &internal::Kiri) -> BridgeSettings {
     s
 }
 
+/// The settings a running bridge depends on: the section without the
+/// on/off switches (a new server default or override that leaves the
+/// bridge on keeps it).
+fn run_settings(k: &internal::Kiri) -> internal::Kiri {
+    let mut k = k.clone();
+    k.bridge = false;
+    k.bridge_override_off = false;
+    k
+}
+
 impl BridgeService {
-    /// Must be called inside the runtime the bridge is to run on.
-    pub fn new() -> Self {
-        Self {
+    /// Must be called inside the runtime the bridge is to run on. Follows
+    /// the user's choice in `prefs` (read at once: before any section is
+    /// applied, so the first [`BridgeService::apply`] already has it).
+    pub fn new(prefs: Arc<Prefs>) -> Arc<Self> {
+        let s = Arc::new(Self {
             rt: tokio::runtime::Handle::current(),
+            prefs: prefs.clone(),
             inner: Default::default(),
-        }
+        });
+        let weak: std::sync::Weak<dyn prefs::Listener> =
+            Arc::downgrade(&s) as std::sync::Weak<Self>;
+        prefs.listen(weak);
+        s
     }
 
     /// Applies the `[Kiri]` section of a (re)loaded config.
     pub fn apply(&self, k: Option<&internal::Kiri>) {
         let mut g = self.inner.lock().unwrap();
-        g.want = k.filter(|k| k.bridge).cloned();
+        g.section = k.cloned();
         self.settle(&mut g);
     }
 
@@ -101,6 +125,12 @@ impl BridgeService {
         let mut g = self.inner.lock().unwrap();
         g.paused = paused;
         self.settle(&mut g);
+    }
+
+    /// Whether the bridge is wanted, and why not.
+    pub fn state(&self) -> BridgeState {
+        let g = self.inner.lock().unwrap();
+        prefs::bridge_state(g.section.as_ref(), self.prefs.bridge(), g.paused)
     }
 
     /// True while a bridge runs (started, not stopped).
@@ -118,18 +148,26 @@ impl BridgeService {
     /// Stops the bridge (runtime shutdown).
     pub fn stop(&self) {
         let mut g = self.inner.lock().unwrap();
-        g.want = None;
+        g.section = None;
         g.running = None;
     }
 
     fn settle(&self, g: &mut Inner) {
-        let want = g.want.clone().filter(|_| !g.paused);
+        let state = prefs::bridge_state(g.section.as_ref(), self.prefs.bridge(), g.paused);
+        let want = g
+            .section
+            .as_ref()
+            .filter(|_| state == BridgeState::On)
+            .map(run_settings);
         let keep = match (&want, &g.running) {
             (Some(w), Some(r)) => r.settings.write_to_bytes().ok() == w.write_to_bytes().ok(),
             _ => false,
         };
         if keep {
             return;
+        }
+        if want.is_none() && g.running.is_some() {
+            tracing::info!("{}: off ({:?})", PREFIX, state);
         }
         // The old one stops before the new one starts (same node key).
         g.running = None;
@@ -154,8 +192,9 @@ impl BridgeService {
     }
 }
 
-impl Default for BridgeService {
-    fn default() -> Self {
-        Self::new()
+impl prefs::Listener for BridgeService {
+    fn prefs_changed(self: Arc<Self>) {
+        let mut g = self.inner.lock().unwrap();
+        self.settle(&mut g);
     }
 }

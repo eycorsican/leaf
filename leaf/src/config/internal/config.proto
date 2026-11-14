@@ -339,6 +339,7 @@ message KiriOutboundSettings {
 	bool system_resolver = 9; // [Kiri] resolver = system (default: kiri's own resolver)
 	uint32 idle_stop = 10; // seconds without a stream or flow before the client stops; 0: never
 	bool no_optimistic_open = 11; // streams wait for the egress's status before use (kiri --no-optimistic-open); default: optimistic (§19.37)
+	string fallback = 12; // fallback=TAG: where connections go while the user turned kiri off (empty: refused)
 }
 
 // Development and lab settings shared by the kiri outbound and bridge.
@@ -363,6 +364,7 @@ message Kiri {
 	KiriDev dev = 8;
 	bool tls_pin_only = 9; // kiri --tls-pin-only (self-signed egress)
 	bool system_resolver = 10; // resolver = system (default: kiri's own resolver)
+	bool bridge_override_off = 11; // bridge-override = off: the server forces the bridge off over the user's choice
 }
 
 message Outbound {

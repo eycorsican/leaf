@@ -14,6 +14,15 @@
 //! refresh, telemetry) is stopped; the next stream or flow starts it again,
 //! as the first one does. For a mobile device that would otherwise keep
 //! kiri's session alive behind a `standby` group that rarely needs it.
+//!
+//! The user's *connect* switch (§19.39, [`super::prefs`]): while it is off
+//! the outbound is *disabled*: its client is stopped and never started (no
+//! session, config or directory fetch, telemetry or pre-warm), the streams
+//! and flows through it end at once when it flips, a `standby` group skips
+//! it ([`OutboundStreamHandler::disabled`]), and a connection made to it
+//! goes to its `fallback=TAG` outbound, or fails at once without one (never
+//! silently direct). Switched on again, the client starts lazily as at
+//! first.
 
 use std::collections::HashMap;
 use std::io;
@@ -26,10 +35,13 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use protobuf::Message;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::sync::watch;
 
 use ::kiri::embed::{ClientSettings, EmbeddedClient};
 use kiri_core::{AsyncStream, DatagramSocket, TargetAddr};
 
+use super::prefs::{self, Prefs};
+use crate::app::SyncDnsClient;
 use crate::config::internal;
 use crate::proxy::*;
 use crate::session::{Session, SocksAddr};
@@ -38,8 +50,8 @@ use crate::session::{Session, SocksAddr};
 /// instead of starting again each time.
 const START_RETRY: Duration = Duration::from_secs(10);
 
-/// Tag and encoded settings.
-type ClientKey = (String, Vec<u8>);
+/// The runtime's switches (by address), tag and encoded settings.
+type ClientKey = (usize, String, Vec<u8>);
 
 lazy_static::lazy_static! {
     static ref CLIENTS: Mutex<HashMap<ClientKey, Weak<Shared>>> = Mutex::new(HashMap::new());
@@ -51,7 +63,7 @@ lazy_static::lazy_static! {
 pub fn client_running(tag: &str) -> bool {
     let m = CLIENTS.lock().unwrap_or_else(|e| e.into_inner());
     m.iter()
-        .filter(|(k, _)| k.0 == tag)
+        .filter(|(k, _)| k.1 == tag)
         .filter_map(|(_, w)| w.upgrade())
         .any(|s| s.running.load(Ordering::SeqCst))
 }
@@ -73,6 +85,13 @@ pub struct Shared {
     active: AtomicUsize,
     /// When the last of them ended, or the client was (pre-)started.
     idle_since: Mutex<Instant>,
+    /// The user's switches of the runtime.
+    prefs: Arc<Prefs>,
+    /// Counts the times the user turned kiri off: streams and flows made
+    /// before end ([`Cut`]).
+    cut: watch::Sender<u64>,
+    /// To stop the client from a thread outside the runtime.
+    rt: Option<tokio::runtime::Handle>,
 }
 
 #[derive(Default)]
@@ -106,10 +125,10 @@ impl Drop for Use {
 impl Shared {
     /// The client of `tag` with these (internal, encoded) settings: the
     /// running one if there is one, else a new one (started lazily).
-    pub fn get(tag: &str, raw: &[u8]) -> anyhow::Result<Arc<Self>> {
+    pub fn get(tag: &str, raw: &[u8], prefs: Arc<Prefs>) -> anyhow::Result<Arc<Self>> {
         let settings = internal::KiriOutboundSettings::parse_from_bytes(raw)
             .map_err(|e| anyhow::anyhow!("invalid [{}] outbound settings: {}", tag, e))?;
-        let key = (tag.to_string(), raw.to_vec());
+        let key = (Arc::as_ptr(&prefs) as usize, tag.to_string(), raw.to_vec());
         let mut m = CLIENTS.lock().unwrap();
         m.retain(|_, w| w.strong_count() > 0);
         if let Some(s) = m.get(&key).and_then(Weak::upgrade) {
@@ -130,9 +149,58 @@ impl Shared {
             running: AtomicBool::new(false),
             active: AtomicUsize::new(0),
             idle_since: Mutex::new(Instant::now()),
+            prefs: prefs.clone(),
+            cut: watch::Sender::new(0),
+            rt: tokio::runtime::Handle::try_current().ok(),
         });
         m.insert(key, Arc::downgrade(&s));
+        let weak: Weak<dyn prefs::Listener> = Arc::downgrade(&s) as Weak<Self>;
+        prefs.listen(weak);
         Ok(s)
+    }
+
+    /// The `fallback` outbound's tag, if there is one.
+    pub fn fallback_tag(&self) -> Option<&str> {
+        Some(self.settings.fallback.as_str()).filter(|t| !t.is_empty())
+    }
+
+    /// The user turned kiri off.
+    pub fn disabled(&self) -> bool {
+        !self.prefs.connect()
+    }
+
+    fn disabled_error(&self) -> io::Error {
+        io::Error::new(
+            io::ErrorKind::ConnectionRefused,
+            format!("kiri[{}]: turned off by the user", self.tag),
+        )
+    }
+
+    /// Turned off: what the client carries ends (now), and the client stops.
+    fn turn_off(self: &Arc<Self>) {
+        self.cut.send_modify(|n| *n += 1);
+        if let Ok(mut st) = self.state.try_lock() {
+            self.stop_client(&mut st);
+            return;
+        }
+        // Being started (the starter drops it when done) or briefly busy.
+        if let Some(rt) = &self.rt {
+            let s = self.clone();
+            rt.spawn(async move {
+                let mut st = s.state.lock().await;
+                if s.disabled() {
+                    s.stop_client(&mut st);
+                }
+            });
+        }
+    }
+
+    fn stop_client(&self, st: &mut State) {
+        st.failed = None;
+        if st.client.take().is_some() {
+            self.running.store(false, Ordering::SeqCst);
+            tracing::info!("kiri[{}]: stopped (turned off by the user)", self.tag);
+        }
     }
 
     fn client_settings(&self) -> ClientSettings {
@@ -179,7 +247,14 @@ impl Shared {
 
     /// The running client, started on first use.
     pub async fn client(self: &Arc<Self>) -> io::Result<Arc<EmbeddedClient>> {
+        if self.disabled() {
+            return Err(self.disabled_error());
+        }
         let mut st = self.state.lock().await;
+        if self.disabled() {
+            self.stop_client(&mut st);
+            return Err(self.disabled_error());
+        }
         if let Some(c) = &st.client {
             return Ok(c.clone());
         }
@@ -190,6 +265,12 @@ impl Shared {
         }
         let prefix = format!("kiri[{}]", self.tag);
         match EmbeddedClient::start(self.client_settings(), super::say(prefix.clone())).await {
+            Ok(c) if self.disabled() => {
+                // Turned off while it started: it never serves.
+                drop(c);
+                tracing::info!("{}: started and stopped (turned off by the user)", prefix);
+                Err(self.disabled_error())
+            }
             Ok(c) => {
                 tracing::info!("{}: started", prefix);
                 let c = Arc::new(c);
@@ -252,6 +333,9 @@ impl Shared {
 
     /// Starts the client without a stream (the `standby` group's pre-warm).
     fn prewarm(self: &Arc<Self>) {
+        if self.disabled() {
+            return;
+        }
         let Ok(rt) = tokio::runtime::Handle::try_current() else {
             return;
         };
@@ -270,6 +354,69 @@ impl Shared {
     }
 }
 
+impl prefs::Listener for Shared {
+    fn prefs_changed(self: Arc<Self>) {
+        // On again: started lazily by the next stream or flow.
+        if self.disabled() {
+            self.turn_off();
+        }
+    }
+}
+
+/// Resolves once the user turned kiri off after it was made.
+struct Cut {
+    fut: Pin<Box<dyn std::future::Future<Output = ()> + Send>>,
+    done: bool,
+    rx: watch::Receiver<u64>,
+    at: u64,
+}
+
+impl Cut {
+    fn new(s: &Shared) -> Self {
+        let mut rx = s.cut.subscribe();
+        let at = *rx.borrow_and_update();
+        let mut wait = rx.clone();
+        Self {
+            fut: Box::pin(async move {
+                // An error: the sender is gone with the outbound; never cut.
+                if wait.wait_for(|n| *n != at).await.is_err() {
+                    std::future::pending::<()>().await;
+                }
+            }),
+            done: false,
+            rx,
+            at,
+        }
+    }
+
+    fn error() -> io::Error {
+        io::Error::new(
+            io::ErrorKind::ConnectionAborted,
+            "kiri turned off by the user",
+        )
+    }
+
+    /// Without waiting.
+    fn fired(&self) -> bool {
+        *self.rx.borrow() != self.at
+    }
+
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<io::Error> {
+        if !self.done && self.fut.as_mut().poll(cx).is_pending() {
+            return Poll::Pending;
+        }
+        self.done = true;
+        Poll::Ready(Self::error())
+    }
+}
+
+/// Where a disabled outbound's connections go (`fallback=TAG`).
+#[derive(Clone)]
+pub struct Fallback {
+    pub handler: AnyOutboundHandler,
+    pub dns_client: SyncDnsClient,
+}
+
 fn target(a: &SocksAddr) -> TargetAddr {
     match a {
         SocksAddr::Ip(a) => TargetAddr::Ip(*a),
@@ -285,17 +432,22 @@ fn socks_addr(a: TargetAddr) -> SocksAddr {
 }
 
 /// A kiri stream as leaf's (which must be `Sync`). The mutex is never
-/// locked: every use is through `&mut` (`get_mut`).
-struct Stream(Mutex<Box<dyn AsyncStream>>, #[allow(dead_code)] Use);
+/// locked: every use is through `&mut` (`get_mut`). Ends when the user turns
+/// kiri off (one [`Cut`] per direction, each woken by its own task).
+struct Stream(Mutex<StreamInner>, #[allow(dead_code)] Use);
+
+struct StreamInner {
+    s: Box<dyn AsyncStream>,
+    read_cut: Cut,
+    write_cut: Cut,
+}
 
 impl Stream {
-    fn inner(self: Pin<&mut Self>) -> Pin<&mut (dyn AsyncStream + 'static)> {
-        let s = self
-            .get_mut()
+    fn inner(self: Pin<&mut Self>) -> &mut StreamInner {
+        self.get_mut()
             .0
             .get_mut()
-            .unwrap_or_else(|e| e.into_inner());
-        Pin::new(&mut **s)
+            .unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -319,7 +471,11 @@ impl AsyncRead for Stream {
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        self.inner().poll_read(cx, buf).map_err(mark)
+        let me = self.inner();
+        if let Poll::Ready(e) = me.read_cut.poll(cx) {
+            return Poll::Ready(Err(e));
+        }
+        Pin::new(&mut *me.s).poll_read(cx, buf).map_err(mark)
     }
 }
 
@@ -329,48 +485,95 @@ impl AsyncWrite for Stream {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        self.inner().poll_write(cx, buf).map_err(mark)
+        let me = self.inner();
+        if let Poll::Ready(e) = me.write_cut.poll(cx) {
+            return Poll::Ready(Err(e));
+        }
+        Pin::new(&mut *me.s).poll_write(cx, buf).map_err(mark)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.inner().poll_flush(cx)
+        let me = self.inner();
+        if let Poll::Ready(e) = me.write_cut.poll(cx) {
+            return Poll::Ready(Err(e));
+        }
+        Pin::new(&mut *me.s).poll_flush(cx)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.inner().poll_shutdown(cx)
+        Pin::new(&mut *self.inner().s).poll_shutdown(cx)
     }
 }
 
-pub struct StreamHandler(pub Arc<Shared>);
+pub struct StreamHandler {
+    shared: Arc<Shared>,
+    fallback: Option<Fallback>,
+}
+
+impl StreamHandler {
+    pub fn new(shared: Arc<Shared>, fallback: Option<Fallback>) -> Self {
+        Self { shared, fallback }
+    }
+}
 
 #[async_trait]
 impl OutboundStreamHandler for StreamHandler {
     fn connect_addr(&self) -> OutboundConnect {
-        // kiri makes its own connections.
+        // kiri makes its own connections (and a fallback's are dialed here).
         OutboundConnect::Unknown
     }
 
     async fn handle<'a>(
         &'a self,
         sess: &'a Session,
-        _lhs: Option<&mut AnyStream>,
+        lhs: Option<&mut AnyStream>,
         _stream: Option<AnyStream>,
     ) -> io::Result<AnyStream> {
-        let u = Use::new(self.0.clone());
-        let kiri = self.0.kiri().await?;
+        if self.shared.disabled() {
+            let Some(fb) = &self.fallback else {
+                return Err(self.shared.disabled_error());
+            };
+            tracing::debug!(
+                "kiri[{}]: turned off, to fallback [{}]",
+                self.shared.tag,
+                fb.handler.tag()
+            );
+            let stream = connect_stream_outbound(sess, fb.dns_client.clone(), &fb.handler).await?;
+            return fb.handler.stream()?.handle(sess, lhs, stream).await;
+        }
+        let u = Use::new(self.shared.clone());
+        let kiri = self.shared.kiri().await?;
         let s = kiri
             .dial_tcp(target(&sess.destination))
             .await
             .map_err(io::Error::other)?;
-        Ok(Box::new(Stream(Mutex::new(s), u)))
+        let inner = StreamInner {
+            s,
+            read_cut: Cut::new(&self.shared),
+            write_cut: Cut::new(&self.shared),
+        };
+        Ok(Box::new(Stream(Mutex::new(inner), u)))
     }
 
     fn prewarm(&self) {
-        self.0.prewarm();
+        self.shared.prewarm();
+    }
+
+    fn disabled(&self) -> bool {
+        self.shared.disabled()
     }
 }
 
-pub struct DatagramHandler(pub Arc<Shared>);
+pub struct DatagramHandler {
+    shared: Arc<Shared>,
+    fallback: Option<Fallback>,
+}
+
+impl DatagramHandler {
+    pub fn new(shared: Arc<Shared>, fallback: Option<Fallback>) -> Self {
+        Self { shared, fallback }
+    }
+}
 
 #[async_trait]
 impl OutboundDatagramHandler for DatagramHandler {
@@ -384,18 +587,33 @@ impl OutboundDatagramHandler for DatagramHandler {
 
     async fn handle<'a>(
         &'a self,
-        _sess: &'a Session,
+        sess: &'a Session,
         _transport: Option<AnyOutboundTransport>,
     ) -> io::Result<AnyOutboundDatagram> {
-        let u = Use::new(self.0.clone());
-        let kiri = self.0.kiri().await?;
+        if self.shared.disabled() {
+            let Some(fb) = &self.fallback else {
+                return Err(self.shared.disabled_error());
+            };
+            let t = connect_datagram_outbound(sess, fb.dns_client.clone(), &fb.handler).await?;
+            return fb.handler.datagram()?.handle(sess, t).await;
+        }
+        let u = Use::new(self.shared.clone());
+        let kiri = self.shared.kiri().await?;
         let s = kiri.dial_udp().await.map_err(io::Error::other)?;
-        Ok(Box::new(Datagram(Arc::from(s), Arc::new(u))))
+        Ok(Box::new(Datagram {
+            sock: Arc::from(s),
+            shared: self.shared.clone(),
+            _use: Arc::new(u),
+        }))
     }
 }
 
 /// Both halves hold the flow's [`Use`]: it ends when both are gone.
-struct Datagram(Arc<dyn DatagramSocket>, #[allow(dead_code)] Arc<Use>);
+struct Datagram {
+    sock: Arc<dyn DatagramSocket>,
+    shared: Arc<Shared>,
+    _use: Arc<Use>,
+}
 
 impl OutboundDatagram for Datagram {
     fn split(
@@ -404,25 +622,50 @@ impl OutboundDatagram for Datagram {
         Box<dyn OutboundDatagramRecvHalf>,
         Box<dyn OutboundDatagramSendHalf>,
     ) {
-        (
-            Box::new(Datagram(self.0.clone(), self.1.clone())),
-            Box::new(Datagram(self.0, self.1)),
-        )
+        let half = |d: &Datagram| DatagramHalf {
+            sock: d.sock.clone(),
+            cut: Mutex::new(Cut::new(&d.shared)),
+            _use: d._use.clone(),
+        };
+        (Box::new(half(&self)), Box::new(half(&self)))
+    }
+}
+
+struct DatagramHalf {
+    sock: Arc<dyn DatagramSocket>,
+    /// Never locked: used through `&mut self` (`get_mut`), for `Sync`.
+    cut: Mutex<Cut>,
+    _use: Arc<Use>,
+}
+
+impl DatagramHalf {
+    fn cut(&mut self) -> &mut Cut {
+        self.cut.get_mut().unwrap_or_else(|e| e.into_inner())
     }
 }
 
 #[async_trait]
-impl OutboundDatagramRecvHalf for Datagram {
+impl OutboundDatagramRecvHalf for DatagramHalf {
     async fn recv_from(&mut self, buf: &mut [u8]) -> io::Result<(usize, SocksAddr)> {
-        let (n, from) = self.0.recv_from(buf).await.map_err(io::Error::other)?;
-        Ok((n, socks_addr(from)))
+        let sock = self.sock.clone();
+        let cut = self.cut();
+        tokio::select! {
+            e = futures::future::poll_fn(|cx| cut.poll(cx)) => Err(e),
+            r = sock.recv_from(buf) => {
+                let (n, from) = r.map_err(io::Error::other)?;
+                Ok((n, socks_addr(from)))
+            }
+        }
     }
 }
 
 #[async_trait]
-impl OutboundDatagramSendHalf for Datagram {
+impl OutboundDatagramSendHalf for DatagramHalf {
     async fn send_to(&mut self, buf: &[u8], dst: &SocksAddr) -> io::Result<usize> {
-        self.0
+        if self.cut().fired() {
+            return Err(Cut::error());
+        }
+        self.sock
             .send_to(buf, &target(dst))
             .await
             .map_err(io::Error::other)

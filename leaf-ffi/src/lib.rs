@@ -210,8 +210,101 @@ pub extern "C" fn leaf_kiri_bridge_running(rt_id: u16) -> bool {
     kiri_bridge_running(rt_id)
 }
 
+/// `leaf_kiri_set_user_prefs`: the user has not chosen (the server's
+/// default: the conf's `[Kiri] bridge`; for `connect`: on).
+pub const LEAF_KIRI_PREF_DEFAULT: i32 = 0;
+/// `leaf_kiri_set_user_prefs`: the user turned it on.
+pub const LEAF_KIRI_PREF_ON: i32 = 1;
+/// `leaf_kiri_set_user_prefs`: the user turned it off.
+pub const LEAF_KIRI_PREF_OFF: i32 = 2;
+
+/// `leaf_kiri_bridge_state`: the bridge is wanted (running, or starting; a
+/// failed start is in the log).
+pub const LEAF_KIRI_BRIDGE_ON: i32 = 0;
+/// `leaf_kiri_bridge_state`: off, the user turned it off.
+pub const LEAF_KIRI_BRIDGE_OFF_BY_USER: i32 = 1;
+/// `leaf_kiri_bridge_state`: off, the user has not chosen and the conf's
+/// `[Kiri] bridge` is false or unset (the server's default).
+pub const LEAF_KIRI_BRIDGE_OFF_BY_SERVER_DEFAULT: i32 = 2;
+/// `leaf_kiri_bridge_state`: off, forced by the conf's `bridge-override =
+/// off` whatever the user chose (show the switch greyed out).
+pub const LEAF_KIRI_BRIDGE_FORCED_OFF_BY_SERVER: i32 = 3;
+/// `leaf_kiri_bridge_state`: wanted, but paused by the app
+/// (`leaf_kiri_bridge_pause`).
+pub const LEAF_KIRI_BRIDGE_PAUSED: i32 = 4;
+/// `leaf_kiri_bridge_state`: wanted, but the conf has no `[Kiri]` ROOT key
+/// and config to run it with.
+pub const LEAF_KIRI_BRIDGE_NOT_CONFIGURED: i32 = 5;
+/// `leaf_kiri_bridge_state`: leaf is built without the bridge.
+pub const LEAF_KIRI_BRIDGE_NOT_BUILT: i32 = 6;
+/// `leaf_kiri_bridge_state`: no leaf instance with this ID runs.
+pub const LEAF_KIRI_BRIDGE_NO_RUNTIME: i32 = 7;
+
+/// The user's kiri switches (the app's "connect to the kiri network" and
+/// "be a bridge"). Callable before `leaf_run*` (kept for `rt_id` and read
+/// when the instance starts: a bridge turned off never starts) and while it
+/// runs (takes effect at once, no reload).
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param connect LEAF_KIRI_PREF_OFF: every `kiri` outbound is disabled: its
+///                client stops (no session, config or directory fetch,
+///                telemetry), its connections close, a `standby` group skips
+///                it, and connections routed to it go to its `fallback=TAG`
+///                outbound or fail at once without one. LEAF_KIRI_PREF_ON or
+///                LEAF_KIRI_PREF_DEFAULT: on (started lazily).
+/// @param bridge LEAF_KIRI_PREF_DEFAULT: the conf's `[Kiri] bridge` (the
+///               server's default); LEAF_KIRI_PREF_ON / _OFF: the user's
+///               choice. The conf's `bridge-override = off` and
+///               `leaf_kiri_bridge_pause` still stop it
+///               (`leaf_kiri_bridge_state` tells why).
+///
+/// @return Returns true if the leaf instance runs (applied now), false if
+///         it does not (kept for its start), and false for an unknown value
+///         (nothing changed) or without the `kiri` feature.
+#[no_mangle]
+pub extern "C" fn leaf_kiri_set_user_prefs(rt_id: u16, connect: i32, bridge: i32) -> bool {
+    let pref = |v: i32| match v {
+        LEAF_KIRI_PREF_DEFAULT => Some(None),
+        LEAF_KIRI_PREF_ON => Some(Some(true)),
+        LEAF_KIRI_PREF_OFF => Some(Some(false)),
+        _ => None,
+    };
+    let (Some(connect), Some(bridge)) = (pref(connect), pref(bridge)) else {
+        return false;
+    };
+    set_kiri_user_prefs(rt_id, connect != Some(false), bridge)
+}
+
+/// Whether the kiri bridge is wanted, and why not, for the app's switch.
+///
+/// @param rt_id The ID of the leaf instance.
+///
+/// @return One of LEAF_KIRI_BRIDGE_*: LEAF_KIRI_BRIDGE_ON, _OFF_BY_USER,
+///         _OFF_BY_SERVER_DEFAULT, _FORCED_OFF_BY_SERVER, _PAUSED,
+///         _NOT_CONFIGURED, _NOT_BUILT (always without the `kiri` feature),
+///         _NO_RUNTIME.
+#[no_mangle]
+pub extern "C" fn leaf_kiri_bridge_state(rt_id: u16) -> i32 {
+    kiri_bridge_state(rt_id)
+}
+
 #[cfg(feature = "kiri")]
-use leaf::{kiri_bridge_running, set_kiri_bridge_paused};
+use leaf::{kiri_bridge_running, set_kiri_bridge_paused, set_kiri_user_prefs};
+
+#[cfg(feature = "kiri")]
+fn kiri_bridge_state(rt_id: u16) -> i32 {
+    leaf::kiri_bridge_state(rt_id) as i32
+}
+
+#[cfg(not(feature = "kiri"))]
+fn set_kiri_user_prefs(_rt_id: u16, _connect: bool, _bridge: Option<bool>) -> bool {
+    false
+}
+
+#[cfg(not(feature = "kiri"))]
+fn kiri_bridge_state(_rt_id: u16) -> i32 {
+    LEAF_KIRI_BRIDGE_NOT_BUILT
+}
 
 #[cfg(not(feature = "kiri"))]
 fn set_kiri_bridge_paused(_rt_id: u16, _paused: bool) -> bool {
@@ -490,5 +583,78 @@ mod tests {
         assert!(leaf_shutdown(ID));
         assert_eq!(t.join().unwrap(), ERR_OK);
         assert!(!leaf_kiri_bridge_resume(ID), "no runtime after shutdown");
+    }
+
+    /// The user's switches: kept before the start (false: no runtime yet),
+    /// applied while running (true), bad values refused; the bridge state
+    /// says why the bridge is off.
+    #[test]
+    fn kiri_user_prefs_and_bridge_state() {
+        const ID: u16 = 4712;
+        let kiri = cfg!(feature = "kiri");
+        assert!(
+            !leaf_kiri_set_user_prefs(ID, LEAF_KIRI_PREF_ON, 7),
+            "bad value"
+        );
+        assert!(!leaf_kiri_set_user_prefs(
+            ID,
+            LEAF_KIRI_PREF_ON,
+            LEAF_KIRI_PREF_OFF
+        ));
+        let want = |running: i32| {
+            if kiri {
+                running
+            } else {
+                LEAF_KIRI_BRIDGE_NOT_BUILT
+            }
+        };
+        assert_eq!(
+            leaf_kiri_bridge_state(ID),
+            want(LEAF_KIRI_BRIDGE_NO_RUNTIME)
+        );
+        #[cfg(feature = "kiri")]
+        assert_eq!(leaf::kiri_user_prefs(ID), (true, Some(false)), "kept");
+
+        let conf = CString::new(
+            "[General]
+loglevel = error
+
+[Proxy]
+Direct = direct
+",
+        )
+        .unwrap();
+        let t =
+            std::thread::spawn(move || unsafe { leaf_run_with_config_string(ID, conf.as_ptr()) });
+        for _ in 0..200 {
+            if leaf::is_running(ID) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        assert_eq!(
+            leaf_kiri_bridge_state(ID),
+            want(LEAF_KIRI_BRIDGE_OFF_BY_USER)
+        );
+        assert_eq!(
+            leaf_kiri_set_user_prefs(ID, LEAF_KIRI_PREF_OFF, LEAF_KIRI_PREF_DEFAULT),
+            kiri
+        );
+        assert_eq!(
+            leaf_kiri_bridge_state(ID),
+            want(LEAF_KIRI_BRIDGE_OFF_BY_SERVER_DEFAULT)
+        );
+        assert_eq!(
+            leaf_kiri_set_user_prefs(ID, LEAF_KIRI_PREF_ON, LEAF_KIRI_PREF_ON),
+            kiri
+        );
+        // On, but this conf has no [Kiri] section to run it with.
+        assert_eq!(
+            leaf_kiri_bridge_state(ID),
+            want(LEAF_KIRI_BRIDGE_NOT_CONFIGURED)
+        );
+        assert!(!leaf_kiri_bridge_running(ID));
+        assert!(leaf_shutdown(ID));
+        assert_eq!(t.join().unwrap(), ERR_OK);
     }
 }

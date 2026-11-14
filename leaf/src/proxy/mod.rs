@@ -630,6 +630,14 @@ pub trait OutboundStreamHandler: Send + Sync + Unpin {
     /// can (the `kiri` outbound starts its client); the `standby` group's
     /// `prewarm`. Default: nothing.
     fn prewarm(&self) {}
+
+    /// True while the handler is switched off and refuses or redirects every
+    /// connection (the `kiri` outbound while the user turned kiri off): a
+    /// `standby` group skips it, without a verdict on its health. Default:
+    /// false.
+    fn disabled(&self) -> bool {
+        false
+    }
 }
 
 pub type AnyOutboundStreamHandler = Arc<dyn OutboundStreamHandler>;

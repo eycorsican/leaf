@@ -54,6 +54,11 @@
 //! a random order, once per device (persisted), so users do not all walk the
 //! list alike.
 //!
+//! *Switched off.* An actor whose handler is disabled (the `kiri` outbound
+//! while the user turned kiri off, [`Group::set_disabled`]) is left out: not
+//! tried, not pre-warmed, and nothing it does while off counts for or
+//! against it; the group uses the others.
+//!
 //! *UDP.* The first up actor; a send error counts as a failure.
 //! *Pre-warm* (`prewarm=true`): when the actors ahead of the last failed in
 //! at least half of their recent connections, the last one is asked to get
@@ -328,7 +333,11 @@ pub struct Group {
     /// Counts network switches: a connection reports only into the state of
     /// the network it started on.
     epoch: std::sync::atomic::AtomicU64,
+    /// Whether actor `i` is switched off now.
+    disabled: std::sync::OnceLock<Disabled>,
 }
+
+type Disabled = Box<dyn Fn(usize) -> bool + Send + Sync>;
 
 struct Inner {
     net: String,
@@ -365,6 +374,7 @@ impl Group {
             }),
             warned: Default::default(),
             epoch: Default::default(),
+            disabled: Default::default(),
         };
         g.load();
         g
@@ -372,6 +382,17 @@ impl Group {
 
     pub fn tag(&self) -> &str {
         &self.tag
+    }
+
+    /// Tells the group which actors are switched off (asked at every
+    /// connection). Once; later calls are ignored.
+    pub fn set_disabled(&self, f: Disabled) {
+        let _ = self.disabled.set(f);
+    }
+
+    /// Actor `idx` is switched off now.
+    pub fn is_disabled(&self, idx: usize) -> bool {
+        self.disabled.get().is_some_and(|f| f(idx))
     }
 
     /// The current network epoch (see [`Group::switch_network`]).
@@ -434,9 +455,12 @@ impl Group {
         let pref = g.pref.clone();
         let current = pref
             .iter()
-            .position(|&i| g.cur.actors[i].status == Status::Up);
+            .position(|&i| g.cur.actors[i].status == Status::Up && !self.is_disabled(i));
         let mut known = vec![];
         for (pos, &i) in pref.iter().enumerate() {
+            if self.is_disabled(i) {
+                continue;
+            }
             let h = &mut g.cur.actors[i];
             match h.status {
                 Status::Up => known.push(i),
@@ -460,6 +484,9 @@ impl Group {
                 let stop = pref.iter().position(|i| i == first).unwrap_or(0);
                 pref[..stop].iter().copied().find(|&i| {
                     let h = &g.cur.actors[i];
+                    if self.is_disabled(i) {
+                        return false;
+                    }
                     matches!(h.status, Status::Down | Status::Unknown)
                         && h.retry_at.is_some_and(|t| t <= now)
                 })
@@ -470,6 +497,7 @@ impl Group {
             .iter()
             .copied()
             .filter(|i| !known.contains(i) && Some(*i) != retry)
+            .filter(|&i| !self.is_disabled(i))
             .filter(|&i| {
                 let h = &g.cur.actors[i];
                 matches!(h.status, Status::Unknown | Status::Down) && h.due(now)
@@ -479,7 +507,7 @@ impl Group {
             // Nothing due: the one due soonest, rather than nothing.
             pref.iter()
                 .copied()
-                .filter(|&i| !g.cur.actors[i].on_trial())
+                .filter(|&i| !g.cur.actors[i].on_trial() && !self.is_disabled(i))
                 .min_by_key(|&i| g.cur.actors[i].retry_at)
                 .into_iter()
                 .collect()
@@ -513,7 +541,11 @@ impl Group {
 
     fn want_prewarm(&self, g: &mut Inner, known: &[usize], now: Instant) -> Option<usize> {
         let last = self.last();
-        if !self.params.prewarm || last == 0 || known.first() == Some(&last) {
+        if !self.params.prewarm
+            || last == 0
+            || known.first() == Some(&last)
+            || self.is_disabled(last)
+        {
             return None;
         }
         let n = g.samples.len();
@@ -543,7 +575,7 @@ impl Group {
             g.pref
                 .iter()
                 .copied()
-                .filter(|&i| f(&g.cur.actors[i]))
+                .filter(|&i| f(&g.cur.actors[i]) && !self.is_disabled(i))
                 .collect()
         };
         let up = pick(&|h| h.status == Status::Up);
@@ -554,7 +586,7 @@ impl Group {
         if !prob.is_empty() {
             return prob;
         }
-        g.pref.clone()
+        pick(&|_| true)
     }
 
     fn sample(&self, g: &mut Inner, idx: usize, failed: bool) {
@@ -651,6 +683,10 @@ impl Group {
     /// a down actor is a failed retry; a late stream failure on a down actor
     /// changes nothing.
     pub fn failure(&self, idx: usize, now: Instant, connect: bool, reason: &str) {
+        if self.is_disabled(idx) {
+            // Ended because it was switched off: no verdict.
+            return;
+        }
         let mut g = self.lock();
         self.sample(&mut g, idx, true);
         let p = &self.params;
@@ -724,6 +760,9 @@ impl Group {
     /// slow but working: no penalty); one on trial goes back down with the
     /// same wait.
     pub fn lost(&self, idx: usize, now: Instant) {
+        if self.is_disabled(idx) {
+            return;
+        }
         let mut g = self.lock();
         let p = &self.params;
         let h = &mut g.cur.actors[idx];

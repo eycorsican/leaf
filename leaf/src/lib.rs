@@ -172,6 +172,12 @@ impl RuntimeManager {
         self.kiri_bridge.is_running()
     }
 
+    /// Whether the kiri bridge is wanted, and why not.
+    #[cfg(feature = "kiri-bridge")]
+    pub fn kiri_bridge_state(&self) -> proxy::kiri::prefs::BridgeState {
+        self.kiri_bridge.state()
+    }
+
     pub fn stat_manager(&self) -> SyncStatManager {
         self.stat_manager.clone()
     }
@@ -455,6 +461,46 @@ pub fn kiri_bridge_running(key: RuntimeId) -> bool {
         .unwrap_or(false)
 }
 
+/// The user's kiri switches for runtime `key` (kiri design §19.39), before
+/// it starts or while it runs (at once, no reload): `connect` false disables
+/// every `kiri` outbound (client stopped, its connections closed, a
+/// `standby` group skips it, used directly its connections go to its
+/// `fallback` or are refused); `bridge` the user's choice for the bridge
+/// (`None`: the conf's `[Kiri] bridge`; the conf's `bridge-override = off`
+/// wins over it). Kept for `key` across restarts. True if the runtime runs.
+#[cfg(feature = "kiri-host")]
+pub fn set_kiri_user_prefs(key: RuntimeId, connect: bool, bridge: Option<bool>) -> bool {
+    proxy::kiri::prefs::Prefs::of(key).set(connect, bridge);
+    is_running(key)
+}
+
+/// The user's kiri switches for runtime `key` (as set, or the defaults).
+#[cfg(feature = "kiri-host")]
+pub fn kiri_user_prefs(key: RuntimeId) -> (bool, Option<bool>) {
+    let p = proxy::kiri::prefs::Prefs::of(key);
+    (p.connect(), p.bridge())
+}
+
+/// Whether runtime `key`'s kiri bridge is wanted, and why not (for the app's
+/// switch: e.g. greyed out while forced off by the server).
+#[cfg(feature = "kiri-host")]
+#[allow(unused_variables)]
+pub fn kiri_bridge_state(key: RuntimeId) -> proxy::kiri::prefs::BridgeState {
+    use proxy::kiri::prefs::BridgeState;
+    if !cfg!(feature = "kiri-bridge") {
+        return BridgeState::NotBuilt;
+    }
+    #[cfg(feature = "kiri-bridge")]
+    if let Some(m) = RUNTIME_MANAGER
+        .lock()
+        .ok()
+        .and_then(|g| g.get(&key).cloned())
+    {
+        return m.kiri_bridge_state();
+    }
+    BridgeState::NoRuntime
+}
+
 /// Tells runtime `key` that the device's network changed to `network_id`
 /// (an app calls this on a path change: `NWPathMonitor`,
 /// `ConnectivityManager`; the id is opaque, e.g. the SSID or the carrier,
@@ -565,8 +611,19 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     let dns_client = Arc::new(RwLock::new(
         DnsClient::new(&config.dns).map_err(Error::Config)?,
     ));
-    let outbound_manager =
-        OutboundManager::new(&config.outbounds, dns_client.clone()).map_err(Error::Config)?;
+    // The user's kiri switches, read before anything kiri starts.
+    #[cfg(feature = "kiri-host")]
+    let kiri_prefs = proxy::kiri::prefs::Prefs::of(rt_id);
+    #[cfg(feature = "outbound-kiri")]
+    let outbound_kiri_prefs = kiri_prefs.clone();
+    #[cfg(not(feature = "outbound-kiri"))]
+    let outbound_kiri_prefs = ();
+    let outbound_manager = OutboundManager::new_with_kiri_prefs(
+        &config.outbounds,
+        dns_client.clone(),
+        outbound_kiri_prefs,
+    )
+    .map_err(Error::Config)?;
     #[cfg(feature = "outbound-standby")]
     let standby_groups = outbound_manager.standby_groups();
     let outbound_manager = Arc::new(RwLock::new(outbound_manager));
@@ -652,7 +709,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     // once per process.
     #[cfg(feature = "kiri-bridge")]
     let kiri_bridge = {
-        let b = Arc::new(app::kiri_bridge::BridgeService::new());
+        let b = app::kiri_bridge::BridgeService::new(kiri_prefs.clone());
         b.apply(config.kiri.as_ref());
         b
     };

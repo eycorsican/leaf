@@ -72,8 +72,15 @@ use super::selector::OutboundSelector;
 #[cfg(feature = "outbound-standby")]
 pub type StandbyGroups = Arc<std::sync::Mutex<Vec<Arc<standby::Group>>>>;
 
+/// The runtime's kiri switches (the user's prefs), for its `kiri` outbounds.
+#[cfg(feature = "outbound-kiri")]
+pub type KiriPrefs = Arc<crate::proxy::kiri::prefs::Prefs>;
+#[cfg(not(feature = "outbound-kiri"))]
+pub type KiriPrefs = ();
+
 pub struct OutboundManager {
     handlers: HashMap<String, AnyOutboundHandler>,
+    kiri_prefs: KiriPrefs,
     #[cfg(feature = "outbound-standby")]
     standby_groups: StandbyGroups,
     #[cfg(feature = "plugin")]
@@ -101,6 +108,7 @@ impl OutboundManager {
         default_handler: &mut Option<String>,
         abort_handles: &mut Vec<AbortHandle>,
         #[cfg(feature = "outbound-standby")] standby_groups: &mut Vec<Arc<standby::Group>>,
+        #[allow(unused_variables)] kiri_prefs: &KiriPrefs,
     ) -> Result<()> {
         // If there are multiple outbounds with the same setting, we would want
         // a shared one to reduce memory usage. This vector is used as a cache for
@@ -399,11 +407,28 @@ impl OutboundManager {
                 }
                 #[cfg(feature = "outbound-kiri")]
                 "kiri" => {
-                    let shared = kiri::outbound::Shared::get(&tag, &outbound.settings)?;
+                    let shared =
+                        kiri::outbound::Shared::get(&tag, &outbound.settings, kiri_prefs.clone())?;
+                    let fallback = match shared.fallback_tag() {
+                        // Not built yet (a group, say): the next pass.
+                        Some(fb) => match handlers.get(fb) {
+                            Some(h) => Some(kiri::outbound::Fallback {
+                                handler: h.clone(),
+                                dns_client: dns_client.clone(),
+                            }),
+                            None => continue,
+                        },
+                        None => None,
+                    };
                     HandlerBuilder::default()
                         .tag(tag.clone())
-                        .stream_handler(Arc::new(kiri::outbound::StreamHandler(shared.clone())))
-                        .datagram_handler(Arc::new(kiri::outbound::DatagramHandler(shared)))
+                        .stream_handler(Arc::new(kiri::outbound::StreamHandler::new(
+                            shared.clone(),
+                            fallback.clone(),
+                        )))
+                        .datagram_handler(Arc::new(kiri::outbound::DatagramHandler::new(
+                            shared, fallback,
+                        )))
                         .build()
                 }
                 _ => continue,
@@ -624,6 +649,10 @@ impl OutboundManager {
                             params,
                             Some(file),
                         ));
+                        let switched = actors.clone();
+                        group.set_disabled(Box::new(move |i| {
+                            switched[i].stream().is_ok_and(|h| h.disabled())
+                        }));
                         standby_groups.push(group.clone());
                         let handler = HandlerBuilder::default()
                             .tag(tag.clone())
@@ -885,6 +914,7 @@ impl OutboundManager {
         outbounds: &[Outbound],
         dns_client: SyncDnsClient,
     ) -> Result<()> {
+        let kiri_prefs = self.kiri_prefs.clone();
         // Save outound select states.
         #[cfg(feature = "outbound-select")]
         let selected_outbounds: HashMap<String, String> = {
@@ -919,6 +949,7 @@ impl OutboundManager {
                 &mut abort_handles,
                 #[cfg(feature = "outbound-standby")]
                 &mut standby_groups,
+                &kiri_prefs,
             )?;
             Self::load_selectors(
                 outbounds,
@@ -967,7 +998,17 @@ impl OutboundManager {
         Ok(())
     }
 
+    /// Outbound handlers with their own kiri switches (the defaults).
     pub fn new(outbounds: &[Outbound], dns_client: SyncDnsClient) -> Result<Self> {
+        Self::new_with_kiri_prefs(outbounds, dns_client, Default::default())
+    }
+
+    /// Outbound handlers whose `kiri` outbounds follow the runtime's switches.
+    pub fn new_with_kiri_prefs(
+        outbounds: &[Outbound],
+        dns_client: SyncDnsClient,
+        kiri_prefs: KiriPrefs,
+    ) -> Result<Self> {
         let mut handlers: HashMap<String, AnyOutboundHandler> = HashMap::new();
         #[cfg(feature = "plugin")]
         let mut external_handlers = super::plugin::ExternalHandlers::new();
@@ -988,6 +1029,7 @@ impl OutboundManager {
                 &mut abort_handles,
                 #[cfg(feature = "outbound-standby")]
                 &mut standby_groups,
+                &kiri_prefs,
             )?;
             Self::load_selectors(
                 outbounds,
@@ -1001,6 +1043,7 @@ impl OutboundManager {
 
         Ok(OutboundManager {
             handlers,
+            kiri_prefs,
             #[cfg(feature = "outbound-standby")]
             standby_groups: Arc::new(std::sync::Mutex::new(standby_groups)),
             #[cfg(feature = "plugin")]

@@ -2,7 +2,8 @@
 //! feature `outbound-kiri`) is a kiri client; the bridge service
 //! (`crate::app::kiri_bridge`, feature `kiri-bridge`) a kiri WebRTC bridge.
 //! Both are `kiri::embed` setups, which run the same config refresh,
-//! directory and telemetry machinery as the `kiri` binary.
+//! directory and telemetry machinery as the `kiri` binary. The user's
+//! switches (connect, bridge) for both: [`prefs`].
 //!
 //! State: under `state-dir` (else `$KIRI_STATE_DIR`, else
 //! `$ASSET_LOCATION/kiri`; see [`state_dir`]), one directory
@@ -24,6 +25,7 @@ use crate::config::internal;
 
 #[cfg(feature = "outbound-kiri")]
 pub mod outbound;
+pub mod prefs;
 pub mod protect;
 
 /// The state directory root: `explicit` (the conf's `state-dir`), else the

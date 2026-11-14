@@ -4968,6 +4968,8 @@ pub struct KiriOutboundSettings {
     pub idle_stop: u32,
     // @@protoc_insertion_point(field:KiriOutboundSettings.no_optimistic_open)
     pub no_optimistic_open: bool,
+    // @@protoc_insertion_point(field:KiriOutboundSettings.fallback)
+    pub fallback: ::std::string::String,
     // special fields
     // @@protoc_insertion_point(special_field:KiriOutboundSettings.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -5028,6 +5030,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
                 88 => {
                     self.no_optimistic_open = is.read_bool()?;
                 },
+                98 => {
+                    self.fallback = is.read_string()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -5074,6 +5079,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.no_optimistic_open != false {
             my_size += 1 + 1;
         }
+        if !self.fallback.is_empty() {
+            my_size += ::protobuf::rt::string_size(12, &self.fallback);
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -5113,6 +5121,9 @@ impl ::protobuf::Message for KiriOutboundSettings {
         if self.no_optimistic_open != false {
             os.write_bool(11, self.no_optimistic_open)?;
         }
+        if !self.fallback.is_empty() {
+            os.write_string(12, &self.fallback)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -5141,6 +5152,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
         self.system_resolver = false;
         self.idle_stop = 0;
         self.no_optimistic_open = false;
+        self.fallback.clear();
         self.special_fields.clear();
     }
 
@@ -5157,6 +5169,7 @@ impl ::protobuf::Message for KiriOutboundSettings {
             system_resolver: false,
             idle_stop: 0,
             no_optimistic_open: false,
+            fallback: ::std::string::String::new(),
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance
@@ -5316,6 +5329,8 @@ pub struct Kiri {
     pub tls_pin_only: bool,
     // @@protoc_insertion_point(field:Kiri.system_resolver)
     pub system_resolver: bool,
+    // @@protoc_insertion_point(field:Kiri.bridge_override_off)
+    pub bridge_override_off: bool,
     // special fields
     // @@protoc_insertion_point(special_field:Kiri.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -5373,6 +5388,9 @@ impl ::protobuf::Message for Kiri {
                 80 => {
                     self.system_resolver = is.read_bool()?;
                 },
+                88 => {
+                    self.bridge_override_off = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -5416,6 +5434,9 @@ impl ::protobuf::Message for Kiri {
         if self.system_resolver != false {
             my_size += 1 + 1;
         }
+        if self.bridge_override_off != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -5452,6 +5473,9 @@ impl ::protobuf::Message for Kiri {
         if self.system_resolver != false {
             os.write_bool(10, self.system_resolver)?;
         }
+        if self.bridge_override_off != false {
+            os.write_bool(11, self.bridge_override_off)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -5479,6 +5503,7 @@ impl ::protobuf::Message for Kiri {
         self.dev.clear();
         self.tls_pin_only = false;
         self.system_resolver = false;
+        self.bridge_override_off = false;
         self.special_fields.clear();
     }
 
@@ -5494,6 +5519,7 @@ impl ::protobuf::Message for Kiri {
             dev: ::protobuf::MessageField::none(),
             tls_pin_only: false,
             system_resolver: false,
+            bridge_override_off: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

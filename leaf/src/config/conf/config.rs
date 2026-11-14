@@ -556,6 +556,7 @@ fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>
             "config" => k.config = Some(v.to_string()),
             "state-dir" => k.state_dir = Some(v.to_string()),
             "bridge" => k.bridge = conf_bool(CTX, key, v),
+            "bridge-override" => k.bridge_override = Some(v.to_string()),
             "bridge-max-kbps" => k.bridge_max_kbps = conf_num(CTX, key, v),
             "bridge-max-circuits" => k.bridge_max_circuits = conf_num(CTX, key, v),
             "bridge-circuit-kbps" => k.bridge_circuit_kbps = conf_num(CTX, key, v),
@@ -599,6 +600,7 @@ fn parse_kiri_proxy(tag: &str, params: &[String]) -> common::KiriOutboundSetting
             "tls-pin-only" => o.tls_pin_only = conf_bool(ctx, key, &v),
             "idle-stop" => o.idle_stop = conf_num(ctx, key, &v),
             "optimistic-open" => o.optimistic_open = conf_bool(ctx, key, &v),
+            "fallback" => o.fallback = Some(v),
             _ => {
                 if !kiri_dev(ctx, &mut o.dev, key, vec![v]) {
                     compat::unknown(ctx, key);

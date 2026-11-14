@@ -133,7 +133,111 @@ pub fn outbound(
     s.system_resolver = system_resolver(&sec);
     s.idle_stop = o.idle_stop.or(sec.idle_stop).unwrap_or(0);
     s.no_optimistic_open = !o.optimistic_open.or(sec.optimistic_open).unwrap_or(true);
+    // Checked against the other outbounds in [`check_fallbacks`].
+    s.fallback = o
+        .fallback
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string();
     Ok(s.write_to_bytes().unwrap())
+}
+
+/// The actors of a group outbound (none for the others).
+#[cfg(feature = "outbound-kiri")]
+fn actors(o: &crate::config::common::OutboundSettings) -> &[String] {
+    use crate::config::common::OutboundSettings as S;
+    let a = match o {
+        S::TryAll { settings: Some(s) } => &s.actors,
+        S::Static { settings: Some(s) } => &s.actors,
+        S::AMux { settings: Some(s) } => &s.actors,
+        S::Chain { settings: Some(s) } => &s.actors,
+        S::Mptp { settings: Some(s) } => &s.actors,
+        S::FailOver { settings: Some(s) } => &s.actors,
+        S::Standby { settings: Some(s) } => &s.actors,
+        S::Select { settings: Some(s) } => &s.actors,
+        _ => return &[],
+    };
+    a.as_deref().unwrap_or_default()
+}
+
+/// Each `kiri` outbound's `fallback`: an outbound of the config that does
+/// not reach a `kiri` outbound, itself or another (they share the user's
+/// switch, so they are off together), directly or through groups: a
+/// fallback that may come back to kiri while kiri is off is a loop.
+#[cfg(feature = "outbound-kiri")]
+pub fn check_fallbacks(outbounds: &[crate::config::common::Outbound]) -> Result<()> {
+    use crate::config::common::OutboundSettings as S;
+    use std::collections::HashMap;
+    let by_tag: HashMap<&str, &S> = outbounds
+        .iter()
+        .filter_map(|o| Some((o.tag.as_deref()?, &o.settings)))
+        .collect();
+    for o in outbounds {
+        let S::Kiri {
+            settings: Some(settings),
+        } = &o.settings
+        else {
+            continue;
+        };
+        let Some(fb) = settings.fallback.as_deref().map(str::trim) else {
+            continue;
+        };
+        let tag = o.tag.as_deref().unwrap_or_default();
+        if fb.is_empty() {
+            bail!("kiri outbound [{tag}]: empty fallback");
+        }
+        if !by_tag.contains_key(fb) {
+            bail!("kiri outbound [{tag}]: fallback [{fb}] is not an outbound of the config");
+        }
+        // Everything the fallback may use.
+        let mut seen = vec![fb];
+        let mut i = 0;
+        while i < seen.len() {
+            let t = seen[i];
+            i += 1;
+            let Some(s) = by_tag.get(t) else { continue };
+            if matches!(s, S::Kiri { .. }) {
+                if t == tag {
+                    bail!("kiri outbound [{tag}]: fallback [{fb}] leads back to itself");
+                }
+                bail!(
+                    "kiri outbound [{tag}]: fallback [{fb}] leads to kiri outbound [{t}], \
+                     which is off whenever [{tag}] is"
+                );
+            }
+            for a in actors(s) {
+                if !seen.contains(&a.as_str()) {
+                    seen.push(a);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "outbound-kiri"))]
+pub fn check_fallbacks(_outbounds: &[crate::config::common::Outbound]) -> Result<()> {
+    Ok(())
+}
+
+/// `[Kiri] bridge-override`: true for `off`; unset or anything else false
+/// (anything else noted: the server may only force the bridge off, never on).
+#[cfg(feature = "kiri-host")]
+fn bridge_override_off(sec: &KiriSettings) -> bool {
+    match sec.bridge_override.as_deref().map(str::trim) {
+        None => false,
+        Some("off") => true,
+        Some(v) => {
+            compat::bad(
+                "[Kiri]",
+                "bridge-override",
+                &format!("{v:?}"),
+                "no override (only off is allowed)",
+            );
+            false
+        }
+    }
 }
 
 #[cfg(not(feature = "outbound-kiri"))]
@@ -164,6 +268,7 @@ pub fn section(k: Option<&KiriSettings>) -> Result<Option<internal::Kiri>> {
     s.dev = protobuf::MessageField::some(dev(k.dev.as_ref()));
     s.tls_pin_only = k.tls_pin_only.unwrap_or(false);
     s.system_resolver = system_resolver(k);
+    s.bridge_override_off = bridge_override_off(k);
     if s.bridge {
         if !cfg!(feature = "kiri-bridge") {
             bail!("[Kiri] bridge: not built in (leaf feature `kiri-bridge`)");
@@ -633,6 +738,117 @@ tls-pin-only = true"
         // A clean conf has no notes.
         let c = conf(&format!("root-pubkey = {K1}\nconfig = {CFG}"), "K = kiri").unwrap();
         assert!(c.notes.is_empty(), "{:?}", c.notes);
+    }
+
+    /// `bridge-override`: only `off` is taken (the server may force the
+    /// bridge off, never on); anything else is ignored with a note. Without
+    /// it (old confs) nothing changes. `bridge` stays the server default.
+    #[test]
+    fn conf_bridge_override_only_off() {
+        let base = format!("root-pubkey = {K1}\nconfig = {CFG}");
+        for (line, off, noted) in [
+            ("", false, false),
+            ("\nbridge-override = off", true, false),
+            ("\nbridge-override =  off ", true, false),
+            ("\nbridge-override = on", false, true),
+            ("\nbridge-override = true", false, true),
+            ("\nbridge-override = false", false, true),
+        ] {
+            for bridge in [false, true] {
+                let c = conf(&format!("{base}\nbridge = {bridge}{line}"), "D = direct").unwrap();
+                let s = c.kiri.as_ref().unwrap();
+                assert_eq!((s.bridge, s.bridge_override_off), (bridge, off), "{line:?}");
+                assert_eq!(
+                    c.notes.iter().any(|n| n.key == "[Kiri] bridge-override"),
+                    noted,
+                    "{line:?}: {:?}",
+                    c.notes
+                );
+            }
+        }
+        let c = conf(&format!("{base}\nbridge-override = on"), "D = direct").unwrap();
+        assert!(note(&c, "[Kiri] bridge-override").contains("only off"));
+        // JSON: `bridgeOverride`.
+        let c = json(
+            &format!(r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "bridge": true, "bridgeOverride": "off" }},"#),
+            "",
+        )
+        .unwrap();
+        let s = c.kiri.as_ref().unwrap();
+        assert!(s.bridge && s.bridge_override_off);
+        let c = json(
+            &format!(r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "bridgeOverride": "on" }},"#),
+            "",
+        )
+        .unwrap();
+        assert!(!c.kiri.as_ref().unwrap().bridge_override_off);
+    }
+
+    /// `fallback=TAG`: kept on the outbound; refused when TAG is not an
+    /// outbound, is the kiri outbound itself, another kiri outbound, or a
+    /// group that reaches one (a loop while kiri is off). A group defined
+    /// after the outbound is fine.
+    #[test]
+    fn conf_fallback_is_checked() {
+        let base = format!("root-pubkey = {K1}\nconfig = {CFG}");
+        let full = |proxy: &str, group: &str| {
+            crate::config::conf::from_string(&format!(
+                "[General]\nsocks-interface = 127.0.0.1\nsocks-port = 1086\n\n[Kiri]\n{base}\n\n\
+                 [Proxy]\n{proxy}\n\n[Proxy Group]\n{group}\n"
+            ))
+        };
+        let c = full(
+            "Trojan = trojan, 127.0.0.1, 443, password=x\nKiri = kiri, idle-stop=600, fallback=Trojan",
+            "",
+        )
+        .unwrap();
+        assert_eq!(outbound(&c, "Kiri").fallback, "Trojan");
+        assert_eq!(outbound(&c, "Kiri").idle_stop, 600);
+        let c = full("D = direct\nKiri = kiri", "").unwrap();
+        assert_eq!(outbound(&c, "Kiri").fallback, "", "none by default");
+        // Through a group that does not reach kiri.
+        let c = full(
+            "A = socks, 127.0.0.1, 1\nB = socks, 127.0.0.1, 2\nKiri = kiri, fallback=G",
+            "G = failover, A, B",
+        )
+        .unwrap();
+        assert_eq!(outbound(&c, "Kiri").fallback, "G");
+        for (proxy, group, want) in [
+            ("Kiri = kiri, fallback=Nope", "", "not an outbound"),
+            ("Kiri = kiri, fallback=Kiri", "", "back to itself"),
+            ("Kiri = kiri, fallback=", "", "empty fallback"),
+            (
+                "Kiri = kiri, fallback=Other\nOther = kiri",
+                "",
+                "leads to kiri outbound [Other]",
+            ),
+            (
+                "A = socks, 127.0.0.1, 1\nKiri = kiri, fallback=Auto",
+                "Auto = standby, A, Kiri",
+                "back to itself",
+            ),
+            (
+                "A = socks, 127.0.0.1, 1\nKiri = kiri, fallback=Outer",
+                "Inner = select, A, Kiri\nOuter = failover, A, Inner",
+                "back to itself",
+            ),
+        ] {
+            let e = full(proxy, group).map(|_| ()).expect_err(proxy);
+            assert!(e.to_string().contains(want), "{proxy} / {group}: {e}");
+        }
+        // JSON.
+        let j = |fb: &str| {
+            crate::config::json::from_string(&format!(
+                r#"{{ "kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}" }}, "outbounds": [
+                    {{ "protocol": "kiri", "tag": "kiri", "settings": {{ "fallback": "{fb}" }} }},
+                    {{ "protocol": "direct", "tag": "Direct" }} ] }}"#
+            ))
+        };
+        assert_eq!(outbound(&j("Direct").unwrap(), "kiri").fallback, "Direct");
+        assert!(j("kiri")
+            .unwrap_err()
+            .to_string()
+            .contains("back to itself"));
     }
 
     fn json(kiri: &str, settings: &str) -> anyhow::Result<Config> {
