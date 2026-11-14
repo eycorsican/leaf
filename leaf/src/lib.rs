@@ -505,8 +505,10 @@ pub fn kiri_bridge_state(key: RuntimeId) -> proxy::kiri::prefs::BridgeState {
 /// (an app calls this on a path change: `NWPathMonitor`,
 /// `ConnectivityManager`; the id is opaque, e.g. the SSID or the carrier,
 /// kept only as its SHA-256, empty if unknown): every `standby` group switches to that
-/// network's remembered state (fresh for a new or unknown network). False if
-/// no such runtime runs.
+/// network's remembered state (fresh for a new or unknown network), and the
+/// runtime's kiri clients forget what bridges said about reaching their
+/// egress on the old network (kiri's egress failover). False if no such
+/// runtime runs.
 pub fn network_changed(key: RuntimeId, network_id: &str) -> bool {
     let m = RUNTIME_MANAGER
         .lock()
@@ -515,6 +517,8 @@ pub fn network_changed(key: RuntimeId, network_id: &str) -> bool {
     match m {
         Some(m) => {
             m.network_changed(network_id);
+            #[cfg(feature = "outbound-kiri")]
+            proxy::kiri::outbound::network_changed(&proxy::kiri::prefs::Prefs::of(key));
             true
         }
         None => false,
@@ -799,6 +803,14 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     trace!("added runtime {}", &rt_id);
 
     rt.block_on(futures::future::select_all(tasks));
+
+    // The kiri clients' goodbye goes out while the runtime and the network
+    // setup are still there (kiri §19.40; bounded, about a second at most).
+    #[cfg(feature = "outbound-kiri")]
+    rt.block_on(async {
+        let close = proxy::kiri::outbound::close_clients(&kiri_prefs);
+        let _ = tokio::time::timeout(std::time::Duration::from_millis(1500), close).await;
+    });
 
     #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
     sys::post_tun_completion_setup(&net_info);

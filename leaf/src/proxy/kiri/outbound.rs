@@ -23,6 +23,13 @@
 //! goes to its `fallback=TAG` outbound, or fails at once without one (never
 //! silently direct). Switched on again, the client starts lazily as at
 //! first.
+//!
+//! Every stop of a client — the connect switch off, `idle-stop`, leaf's
+//! shutdown ([`close_clients`]) — ends its sessions with kiri's goodbye
+//! (`EmbeddedClient::close`, kiri §19.40), so the egress frees them at once
+//! instead of keeping them for a RESUME; it waits at most about a second.
+//! A reload that removes the outbound drops the client, which says the same
+//! as each session's last stream ends.
 
 use std::collections::HashMap;
 use std::io;
@@ -57,6 +64,61 @@ lazy_static::lazy_static! {
     static ref CLIENTS: Mutex<HashMap<ClientKey, Weak<Shared>>> = Mutex::new(HashMap::new());
     /// Client starts per outbound tag in this process.
     static ref STARTS: Mutex<HashMap<String, u64>> = Mutex::new(HashMap::new());
+}
+
+/// Stops every client of the runtime whose switches are `prefs` (leaf's
+/// shutdown, before its runtime goes): each ends its sessions with kiri's
+/// goodbye (module docs), all at once, within about a second.
+pub async fn close_clients(prefs: &Arc<Prefs>) {
+    let key = Arc::as_ptr(prefs) as usize;
+    let shared: Vec<Arc<Shared>> = {
+        let m = CLIENTS.lock().unwrap_or_else(|e| e.into_inner());
+        m.iter()
+            .filter(|(k, _)| k.0 == key)
+            .filter_map(|(_, w)| w.upgrade())
+            .collect()
+    };
+    let mut closing = tokio::task::JoinSet::new();
+    for s in shared {
+        // A client still starting (its lock held, possibly for seconds) is
+        // not waited for: it has no session to end yet.
+        let Ok(mut st) = tokio::time::timeout(Duration::from_millis(100), s.state.lock()).await
+        else {
+            continue;
+        };
+        st.failed = None;
+        let c = st.client.take();
+        drop(st);
+        if let Some(c) = c {
+            s.running.store(false, Ordering::SeqCst);
+            tracing::info!("kiri[{}]: stopped (shutdown)", s.tag);
+            closing.spawn(async move { c.close().await });
+        }
+    }
+    while closing.join_next().await.is_some() {}
+}
+
+/// The device's network changed (leaf's `network_changed`): every running
+/// client of the runtime whose switches are `prefs` forgets what bridges
+/// said about reaching its egress on the old network (kiri's egress
+/// failover counts that as evidence that the egress is down). A client
+/// still starting is skipped: it has heard nothing yet.
+pub fn network_changed(prefs: &Arc<Prefs>) {
+    let key = Arc::as_ptr(prefs) as usize;
+    let shared: Vec<Arc<Shared>> = {
+        let m = CLIENTS.lock().unwrap_or_else(|e| e.into_inner());
+        m.iter()
+            .filter(|(k, _)| k.0 == key)
+            .filter_map(|(_, w)| w.upgrade())
+            .collect()
+    };
+    for s in shared {
+        if let Ok(st) = s.state.try_lock() {
+            if let Some(c) = &st.client {
+                c.network_changed();
+            }
+        }
+    }
 }
 
 /// True while a client of the `kiri` outbound `tag` runs (with any settings).
@@ -197,9 +259,20 @@ impl Shared {
 
     fn stop_client(&self, st: &mut State) {
         st.failed = None;
-        if st.client.take().is_some() {
+        if let Some(c) = st.client.take() {
             self.running.store(false, Ordering::SeqCst);
             tracing::info!("kiri[{}]: stopped (turned off by the user)", self.tag);
+            self.close_later(c);
+        }
+    }
+
+    /// Ends `c`'s sessions with kiri's goodbye (module docs), off the caller.
+    fn close_later(&self, c: Arc<EmbeddedClient>) {
+        let rt = tokio::runtime::Handle::try_current()
+            .ok()
+            .or_else(|| self.rt.clone());
+        if let Some(rt) = rt {
+            rt.spawn(async move { c.close().await });
         }
     }
 
@@ -319,13 +392,17 @@ impl Shared {
                 if s.active.load(Ordering::SeqCst) > 0 || s.idle_for() < idle {
                     continue;
                 }
-                st.client = None;
+                let c = st.client.take();
                 s.running.store(false, Ordering::SeqCst);
+                drop(st);
                 tracing::info!(
                     "kiri[{}]: stopped after {}s without use (idle-stop)",
                     s.tag,
                     idle.as_secs()
                 );
+                if let Some(c) = c {
+                    c.close().await;
+                }
                 return;
             }
         });
