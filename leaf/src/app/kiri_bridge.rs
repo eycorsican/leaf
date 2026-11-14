@@ -145,6 +145,15 @@ impl BridgeService {
         })
     }
 
+    /// What the running bridge has carried (counts only, no addresses);
+    /// `None` while none serves.
+    pub fn stats(&self) -> Option<kiri_core::bridge::BridgeStats> {
+        let g = self.inner.lock().unwrap();
+        let r = g.running.as_ref()?;
+        let b = r.bridge.lock().unwrap();
+        b.as_ref()?.stats()
+    }
+
     /// Stops the bridge (runtime shutdown).
     pub fn stop(&self) {
         let mut g = self.inner.lock().unwrap();
@@ -164,6 +173,14 @@ impl BridgeService {
             _ => false,
         };
         if keep {
+            // Only the diagnostic switch may have changed: applied in place.
+            if let Some(b) = g
+                .running
+                .as_ref()
+                .and_then(|r| r.bridge.lock().unwrap().clone())
+            {
+                b.set_activity_log(self.prefs.bridge_activity_log());
+            }
             return;
         }
         if want.is_none() && g.running.is_some() {
@@ -173,13 +190,19 @@ impl BridgeService {
         g.running = None;
         let Some(settings) = want else { return };
         let slot: Arc<Mutex<Option<Arc<EmbeddedBridge>>>> = Default::default();
-        let s = bridge_settings(&settings);
+        let mut s = bridge_settings(&settings);
+        s.activity_log = self.prefs.bridge_activity_log();
         let into = slot.clone();
+        let prefs = self.prefs.clone();
         let starter = self.rt.spawn(async move {
             match EmbeddedBridge::start(s, crate::proxy::kiri::say(PREFIX.to_string())).await {
                 Ok(b) => {
                     tracing::info!("{}: started", PREFIX);
-                    *into.lock().unwrap() = Some(Arc::new(b));
+                    let b = Arc::new(b);
+                    *into.lock().unwrap() = Some(b.clone());
+                    // Changed while it started: from now on `settle` finds
+                    // it in the slot, so this read covers everything before.
+                    b.set_activity_log(prefs.bridge_activity_log());
                 }
                 Err(e) => tracing::warn!("{}: not started: {}", PREFIX, e),
             }

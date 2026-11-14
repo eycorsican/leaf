@@ -178,6 +178,12 @@ impl RuntimeManager {
         self.kiri_bridge.state()
     }
 
+    /// What the kiri bridge has carried (counts only); `None` while none serves.
+    #[cfg(feature = "kiri-bridge")]
+    pub fn kiri_bridge_stats(&self) -> Option<kiri_core::bridge::BridgeStats> {
+        self.kiri_bridge.stats()
+    }
+
     pub fn stat_manager(&self) -> SyncStatManager {
         self.stat_manager.clone()
     }
@@ -459,6 +465,31 @@ pub fn kiri_bridge_running(key: RuntimeId) -> bool {
         .ok()
         .and_then(|g| g.get(&key).map(|m| m.kiri_bridge_running()))
         .unwrap_or(false)
+}
+
+/// What runtime `key`'s kiri bridge has carried so far: live circuits,
+/// circuits opened, bytes forwarded, client offers and connections (counts
+/// and fixed categories only, no addresses). `None` if no runtime with
+/// that id runs or its bridge does not serve.
+#[cfg(feature = "kiri-bridge")]
+pub fn kiri_bridge_stats(key: RuntimeId) -> Option<kiri_core::bridge::BridgeStats> {
+    RUNTIME_MANAGER
+        .lock()
+        .ok()
+        .and_then(|g| g.get(&key).cloned())
+        .and_then(|m| m.kiri_bridge_stats())
+}
+
+/// Turns runtime `key`'s kiri bridge's client activity lines on or off
+/// (`kiri bridge: client offer …`, `client connected …`, `circuit opened …`,
+/// `traffic: …`; kiri design §19.41). Off by default: they are per-session
+/// records with their times (S1), a diagnostic for testing a bridge, not for
+/// normal use. Before the start (kept for `key`, like the user's switches)
+/// or while it runs (at once). True if the runtime runs.
+#[cfg(feature = "kiri-bridge")]
+pub fn set_kiri_bridge_activity_log(key: RuntimeId, on: bool) -> bool {
+    proxy::kiri::prefs::Prefs::of(key).set_bridge_activity_log(on);
+    is_running(key)
 }
 
 /// The user's kiri switches for runtime `key` (kiri design §19.39), before

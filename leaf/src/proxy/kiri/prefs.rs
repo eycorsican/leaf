@@ -31,6 +31,7 @@ pub trait Listener: Send + Sync {
 pub struct Prefs {
     connect: AtomicBool,
     bridge: Mutex<Option<bool>>,
+    bridge_activity_log: AtomicBool,
     listeners: Mutex<Vec<Weak<dyn Listener>>>,
 }
 
@@ -39,6 +40,7 @@ impl Default for Prefs {
         Self {
             connect: AtomicBool::new(true),
             bridge: Mutex::new(None),
+            bridge_activity_log: AtomicBool::new(false),
             listeners: Mutex::new(Vec::new()),
         }
     }
@@ -59,6 +61,24 @@ impl Prefs {
     pub fn set(&self, connect: bool, bridge: Option<bool>) {
         self.connect.store(connect, Ordering::SeqCst);
         *self.bridge.lock().unwrap_or_else(|e| e.into_inner()) = bridge;
+        self.notify();
+    }
+
+    /// The bridge's client activity lines (`kiri bridge: client offer …`,
+    /// `circuit opened …`): off by default, a diagnostic the app turns on
+    /// (kiri §19.41: per-session records with times, S1). Never from the
+    /// conf, which the server serves.
+    pub fn set_bridge_activity_log(&self, on: bool) {
+        self.bridge_activity_log.store(on, Ordering::SeqCst);
+        self.notify();
+    }
+
+    /// Whether the bridge logs client activity (default false).
+    pub fn bridge_activity_log(&self) -> bool {
+        self.bridge_activity_log.load(Ordering::SeqCst)
+    }
+
+    fn notify(&self) {
         let listeners: Vec<Arc<dyn Listener>> = self
             .listeners
             .lock()

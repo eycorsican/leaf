@@ -288,8 +288,32 @@ pub extern "C" fn leaf_kiri_bridge_state(rt_id: u16) -> i32 {
     kiri_bridge_state(rt_id)
 }
 
+/// Turns the kiri bridge's client activity lines on or off (`kiri bridge:
+/// client offer …`, `client connected …`, `circuit opened …`, `traffic: …`
+/// in leaf's log). Off by default: they are per-session records with their
+/// times (kiri §19.41, S1), a diagnostic for testing a bridge, not for
+/// normal use. Kept for `rt_id` like the user's switches: callable before
+/// `leaf_run*` and while it runs (at once).
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param on True to log client activity.
+///
+/// @return Returns true if the leaf instance runs, false otherwise (kept
+///         for its start), and always false without the `kiri` feature.
+#[no_mangle]
+pub extern "C" fn leaf_kiri_bridge_activity_log(rt_id: u16, on: bool) -> bool {
+    set_kiri_bridge_activity_log(rt_id, on)
+}
+
 #[cfg(feature = "kiri")]
-use leaf::{kiri_bridge_running, set_kiri_bridge_paused, set_kiri_user_prefs};
+use leaf::{
+    kiri_bridge_running, set_kiri_bridge_activity_log, set_kiri_bridge_paused, set_kiri_user_prefs,
+};
+
+#[cfg(not(feature = "kiri"))]
+fn set_kiri_bridge_activity_log(_rt_id: u16, _on: bool) -> bool {
+    false
+}
 
 #[cfg(feature = "kiri")]
 fn kiri_bridge_state(rt_id: u16) -> i32 {
@@ -562,6 +586,12 @@ mod tests {
         const ID: u16 = 4711;
         assert!(!leaf_kiri_bridge_pause(ID), "no runtime yet");
         assert!(!leaf_kiri_bridge_running(ID));
+        assert!(
+            !leaf_kiri_bridge_activity_log(ID, true),
+            "kept: no runtime yet"
+        );
+        #[cfg(feature = "kiri")]
+        assert!(leaf::proxy::kiri::prefs::Prefs::of(ID).bridge_activity_log());
 
         let conf =
             CString::new("[General]\nloglevel = error\n\n[Proxy]\nDirect = direct\n").unwrap();
@@ -579,6 +609,10 @@ mod tests {
         assert_eq!(leaf_kiri_bridge_pause(ID), cfg!(feature = "kiri"));
         assert_eq!(leaf_kiri_bridge_resume(ID), cfg!(feature = "kiri"));
         assert!(!leaf_kiri_bridge_running(ID), "no bridge in this config");
+        assert_eq!(
+            leaf_kiri_bridge_activity_log(ID, false),
+            cfg!(feature = "kiri")
+        );
 
         assert!(leaf_shutdown(ID));
         assert_eq!(t.join().unwrap(), ERR_OK);
