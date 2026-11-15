@@ -505,6 +505,34 @@ pub fn set_kiri_user_prefs(key: RuntimeId, connect: bool, bridge: Option<bool>) 
     is_running(key)
 }
 
+/// Runtime `key`'s kiri state for the app's UI: every `kiri` outbound with
+/// its client's session and paths (bridge address, round trips to the
+/// bridge and to the egress, traffic; kiri design §19.44), and the
+/// bridge's state and counts. Local only (bridge addresses, never a
+/// destination); costs no traffic. Blocks for at most about 2 s: call it
+/// from a thread outside leaf's runtime (an app's UI timer, ~1 s), not from
+/// inside it.
+#[cfg(feature = "kiri-host")]
+pub fn kiri_status_snapshot(key: RuntimeId) -> proxy::kiri::status::Snapshot {
+    #[cfg(feature = "kiri-bridge")]
+    let (running, stats) = (kiri_bridge_running(key), kiri_bridge_stats(key));
+    #[cfg(not(feature = "kiri-bridge"))]
+    let (running, stats) = (false, None);
+    let part = proxy::kiri::status::BridgePart {
+        state: kiri_bridge_state(key) as i32,
+        running,
+        stats,
+    };
+    proxy::kiri::status::snapshot(key, part)
+}
+
+/// [`kiri_status_snapshot`] as JSON (what `leaf_kiri_status` returns);
+/// schema: [`proxy::kiri::status`].
+#[cfg(feature = "kiri-host")]
+pub fn kiri_status(key: RuntimeId) -> String {
+    proxy::kiri::status::to_json(&kiri_status_snapshot(key))
+}
+
 /// The user's kiri switches for runtime `key` (as set, or the defaults).
 #[cfg(feature = "kiri-host")]
 pub fn kiri_user_prefs(key: RuntimeId) -> (bool, Option<bool>) {

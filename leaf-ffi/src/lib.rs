@@ -305,10 +305,76 @@ pub extern "C" fn leaf_kiri_bridge_activity_log(rt_id: u16, on: bool) -> bool {
     set_kiri_bridge_activity_log(rt_id, on)
 }
 
+/// The kiri state of a leaf instance as JSON (UTF-8) for the app's UI:
+/// every `kiri` outbound with its client's session and paths — transport,
+/// the bridge's address as this device sees it, ICE candidate types, the
+/// bridge's id, round trip to the bridge (`hop_rtt_ms`: TCP kernel srtt,
+/// QUIC srtt, ICE consent checks) and to the egress (`e2e_rtt_ms`: kiri's
+/// session PING/PONG), rates and bytes, age — and the bridge's state
+/// (LEAF_KIRI_BRIDGE_*) and counts. Local only: it holds bridge addresses,
+/// never a destination; do not log or send it. Costs no traffic. Blocks
+/// for at most about 2 s; poll it (~1 s) from a thread of the app, not
+/// from a leaf callback.
+///
+/// Schema (version 1), absent values `null`:
+/// {"version":1,"connect":bool,
+///  "outbounds":[{"tag":str,"state":"disabled"|"not-started"|"starting"|
+///    "failed"|"idle-stopped"|"stopped"|"idle"|"connecting"|"up",
+///    "error":str|null,"egress":str|null,"nat":str|null,
+///    "mode":"bridged"|"direct"|null,"sessions":int,
+///    "paths":[{"session":int,"transport":str,"via_bridge":bool,
+///      "peer":"IP:port"|null,"ice_local":str|null,"ice_remote":str|null,
+///      "bridge_id":str|null,"detail":str|null,"hop_rtt_ms":num|null,
+///      "e2e_rtt_ms":num|null,"e2e_rtt_min_ms":num|null,
+///      "rate_up":num,"rate_down":num,"bytes_up":int,"bytes_down":int,
+///      "age_s":num,"state":"probation"|"up"|"retiring"}]}],
+///  "bridge":{"state":int,"running":bool,"stats":null|{"circuits":int,
+///    "opened":int,"refused_full":int,"forwarded":int,
+///    "upstream_failures":int,"offers":int,"answered":int,"refused":int,
+///    "connected":int,"failed":int}}}
+/// Rates are payload bytes per second over the last 2 s (up: towards the
+/// egress), bytes payload bytes so far.
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param buf Where the JSON goes, NUL-terminated, if it fits (may be NULL
+///            when len is 0).
+/// @param len Size of buf in bytes.
+///
+/// @return The JSON's length in bytes (without the NUL). It was written
+///         only if this is less than len; otherwise call again with a
+///         buffer of at least the returned length + 1 (buf[0] is set to
+///         NUL if len > 0). Without the `kiri` feature: a JSON with no
+///         outbounds and bridge state LEAF_KIRI_BRIDGE_NOT_BUILT.
+#[no_mangle]
+pub unsafe extern "C" fn leaf_kiri_status(rt_id: u16, buf: *mut c_char, len: usize) -> i32 {
+    let json = kiri_status(rt_id);
+    let n = json.len();
+    if !buf.is_null() && len > 0 {
+        // SAFETY: the caller gives `len` writable bytes at `buf`.
+        let out = unsafe { std::slice::from_raw_parts_mut(buf as *mut u8, len) };
+        if n < len {
+            out[..n].copy_from_slice(json.as_bytes());
+            out[n] = 0;
+        } else {
+            out[0] = 0;
+        }
+    }
+    n.min(i32::MAX as usize) as i32
+}
+
 #[cfg(feature = "kiri")]
 use leaf::{
-    kiri_bridge_running, set_kiri_bridge_activity_log, set_kiri_bridge_paused, set_kiri_user_prefs,
+    kiri_bridge_running, kiri_status, set_kiri_bridge_activity_log, set_kiri_bridge_paused,
+    set_kiri_user_prefs,
 };
+
+#[cfg(not(feature = "kiri"))]
+fn kiri_status(_rt_id: u16) -> String {
+    format!(
+        "{{\"version\":1,\"connect\":false,\"outbounds\":[],\"bridge\":{{\"state\":{},\"running\":false,\"stats\":null}}}}",
+        LEAF_KIRI_BRIDGE_NOT_BUILT
+    )
+}
 
 #[cfg(not(feature = "kiri"))]
 fn set_kiri_bridge_activity_log(_rt_id: u16, _on: bool) -> bool {
@@ -577,6 +643,31 @@ mod tests {
     use super::*;
     use std::ffi::CString;
     use std::time::Duration;
+
+    /// `leaf_kiri_status` writes the JSON only into a buffer it fits in
+    /// (NUL-terminated) and always returns its length.
+    #[test]
+    fn kiri_status_fills_a_buffer_it_fits_in() {
+        let n = unsafe { leaf_kiri_status(999, std::ptr::null_mut(), 0) };
+        assert!(n > 20, "{n}");
+        let mut small = vec![b'x' as c_char; n as usize];
+        assert_eq!(
+            unsafe { leaf_kiri_status(999, small.as_mut_ptr(), small.len()) },
+            n
+        );
+        assert_eq!(small[0], 0, "too small: left empty");
+        let mut buf = vec![b'x' as c_char; n as usize + 1];
+        assert_eq!(
+            unsafe { leaf_kiri_status(999, buf.as_mut_ptr(), buf.len()) },
+            n
+        );
+        let json = unsafe { CStr::from_ptr(buf.as_ptr()) }.to_str().unwrap();
+        assert_eq!(json.len(), n as usize);
+        assert!(
+            json.starts_with("{\"version\":1,") && json.contains("\"outbounds\":[]"),
+            "{json}"
+        );
+    }
 
     /// The kiri bridge controls reach the runtime the C API started; the
     /// bridge itself (pause unlinks, resume relinks) is tested end to end in

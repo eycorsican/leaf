@@ -1,0 +1,317 @@
+//! The kiri state of a runtime as JSON for the app's UI
+//! (`leaf_kiri_status`, [`crate::kiri_status`]): every `kiri` outbound with
+//! its client's session and paths (kiri design §19.44), and the bridge.
+//!
+//! Local only: it holds the bridges' addresses (the device's owner may see
+//! the bridges they use) but never a destination; never logged or sent.
+//! Asking costs no traffic (kiri reads counters it keeps anyway).
+//!
+//! Schema (version 1; numbers are JSON numbers, absent values `null`):
+//!
+//! ```text
+//! {
+//!   "version": 1,
+//!   "connect": bool,                  // the user's connect switch
+//!   "outbounds": [{                   // by tag
+//!     "tag": str,
+//!     "state": "disabled" | "not-started" | "starting" | "failed" |
+//!              "idle-stopped" | "stopped" | "idle" | "connecting" | "up",
+//!     "error": str | null,            // why the last start failed
+//!     "egress": str | null,           // egress id in use
+//!     "nat": "unknown" | "cone" | "port-restricted" | "symmetric" | null,
+//!     "mode": "bridged" | "direct" | null,
+//!     "sessions": int,
+//!     "paths": [{
+//!       "session": int,               // 0: the first session
+//!       "transport": str,             // "tls-direct/1", "quic-direct/1",
+//!                                     // "webrtc-dtls/1", "quic-ice/1",
+//!                                     // "tls-server/1" (direct)
+//!       "via_bridge": bool,
+//!       "peer": "IP:port" | null,     // the bridge (egress if direct) as
+//!                                     // this device sees it; punched: the
+//!                                     // selected remote ICE candidate
+//!       "ice_local": str | null,      // "host" | "srflx" | "prflx" | "relay"
+//!       "ice_remote": str | null,
+//!       "bridge_id": str | null,      // directory id, 8 hex digits
+//!       "detail": str | null,         // e.g. "quic bbr ice host/srflx"
+//!       "hop_rtt_ms": num | null,     // to the bridge: TCP kernel srtt,
+//!                                     // QUIC srtt, ICE consent-check RTT
+//!       "e2e_rtt_ms": num | null,     // to the egress: session PING/PONG
+//!       "e2e_rtt_min_ms": num | null,
+//!       "rate_up": num, "rate_down": num,   // payload bytes/s, last 2 s
+//!       "bytes_up": int, "bytes_down": int, // payload bytes so far
+//!       "age_s": num,
+//!       "state": "probation" | "up" | "retiring"
+//!     }]
+//!   }],
+//!   "bridge": {
+//!     "state": int,                   // LEAF_KIRI_BRIDGE_* (leaf_kiri_bridge_state)
+//!     "running": bool,
+//!     "stats": null | { "circuits": int, "opened": int, "refused_full": int,
+//!       "forwarded": int, "upstream_failures": int, "offers": int,
+//!       "answered": int, "refused": int, "connected": int, "failed": int }
+//!   }
+//! }
+//! ```
+
+use std::fmt::Write;
+use std::time::Duration;
+
+/// One `kiri` outbound of a runtime (see the module docs for `state`).
+#[derive(Clone, Debug)]
+pub struct OutboundStatus {
+    pub tag: String,
+    /// `disabled` (the user's switch), `not-started` (no stream yet),
+    /// `starting`, `failed` (its last start; `error` says why, local text),
+    /// `idle-stopped` (`idle-stop`), `stopped` (config revoked), or the
+    /// client's own: `idle`, `connecting`, `up`.
+    pub state: &'static str,
+    pub error: Option<String>,
+    /// The running client's status (`None` unless it runs).
+    pub client: Option<kiri_core::status::ClientStatus>,
+}
+
+/// The bridge's part (module docs).
+#[derive(Clone, Debug, Default)]
+pub struct BridgePart {
+    /// `BridgeState` as its number (LEAF_KIRI_BRIDGE_*).
+    pub state: i32,
+    pub running: bool,
+    pub stats: Option<kiri_core::bridge::BridgeStats>,
+}
+
+/// A runtime's kiri state ([`crate::kiri_status_snapshot`]); [`to_json`]
+/// is what `leaf_kiri_status` returns.
+#[derive(Clone, Debug, Default)]
+pub struct Snapshot {
+    /// The user's connect switch.
+    pub connect: bool,
+    pub outbounds: Vec<OutboundStatus>,
+    pub bridge: BridgePart,
+}
+
+/// A JSON string literal.
+fn jstr(out: &mut String, s: &str) {
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
+fn jopt_str(out: &mut String, s: Option<&str>) {
+    match s {
+        Some(s) => jstr(out, s),
+        None => out.push_str("null"),
+    }
+}
+
+fn jnum(out: &mut String, v: f64) {
+    if v.is_finite() {
+        let _ = write!(out, "{}", (v * 1000.0).round() / 1000.0);
+    } else {
+        out.push_str("null");
+    }
+}
+
+fn jms(out: &mut String, d: Option<Duration>) {
+    match d {
+        Some(d) => jnum(out, d.as_secs_f64() * 1000.0),
+        None => out.push_str("null"),
+    }
+}
+
+/// `"key":` (after a comma unless first).
+fn key(out: &mut String, first: &mut bool, k: &str) {
+    if !*first {
+        out.push(',');
+    }
+    *first = false;
+    jstr(out, k);
+    out.push(':');
+}
+
+fn outbound(out: &mut String, o: &OutboundStatus) {
+    let mut f = true;
+    out.push('{');
+    key(out, &mut f, "tag");
+    jstr(out, &o.tag);
+    key(out, &mut f, "state");
+    jstr(out, o.state);
+    key(out, &mut f, "error");
+    jopt_str(out, o.error.as_deref());
+    let c = o.client.as_ref();
+    key(out, &mut f, "egress");
+    jopt_str(
+        out,
+        c.map(|c| c.egress_id.as_str()).filter(|e| !e.is_empty()),
+    );
+    key(out, &mut f, "nat");
+    jopt_str(out, c.and_then(|c| c.nat).map(|n| n.name()));
+    key(out, &mut f, "mode");
+    jopt_str(
+        out,
+        c.and_then(|c| c.mode).map(|m| match m {
+            kiri_core::PathMode::Bridged => "bridged",
+            kiri_core::PathMode::Direct => "direct",
+        }),
+    );
+    key(out, &mut f, "sessions");
+    let _ = write!(out, "{}", c.map_or(0, |c| c.sessions));
+    key(out, &mut f, "paths");
+    out.push('[');
+    for (i, p) in c
+        .map(|c| c.paths.as_slice())
+        .unwrap_or(&[])
+        .iter()
+        .enumerate()
+    {
+        if i > 0 {
+            out.push(',');
+        }
+        let mut f = true;
+        out.push('{');
+        key(out, &mut f, "session");
+        let _ = write!(out, "{}", p.session);
+        key(out, &mut f, "transport");
+        jstr(out, &p.transport);
+        key(out, &mut f, "via_bridge");
+        out.push_str(if p.via_bridge { "true" } else { "false" });
+        key(out, &mut f, "peer");
+        jopt_str(out, p.peer.map(|a| a.to_string()).as_deref());
+        key(out, &mut f, "ice_local");
+        jopt_str(out, p.ice.as_ref().map(|i| i.0.as_str()));
+        key(out, &mut f, "ice_remote");
+        jopt_str(out, p.ice.as_ref().map(|i| i.1.as_str()));
+        key(out, &mut f, "bridge_id");
+        jopt_str(out, p.bridge_id.as_deref());
+        key(out, &mut f, "detail");
+        jopt_str(out, p.detail.as_deref());
+        key(out, &mut f, "hop_rtt_ms");
+        jms(out, p.hop_rtt);
+        key(out, &mut f, "e2e_rtt_ms");
+        jms(out, p.e2e_rtt);
+        key(out, &mut f, "e2e_rtt_min_ms");
+        jms(out, p.e2e_rtt_min);
+        key(out, &mut f, "rate_up");
+        jnum(out, p.rate_up);
+        key(out, &mut f, "rate_down");
+        jnum(out, p.rate_down);
+        key(out, &mut f, "bytes_up");
+        let _ = write!(out, "{}", p.bytes_up);
+        key(out, &mut f, "bytes_down");
+        let _ = write!(out, "{}", p.bytes_down);
+        key(out, &mut f, "age_s");
+        jnum(out, p.age.as_secs_f64());
+        key(out, &mut f, "state");
+        jstr(out, p.state.name());
+        out.push('}');
+    }
+    out.push_str("]}");
+}
+
+fn bridge(out: &mut String, b: &BridgePart) {
+    let mut f = true;
+    out.push('{');
+    key(out, &mut f, "state");
+    let _ = write!(out, "{}", b.state);
+    key(out, &mut f, "running");
+    out.push_str(if b.running { "true" } else { "false" });
+    key(out, &mut f, "stats");
+    match &b.stats {
+        None => out.push_str("null"),
+        Some(s) => {
+            let _ = write!(
+                out,
+                "{{\"circuits\":{},\"opened\":{},\"refused_full\":{},\"forwarded\":{},\"upstream_failures\":{},\"offers\":{},\"answered\":{},\"refused\":{},\"connected\":{},\"failed\":{}}}",
+                s.circuits,
+                s.opened,
+                s.refused_full,
+                s.forwarded,
+                s.upstream_failures,
+                s.signal.offers,
+                s.signal.answered,
+                s.signal.refused,
+                s.signal.connected,
+                s.signal.failed
+            );
+        }
+    }
+    out.push('}');
+}
+
+/// Runtime `rt_id`'s state, `bridge` given by the caller. Blocks for at
+/// most about 2 s (each client is asked on the runtime its outbound runs
+/// on; none answering in time: no outbounds).
+pub fn snapshot(rt_id: u16, bridge: BridgePart) -> Snapshot {
+    let prefs = super::prefs::Prefs::of(rt_id);
+    #[cfg(feature = "outbound-kiri")]
+    let outbounds = match super::outbound::runtime_of(&prefs) {
+        Some(rt) => {
+            let (tx, rx) = std::sync::mpsc::sync_channel(1);
+            let p = prefs.clone();
+            rt.spawn(async move {
+                let _ = tx.send(super::outbound::statuses(&p).await);
+            });
+            rx.recv_timeout(Duration::from_secs(2)).unwrap_or_default()
+        }
+        None => vec![],
+    };
+    #[cfg(not(feature = "outbound-kiri"))]
+    let outbounds = vec![];
+    Snapshot {
+        connect: prefs.connect(),
+        outbounds,
+        bridge,
+    }
+}
+
+/// The JSON of `s` (module docs).
+pub fn to_json(s: &Snapshot) -> String {
+    let mut out = String::with_capacity(1024);
+    let mut f = true;
+    out.push('{');
+    key(&mut out, &mut f, "version");
+    out.push('1');
+    key(&mut out, &mut f, "connect");
+    out.push_str(if s.connect { "true" } else { "false" });
+    key(&mut out, &mut f, "outbounds");
+    out.push('[');
+    for (i, o) in s.outbounds.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        outbound(&mut out, o);
+    }
+    out.push(']');
+    key(&mut out, &mut f, "bridge");
+    bridge(&mut out, &s.bridge);
+    out.push('}');
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strings_are_escaped() {
+        let mut s = String::new();
+        jstr(&mut s, "a\"b\\c\n\u{1}é");
+        assert_eq!(s, r#""a\"b\\c\n\u0001é""#);
+        let mut n = String::new();
+        jnum(&mut n, 12.34567);
+        jnum(&mut n, f64::NAN);
+        assert_eq!(n, "12.346null");
+    }
+}

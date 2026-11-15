@@ -137,6 +137,44 @@ pub fn client_starts(tag: &str) -> u64 {
     m.get(tag).copied().unwrap_or(0)
 }
 
+pub use super::status::OutboundStatus;
+
+/// Every `kiri` outbound of the runtime whose switches are `prefs`, by tag
+/// (one per tag: a running client over a stale one of an older config).
+/// Asks each running client for its status (kiri: no traffic, local only).
+pub async fn statuses(prefs: &Arc<Prefs>) -> Vec<OutboundStatus> {
+    let key = Arc::as_ptr(prefs) as usize;
+    let shared: Vec<Arc<Shared>> = {
+        let m = CLIENTS.lock().unwrap_or_else(|e| e.into_inner());
+        m.iter()
+            .filter(|(k, _)| k.0 == key)
+            .filter_map(|(_, w)| w.upgrade())
+            .collect()
+    };
+    let mut out: Vec<OutboundStatus> = Vec::new();
+    for s in shared {
+        let st = s.status().await;
+        match out.iter_mut().find(|o| o.tag == st.tag) {
+            Some(o) if o.client.is_none() && st.client.is_some() => *o = st,
+            Some(_) => {}
+            None => out.push(st),
+        }
+    }
+    out.sort_by(|a, b| a.tag.cmp(&b.tag));
+    out
+}
+
+/// The runtime the `kiri` outbounds of the runtime whose switches are
+/// `prefs` were made on (to run [`statuses`] from a thread outside it).
+pub fn runtime_of(prefs: &Arc<Prefs>) -> Option<tokio::runtime::Handle> {
+    let key = Arc::as_ptr(prefs) as usize;
+    let m = CLIENTS.lock().unwrap_or_else(|e| e.into_inner());
+    m.iter()
+        .filter(|(k, _)| k.0 == key)
+        .filter_map(|(_, w)| w.upgrade())
+        .find_map(|s| s.rt.clone())
+}
+
 /// The client of one outbound tag and settings.
 pub struct Shared {
     tag: String,
@@ -219,6 +257,45 @@ impl Shared {
         let weak: Weak<dyn prefs::Listener> = Arc::downgrade(&s) as Weak<Self>;
         prefs.listen(weak);
         Ok(s)
+    }
+
+    /// [`statuses`].
+    async fn status(&self) -> OutboundStatus {
+        let mut o = OutboundStatus {
+            tag: self.tag.clone(),
+            state: "not-started",
+            error: None,
+            client: None,
+        };
+        if self.disabled() {
+            o.state = "disabled";
+            return o;
+        }
+        // Locked for seconds while a client starts.
+        let Ok(st) = self.state.try_lock() else {
+            o.state = "starting";
+            return o;
+        };
+        let client = st.client.clone();
+        let (failed, generation) = (st.failed.clone(), st.generation);
+        drop(st);
+        match client {
+            Some(c) if c.stopped() => o.state = "stopped",
+            Some(c) => {
+                let cs = c.status().await;
+                o.state = cs.state.name();
+                o.client = Some(cs);
+            }
+            None => match failed {
+                Some((_, e)) => {
+                    o.state = "failed";
+                    o.error = Some(e);
+                }
+                None if generation > 0 => o.state = "idle-stopped",
+                None => {}
+            },
+        }
+        o
     }
 
     /// The `fallback` outbound's tag, if there is one.

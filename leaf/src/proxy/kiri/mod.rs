@@ -27,6 +27,7 @@ use crate::config::internal;
 pub mod outbound;
 pub mod prefs;
 pub mod protect;
+pub mod status;
 
 /// The state directory root: `explicit` (the conf's `state-dir`), else the
 /// environment's `KIRI_STATE_DIR` (set by the app, so that a conf served to
