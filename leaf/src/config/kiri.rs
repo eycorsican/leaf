@@ -265,6 +265,7 @@ pub fn section(k: Option<&KiriSettings>) -> Result<Option<internal::Kiri>> {
     s.bridge_max_kbps = k.bridge_max_kbps.unwrap_or(0);
     s.bridge_max_circuits = k.bridge_max_circuits.unwrap_or(0);
     s.bridge_circuit_kbps = k.bridge_circuit_kbps.unwrap_or(0);
+    s.bridge_quic_ice_off = !k.bridge_quic_ice.unwrap_or(true);
     s.dev = protobuf::MessageField::some(dev(k.dev.as_ref()));
     s.tls_pin_only = k.tls_pin_only.unwrap_or(false);
     s.system_resolver = system_resolver(k);
@@ -855,6 +856,22 @@ tls-pin-only = true"
         crate::config::json::from_string(&format!(
             r#"{{ {kiri} "outbounds": [{{ "protocol": "kiri", "tag": "kiri", "settings": {{ {settings} }} }}] }}"#
         ))
+    }
+
+    /// `bridge-quic-ice` (conf) / `bridgeQuicIce` (JSON): on by default.
+    #[test]
+    fn bridge_quic_ice_switch() {
+        let section = |extra: &str| format!("root-pubkey = {K1}\nconfig = {CFG}\nbridge = true{extra}");
+        let on = conf(&section(""), "Direct = direct").unwrap();
+        assert!(!on.kiri.as_ref().unwrap().bridge_quic_ice_off, "default: quic-ice offered");
+        let off = conf(&section("\nbridge-quic-ice = false"), "Direct = direct").unwrap();
+        assert!(off.kiri.as_ref().unwrap().bridge_quic_ice_off);
+        let j = json(
+            &format!(r#""kiri": {{ "rootPubkeys": ["{K1}"], "config": "{CFG}", "bridge": true, "bridgeQuicIce": false }},"#),
+            r#""paths": 1"#,
+        )
+        .unwrap();
+        assert!(j.kiri.as_ref().unwrap().bridge_quic_ice_off);
     }
 
     #[test]

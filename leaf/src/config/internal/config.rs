@@ -5331,6 +5331,8 @@ pub struct Kiri {
     pub system_resolver: bool,
     // @@protoc_insertion_point(field:Kiri.bridge_override_off)
     pub bridge_override_off: bool,
+    // @@protoc_insertion_point(field:Kiri.bridge_quic_ice_off)
+    pub bridge_quic_ice_off: bool,
     // special fields
     // @@protoc_insertion_point(special_field:Kiri.special_fields)
     pub special_fields: ::protobuf::SpecialFields,
@@ -5391,6 +5393,9 @@ impl ::protobuf::Message for Kiri {
                 88 => {
                     self.bridge_override_off = is.read_bool()?;
                 },
+                96 => {
+                    self.bridge_quic_ice_off = is.read_bool()?;
+                },
                 tag => {
                     ::protobuf::rt::read_unknown_or_skip_group(tag, is, self.special_fields.mut_unknown_fields())?;
                 },
@@ -5437,6 +5442,9 @@ impl ::protobuf::Message for Kiri {
         if self.bridge_override_off != false {
             my_size += 1 + 1;
         }
+        if self.bridge_quic_ice_off != false {
+            my_size += 1 + 1;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.special_fields.unknown_fields());
         self.special_fields.cached_size().set(my_size as u32);
         my_size
@@ -5476,6 +5484,9 @@ impl ::protobuf::Message for Kiri {
         if self.bridge_override_off != false {
             os.write_bool(11, self.bridge_override_off)?;
         }
+        if self.bridge_quic_ice_off != false {
+            os.write_bool(12, self.bridge_quic_ice_off)?;
+        }
         os.write_unknown_fields(self.special_fields.unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -5504,6 +5515,7 @@ impl ::protobuf::Message for Kiri {
         self.tls_pin_only = false;
         self.system_resolver = false;
         self.bridge_override_off = false;
+        self.bridge_quic_ice_off = false;
         self.special_fields.clear();
     }
 
@@ -5520,6 +5532,7 @@ impl ::protobuf::Message for Kiri {
             tls_pin_only: false,
             system_resolver: false,
             bridge_override_off: false,
+            bridge_quic_ice_off: false,
             special_fields: ::protobuf::SpecialFields::new(),
         };
         &instance

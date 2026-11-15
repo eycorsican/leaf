@@ -409,6 +409,9 @@ pub struct KiriSettings {
     pub bridge_max_circuits: Option<u32>,
     /// Per-circuit rate limit in KiB/s (default 2048).
     pub bridge_circuit_kbps: Option<u64>,
+    /// The bridge also offers kiri's `quic-ice/1` (QUIC on the ICE-punched
+    /// socket) next to WebRTC (default true).
+    pub bridge_quic_ice: Option<bool>,
     /// Accept a TLS egress by the SPKI pin of the signed config alone (kiri
     /// `--tls-pin-only`): needed for a self-signed egress, as in the pilot.
     pub tls_pin_only: Option<bool>,
@@ -480,6 +483,7 @@ impl<'de> serde::Deserialize<'de> for KiriSettings {
             bridge_max_kbps: f.opt("bridgeMaxKbps"),
             bridge_max_circuits: f.opt("bridgeMaxCircuits"),
             bridge_circuit_kbps: f.opt("bridgeCircuitKbps"),
+            bridge_quic_ice: f.opt("bridgeQuicIce"),
             tls_pin_only: f.opt("tlsPinOnly"),
             resolver: f.opt("resolver"),
             idle_stop: f.opt("idleStop"),

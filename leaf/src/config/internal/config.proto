@@ -365,6 +365,7 @@ message Kiri {
 	bool tls_pin_only = 9; // kiri --tls-pin-only (self-signed egress)
 	bool system_resolver = 10; // resolver = system (default: kiri's own resolver)
 	bool bridge_override_off = 11; // bridge-override = off: the server forces the bridge off over the user's choice
+	bool bridge_quic_ice_off = 12; // bridge-quic-ice = false: the bridge offers WebRTC only (default: quic-ice/1 too)
 }
 
 message Outbound {

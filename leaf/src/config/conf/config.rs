@@ -560,6 +560,7 @@ fn parse_kiri_section(lines: Vec<String>) -> Result<Option<common::KiriSettings>
             "bridge-max-kbps" => k.bridge_max_kbps = conf_num(CTX, key, v),
             "bridge-max-circuits" => k.bridge_max_circuits = conf_num(CTX, key, v),
             "bridge-circuit-kbps" => k.bridge_circuit_kbps = conf_num(CTX, key, v),
+            "bridge-quic-ice" => k.bridge_quic_ice = conf_bool(CTX, key, v),
             "tls-pin-only" => k.tls_pin_only = conf_bool(CTX, key, v),
             "resolver" => k.resolver = Some(v.to_string()),
             "idle-stop" => k.idle_stop = conf_num(CTX, key, v),

@@ -74,6 +74,8 @@ fn bridge_settings(k: &internal::Kiri) -> BridgeSettings {
         ),
         ..Default::default()
     };
+    // quic-ice/1 next to webrtc-dtls/1 unless switched off (§19.43).
+    s.common.webrtc.offer_quic_ice = !k.bridge_quic_ice_off;
     let kib = |n: u64| (n > 0).then(|| n * 1024);
     s.limits = BridgeLimits {
         per_circuit_bps: kib(k.bridge_circuit_kbps).or(s.limits.per_circuit_bps),
