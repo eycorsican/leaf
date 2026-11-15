@@ -131,6 +131,11 @@ pub enum BridgeState {
     NotBuilt = 6,
     /// No runtime with this id runs.
     NoRuntime = 7,
+    /// Wanted and running, but it reaches no egress (kiri §19.45): not
+    /// offered to clients (unlinked from the registrars) until a route to
+    /// an egress works again. Reported only ([`crate::app::kiri_bridge`]),
+    /// never decided here.
+    UpstreamDown = 8,
 }
 
 /// The bridge's state from the conf's `[Kiri]` section (`None`: none),

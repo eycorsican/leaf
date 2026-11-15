@@ -239,6 +239,10 @@ pub const LEAF_KIRI_BRIDGE_NOT_CONFIGURED: i32 = 5;
 pub const LEAF_KIRI_BRIDGE_NOT_BUILT: i32 = 6;
 /// `leaf_kiri_bridge_state`: no leaf instance with this ID runs.
 pub const LEAF_KIRI_BRIDGE_NO_RUNTIME: i32 = 7;
+/// `leaf_kiri_bridge_state`: wanted and running, but the bridge reaches no
+/// egress server: it is not offered to clients until a route works again
+/// (it unlinked from the registrars; it links again by itself).
+pub const LEAF_KIRI_BRIDGE_UPSTREAM_DOWN: i32 = 8;
 
 /// The user's kiri switches (the app's "connect to the kiri network" and
 /// "be a bridge"). Callable before `leaf_run*` (kept for `rt_id` and read
@@ -330,7 +334,8 @@ pub extern "C" fn leaf_kiri_bridge_activity_log(rt_id: u16, on: bool) -> bool {
 ///      "age_s":num,"state":"probation"|"up"|"retiring"}]}],
 ///  "bridge":{"state":int,"running":bool,"stats":null|{"circuits":int,
 ///    "opened":int,"refused_full":int,"forwarded":int,
-///    "upstream_failures":int,"offers":int,"answered":int,"refused":int,
+///    "upstream_failures":int,"upstream_down":bool,"upstream_connections":int,
+///    "offers":int,"answered":int,"refused":int,
 ///    "connected":int,"failed":int}}}
 /// Rates are payload bytes per second over the last 2 s (up: towards the
 /// egress), bytes payload bytes so far.

@@ -129,10 +129,24 @@ impl BridgeService {
         self.settle(&mut g);
     }
 
-    /// Whether the bridge is wanted, and why not.
+    /// Whether the bridge is wanted, and why not; `UpstreamDown` while it
+    /// runs but reaches no egress (not offered to clients).
     pub fn state(&self) -> BridgeState {
         let g = self.inner.lock().unwrap();
-        prefs::bridge_state(g.section.as_ref(), self.prefs.bridge(), g.paused)
+        let s = prefs::bridge_state(g.section.as_ref(), self.prefs.bridge(), g.paused);
+        let down = g.running.as_ref().is_some_and(|r| {
+            r.bridge
+                .lock()
+                .unwrap()
+                .as_ref()
+                .and_then(|b| b.stats())
+                .is_some_and(|st| st.upstream_down)
+        });
+        if s == BridgeState::On && down {
+            BridgeState::UpstreamDown
+        } else {
+            s
+        }
     }
 
     /// True while a bridge runs (started, not stopped).

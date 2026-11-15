@@ -48,8 +48,11 @@
 //!     "state": int,                   // LEAF_KIRI_BRIDGE_* (leaf_kiri_bridge_state)
 //!     "running": bool,
 //!     "stats": null | { "circuits": int, "opened": int, "refused_full": int,
-//!       "forwarded": int, "upstream_failures": int, "offers": int,
-//!       "answered": int, "refused": int, "connected": int, "failed": int }
+//!       "forwarded": int, "upstream_failures": int,
+//!       "upstream_down": bool,        // reaches no egress: not offered
+//!       "upstream_connections": int,  // to the egresses, each many circuits
+//!       "offers": int, "answered": int, "refused": int, "connected": int,
+//!       "failed": int }
 //!   }
 //! }
 //! ```
@@ -233,12 +236,14 @@ fn bridge(out: &mut String, b: &BridgePart) {
         Some(s) => {
             let _ = write!(
                 out,
-                "{{\"circuits\":{},\"opened\":{},\"refused_full\":{},\"forwarded\":{},\"upstream_failures\":{},\"offers\":{},\"answered\":{},\"refused\":{},\"connected\":{},\"failed\":{}}}",
+                "{{\"circuits\":{},\"opened\":{},\"refused_full\":{},\"forwarded\":{},\"upstream_failures\":{},\"upstream_down\":{},\"upstream_connections\":{},\"offers\":{},\"answered\":{},\"refused\":{},\"connected\":{},\"failed\":{}}}",
                 s.circuits,
                 s.opened,
                 s.refused_full,
                 s.forwarded,
                 s.upstream_failures,
+                s.upstream_down,
+                s.upstream_connections,
                 s.signal.offers,
                 s.signal.answered,
                 s.signal.refused,
