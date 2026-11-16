@@ -21,6 +21,11 @@
 //!     "nat": "unknown" | "cone" | "port-restricted" | "symmetric" | null,
 //!     "mode": "bridged" | "direct" | null,
 //!     "sessions": int,
+//!     "traffic": null | {             // payload bytes since the client
+//!       "up": int, "down": int,       // started, first sends / receipts
+//!       "extra_up": int,              // re-sent on another path, copies
+//!       "extra_down": int             // duplicates received (dropped)
+//!     },                              // (kiri status.rs "Extra traffic")
 //!     "paths": [{
 //!       "session": int,               // 0: the first session
 //!       "transport": str,             // "tls-direct/1", "quic-direct/1",
@@ -171,6 +176,17 @@ fn outbound(out: &mut String, o: &OutboundStatus) {
     );
     key(out, &mut f, "sessions");
     let _ = write!(out, "{}", c.map_or(0, |c| c.sessions));
+    key(out, &mut f, "traffic");
+    match c.map(|c| c.traffic) {
+        None => out.push_str("null"),
+        Some(t) => {
+            let _ = write!(
+                out,
+                "{{\"up\":{},\"down\":{},\"extra_up\":{},\"extra_down\":{}}}",
+                t.up, t.down, t.extra_up, t.extra_down
+            );
+        }
+    }
     key(out, &mut f, "paths");
     out.push('[');
     for (i, p) in c

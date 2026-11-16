@@ -326,6 +326,7 @@ pub extern "C" fn leaf_kiri_bridge_activity_log(rt_id: u16, on: bool) -> bool {
 ///    "failed"|"idle-stopped"|"stopped"|"idle"|"connecting"|"up",
 ///    "error":str|null,"egress":str|null,"nat":str|null,
 ///    "mode":"bridged"|"direct"|null,"sessions":int,
+///    "traffic":null|{"up":int,"down":int,"extra_up":int,"extra_down":int},
 ///    "paths":[{"session":int,"transport":str,"via_bridge":bool,
 ///      "peer":"IP:port"|null,"ice_local":str|null,"ice_remote":str|null,
 ///      "bridge_id":str|null,"detail":str|null,"hop_rtt_ms":num|null,
@@ -338,7 +339,10 @@ pub extern "C" fn leaf_kiri_bridge_activity_log(rt_id: u16, on: bool) -> bool {
 ///    "offers":int,"answered":int,"refused":int,
 ///    "connected":int,"failed":int}}}
 /// Rates are payload bytes per second over the last 2 s (up: towards the
-/// egress), bytes payload bytes so far.
+/// egress), bytes payload bytes so far. "traffic": payload bytes since the
+/// client started (first sends and receipts) and what multipath added:
+/// records sent again on another path and copies (extra_up), duplicates
+/// received (extra_down); framing and keepalives not counted.
 ///
 /// @param rt_id The ID of the leaf instance.
 /// @param buf Where the JSON goes, NUL-terminated, if it fits (may be NULL
