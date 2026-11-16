@@ -37,8 +37,7 @@
 //!     "egresses": [{                  // the signed config's, lowest first
 //!       "id": str,                    // (kiri §19.46 "Egress choice")
 //!       "rtt_ms": num | null,         // estimated end to end; null: unknown
-//!       "current": bool,              // in use now
-//!       "hosts": [str]                // its direct routes' hosts (exit check)
+//!       "current": bool               // in use now
 //!     }],
 //!     "egress_choice": str | null,    // the user's (set_kiri_egress); null: automatic
 //!     "paths": [{
@@ -237,15 +236,6 @@ fn outbound(out: &mut String, o: &OutboundStatus) {
         jms(out, e.rtt);
         key(out, &mut f, "current");
         out.push_str(if e.current { "true" } else { "false" });
-        key(out, &mut f, "hosts");
-        out.push('[');
-        for (j, h) in e.hosts.iter().enumerate() {
-            if j > 0 {
-                out.push(',');
-            }
-            jstr(out, h);
-        }
-        out.push(']');
         out.push('}');
     }
     out.push(']');
