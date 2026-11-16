@@ -505,6 +505,18 @@ pub fn set_kiri_user_prefs(key: RuntimeId, connect: bool, bridge: Option<bool>) 
     is_running(key)
 }
 
+/// The user's egress choice for runtime `key` (kiri design §19.46 "Egress
+/// choice"): `Some(id)`, one of the signed config's egresses, used now and
+/// kept; `None` (or empty): automatic, the lowest estimated round trip,
+/// moved to while no connection is open. Before the runtime starts or while
+/// it runs; kept for `key` across restarts (on the device only). True if
+/// the runtime runs.
+#[cfg(feature = "kiri-host")]
+pub fn set_kiri_egress(key: RuntimeId, egress: Option<String>) -> bool {
+    proxy::kiri::prefs::Prefs::of(key).set_egress(egress);
+    is_running(key)
+}
+
 /// Runtime `key`'s kiri state for the app's UI: every `kiri` outbound with
 /// its client's session and paths (bridge address, round trips to the
 /// bridge and to the egress, traffic; kiri design §19.44), and the

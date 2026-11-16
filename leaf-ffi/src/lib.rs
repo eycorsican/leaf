@@ -279,6 +279,28 @@ pub extern "C" fn leaf_kiri_set_user_prefs(rt_id: u16, connect: i32, bridge: i32
     set_kiri_user_prefs(rt_id, connect != Some(false), bridge)
 }
 
+/// The user's egress choice (kiri design §19.46 "Egress choice"): one of
+/// the signed config's egresses by id (`leaf_kiri_status`'s `egresses`
+/// lists them, lowest estimated round trip first), used now and kept; NULL
+/// or "" for automatic (the lowest round trip, moved to while no connection
+/// is open). Before the leaf instance starts or while it runs; kept for
+/// `rt_id` across restarts, on the device only (store it in the app to keep
+/// it across app launches).
+///
+/// @param rt_id The ID of the leaf instance.
+/// @param egress The egress id (UTF-8, NUL-terminated), or NULL / "".
+/// @return Returns true if the leaf instance runs (applied now), false if
+///         it does not (kept for its start) or without the `kiri` feature.
+#[no_mangle]
+pub extern "C" fn leaf_kiri_set_egress(rt_id: u16, egress: *const c_char) -> bool {
+    let egress = if egress.is_null() {
+        None
+    } else {
+        unsafe { CStr::from_ptr(egress) }.to_str().ok().map(str::to_string).filter(|e| !e.is_empty())
+    };
+    set_kiri_egress(rt_id, egress)
+}
+
 /// Whether the kiri bridge is wanted, and why not, for the app's switch.
 ///
 /// @param rt_id The ID of the leaf instance.
@@ -374,8 +396,13 @@ pub unsafe extern "C" fn leaf_kiri_status(rt_id: u16, buf: *mut c_char, len: usi
 #[cfg(feature = "kiri")]
 use leaf::{
     kiri_bridge_running, kiri_status, set_kiri_bridge_activity_log, set_kiri_bridge_paused,
-    set_kiri_user_prefs,
+    set_kiri_egress, set_kiri_user_prefs,
 };
+
+#[cfg(not(feature = "kiri"))]
+fn set_kiri_egress(_rt_id: u16, _egress: Option<String>) -> bool {
+    false
+}
 
 #[cfg(not(feature = "kiri"))]
 fn kiri_status(_rt_id: u16) -> String {

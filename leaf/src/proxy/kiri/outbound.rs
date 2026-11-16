@@ -423,6 +423,10 @@ impl Shared {
             }
             Ok(c) => {
                 tracing::info!("{}: started", prefix);
+                // The user's egress choice (kiri §19.46), before any stream.
+                if let Ok(k) = c.kiri() {
+                    k.set_egress_choice(self.prefs.egress()).await;
+                }
                 let c = Arc::new(c);
                 st.client = Some(c.clone());
                 st.failed = None;
@@ -513,6 +517,19 @@ impl prefs::Listener for Shared {
         // On again: started lazily by the next stream or flow.
         if self.disabled() {
             self.turn_off();
+            return;
+        }
+        // The egress choice, for a running client (a client started later
+        // reads it when it starts).
+        let rt = tokio::runtime::Handle::try_current().ok().or_else(|| self.rt.clone());
+        if let Some(rt) = rt {
+            let s = self.clone();
+            rt.spawn(async move {
+                let c = s.state.lock().await.client.clone();
+                if let Some(k) = c.as_ref().and_then(|c| c.kiri().ok()) {
+                    k.set_egress_choice(s.prefs.egress()).await;
+                }
+            });
         }
     }
 }

@@ -10,6 +10,9 @@
 //! - *bridge*: the user's choice for the bridge service (unset: the conf's
 //!   `[Kiri] bridge`, the server's default). See [`bridge_state`] for how it
 //!   combines with the conf's `bridge-override = off` and the app's pause.
+//! - *egress*: the egress the user chose among the signed config's (kiri
+//!   design §19.46 "Egress choice"; unset: automatic, the lowest estimated
+//!   round trip). Kept on the device only.
 //!
 //! The values are kept for the id across runtime restarts; a runtime reads
 //! them when it starts (so a bridge switched off before the start never
@@ -31,6 +34,7 @@ pub trait Listener: Send + Sync {
 pub struct Prefs {
     connect: AtomicBool,
     bridge: Mutex<Option<bool>>,
+    egress: Mutex<Option<String>>,
     bridge_activity_log: AtomicBool,
     listeners: Mutex<Vec<Weak<dyn Listener>>>,
 }
@@ -40,6 +44,7 @@ impl Default for Prefs {
         Self {
             connect: AtomicBool::new(true),
             bridge: Mutex::new(None),
+            egress: Mutex::new(None),
             bridge_activity_log: AtomicBool::new(false),
             listeners: Mutex::new(Vec::new()),
         }
@@ -62,6 +67,18 @@ impl Prefs {
         self.connect.store(connect, Ordering::SeqCst);
         *self.bridge.lock().unwrap_or_else(|e| e.into_inner()) = bridge;
         self.notify();
+    }
+
+    /// The user's egress choice (`None` or empty: automatic); every `kiri`
+    /// outbound of the runtime follows at once.
+    pub fn set_egress(&self, egress: Option<String>) {
+        *self.egress.lock().unwrap_or_else(|e| e.into_inner()) = egress.filter(|e| !e.is_empty());
+        self.notify();
+    }
+
+    /// The user's egress choice; `None`: automatic.
+    pub fn egress(&self) -> Option<String> {
+        self.egress.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// The bridge's client activity lines (`kiri bridge: client offer …`,

@@ -34,6 +34,13 @@
 //!       "nearer": int,                // of those, kept in place of a slower one
 //!       "skipped": int                // due, but none could be clearly nearer
 //!     },
+//!     "egresses": [{                  // the signed config's, lowest first
+//!       "id": str,                    // (kiri §19.46 "Egress choice")
+//!       "rtt_ms": num | null,         // estimated end to end; null: unknown
+//!       "current": bool,              // in use now
+//!       "hosts": [str]                // its direct routes' hosts (exit check)
+//!     }],
+//!     "egress_choice": str | null,    // the user's (set_kiri_egress); null: automatic
 //!     "paths": [{
 //!       "session": int,               // 0: the first session
 //!       "transport": str,             // "tls-direct/1", "quic-direct/1",
@@ -216,6 +223,34 @@ fn outbound(out: &mut String, o: &OutboundStatus) {
             );
         }
     }
+    key(out, &mut f, "egresses");
+    out.push('[');
+    for (i, e) in c.map(|c| c.egresses.as_slice()).unwrap_or(&[]).iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        let mut f = true;
+        out.push('{');
+        key(out, &mut f, "id");
+        jstr(out, &e.id);
+        key(out, &mut f, "rtt_ms");
+        jms(out, e.rtt);
+        key(out, &mut f, "current");
+        out.push_str(if e.current { "true" } else { "false" });
+        key(out, &mut f, "hosts");
+        out.push('[');
+        for (j, h) in e.hosts.iter().enumerate() {
+            if j > 0 {
+                out.push(',');
+            }
+            jstr(out, h);
+        }
+        out.push(']');
+        out.push('}');
+    }
+    out.push(']');
+    key(out, &mut f, "egress_choice");
+    jopt_str(out, c.and_then(|c| c.egress_choice.as_deref()));
     key(out, &mut f, "paths");
     out.push('[');
     for (i, p) in c
