@@ -26,6 +26,14 @@
 //!       "extra_up": int,              // re-sent on another path, copies
 //!       "extra_down": int             // duplicates received (dropped)
 //!     },                              // (kiri status.rs "Extra traffic")
+//!     "location_err": num | null,     // the client's coordinate error once
+//!                                     // its paths placed it (kiri §19.46);
+//!                                     // null: not placed (cold order)
+//!     "trials": null | {              // nearer-bridge trials (§19.46)
+//!       "tried": int,                 // trial paths judged
+//!       "nearer": int,                // of those, kept in place of a slower one
+//!       "skipped": int                // due, but none could be clearly nearer
+//!     },
 //!     "paths": [{
 //!       "session": int,               // 0: the first session
 //!       "transport": str,             // "tls-direct/1", "quic-direct/1",
@@ -43,6 +51,11 @@
 //!                                     // QUIC srtt, ICE consent-check RTT
 //!       "e2e_rtt_ms": num | null,     // to the egress: session PING/PONG
 //!       "e2e_rtt_min_ms": num | null,
+//!       "bridge_egress_ms": num | null,     // the bridge's round trip to the
+//!                                           // egress, as the directory lists it
+//!       "predicted_ms": num | null,         // end to end, predicted from the
+//!                                           // coordinates (§19.46): compare
+//!                                           // with e2e_rtt_min_ms
 //!       "rate_up": num, "rate_down": num,   // payload bytes/s, last 2 s
 //!       "bytes_up": int, "bytes_down": int, // payload bytes so far
 //!       "age_s": num,
@@ -187,6 +200,22 @@ fn outbound(out: &mut String, o: &OutboundStatus) {
             );
         }
     }
+    key(out, &mut f, "location_err");
+    match c.and_then(|c| c.location_err) {
+        None => out.push_str("null"),
+        Some(e) => jnum(out, e),
+    }
+    key(out, &mut f, "trials");
+    match c.map(|c| c.trials) {
+        None => out.push_str("null"),
+        Some(t) => {
+            let _ = write!(
+                out,
+                "{{\"tried\":{},\"nearer\":{},\"skipped\":{}}}",
+                t.tried, t.nearer, t.skipped
+            );
+        }
+    }
     key(out, &mut f, "paths");
     out.push('[');
     for (i, p) in c
@@ -222,6 +251,10 @@ fn outbound(out: &mut String, o: &OutboundStatus) {
         jms(out, p.e2e_rtt);
         key(out, &mut f, "e2e_rtt_min_ms");
         jms(out, p.e2e_rtt_min);
+        key(out, &mut f, "bridge_egress_ms");
+        jms(out, p.bridge_egress);
+        key(out, &mut f, "predicted_ms");
+        jms(out, p.predicted);
         key(out, &mut f, "rate_up");
         jnum(out, p.rate_up);
         key(out, &mut f, "rate_down");
