@@ -153,6 +153,10 @@ pub enum BridgeState {
     /// an egress works again. Reported only ([`crate::app::kiri_bridge`]),
     /// never decided here.
     UpstreamDown = 8,
+    /// Wanted, but the signed config retires bridges of this build (kiri
+    /// §19.47, `min_bridge_version`): not offered to clients; the app needs
+    /// an update. Reported only, like `UpstreamDown`.
+    Outdated = 9,
 }
 
 /// The bridge's state from the conf's `[Kiri]` section (`None`: none),

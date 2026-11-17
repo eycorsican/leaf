@@ -244,6 +244,11 @@ pub const LEAF_KIRI_BRIDGE_NO_RUNTIME: i32 = 7;
 /// (it unlinked from the registrars; it links again by itself).
 pub const LEAF_KIRI_BRIDGE_UPSTREAM_DOWN: i32 = 8;
 
+/// `leaf_kiri_bridge_state`: wanted, but the signed config retires bridges
+/// of this build (kiri §19.47, `min_bridge_version`): it is not offered to
+/// clients; the app should ask the user to update.
+pub const LEAF_KIRI_BRIDGE_OUTDATED: i32 = 9;
+
 /// The user's kiri switches (the app's "connect to the kiri network" and
 /// "be a bridge"). Callable before `leaf_run*` (kept for `rt_id` and read
 /// when the instance starts: a bridge turned off never starts) and while it

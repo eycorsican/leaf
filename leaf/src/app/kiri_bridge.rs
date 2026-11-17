@@ -130,22 +130,20 @@ impl BridgeService {
     }
 
     /// Whether the bridge is wanted, and why not; `UpstreamDown` while it
-    /// runs but reaches no egress (not offered to clients).
+    /// runs but reaches no egress, `Outdated` while the signed config
+    /// retires this build (neither is offered to clients).
     pub fn state(&self) -> BridgeState {
         let g = self.inner.lock().unwrap();
         let s = prefs::bridge_state(g.section.as_ref(), self.prefs.bridge(), g.paused);
-        let down = g.running.as_ref().is_some_and(|r| {
-            r.bridge
-                .lock()
-                .unwrap()
-                .as_ref()
-                .and_then(|b| b.stats())
-                .is_some_and(|st| st.upstream_down)
+        let (down, outdated) = g.running.as_ref().map_or((false, false), |r| {
+            let b = r.bridge.lock().unwrap();
+            let b = b.as_ref();
+            (b.and_then(|b| b.stats()).is_some_and(|st| st.upstream_down), b.is_some_and(|b| b.outdated().is_some()))
         });
-        if s == BridgeState::On && down {
-            BridgeState::UpstreamDown
-        } else {
-            s
+        match s {
+            BridgeState::On if outdated => BridgeState::Outdated,
+            BridgeState::On if down => BridgeState::UpstreamDown,
+            s => s,
         }
     }
 
