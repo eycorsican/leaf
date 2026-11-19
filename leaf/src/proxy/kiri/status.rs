@@ -37,12 +37,18 @@
 //!       "nearer": int,                // of those, kept in place of a slower one
 //!       "skipped": int                // due, but none could be clearly nearer
 //!     },
-//!     "egresses": [{                  // the signed config's, lowest first
-//!       "id": str,                    // (kiri §19.46 "Egress choice")
-//!       "rtt_ms": num | null,         // estimated end to end; null: unknown
-//!       "current": bool               // in use now
+//!     "egresses": [{                  // the signed config's: those with a usable
+//!       "id": str,                    // bridge first, lowest first (kiri §19.46
+//!       "rtt_ms": num | null,         // "Egress choice", §19.50); estimated end
+//!                                     // to end over a usable bridge; null: unknown
+//!       "current": bool,              // in use now
+//!       "bridges": int,               // bridges serving it this client can use
+//!                                     // now; 0: choosing it cannot work yet
+//!       "reached": int                // of those, the ones that worked for it
 //!     }],
-//!     "egress_choice": str | null,    // the user's (set_kiri_egress); null: automatic
+//!     "egress_choice": str | null,    // the user's (set_kiri_egress); null: automatic.
+//!                                     // A preference: while it has no usable bridge
+//!                                     // the client is on another ("egress_id")
 //!     "paths": [{
 //!       "session": int,               // 0: the first session
 //!       "transport": str,             // "tls-direct/1", "quic-direct/1",
@@ -254,6 +260,10 @@ fn outbound(out: &mut String, o: &OutboundStatus) {
         jms(out, e.rtt);
         key(out, &mut f, "current");
         out.push_str(if e.current { "true" } else { "false" });
+        key(out, &mut f, "bridges");
+        out.push_str(&e.bridges.to_string());
+        key(out, &mut f, "reached");
+        out.push_str(&e.reached.to_string());
         out.push('}');
     }
     out.push(']');
