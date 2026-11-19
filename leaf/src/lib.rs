@@ -184,6 +184,12 @@ impl RuntimeManager {
         self.kiri_bridge.stats()
     }
 
+    /// How reachable the kiri bridge is; `None` while none runs.
+    #[cfg(feature = "kiri-bridge")]
+    pub fn kiri_bridge_reach(&self) -> Option<::kiri::embed::BridgeReach> {
+        self.kiri_bridge.reach()
+    }
+
     pub fn stat_manager(&self) -> SyncStatManager {
         self.stat_manager.clone()
     }
@@ -480,6 +486,23 @@ pub fn kiri_bridge_stats(key: RuntimeId) -> Option<kiri_core::bridge::BridgeStat
         .and_then(|m| m.kiri_bridge_stats())
 }
 
+/// What [`kiri_bridge_reach`] returns.
+#[cfg(feature = "kiri-bridge")]
+pub use ::kiri::embed::BridgeReach as KiriBridgeReach;
+
+/// How reachable runtime `key`'s kiri bridge is (kiri §19.48): its
+/// measured NAT class, what the router's port mapping does, whether it has
+/// a global IPv6 address. No address. `None` if no runtime with that id
+/// runs or its bridge does not run.
+#[cfg(feature = "kiri-bridge")]
+pub fn kiri_bridge_reach(key: RuntimeId) -> Option<::kiri::embed::BridgeReach> {
+    RUNTIME_MANAGER
+        .lock()
+        .ok()
+        .and_then(|g| g.get(&key).cloned())
+        .and_then(|m| m.kiri_bridge_reach())
+}
+
 /// Turns runtime `key`'s kiri bridge's client activity lines on or off
 /// (`kiri bridge: client offer …`, `client connected …`, `circuit opened …`,
 /// `traffic: …`; kiri design §19.41). Off by default: they are per-session
@@ -530,10 +553,19 @@ pub fn kiri_status_snapshot(key: RuntimeId) -> proxy::kiri::status::Snapshot {
     let (running, stats) = (kiri_bridge_running(key), kiri_bridge_stats(key));
     #[cfg(not(feature = "kiri-bridge"))]
     let (running, stats) = (false, None);
+    #[cfg(feature = "kiri-bridge")]
+    let reach = kiri_bridge_reach(key).unwrap_or_default();
+    #[cfg(feature = "kiri-bridge")]
+    let (nat, port_mapping, ipv6) = (reach.nat, reach.port_mapping, reach.ipv6);
+    #[cfg(not(feature = "kiri-bridge"))]
+    let (nat, port_mapping, ipv6) = (None, None, false);
     let part = proxy::kiri::status::BridgePart {
         state: kiri_bridge_state(key) as i32,
         running,
         stats,
+        nat,
+        port_mapping,
+        ipv6,
     };
     proxy::kiri::status::snapshot(key, part)
 }

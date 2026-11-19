@@ -364,7 +364,11 @@ pub extern "C" fn leaf_kiri_bridge_activity_log(rt_id: u16, on: bool) -> bool {
 ///    "opened":int,"refused_full":int,"forwarded":int,
 ///    "upstream_failures":int,"upstream_down":bool,"upstream_connections":int,
 ///    "offers":int,"answered":int,"refused":int,
-///    "connected":int,"failed":int}}}
+///    "connected":int,"failed":int},
+///    "nat":str|null,"port_mapping":"pcp"|"nat-pmp"|"upnp"|"none"|
+///    "behind_nat"|"checking"|null,"ipv6":bool}}
+/// Each outbound also has "nat" and "ipv6" (the device's own); the full
+/// schema is leaf's `proxy::kiri::status`.
 /// Rates are payload bytes per second over the last 2 s (up: towards the
 /// egress), bytes payload bytes so far. "traffic": payload bytes since the
 /// client started (first sends and receipts) and what multipath added:

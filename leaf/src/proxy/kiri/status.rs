@@ -19,6 +19,9 @@
 //!     "error": str | null,            // why the last start failed
 //!     "egress": str | null,           // egress id in use
 //!     "nat": "unknown" | "cone" | "port-restricted" | "symmetric" | null,
+//!     "ipv6": bool,                   // a global IPv6 address for ICE
+//!                                     // (kiri §19.48): bridges with one
+//!                                     // too are reachable whatever the NATs
 //!     "mode": "bridged" | "direct" | null,
 //!     "sessions": int,
 //!     "traffic": null | {             // payload bytes since the client
@@ -76,7 +79,15 @@
 //!       "upstream_down": bool,        // reaches no egress: not offered
 //!       "upstream_connections": int,  // to the egresses, each many circuits
 //!       "offers": int, "answered": int, "refused": int, "connected": int,
-//!       "failed": int }
+//!       "failed": int },
+//!     "nat": "unknown" | "cone" | "port-restricted" | "symmetric" | null,
+//!                                     // measured; null: not yet / not running
+//!     "port_mapping": "pcp" | "nat-pmp" | "upnp" |  // the router maps ports:
+//!                                     // reachable from any NAT (kiri §19.48)
+//!                     "none" |        // no router maps
+//!                     "behind_nat" |  // it maps, but has no public address
+//!                     "checking" | null,  // null: not tried
+//!     "ipv6": bool                    // a global IPv6 address for ICE
 //!   }
 //! }
 //! ```
@@ -105,6 +116,11 @@ pub struct BridgePart {
     pub state: i32,
     pub running: bool,
     pub stats: Option<kiri_core::bridge::BridgeStats>,
+    /// Measured NAT class (`None`: not yet, or not running).
+    pub nat: Option<&'static str>,
+    /// What the gateway's port mapping does (module docs).
+    pub port_mapping: Option<&'static str>,
+    pub ipv6: bool,
 }
 
 /// A runtime's kiri state ([`crate::kiri_status_snapshot`]); [`to_json`]
@@ -185,6 +201,8 @@ fn outbound(out: &mut String, o: &OutboundStatus) {
     );
     key(out, &mut f, "nat");
     jopt_str(out, c.and_then(|c| c.nat).map(|n| n.name()));
+    key(out, &mut f, "ipv6");
+    out.push_str(if c.is_some_and(|c| c.ipv6) { "true" } else { "false" });
     key(out, &mut f, "mode");
     jopt_str(
         out,
@@ -326,6 +344,12 @@ fn bridge(out: &mut String, b: &BridgePart) {
             );
         }
     }
+    key(out, &mut f, "nat");
+    jopt_str(out, b.nat);
+    key(out, &mut f, "port_mapping");
+    jopt_str(out, b.port_mapping);
+    key(out, &mut f, "ipv6");
+    out.push_str(if b.ipv6 { "true" } else { "false" });
     out.push('}');
 }
 
@@ -392,5 +416,19 @@ mod tests {
         jnum(&mut n, 12.34567);
         jnum(&mut n, f64::NAN);
         assert_eq!(n, "12.346null");
+    }
+
+    /// The bridge's reachability (kiri §19.48) and the device's IPv6.
+    #[test]
+    fn the_bridge_says_how_reachable_it_is() {
+        let s = Snapshot {
+            connect: true,
+            outbounds: vec![],
+            bridge: BridgePart { state: 0, running: true, stats: None, nat: Some("port-restricted"), port_mapping: Some("upnp"), ipv6: true },
+        };
+        let j = to_json(&s);
+        assert!(j.ends_with(r#""bridge":{"state":0,"running":true,"stats":null,"nat":"port-restricted","port_mapping":"upnp","ipv6":true}}"#), "{j}");
+        let j = to_json(&Snapshot::default());
+        assert!(j.contains(r#""nat":null,"port_mapping":null,"ipv6":false"#), "{j}");
     }
 }

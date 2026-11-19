@@ -168,6 +168,15 @@ impl BridgeService {
         b.as_ref()?.stats()
     }
 
+    /// How reachable the running bridge is (NAT class, port mapping, IPv6;
+    /// kiri §19.48); `None` while none runs.
+    pub fn reach(&self) -> Option<::kiri::embed::BridgeReach> {
+        let g = self.inner.lock().unwrap();
+        let r = g.running.as_ref()?;
+        let b = r.bridge.lock().unwrap();
+        Some(b.as_ref()?.reach())
+    }
+
     /// Stops the bridge (runtime shutdown).
     pub fn stop(&self) {
         let mut g = self.inner.lock().unwrap();
