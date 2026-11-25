@@ -246,6 +246,46 @@ func TestConnEngineCarriesATLSSession(t *testing.T) {
 	}
 }
 
+// A half close is the application saying it has finished sending, not that
+// it has stopped listening. The server here replies only once it has seen the
+// end of the request -- the shape of a request whose length is the
+// connection -- so the reply exists only if the engine ends its sending side
+// and goes on reading.
+func TestConnEngineHalfCloseKeepsReading(t *testing.T) {
+	serverConfig := testServerTLSConfig(t)
+	clientSide, serverSide := net.Pipe()
+
+	reply := bytes.Repeat([]byte("tail "), 4096)
+	go func() {
+		server := tls.Server(serverSide, serverConfig)
+		defer server.Close()
+		if _, err := io.ReadAll(server); err != nil {
+			return
+		}
+		_, _ = server.Write(reply)
+	}()
+
+	engine, err := NewConnEngine(ConnEngineConfig{
+		Wrap: func(inner net.Conn) (net.Conn, error) {
+			return tls.Client(inner, &tls.Config{InsecureSkipVerify: true}), nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewConnEngine failed: %v", err)
+	}
+	d := newDriver(engine, clientSide)
+	defer func() {
+		d.stop()
+		engine.Destroy()
+	}()
+
+	d.writeApp(t, []byte("the whole request"))
+	d.closeApp()
+	if got := d.readApp(t, len(reply)); !bytes.Equal(got, reply) {
+		t.Fatalf("got %d bytes of the reply after a half close, want all %d", len(got), len(reply))
+	}
+}
+
 // identityWrap is a transport that adds nothing, which is what the tests that
 // are about the engine's own bookkeeping want.
 func identityWrap(inner net.Conn) (net.Conn, error) { return inner, nil }
@@ -326,6 +366,81 @@ func TestConnEngineReportsBlockedOnlyWithInputInHand(t *testing.T) {
 	if flags := engine.PollState(); flags.Has(StateBlocked) {
 		t.Fatalf("state = %#x, want no StateBlocked once there is output to take", uint32(flags))
 	}
+}
+
+// A full application buffer behind a busy write loop is the engine's own work
+// in progress, and BLOCKED is the only way to say so. Without it the host
+// reads a refused write as an engine waiting for its output to be taken: it
+// decodes the peer's bytes into a buffer of its own to make room, and when a
+// reader saturated in the other direction cannot keep up with that, it fails
+// the connection as stalled. Two bulk transfers at once against sing-box did
+// exactly that, about one run in ten.
+//
+// Once the handshake is done the write loop needs nothing from the host to
+// take what is waiting -- and it wakes the host when it does -- so the flag
+// always clears on its own.
+func TestConnEngineReportsBlockedWhileItsWriterIsBusy(t *testing.T) {
+	release := make(chan struct{})
+	const capacity = 1024
+	engine, err := NewConnEngine(ConnEngineConfig{
+		Wrap:               func(inner net.Conn) (net.Conn, error) { return &stallingConn{Conn: inner, release: release}, nil },
+		MaxPendingAppInput: capacity,
+	})
+	if err != nil {
+		t.Fatalf("NewConnEngine failed: %v", err)
+	}
+	defer engine.Destroy()
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+
+	// The first push is taken by the write loop, which then sits in Write;
+	// the next ones fill the buffer behind it.
+	chunk := bytes.Repeat([]byte("x"), capacity)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		n, err := engine.Push(SideApp, chunk)
+		if err != nil {
+			t.Fatalf("push(app) failed: %v", err)
+		}
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the engine never refused input behind a stalled writer")
+		}
+		time.Sleep(drivePeriod)
+	}
+	if flags := engine.PollState(); !flags.Has(StateBlocked) {
+		t.Fatalf("state = %#x with a full buffer and a busy writer, want StateBlocked", uint32(flags))
+	}
+
+	close(release)
+	deadline = time.Now().Add(2 * time.Second)
+	for engine.PollState().Has(StateBlocked) {
+		if time.Now().After(deadline) {
+			t.Fatal("StateBlocked never cleared once the writer moved on")
+		}
+		time.Sleep(drivePeriod)
+	}
+	if n, _ := engine.Push(SideApp, chunk); n == 0 {
+		t.Fatal("the engine still refuses input after the writer took the buffer")
+	}
+}
+
+// stallingConn's writes wait until release is closed.
+type stallingConn struct {
+	net.Conn
+	release chan struct{}
+}
+
+func (c *stallingConn) Write(p []byte) (int, error) {
+	<-c.release
+	return c.Conn.Write(p)
 }
 
 // The ABI lets destroy block, and requires it to: once it returns, nothing the

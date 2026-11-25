@@ -100,14 +100,20 @@ void leafabi_descriptor_configure(
 
 /* Calling a host callback through a Go function pointer variable is not
  * something cgo will do directly, and a NULL check belongs on this side of the
- * boundary anyway. */
+ * boundary anyway.
+ *
+ * host_ctx crosses into Go as an integer and only becomes a pointer again here.
+ * It is opaque, and leaf puts an instance number in it rather than an address;
+ * held in Go as a pointer, a value like 1 is what the runtime finds when it
+ * copies a goroutine's stack, and it stops the process for it. */
+uintptr_t leafabi_host_ctx(const HostCallbacks* callbacks);
 void leafabi_host_log(
     leaf_host_log_fn fn,
-    void* host_ctx,
+    uintptr_t host_ctx,
     leaf_log_level_t level,
     const char* target,
     const uint8_t* message,
     size_t message_len);
-void leafabi_host_wake(leaf_host_wake_fn fn, void* host_ctx);
+void leafabi_host_wake(leaf_host_wake_fn fn, uintptr_t host_ctx);
 
 #endif /* LEAF_ABI_GO_H */

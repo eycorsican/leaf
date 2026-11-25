@@ -77,6 +77,42 @@ that reads its configuration on a pooled thread would then hang on shutdown,
 waiting to join a thread that cannot finish. So `leaf_plugin_get_descriptor`
 contains no call into Go: it waits on a flag that Go sets from its own thread.
 
+**Half close.** When the application ends its side, `ConnEngine` calls
+`CloseWrite` on the wrapped conn if it has one -- `*tls.Conn` does -- and goes
+on reading until the peer ends too, which is what the host's half close means.
+A conn without it is closed whole: the best a protocol with no half close, such
+as AnyTLS, can do.
+
+**host_ctx.** The host's context pointer is opaque, and leaf puts an instance
+number in it rather than an address. The SDK holds it as an integer throughout
+and turns it back into a pointer only in C. Held as a Go pointer, a value like
+`1` stops the process the first time the runtime copies a stack that holds it.
+
+## Libraries with a client of their own
+
+`SharedLogger` is a logger for state that outlives any one engine instance: a
+protocol client kept per outbound because the protocol has state that must
+carry from one connection to the next. Each instance attaches its `Host` while
+it is alive, and a line goes to whichever is attached. Its methods match the
+logger interface of sing and the libraries built on it, so it can be passed to
+them as it is. `anytls-cabi-go` and `shadowtls-cabi-go` both use it.
+
+## Testing a plugin
+
+`enginetest.Driver` drives an engine the way the host does -- poll the state,
+push what it asks for, pull what it offers -- with the network side wired to any
+`net.Conn`: a pipe to an in-process server, or a TCP connection to a real one.
+A plugin's own tests can then exercise the same loop leaf runs, short pushes
+and end-of-stream included, without loading it into leaf:
+
+```go
+engine, _ := newEngine(leafabi.CreateArgs{Args: args, Destination: dest})
+driver := enginetest.Start(engine, conn)
+defer func() { driver.Stop(); engine.Destroy() }()
+_ = driver.Write([]byte("hello"), 10*time.Second)
+reply, err := driver.ReadFull(5, 10*time.Second)
+```
+
 ## Tests
 
 ```sh

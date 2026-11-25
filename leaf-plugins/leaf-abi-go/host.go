@@ -39,7 +39,11 @@ type hostState struct {
 	revoked bool
 	log     C.leaf_host_log_fn
 	wake    C.leaf_host_wake_fn
-	ctx     unsafe.Pointer
+	// ctx is host_ctx, held as an integer. It is opaque: leaf puts an
+	// instance number in it, not an address, and a Go pointer whose value is
+	// 1 stops the process the first time the runtime copies a stack that
+	// holds it. It becomes a pointer again only on the C side.
+	ctx C.uintptr_t
 }
 
 // Host is what an engine uses to talk back to leaf. The zero value is valid and
@@ -142,7 +146,7 @@ func hostFromCallbacks(callbacks *C.HostCallbacks) Host {
 	if callbacks != nil && uintptr(callbacks.size) >= uintptr(C.LEAF_HOST_CALLBACKS_REQUIRED_SIZE) {
 		state.log = callbacks.log
 		state.wake = callbacks.wake
-		state.ctx = callbacks.host_ctx
+		state.ctx = C.leafabi_host_ctx(callbacks)
 	}
 	return Host{s: state}
 }

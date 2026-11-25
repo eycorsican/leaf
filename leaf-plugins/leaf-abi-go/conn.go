@@ -58,6 +58,14 @@ type Handshaker interface {
 	Handshake() error
 }
 
+// CloseWriter is implemented by conns that can end their sending side and go
+// on receiving; *tls.Conn and *net.TCPConn are two. ConnEngine uses it for the
+// application's half close when the wrapped conn has it, and closes the conn
+// whole when it does not.
+type CloseWriter interface {
+	CloseWrite() error
+}
+
 // ConnEngineConfig describes one ConnEngine.
 type ConnEngineConfig struct {
 	// Host is the instance's host handle, from CreateArgs.
@@ -198,6 +206,22 @@ func (e *ConnEngine) PollState() StateFlags {
 	// would park the host on a wake that can never arrive.
 	if e.fatal == nil && !e.transportClosed &&
 		e.netOut.Len() == 0 && e.appOut.Len() == 0 && e.netIn.Len() > 0 {
+		flags |= StateBlocked
+	}
+	// The application has filled the input buffer while the write loop is
+	// still busy with what it took before. That is work of the engine's own,
+	// and BLOCKED is how the host learns it: without it, a refused write reads
+	// as an engine waiting for its output to be taken, and the host decodes
+	// the peer's bytes into a buffer of its own to make room -- a buffer it
+	// bounds, and fails the connection at, when a reader saturated in the
+	// other direction cannot keep up.
+	//
+	// After the handshake the write loop needs nothing from the host to take
+	// the input, and it wakes the host when it does, so the flag always clears
+	// on its own. Before the handshake it might be waiting on the peer, which
+	// is the case the paragraph above rules out, so it is not reported then.
+	if e.fatal == nil && !e.transportClosed && e.handshakeDone &&
+		!e.closedAppIn && e.appIn.Len() >= e.maxAppIn {
 		flags |= StateBlocked
 	}
 	return flags
@@ -354,9 +378,22 @@ func (e *ConnEngine) writeLoop() {
 		if e.appIn.Len() == 0 && e.closedAppIn {
 			e.mu.Unlock()
 			// The application is done writing, so whatever the protocol says
-			// about that -- a TLS close notify, say -- goes out now. Closing
-			// the wrapped conn is what emits it; it also closes the memory
-			// conn under it, which ends the read loop.
+			// about that -- a TLS close notify, say -- goes out now.
+			//
+			// That is a half close, and the host treats it as one: it shuts
+			// down the socket's sending side and goes on reading. A conn
+			// that can end its sending side alone does so here, and the read
+			// loop carries on until the peer ends too. One that cannot is
+			// closed whole, which is the best a protocol with no half close
+			// can do -- and ends the read loop with it.
+			if half, ok := e.outer.(CloseWriter); ok {
+				if err := half.CloseWrite(); err != nil {
+					e.mu.Lock()
+					e.setFatalLocked(err)
+					e.mu.Unlock()
+				}
+				return
+			}
 			_ = e.outer.Close()
 			return
 		}

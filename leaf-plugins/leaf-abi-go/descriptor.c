@@ -181,21 +181,25 @@ void leafabi_descriptor_configure(
     atomic_store_explicit(&CONFIGURED, 1, memory_order_release);
 }
 
+uintptr_t leafabi_host_ctx(const HostCallbacks* callbacks) {
+    return callbacks == NULL ? 0 : (uintptr_t)callbacks->host_ctx;
+}
+
 void leafabi_host_log(
     leaf_host_log_fn fn,
-    void* host_ctx,
+    uintptr_t host_ctx,
     leaf_log_level_t level,
     const char* target,
     const uint8_t* message,
     size_t message_len) {
     if (fn != NULL) {
-        fn(host_ctx, level, target, message, message_len);
+        fn((void*)host_ctx, level, target, message, message_len);
     }
 }
 
-void leafabi_host_wake(leaf_host_wake_fn fn, void* host_ctx) {
+void leafabi_host_wake(leaf_host_wake_fn fn, uintptr_t host_ctx) {
     if (fn != NULL) {
-        fn(host_ctx);
+        fn((void*)host_ctx);
     }
 }
 
