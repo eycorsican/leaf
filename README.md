@@ -68,10 +68,19 @@ one, and shipped without rebuilding leaf.
 | [`trojan-cabi-go`](leaf-plugins/trojan-cabi-go) | Go | Trojan, TCP and UDP |
 | [`socks5-cabi-c`](leaf-plugins/socks5-cabi-c) | C | SOCKS5, TCP |
 | [`socks5-cabi-zig`](leaf-plugins/socks5-cabi-zig) | Zig | SOCKS5, TCP |
+| [`anytls-cabi-go`](leaf-plugins/anytls-cabi-go) | Go | AnyTLS, TCP |
+| [`shadowtls-cabi-go`](leaf-plugins/shadowtls-cabi-go) | Go | ShadowTLS v3 transport |
 
 The two SOCKS5 plugins are the same protocol written twice, in two languages
 with no runtime of their own, and both are held to the same end-to-end suite as
 leaf's own SOCKS5 outbound.
+
+AnyTLS and ShadowTLS are protocols leaf does not implement at all: they exist
+here only as plugins, each a thin adapter over the library the protocol's
+existing implementations use, and each tested against the servers people
+deploy -- anytls-go, sing-box, mihomo and the original shadow-tls -- with
+`make interop`. Both link GPL-3.0 libraries, so their binaries are GPL-3.0; leaf
+loads them at run time and is not affected.
 
 A plugin is configured as an outbound like any other, and can be chained with
 built-in ones:

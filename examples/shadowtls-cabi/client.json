@@ -1,0 +1,50 @@
+{
+  "log": {
+    "level": "info",
+    "output": "console"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "address": "127.0.0.1",
+      "port": 1080,
+      "protocol": "socks",
+      "settings": {}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "shadowtls-chain",
+      "protocol": "chain",
+      "settings": {
+        "actors": ["shadowtls", "ss"]
+      }
+    },
+    {
+      "tag": "shadowtls",
+      "protocol": "plugin",
+      "settings": {
+        "path": "./target/debug/libshadowtls_cabi_go.dylib",
+        "args": "{\"password\":\"change-me\",\"server_name\":\"www.example.com\",\"fingerprint\":\"chrome\"}"
+      }
+    },
+    {
+      "tag": "ss",
+      "protocol": "shadowsocks",
+      "settings": {
+        "address": "203.0.113.10",
+        "port": 443,
+        "method": "aes-128-gcm",
+        "password": "change-me-too"
+      }
+    }
+  ],
+  "router": {
+    "rules": [
+      {
+        "type": "FINAL",
+        "target": "shadowtls-chain"
+      }
+    ]
+  }
+}

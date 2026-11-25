@@ -1,0 +1,35 @@
+{
+  "log": {
+    "level": "info",
+    "output": "console"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "address": "127.0.0.1",
+      "port": 1080,
+      "protocol": "socks",
+      "settings": {}
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "anytls",
+      "protocol": "plugin",
+      "settings": {
+        "path": "./target/debug/libanytls_cabi_go.dylib",
+        "host": "203.0.113.10",
+        "port": 443,
+        "args": "{\"password\":\"change-me\",\"server_name\":\"server.example.com\",\"fingerprint\":\"chrome\"}"
+      }
+    }
+  ],
+  "router": {
+    "rules": [
+      {
+        "type": "FINAL",
+        "target": "anytls"
+      }
+    ]
+  }
+}
