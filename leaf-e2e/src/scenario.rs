@@ -59,6 +59,10 @@ pub enum Tag {
     Soak,
     /// Noticeably slower than the rest; excluded from the quick lane.
     Slow,
+    /// Talks to a server from another project -- sing-box, mihomo, the
+    /// protocol's own reference server -- built from source at a pinned
+    /// revision. Its own lane: the first run clones and builds them.
+    Interop,
 }
 
 impl Tag {
@@ -75,6 +79,7 @@ impl Tag {
         Tag::Stress,
         Tag::Soak,
         Tag::Slow,
+        Tag::Interop,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -91,6 +96,7 @@ impl Tag {
             Tag::Stress => "stress",
             Tag::Soak => "soak",
             Tag::Slow => "slow",
+            Tag::Interop => "interop",
         }
     }
 

@@ -10,6 +10,10 @@ members = [
     "leaf-e2e/plugins/conformance-cabi",
 ]
 default-members = ["leaf-cli"]
+# The end-to-end suite builds servers from other projects from source, in their
+# own checkouts under here; one of them is a Rust crate, and without this cargo
+# would take it for a member of this workspace and refuse to build it.
+exclude = ["target/e2e-upstream"]
 resolver = "2"
 
 [profile.release]

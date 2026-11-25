@@ -40,3 +40,4 @@ pub mod scenario;
 pub mod scenarios;
 pub mod servers;
 pub mod tls;
+pub mod upstream;

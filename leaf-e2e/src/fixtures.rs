@@ -34,6 +34,24 @@ pub enum Fixture {
     /// The Zig SOCKS5 plugin, the same protocol in another language with no
     /// runtime of its own.
     Socks5CabiZig,
+    /// The Go AnyTLS plugin, a thin adapter over the AnyTLS author's library
+    /// (`connect_type = ProxyTcp`, stream only).
+    AnytlsCabiGo,
+    /// The Go ShadowTLS v3 plugin, a thin adapter over sing-shadowtls
+    /// (`connect_type = Next`).
+    ShadowtlsCabiGo,
+    /// The AnyTLS reference server, from the protocol's own repository.
+    UpstreamAnytlsGo,
+    /// sing-box at its current stable release: AnyTLS and ShadowTLS servers.
+    UpstreamSingBox,
+    /// sing-box at a pinned commit of its `testing` branch, which replaced the
+    /// AnyTLS author's library with an implementation of its own. Kept beside
+    /// the stable release so a divergence shows up before it ships.
+    UpstreamSingBoxNext,
+    /// mihomo at its current release: AnyTLS and ShadowTLS servers.
+    UpstreamMihomo,
+    /// The original ShadowTLS server, in Rust.
+    UpstreamShadowTls,
     /// The suite's own plugin, which misbehaves on request.
     Conformance,
     /// The same, in Go. The SDK's boundary -- which turns a panic or a fault
@@ -73,12 +91,33 @@ enum Kind {
         root: &'static str,
         stem: &'static str,
     },
+    /// A server from another project, built from its source at a pinned
+    /// revision. These are what the interoperability cases test against: a
+    /// plugin is only as compatible as the servers it has actually talked to.
+    Upstream {
+        /// Clone URL.
+        repo: &'static str,
+        /// A tag or a full commit id. Pinned, so a run is reproducible and a
+        /// new upstream release is a deliberate change here.
+        rev: &'static str,
+        build: UpstreamBuild,
+        /// The executable's name, without an extension.
+        exe: &'static str,
+    },
     /// A workspace binary.
     CargoBin {
         package: &'static str,
         features: &'static [&'static str],
         bin: &'static str,
     },
+}
+
+#[derive(Clone, Copy)]
+enum UpstreamBuild {
+    /// `go build` of a package path inside the checkout.
+    Go { package: &'static str },
+    /// `cargo build --release` of the checkout, which is one binary crate.
+    Cargo,
 }
 
 impl Fixture {
@@ -89,6 +128,13 @@ impl Fixture {
         Fixture::TrojanCabiGo,
         Fixture::Socks5CabiC,
         Fixture::Socks5CabiZig,
+        Fixture::AnytlsCabiGo,
+        Fixture::ShadowtlsCabiGo,
+        Fixture::UpstreamAnytlsGo,
+        Fixture::UpstreamSingBox,
+        Fixture::UpstreamSingBoxNext,
+        Fixture::UpstreamMihomo,
+        Fixture::UpstreamShadowTls,
         Fixture::Conformance,
         Fixture::ConformanceGo,
         Fixture::LeafCli,
@@ -102,6 +148,13 @@ impl Fixture {
             Fixture::TrojanCabiGo => "trojan-cabi-go",
             Fixture::Socks5CabiC => "socks5-cabi-c",
             Fixture::Socks5CabiZig => "socks5-cabi-zig",
+            Fixture::AnytlsCabiGo => "anytls-cabi-go",
+            Fixture::ShadowtlsCabiGo => "shadowtls-cabi-go",
+            Fixture::UpstreamAnytlsGo => "upstream-anytls-go",
+            Fixture::UpstreamSingBox => "upstream-sing-box",
+            Fixture::UpstreamSingBoxNext => "upstream-sing-box-next",
+            Fixture::UpstreamMihomo => "upstream-mihomo",
+            Fixture::UpstreamShadowTls => "upstream-shadow-tls",
             Fixture::Conformance => "conformance-cabi",
             Fixture::ConformanceGo => "conformance-cabi-go",
             Fixture::LeafCli => "leaf-cli",
@@ -110,7 +163,14 @@ impl Fixture {
 
     /// True for fixtures that need a Go toolchain.
     pub fn needs_go(self) -> bool {
-        matches!(self.kind(), Kind::GoCShared { .. })
+        matches!(
+            self.kind(),
+            Kind::GoCShared { .. }
+                | Kind::Upstream {
+                    build: UpstreamBuild::Go { .. },
+                    ..
+                }
+        )
     }
 
     /// True for fixtures that need a C compiler.
@@ -125,7 +185,13 @@ impl Fixture {
 
     /// True for fixtures that are plugins, as opposed to tooling.
     pub fn is_plugin(self) -> bool {
-        !matches!(self.kind(), Kind::CargoBin { .. })
+        !matches!(self.kind(), Kind::CargoBin { .. } | Kind::Upstream { .. })
+    }
+
+    /// True for servers from other projects, which a run builds from source
+    /// unless it is told where a binary already is.
+    pub fn is_upstream(self) -> bool {
+        matches!(self.kind(), Kind::Upstream { .. })
     }
 
     fn kind(self) -> Kind {
@@ -155,6 +221,52 @@ impl Fixture {
                 dir: "leaf-plugins/socks5-cabi-zig",
                 root: "src/main.zig",
                 stem: "socks5_cabi_zig",
+            },
+            Fixture::AnytlsCabiGo => Kind::GoCShared {
+                dir: "leaf-plugins/anytls-cabi-go",
+                stem: "anytls_cabi_go",
+            },
+            Fixture::ShadowtlsCabiGo => Kind::GoCShared {
+                dir: "leaf-plugins/shadowtls-cabi-go",
+                stem: "shadowtls_cabi_go",
+            },
+            Fixture::UpstreamAnytlsGo => Kind::Upstream {
+                repo: "https://github.com/anytls/anytls-go",
+                rev: "v0.0.13",
+                build: UpstreamBuild::Go {
+                    package: "./cmd/server",
+                },
+                exe: "anytls-server",
+            },
+            Fixture::UpstreamSingBox => Kind::Upstream {
+                repo: "https://github.com/SagerNet/sing-box",
+                rev: "v1.14.4",
+                build: UpstreamBuild::Go {
+                    package: "./cmd/sing-box",
+                },
+                exe: "sing-box",
+            },
+            Fixture::UpstreamSingBoxNext => Kind::Upstream {
+                repo: "https://github.com/SagerNet/sing-box",
+                // `testing` on 2026-11-10, the day it moved to
+                // github.com/sagernet/sing-anytls.
+                rev: "a13dbe1f785f66c86acbf3985c33fdafea0cbfd6",
+                build: UpstreamBuild::Go {
+                    package: "./cmd/sing-box",
+                },
+                exe: "sing-box",
+            },
+            Fixture::UpstreamMihomo => Kind::Upstream {
+                repo: "https://github.com/MetaCubeX/mihomo",
+                rev: "v1.19.34",
+                build: UpstreamBuild::Go { package: "." },
+                exe: "mihomo",
+            },
+            Fixture::UpstreamShadowTls => Kind::Upstream {
+                repo: "https://github.com/ihciah/shadow-tls",
+                rev: "v0.2.25",
+                build: UpstreamBuild::Cargo,
+                exe: "shadow-tls",
             },
             Fixture::Conformance => Kind::CargoCdylib {
                 package: "conformance-cabi",
@@ -208,7 +320,21 @@ impl Fixture {
             | Kind::ZigShared { stem, .. } => dir.join(dylib_file_name(stem)),
             Kind::CargoCdylib { stem, .. } => dir.join(dylib_file_name(stem)),
             Kind::CargoBin { bin, .. } => dir.join(exe_file_name(bin)),
+            Kind::Upstream { .. } => upstream_dir(self)?.join("bin"),
         })
+    }
+
+    /// The environment variable that names an already-built upstream server,
+    /// so a machine without network access -- or a CI cache -- can skip the
+    /// clone and the build.
+    pub fn upstream_env_key(self) -> String {
+        format!(
+            "LEAF_E2E_UPSTREAM_{}",
+            self.id()
+                .trim_start_matches("upstream-")
+                .to_ascii_uppercase()
+                .replace('-', "_")
+        )
     }
 
     fn build(self) -> Result<PathBuf> {
@@ -217,10 +343,18 @@ impl Fixture {
         // Only the fixtures built by another toolchain need a path decided for
         // them; the cargo ones report where they went.
         let out = match self.kind() {
-            Kind::CargoCdylib { .. } | Kind::CargoBin { .. } => PathBuf::new(),
+            Kind::CargoCdylib { .. } | Kind::CargoBin { .. } | Kind::Upstream { .. } => {
+                PathBuf::new()
+            }
             _ => self.artifact_path()?,
         };
         match self.kind() {
+            Kind::Upstream {
+                repo,
+                rev,
+                build,
+                exe,
+            } => return build_upstream(self, repo, rev, build, exe),
             Kind::CargoCdylib { package, stem } => {
                 let mut cmd = cargo();
                 cmd.current_dir(&root)
@@ -393,6 +527,109 @@ fn add_target(cmd: &mut Command) -> Result<()> {
         cmd.arg("--target").arg(triple);
     }
     Ok(())
+}
+
+/// Where one upstream server's checkout and binary live.
+///
+/// Under the workspace's `target/`, beside cargo's own output but outside any
+/// profile: the same server serves a debug run and a release one, and `cargo
+/// clean` takes it with everything else. The revision is in the name, so a
+/// changed pin builds afresh instead of reusing the wrong binary.
+fn upstream_dir(fixture: Fixture) -> Result<PathBuf> {
+    let Kind::Upstream { rev, .. } = fixture.kind() else {
+        bail!("[{}] is not an upstream server", fixture.id());
+    };
+    let short = &rev[..rev.len().min(12)];
+    Ok(paths::workspace_root()
+        .join("target")
+        .join("e2e-upstream")
+        .join(format!("{}-{}", fixture.id(), short)))
+}
+
+fn build_upstream(
+    fixture: Fixture,
+    repo: &str,
+    rev: &str,
+    build: UpstreamBuild,
+    exe: &str,
+) -> Result<PathBuf> {
+    if let Some(path) = std::env::var_os(fixture.upstream_env_key()) {
+        let path = PathBuf::from(path);
+        if !path.is_file() {
+            bail!(
+                "{} names {}, which is not a file",
+                fixture.upstream_env_key(),
+                path.display()
+            );
+        }
+        return Ok(path);
+    }
+
+    let dir = upstream_dir(fixture)?;
+    let bin = dir.join("bin").join(exe_file_name(exe));
+    if bin.is_file() {
+        return Ok(bin);
+    }
+    let src = dir.join("src");
+    if !src.join(".git").is_dir() {
+        ensure_toolchain("git", &["--version"], "git")?;
+        let _ = std::fs::remove_dir_all(&src);
+        std::fs::create_dir_all(&src)?;
+        // A fetch of one revision rather than a clone: it works the same for a
+        // tag and for a bare commit id, and brings no history along.
+        for args in [
+            vec!["init", "--quiet"],
+            vec!["remote", "add", "origin", repo],
+            vec!["fetch", "--quiet", "--depth", "1", "origin", rev],
+            vec!["checkout", "--quiet", "FETCH_HEAD"],
+        ] {
+            let mut cmd = Command::new("git");
+            cmd.current_dir(&src).args(&args);
+            run(cmd, &format!("git {} ({})", args.join(" "), fixture.id()))?;
+        }
+    }
+
+    std::fs::create_dir_all(dir.join("bin"))?;
+    match build {
+        UpstreamBuild::Go { package } => {
+            ensure_go()?;
+            let mut cmd = Command::new("go");
+            cmd.current_dir(&src)
+                .env("CGO_ENABLED", "0")
+                .args(["build", "-trimpath", "-o"])
+                .arg(&bin)
+                .arg(package);
+            run(cmd, &format!("go build {} ({})", package, fixture.id()))?;
+        }
+        UpstreamBuild::Cargo => {
+            // Through rustup's `cargo`, not the one running this harness, and
+            // with none of this run's settings: the server is a separate
+            // project with its own lockfile and its own `rust-toolchain`
+            // (shadow-tls pins a nightly), and the toolchain cargo exports to
+            // a test would override it. A sanitizer flag meant for the harness
+            // has no business in it either.
+            ensure_toolchain("cargo", &["--version"], "cargo")?;
+            let mut cmd = Command::new("cargo");
+            cmd.current_dir(&src)
+                .env("CARGO_TARGET_DIR", dir.join("target"))
+                .env_remove("CARGO")
+                .env_remove("RUSTC")
+                .env_remove("RUSTDOC")
+                .env_remove("RUSTUP_TOOLCHAIN")
+                .env_remove("RUSTFLAGS")
+                .env_remove("CARGO_BUILD_TARGET")
+                .env_remove("CARGO_ENCODED_RUSTFLAGS")
+                .args(["build", "--release", "--locked"]);
+            run(cmd, &format!("cargo build ({})", fixture.id()))?;
+            let built = dir.join("target").join("release").join(exe_file_name(exe));
+            std::fs::copy(&built, &bin)
+                .with_context(|| format!("copying {} to {}", built.display(), bin.display()))?;
+        }
+    }
+    if !bin.is_file() {
+        bail!("built [{}] but {} is missing", fixture.id(), bin.display());
+    }
+    Ok(bin)
 }
 
 fn cargo() -> Command {

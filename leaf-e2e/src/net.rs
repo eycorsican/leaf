@@ -4,8 +4,10 @@
 //! cases run concurrently without a shared port registry. Nothing in the
 //! harness sleeps to wait for a node: readiness is observed, never assumed.
 
+use std::collections::BTreeSet;
 use std::net::{SocketAddr, TcpListener as StdTcpListener, UdpSocket as StdUdpSocket};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{bail, Result};
@@ -47,16 +49,28 @@ pub const BAND_COUNT: u32 = 128;
 ///
 /// So a case is given a band of its own instead, and takes ports from it by
 /// binding a specific number rather than zero. Two concurrent cases cannot
-/// collide because their bands do not overlap. Within a case there is no race
-/// to lose: it is one process, reserving in order.
+/// collide because their bands do not overlap.
+///
+/// Within a case there is still one way to collide with itself: reserving
+/// several ports before anything binds them -- a topology that writes a whole
+/// server config, with two listeners in it, before starting the server. A port
+/// handed out but not yet bound looks free, so a later reservation could be
+/// handed it again. Every port handed out is therefore remembered, and never
+/// offered twice in one process.
 pub fn reserve_dual_port() -> Result<u16> {
-    match band() {
-        Some((first, last)) => reserve_in_band(first, last),
+    let mut handed_out = HANDED_OUT.lock().unwrap_or_else(|err| err.into_inner());
+    let port = match band() {
+        Some((first, last)) => reserve_in_band(first, last, &handed_out)?,
         // No band: `--in-process`, where every case shares this process and
         // there is no second process to collide with.
-        None => reserve_anywhere(),
-    }
+        None => reserve_anywhere(&handed_out)?,
+    };
+    handed_out.insert(port);
+    Ok(port)
 }
+
+/// Every port [`reserve_dual_port`] has returned in this process.
+static HANDED_OUT: Mutex<BTreeSet<u16>> = Mutex::new(BTreeSet::new());
 
 /// The band this process was given, as an inclusive range.
 fn band() -> Option<(u16, u16)> {
@@ -65,7 +79,7 @@ fn band() -> Option<(u16, u16)> {
     Some((first, first + BAND_WIDTH - 1))
 }
 
-fn reserve_in_band(first: u16, last: u16) -> Result<u16> {
+fn reserve_in_band(first: u16, last: u16, handed_out: &BTreeSet<u16>) -> Result<u16> {
     // From a different place each time rather than always from the bottom, so
     // that a port a node has already been told about but has not bound yet is
     // not the next one offered.
@@ -73,7 +87,7 @@ fn reserve_in_band(first: u16, last: u16) -> Result<u16> {
     let start = NEXT_IN_BAND.fetch_add(1, Ordering::Relaxed) % width;
     for step in 0..width {
         let port = first + ((start + step) % width) as u16;
-        if is_dual_free(port) {
+        if !handed_out.contains(&port) && is_dual_free(port) {
             return Ok(port);
         }
     }
@@ -99,10 +113,13 @@ fn is_dual_free(port: u16) -> bool {
     udp.is_ok()
 }
 
-fn reserve_anywhere() -> Result<u16> {
+fn reserve_anywhere(handed_out: &BTreeSet<u16>) -> Result<u16> {
     for _ in 0..64 {
         let tcp = StdTcpListener::bind(("127.0.0.1", 0))?;
         let port = tcp.local_addr()?.port();
+        if handed_out.contains(&port) {
+            continue;
+        }
         let udp = StdUdpSocket::bind(("127.0.0.1", port));
         drop(tcp);
         if udp.is_ok() {

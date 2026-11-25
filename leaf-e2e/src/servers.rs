@@ -234,3 +234,200 @@ impl Drop for Origin {
         self.task.abort();
     }
 }
+
+// ---------------------------------------------------------------------------
+// A TLS site
+// ---------------------------------------------------------------------------
+
+/// A TLS server standing in for the site whose handshake a ShadowTLS server
+/// borrows. It completes a handshake with the suite's certificate, answers
+/// whatever it is sent the way a web server would, and counts the requests it
+/// answered -- which is how a case learns that a client fell back to talking
+/// to the real site.
+pub struct TlsSite {
+    addr: SocketAddr,
+    requests: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    task: JoinHandle<()>,
+}
+
+impl TlsSite {
+    /// `tls12_only` limits it to TLS 1.2, which ShadowTLS v3 in strict mode
+    /// must refuse.
+    pub async fn start(tls12_only: bool) -> Result<Self> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        use tokio::io::AsyncReadExt;
+
+        let certificate = crate::tls::self_signed()?;
+        let certs = rustls_pemfile::certs(&mut certificate.certificate_pem.as_bytes())
+            .collect::<Result<Vec<_>, _>>()?;
+        let key = rustls_pemfile::private_key(&mut certificate.private_key_pem.as_bytes())?
+            .ok_or_else(|| anyhow::anyhow!("the suite's key PEM holds no key"))?;
+        let versions: &[&'static rustls::SupportedProtocolVersion] = if tls12_only {
+            &[&rustls::version::TLS12]
+        } else {
+            &[&rustls::version::TLS13, &rustls::version::TLS12]
+        };
+        let config = rustls::ServerConfig::builder_with_provider(Arc::new(
+            rustls::crypto::ring::default_provider(),
+        ))
+        .with_protocol_versions(versions)?
+        .with_no_client_auth()
+        .with_single_cert(certs, key)?;
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(config));
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+        let addr = listener.local_addr()?;
+        let requests = Arc::new(AtomicUsize::new(0));
+        let counter = requests.clone();
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((stream, _)) = listener.accept().await else {
+                    return;
+                };
+                let acceptor = acceptor.clone();
+                let counter = counter.clone();
+                tokio::spawn(async move {
+                    let Ok(mut tls) = acceptor.accept(stream).await else {
+                        return;
+                    };
+                    let mut buf = vec![0u8; 4096];
+                    if let Ok(Ok(n)) =
+                        tokio::time::timeout(std::time::Duration::from_secs(10), tls.read(&mut buf))
+                            .await
+                    {
+                        if n > 0 {
+                            counter.fetch_add(1, Ordering::SeqCst);
+                            let _ = tls
+                                .write_all(
+                                    b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+                                )
+                                .await;
+                        }
+                    }
+                    let _ = tls.shutdown().await;
+                });
+            }
+        });
+        Ok(Self {
+            addr,
+            requests,
+            task,
+        })
+    }
+
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
+    }
+
+    /// Requests answered: connections that completed a handshake and then
+    /// sent application data to the site itself.
+    pub fn requests(&self) -> usize {
+        self.requests.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+impl Drop for TlsSite {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// A relay that reads TLS records
+// ---------------------------------------------------------------------------
+
+/// Forwards TCP to `upstream` both ways, and parses what each client sends into
+/// TLS records, so a case can see how a client cut its writes.
+///
+/// The record lengths it keeps are the length fields of the client's
+/// application data records, per connection, in order.
+pub struct RecordRelay {
+    addr: SocketAddr,
+    connections: std::sync::Arc<std::sync::Mutex<Vec<Vec<usize>>>>,
+    task: JoinHandle<()>,
+}
+
+impl RecordRelay {
+    pub async fn start(upstream: SocketAddr) -> Result<Self> {
+        use std::sync::{Arc, Mutex};
+        use tokio::io::AsyncReadExt;
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await?;
+        let addr = listener.local_addr()?;
+        let connections: Arc<Mutex<Vec<Vec<usize>>>> = Arc::default();
+        let log = connections.clone();
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((down, _)) = listener.accept().await else {
+                    return;
+                };
+                let Ok(up) = tokio::net::TcpStream::connect(upstream).await else {
+                    continue;
+                };
+                let index = {
+                    let mut all = log.lock().unwrap();
+                    all.push(Vec::new());
+                    all.len() - 1
+                };
+                let log = log.clone();
+                tokio::spawn(async move {
+                    let (mut down_r, mut down_w) = down.into_split();
+                    let (mut up_r, mut up_w) = up.into_split();
+                    let to_server = async move {
+                        let mut header = [0u8; 5];
+                        loop {
+                            if down_r.read_exact(&mut header).await.is_err() {
+                                break;
+                            }
+                            let length = u16::from_be_bytes([header[3], header[4]]) as usize;
+                            let mut body = vec![0u8; length];
+                            if down_r.read_exact(&mut body).await.is_err() {
+                                break;
+                            }
+                            if header[0] == 23 {
+                                log.lock().unwrap()[index].push(length);
+                            }
+                            if up_w.write_all(&header).await.is_err()
+                                || up_w.write_all(&body).await.is_err()
+                            {
+                                break;
+                            }
+                        }
+                        let _ = up_w.shutdown().await;
+                    };
+                    let to_client = async move {
+                        let _ = tokio::io::copy(&mut up_r, &mut down_w).await;
+                        let _ = down_w.shutdown().await;
+                    };
+                    tokio::join!(to_server, to_client);
+                });
+            }
+        });
+        Ok(Self {
+            addr,
+            connections,
+            task,
+        })
+    }
+
+    pub fn addr(&self) -> SocketAddr {
+        self.addr
+    }
+
+    /// The client's application data record lengths on connection `index`.
+    pub fn records(&self, index: usize) -> Vec<usize> {
+        self.connections
+            .lock()
+            .unwrap()
+            .get(index)
+            .cloned()
+            .unwrap_or_default()
+    }
+}
+
+impl Drop for RecordRelay {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}

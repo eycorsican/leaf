@@ -14,6 +14,7 @@ pub mod datagram;
 pub mod differential;
 pub mod halfclose;
 pub mod hostile;
+pub mod interop;
 pub mod loader;
 pub mod protocols;
 pub mod smoke;
@@ -34,6 +35,7 @@ pub fn all() -> Vec<Scenario> {
         .chain(teardown::scenarios())
         .chain(halfclose::scenarios())
         .chain(protocols::scenarios())
+        .chain(interop::scenarios())
         .collect();
 
     let mut seen = std::collections::BTreeSet::new();
@@ -64,6 +66,13 @@ pub fn all() -> Vec<Scenario> {
                 toolchain
             );
         }
+        let wants_upstream = scenario.needs.iter().any(|fixture| fixture.is_upstream());
+        assert_eq!(
+            wants_upstream,
+            scenario.has_tag(Tag::Interop),
+            "scenario [{}] must be tagged `interop` exactly when it needs an upstream server",
+            scenario.id
+        );
         let wants_plugin = scenario.needs.iter().any(|fixture| fixture.is_plugin());
         assert_eq!(
             wants_plugin,

@@ -73,7 +73,7 @@ jobs:
       # `--strict` fails the job if a case is skipped, so a missing toolchain
       # cannot turn into a green run that tested nothing.
       - name: plugin end-to-end tests
-        run: cargo test -p leaf-e2e --test e2e -- --strict --no-tag soak
+        run: cargo test -p leaf-e2e --test e2e -- --strict --no-tag soak --no-tag interop
 
       # What an end-to-end run cannot reach: the host's own tests for the
       # loader and the stream and datagram wrappers, and each plugin's tests --
@@ -95,6 +95,60 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-artifacts-${{ matrix.os }}
+          path: target/debug/e2e-artifacts/
+          if-no-files-found: ignore
+
+  # The reference plugins against the servers people deploy, each built from
+  # source at the revision pinned in leaf-e2e/src/fixtures.rs: anytls-go,
+  # sing-box (stable and its testing branch), mihomo, and the original
+  # shadow-tls. Its own job because the first build of those takes minutes;
+  # the binaries are cached on the pins, so a run that changes none of them
+  # builds nothing.
+  plugin-interop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    env:
+      LEAF_E2E_TIMEOUT_SCALE: 4
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: install rust toolchain
+        uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
+
+      # shadow-tls's own rust-toolchain file asks for a nightly; rustup picks
+      # it up from there once it is installed.
+      - name: install rust nightly for shadow-tls
+        run: rustup toolchain install nightly --profile minimal
+
+      - name: install go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: cache upstream servers
+        uses: actions/cache@v4
+        with:
+          path: target/e2e-upstream/*/bin
+          key: e2e-upstream-${{ matrix.os }}-${{ hashFiles('leaf-e2e/src/fixtures.rs') }}
+
+      - name: interoperability tests
+        run: cargo test -p leaf-e2e --test e2e -- --strict --tag interop
+
+      - name: upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-interop-artifacts-${{ matrix.os }}
           path: target/debug/e2e-artifacts/
           if-no-files-found: ignore
 
@@ -202,7 +256,7 @@ jobs:
           zig version
 
       - name: plugin end-to-end tests
-        run: cargo test -p leaf-e2e --test e2e -- --strict --no-tag soak
+        run: cargo test -p leaf-e2e --test e2e -- --strict --no-tag soak --no-tag interop
 
       - name: plugin and host unit tests
         run: |
