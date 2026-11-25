@@ -10,7 +10,7 @@
 
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
@@ -31,8 +31,35 @@ pub const USER: &str = "e2e";
 pub struct UpstreamServer {
     name: String,
     child: Child,
+    /// The write end of the lifeline; see [`lifeline`].
+    lifeline: Option<ChildStdin>,
     addr: SocketAddr,
     log: PathBuf,
+}
+
+/// Runs the server under a shell that kills it when its stdin ends.
+///
+/// A case runs in a process of its own, and that process does not always
+/// unwind: a plugin that brings the Go runtime down takes it with it, and the
+/// runner kills a case that overruns. `Drop` never runs then, and a server
+/// started with a plain `spawn` outlives the case -- one lost run left dozens
+/// of sing-box and mihomo processes behind. Holding the write end of the
+/// server's stdin instead means the operating system closes it however the
+/// case ends, and the watcher kills the server when it reads the end of file.
+///
+/// The watcher reads a copy of stdin on fd 3, because a background job in a
+/// non-interactive shell has its own stdin pointed at /dev/null. The shell
+/// waits on the server, so it exits when the server does, with its status.
+const LIFELINE: &str = r#"exec 3<&0
+"$@" </dev/null &
+pid=$!
+{ read _ <&3; kill "$pid" 2>/dev/null; } &
+wait "$pid""#;
+
+fn lifeline(program: &std::path::Path) -> Command {
+    let mut cmd = Command::new("sh");
+    cmd.arg("-c").arg(LIFELINE).arg("sh").arg(program);
+    cmd
 }
 
 impl UpstreamServer {
@@ -52,17 +79,19 @@ impl UpstreamServer {
         let log = dir.join(format!("{}.log", name));
         let output =
             std::fs::File::create(&log).with_context(|| format!("creating {}", log.display()))?;
-        let child = Command::new(fixture.path()?)
+        let mut child = lifeline(&fixture.path()?)
             .args(args)
             .current_dir(&dir)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(output.try_clone()?)
             .stderr(output)
             .spawn()
             .with_context(|| format!("starting {} ({})", name, fixture.id()))?;
+        let lifeline = child.stdin.take();
         let mut server = Self {
             name: name.to_string(),
             child,
+            lifeline,
             addr,
             log,
         };
@@ -91,6 +120,16 @@ impl UpstreamServer {
 
 impl Drop for UpstreamServer {
     fn drop(&mut self) {
+        // Ending the lifeline is what stops the server; the shell then exits
+        // with it. Killing the shell alone would leave the server running.
+        drop(self.lifeline.take());
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while std::time::Instant::now() < deadline {
+            if let Ok(Some(_)) = self.child.try_wait() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
