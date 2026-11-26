@@ -136,7 +136,7 @@ inbound-shadowsocks = ["hkdf", "sha-1", "md-5", "tokio-util"]
 inbound-socks = []
 inbound-http = ["http"]
 inbound-hc = []
-inbound-tun = ["tun", "netstack-lwip", "netstack-smoltcp", "pnet_datalink"]
+inbound-tun = ["tun", "pnet_datalink"]
 inbound-ws = ["tungstenite", "tokio-tungstenite", "url", "http"]
 inbound-amux = ["tokio-util"]
 inbound-quic = ["rustls", "rustls-pemfile-old"]
@@ -152,7 +152,7 @@ ctrlc = ["tokio/signal"]
 
 [dependencies]
 # Common
-tokio = { version = "1", features = ["sync", "io-util", "net", "time", "rt", "rt-multi-thread"] }
+tokio = { version = "1", features = ["sync", "io-util", "net", "time", "rt", "rt-multi-thread", "macros"] }
 protobuf = "3.6"
 thiserror = "1.0"
 futures = "0.3"
@@ -271,8 +271,6 @@ notify = { version = "6", optional = true }
 
 # TUN
 tun = { version = "0.7", features = ["async"], optional = true  }
-netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip", rev = "4943435", optional = true }
-netstack-smoltcp = { git = "https://github.com/eycorsican/netstack-smoltcp", branch = "pr-16-initialize-unfilled", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 ipconfig = "0.3"
