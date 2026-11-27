@@ -63,7 +63,9 @@ impl Connection {
         let mut pushed: Option<PushTarget> = None;
 
         if let Some(last) = self.snd.unsent.back() {
-            let mut space = mss.wrapping_sub(last.len().wrapping_add(last.options_len()));
+            // A segment queued while the MSS was larger has no space left,
+            // rather than a wrapped-around amount of it.
+            let mut space = mss.saturating_sub(last.len().saturating_add(last.options_len()));
             oversize = self.snd.oversize;
             if oversize > 0 {
                 pushed = Some(PushTarget::LastUnsent);

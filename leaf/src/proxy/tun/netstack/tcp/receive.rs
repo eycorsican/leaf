@@ -190,6 +190,9 @@ impl Connection {
         }
         if self.snd.unsent.is_empty() {
             self.snd.oversize = 0;
+            // Nothing left for the persist timer to probe; left running, it
+            // would also keep the retransmission timer from ever ticking.
+            self.persist = None;
         }
         self.snd.space = self.snd.space.wrapping_add(rx.acked);
         if let Some(end) = self.rtx.rto_recovery_end {
