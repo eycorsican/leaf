@@ -26,27 +26,12 @@ use crate::proxy::tun::netstack::frag::{Reassembler, ReassemblyLimits};
 use crate::proxy::tun::netstack::ip;
 use crate::proxy::tun::netstack::tcp::TcpEngine;
 
-/// Everything the stack is sized by.
-#[derive(Clone, Copy, Debug)]
+/// Everything the stack is sized by. The packet queues follow from
+/// `limits.memory_budget`.
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Config {
     pub limits: Limits,
     pub reassembly: ReassemblyLimits,
-    /// Packets waiting for the TUN device. Beyond it packets are dropped —
-    /// TCP retransmits them — rather than queued without bound.
-    pub max_output_packets: usize,
-    /// UDP datagrams received and not yet taken by the application.
-    pub max_udp_queue: usize,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            limits: Limits::default(),
-            reassembly: ReassemblyLimits::default(),
-            max_output_packets: 512,
-            max_udp_queue: 256,
-        }
-    }
 }
 
 /// Counters for the memory and loss checks.
@@ -80,12 +65,11 @@ struct Core {
     wakers: HashMap<ConnId, Wakers>,
     accepted: VecDeque<Accepted>,
     accept_waker: Option<Waker>,
-    output: VecDeque<Vec<u8>>,
-    output_bytes: usize,
+    output: Output,
     output_waker: Option<Waker>,
-    output_dropped: u64,
     udp_in: VecDeque<Datagram>,
     udp_in_bytes: usize,
+    udp_in_cap: usize,
     udp_waker: Option<Waker>,
     udp_dropped: u64,
     next_fragment_id: u32,
@@ -98,18 +82,130 @@ struct Core {
 /// One UDP datagram as the application sees it.
 pub type Datagram = (Vec<u8>, SocketAddr, SocketAddr);
 
+/// The memory budget the queues are sized from when there is none.
+const UNBUDGETED: usize = 16 << 20;
+
+/// What each UDP queue may hold, in bytes: a share of the memory budget, and
+/// never less than the largest datagram.
+fn udp_queue_bytes(limits: &Limits) -> usize {
+    (limits.memory_budget.unwrap_or(UNBUDGETED) / 16).max(128 << 10)
+}
+
+/// TCP waiting for the device is bounded by the engine's windows and budget;
+/// this only stops a device that takes nothing from letting retransmissions
+/// pile up for ever.
+fn tcp_backstop_bytes(limits: &Limits) -> usize {
+    (limits.memory_budget.unwrap_or(UNBUDGETED) / 4).max(1 << 20)
+}
+
+/// UDP packets taken in a row while TCP waits.
+const UDP_BURST: u8 = 4;
+
+/// Packets waiting for the TUN device, in two queues. TCP from the engine is
+/// never dropped short of the backstop: dropping a segment stalls its
+/// connection until the retransmission timer fires, and the engine's windows
+/// bound it anyway. UDP is bounded in bytes and kept whole, a datagram's
+/// fragments all queued or none; past the bound the oldest datagrams go,
+/// the freshest being the ones worth sending. UDP goes out first, so
+/// latency-sensitive datagrams do not wait behind a bulk download, but never
+/// more than `UDP_BURST` packets in a row while TCP waits, so a stream of
+/// datagrams cannot starve the acknowledgements TCP runs on.
+struct Output {
+    tcp: VecDeque<Vec<u8>>,
+    tcp_bytes: usize,
+    tcp_cap: usize,
+    udp: VecDeque<VecDeque<Vec<u8>>>,
+    udp_packets: usize,
+    udp_bytes: usize,
+    udp_cap: usize,
+    udp_streak: u8,
+    dropped: u64,
+}
+
+impl Output {
+    fn new(limits: &Limits) -> Self {
+        Output {
+            tcp: VecDeque::new(),
+            tcp_bytes: 0,
+            tcp_cap: tcp_backstop_bytes(limits),
+            udp: VecDeque::new(),
+            udp_packets: 0,
+            udp_bytes: 0,
+            udp_cap: udp_queue_bytes(limits),
+            udp_streak: 0,
+            dropped: 0,
+        }
+    }
+
+    fn push_tcp(&mut self, packet: Vec<u8>) {
+        if self.tcp_bytes + packet.len() > self.tcp_cap {
+            self.dropped += 1;
+            return;
+        }
+        self.tcp_bytes += packet.len();
+        self.tcp.push_back(packet);
+    }
+
+    /// Queues one datagram, as the packets carrying it.
+    fn push_udp(&mut self, packets: Vec<Vec<u8>>) {
+        let bytes: usize = packets.iter().map(Vec::len).sum();
+        if bytes > self.udp_cap {
+            self.dropped += packets.len() as u64;
+            return;
+        }
+        while self.udp_bytes + bytes > self.udp_cap {
+            let Some(oldest) = self.udp.pop_front() else {
+                break;
+            };
+            self.udp_packets -= oldest.len();
+            self.udp_bytes -= oldest.iter().map(Vec::len).sum::<usize>();
+            self.dropped += oldest.len() as u64;
+        }
+        self.udp_packets += packets.len();
+        self.udp_bytes += bytes;
+        self.udp.push_back(packets.into());
+    }
+
+    fn pop(&mut self) -> Option<Vec<u8>> {
+        let udp_turn =
+            !self.udp.is_empty() && (self.tcp.is_empty() || self.udp_streak < UDP_BURST);
+        if udp_turn {
+            let datagram = self.udp.front_mut()?;
+            let packet = datagram.pop_front()?;
+            if datagram.is_empty() {
+                self.udp.pop_front();
+            }
+            self.udp_packets -= 1;
+            self.udp_bytes -= packet.len();
+            self.udp_streak = self.udp_streak.saturating_add(1);
+            return Some(packet);
+        }
+        let packet = self.tcp.pop_front()?;
+        self.tcp_bytes -= packet.len();
+        self.udp_streak = 0;
+        Some(packet)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.tcp.is_empty() && self.udp.is_empty()
+    }
+
+    fn packets(&self) -> usize {
+        self.tcp.len() + self.udp_packets
+    }
+
+    fn bytes(&self) -> usize {
+        self.tcp_bytes + self.udp_bytes
+    }
+}
+
 impl Core {
     /// Moves what the last engine call produced to where it goes, collecting
     /// the wakers to call once the lock is released.
     fn flush(&mut self, wake: &mut Vec<Waker>) {
         self.engine.drain_output(&mut self.scratch_packets);
         for packet in self.scratch_packets.drain(..) {
-            if self.output.len() >= self.config.max_output_packets {
-                self.output_dropped += 1;
-                continue;
-            }
-            self.output_bytes += packet.len();
-            self.output.push_back(packet);
+            self.output.push_tcp(packet);
         }
         if !self.output.is_empty() {
             wake.extend(self.output_waker.take());
@@ -176,9 +272,13 @@ impl Core {
             self.input_ignored += 1;
             return;
         };
-        if self.udp_in.len() >= self.config.max_udp_queue {
+        // Past the bound the oldest go: the freshest are the ones worth having.
+        while self.udp_in_bytes + data.len() > self.udp_in_cap {
+            let Some((oldest, _, _)) = self.udp_in.pop_front() else {
+                break;
+            };
+            self.udp_in_bytes -= oldest.len();
             self.udp_dropped += 1;
-            return;
         }
         let src = SocketAddr::new(view.src, src_port);
         let dst = SocketAddr::new(view.dst, dst_port);
@@ -189,9 +289,9 @@ impl Core {
     fn stats(&self) -> StackStats {
         StackStats {
             engine: self.engine.stats(),
-            output_queued: self.output.len(),
-            output_queued_bytes: self.output_bytes,
-            output_dropped: self.output_dropped,
+            output_queued: self.output.packets(),
+            output_queued_bytes: self.output.bytes(),
+            output_dropped: self.output.dropped,
             udp_queued: self.udp_in.len(),
             udp_queued_bytes: self.udp_in_bytes,
             udp_dropped: self.udp_dropped,
@@ -254,12 +354,11 @@ pub fn new(config: Config) -> (NetStack, TcpListener, UdpSocket) {
         wakers: HashMap::new(),
         accepted: VecDeque::new(),
         accept_waker: None,
-        output: VecDeque::new(),
-        output_bytes: 0,
+        output: Output::new(&config.limits),
         output_waker: None,
-        output_dropped: 0,
         udp_in: VecDeque::new(),
         udp_in_bytes: 0,
+        udp_in_cap: udp_queue_bytes(&config.limits),
         udp_waker: None,
         udp_dropped: 0,
         next_fragment_id: rand::random(),
@@ -389,8 +488,7 @@ impl Stream for PacketStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Vec<u8>>> {
         let mut core = self.shared.core.lock();
-        if let Some(packet) = core.output.pop_front() {
-            core.output_bytes -= packet.len();
+        if let Some(packet) = core.output.pop() {
             return Poll::Ready(Some(packet));
         }
         if core.shut_down {
@@ -590,15 +688,7 @@ impl UdpSendHalf {
             core.next_fragment_id = next_id;
             let result = match built {
                 Ok(()) => {
-                    // All fragments or none: a partial datagram is useless.
-                    if core.output.len() + packets.len() > core.config.max_output_packets {
-                        core.output_dropped += packets.len() as u64;
-                        packets.clear();
-                    }
-                    for packet in packets.drain(..) {
-                        core.output_bytes += packet.len();
-                        core.output.push_back(packet);
-                    }
+                    core.output.push_udp(std::mem::take(&mut packets));
                     Ok(())
                 }
                 Err(e) => {
@@ -641,5 +731,89 @@ impl Stream for UdpRecvHalf {
         }
         core.udp_waker = Some(cx.waker().clone());
         Poll::Pending
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn limits(budget: usize) -> Limits {
+        Limits {
+            memory_budget: Some(budget),
+            ..Limits::default()
+        }
+    }
+
+    fn tagged(tag: u8, len: usize) -> Vec<u8> {
+        vec![tag; len]
+    }
+
+    /// UDP goes first, but TCP is served after every `UDP_BURST` datagram
+    /// packets while it waits, and alone once UDP is out.
+    #[test]
+    fn udp_goes_first_without_starving_tcp() {
+        let mut out = Output::new(&limits(16 << 20));
+        for _ in 0..3 {
+            out.push_tcp(tagged(b't', 100));
+        }
+        for _ in 0..10 {
+            out.push_udp(vec![tagged(b'u', 100)]);
+        }
+        let order: String = std::iter::from_fn(|| out.pop())
+            .map(|p| char::from(p[0]))
+            .collect();
+        assert_eq!(order, "uuuutuuuutuut");
+        assert!(out.is_empty());
+
+        // UDP alone for as long as it lasts, then TCP straight away.
+        for _ in 0..1000 {
+            out.push_udp(vec![tagged(b'u', 100)]);
+        }
+        for _ in 0..1000 {
+            assert_eq!(out.pop().unwrap()[0], b'u');
+        }
+        out.push_tcp(tagged(b't', 100));
+        out.push_udp(vec![tagged(b'u', 100)]);
+        assert_eq!(out.pop().unwrap()[0], b't');
+        assert_eq!(out.pop().unwrap()[0], b'u');
+        assert_eq!((out.packets(), out.bytes()), (0, 0));
+    }
+
+    /// Past its bound the UDP queue drops whole datagrams, oldest first, and
+    /// a datagram that could never fit is refused outright.
+    #[test]
+    fn udp_drops_the_oldest_datagrams_whole() {
+        let mut out = Output::new(&limits(2 << 20));
+        let cap = udp_queue_bytes(&limits(2 << 20));
+        assert_eq!(cap, 128 << 10);
+        let fragments = |tag: u8| vec![tagged(tag, 1500); 30];
+        out.push_udp(fragments(1));
+        out.push_udp(fragments(2));
+        assert_eq!((out.packets(), out.dropped), (60, 0));
+        out.push_udp(fragments(3));
+        assert_eq!(
+            (out.packets(), out.dropped),
+            (60, 30),
+            "the first went, all of it"
+        );
+        let first = out.pop().unwrap();
+        assert_eq!(first[0], 2);
+        out.push_udp(vec![tagged(9, 100); (cap / 100) + 1]);
+        assert_eq!(out.dropped, 30 + (cap as u64 / 100) + 1);
+    }
+
+    /// TCP queues past any count of packets; only the backstop stops it.
+    #[test]
+    fn tcp_is_held_up_to_the_backstop() {
+        let mut out = Output::new(&limits(4 << 20));
+        let backstop = tcp_backstop_bytes(&limits(4 << 20));
+        let segments = backstop / 1500;
+        for _ in 0..segments {
+            out.push_tcp(tagged(0, 1500));
+        }
+        assert_eq!((out.packets(), out.dropped), (segments, 0));
+        out.push_tcp(tagged(0, 1500));
+        assert_eq!(out.dropped, 1);
     }
 }

@@ -172,11 +172,7 @@ fn new_netstack(
     tun: tun::AsyncDevice,
     mtu: Option<usize>,
 ) -> Result<Runner> {
-    let mut config = netstack::Config {
-        max_output_packets: *crate::option::NETSTACK_OUTPUT_CHANNEL_SIZE,
-        max_udp_queue: *crate::option::NETSTACK_UDP_UPLINK_CHANNEL_SIZE,
-        ..Default::default()
-    };
+    let mut config = netstack::Config::default();
     if let Some(mtu) = mtu {
         config.limits.mtu = mtu;
     }
